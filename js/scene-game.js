@@ -314,15 +314,19 @@ class GameScene extends Phaser.Scene {
           break;
         case SLOT.RELIC:
           if (this.weapon.takeRelic()) this.announceRelic(this.weapon.relic);
-          else { this.armor = Math.min(CFG.armor.max, this.armor + CFG.armor.perItem); this.popup('방어 ' + this.armor + '%', '#b0bec5'); }
+          else { this.armor = Math.min(CFG.armor.max, this.armor + CFG.armor.perItem); this.popup('방어 ' + Math.round(this.armor) + '%', '#b0bec5'); }
           break;
         case SLOT.ARMOR:
           this.armor = Math.min(CFG.armor.max, this.armor + CFG.armor.perItem);
-          this.popup('방어 ' + this.armor + '%', '#b0bec5');
+          this.popup('방어 ' + Math.round(this.armor) + '%', '#b0bec5');
+          break;
+        case SLOT.HASTE:
+          this.weapon.addHaste();
+          this.popupSpeed();
           break;
         case SLOT.DOUBLE:
           this.weapon.addDouble();
-          this.popup('공격 속도 ×' + this.weapon.mult, '#4fc3f7');
+          this.popupSpeed();
           break;
         case SLOT.UPGRADE:
           if (this.weapon.upgrade()) this.popup(this.weapon.name, '#ff8a65');
@@ -664,8 +668,14 @@ class GameScene extends Phaser.Scene {
     const taken = Math.max(1, Math.round(amount * (1 - this.armor / 100)));
     const blocked = Math.max(0, amount - taken);
     this.hp -= taken;
+
+    // 막아 낸 만큼 갑옷이 갈립니다. 방어력은 한 번 올려두면 끝인 값이 아니라
+    // 계속 채워 넣어야 하는 소모품입니다. 층이 오르면 적의 공격력도 같이 오르니
+    // 닳는 속도도 저절로 빨라집니다.
+    const worn = this.wearArmor(blocked);
+
     this.cameras.main.shake(140, 0.008);
-    this.popupHit(taken, blocked);
+    this.popupHit(taken, blocked, worn);
     this.tweens.add({ targets: this.player, alpha: 0.3, duration: 90, yoyo: true, repeat: 3 });
     if (this.hp <= 0) this.gameOver();
   }
@@ -720,12 +730,33 @@ class GameScene extends Phaser.Scene {
 
   // 맞을 때마다 "방어가 얼마나 막았는지"를 같이 보여 줍니다.
   // 방어력이 숫자로만 있으면 올려도 올린 값을 체감하기 어렵습니다.
-  popupHit(taken, blocked) {
+  // 속도는 더해져서 한계에서 잘립니다. 잘렸다면 그 사실을 그 자리에서 알려 줘야
+  // 다음에 속을 보고 "저건 이제 헛것"이라고 판단할 수 있습니다.
+  popupSpeed() {
+    const w = this.weapon;
+    this.popup('공격 속도 ×' + w.speedMult.toFixed(2) + (w.speedCapped ? ' (한계)' : ''),
+      w.speedCapped ? '#ffb74d' : '#4fc3f7');
+  }
+
+  // 막아 낸 피해에 비례해 방어력을 깎습니다. 실제로 깎인 만큼(%)을 돌려줍니다.
+  // 표시용 정수와 속내 실수가 어긋나지 않도록, 깎인 값도 화면에 쓰는 정수로 셉니다.
+  wearArmor(blocked) {
+    if (!this.job.usesArmor || this.armor <= 0) return 0;
+    const before = Math.round(this.armor);
+    this.armor = Math.max(0,
+      this.armor - CFG.armor.wearPerHit - blocked * CFG.armor.wearPerDamage);
+    return before - Math.round(this.armor);
+  }
+
+  popupHit(taken, blocked, worn) {
     this.popup('-' + taken, '#ff8a80');
     if (blocked <= 0) return;
 
-    const t = this.add.text(this.player.x, this.player.y - 22, '방어 ' + blocked + ' 막음', {
-      fontFamily: 'sans-serif', fontSize: '19px', color: '#b0bec5',
+    // 막은 값과 그 대가로 갈린 갑옷을 한 줄에 같이 보여 줍니다.
+    // 막았다는 것만 보이고 닳는 것이 안 보이면, 방어력이 왜 줄어드는지 알 수 없습니다.
+    const label = '방어 ' + blocked + ' 막음' + (worn ? '   갑옷 -' + worn + '%' : '');
+    const t = this.add.text(this.player.x, this.player.y - 22, label, {
+      fontFamily: 'sans-serif', fontSize: '19px', color: worn ? '#ffab91' : '#b0bec5',
     }).setOrigin(0.5).setDepth(120);
     this.tweens.add({ targets: t, y: t.y - 42, alpha: 0, duration: 800, onComplete: () => t.destroy() });
   }
@@ -836,12 +867,16 @@ class GameScene extends Phaser.Scene {
   }
 
   // 도감에서 뽑힌 무기를 사람이 읽을 이름으로. 단계는 직업의 무기표에서 찾습니다.
+  // 속도는 속과 ×2가 섞인 결과를 하나로 합쳐 보여 줍니다 — 뽑기를 보고
+  // 고르는 것이므로, 쌓인 개수보다 "얼마나 빠른가"가 바로 읽혀야 합니다.
   carryName(carry) {
     const table = this.job.weapons;
     const base = table[Math.min(table.length - 1, carry.tier)];
+    const speed = Math.min(CFG.speedCapBase,
+      (1 + (carry.haste || 0) * CFG.hasteStep) * carry.mult);
     return base.name +
       (carry.plus ? ' +' + carry.plus : '') +
-      (carry.mult > 1 ? ' ×' + carry.mult : '');
+      (speed > 1.001 ? ' ×' + speed.toFixed(2) : '');
   }
 
   // ── 매 프레임 ─────────────────────────────────────────

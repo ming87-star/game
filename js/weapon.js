@@ -1,18 +1,22 @@
 // 무기 한 자루의 상태. 무기표는 직업이 들고 옵니다.
 //
-// 단계(tier)와 강화(+1, ×2)가 따로 놉니다.
+// 단계(tier)와 강화(+1, 속, ×2)가 따로 놉니다.
 //   +1  공격력을 올림
-//   ×2  공격 속도 두 배
+//   속  공격 속도를 올림 (더하기)
+//   ×2  공격 속도 두 배 — 귀합니다
 //   UP  다음 단계로. 대신 강화는 전부 초기화
 //
 // 유물(relic)은 강화가 아닙니다. 한 판에 한 번 나올까 말까 한 물건이고,
 // UP을 먹어도 사라지지 않습니다.
+// 속도 한계(capBonus)도 강화가 아닙니다 — 메달로 산 것이라 판 내내 남습니다.
 class Weapon {
   constructor(job) {
     this.job = job;
     this.tier = 0;
     this.plus = 0;
+    this.haste = 0;
     this.mult = 1;
+    this.capBonus = 0;
     this.relic = null;
   }
 
@@ -24,7 +28,16 @@ class Weapon {
   // 도적은 +1 하나가 절반 값입니다 (job.plusScale).
   get plusValue() { return this.plus * (this.job.plusScale || 1); }
   get dmg() { return Math.round(this.base.dmg * (1 + this.plusValue * CFG.plusStep)); }
-  get rate() { return this.base.rate / this.mult; }
+
+  // ── 공격 속도 ─────────────────────────────────────────
+  // 속은 더하기, ×2는 곱하기. 둘을 합친 값이 한계에서 잘립니다.
+  get speedCap() { return CFG.speedCapBase + this.capBonus; }
+  get rawSpeed() { return (1 + this.haste * CFG.hasteStep) * this.mult; }
+  get speedMult() { return Math.min(this.speedCap, this.rawSpeed); }
+  // 한계에 닿았으면 그 뒤로 줍는 속은 헛것입니다. 화면에 그렇다고 적어 줘야 합니다.
+  get speedCapped() { return this.rawSpeed >= this.speedCap; }
+
+  get rate() { return this.base.rate / this.speedMult; }
 
   // 근접 — 이 거리 안의 적을 한 번에 모두 벱니다.
   get reach() {
@@ -51,7 +64,9 @@ class Weapon {
 
   addPlus() { this.plus++; }
 
-  // 두 배가 계속 겹치면 지수로 늘어나 손쓸 수 없게 됩니다. 상한을 둡니다.
+  addHaste() { this.haste++; }
+
+  // ×2는 겹치지 않습니다. 한 번으로 이미 한계까지 밀어 올리기 때문입니다.
   addDouble() { this.mult = Math.min(CFG.maxMult, this.mult * 2); }
 
   takeRelic() {
@@ -63,16 +78,20 @@ class Weapon {
   // 지금 상태를 도감에 남깁니다. 죽을 때 여기서 하나를 뽑아 계승합니다.
   // 단계를 갈아탈 때와 죽을 때 부르면 각 단계의 "마지막 상태"가 모입니다.
   record() {
-    Save.recordWeapon(this.job.key, this.tier, this.plus, this.mult);
+    Save.recordWeapon(this.job.key, this.tier, this.plus, this.mult, this.haste);
   }
 
-  // 다음 단계로. 강화는 잃지만 유물은 남습니다.
+  // 다음 단계로. 공격력 강화는 잃지만 공격 속도는 남습니다.
+  //
+  // 속도를 같이 지우면 25층마다 한 번씩 원점으로 돌아가서, 속을 아무리 주워도
+  // ×1.3 언저리를 맴돕니다. 그러면 한계도 그것을 미는 메달도 뜻이 없어집니다.
+  // 속도는 칼날이 아니라 손에 붙는 것으로 봅니다 — 무기를 바꿔도 남습니다.
+  // 유물과 속도 한계도 같은 이유로 남습니다.
   upgrade() {
     if (this.atMaxTier) return false;
     this.record(); // 두고 가는 무기를 도감에 남기고 올라갑니다
     this.tier++;
     this.plus = 0;
-    this.mult = 1;
     return true;
   }
 }

@@ -16,7 +16,7 @@ const SHOP_LAYOUT = {
 
 const SHOP_ITEMS = {
   plus:    { title: '공격력 +1',    desc: '지금 무기의 공격력을 올립니다' },
-  double:  { title: '공격 속도 ×2', desc: '휘두르는 속도가 두 배' },
+  haste:   { title: '공격 속도 +',  desc: '휘두르는 속도가 조금 빨라집니다' },
   upgrade: { title: '다음 무기',     desc: '강화는 초기화됩니다' },
   heal:    { title: '체력 회복',     desc: '체력을 가득 채웁니다' },
   maxhp:   { title: '최대 체력 +' + CFG.shop.maxhpGain, desc: '최대치가 늘고 그만큼 회복합니다' },
@@ -43,7 +43,8 @@ class Shop {
     if (!this.scene.weapon.atMaxTier) picked.push('upgrade');
 
     // 갑옷을 안 입는 직업에게는 방어구를 팔지 않습니다.
-    const rest = ['plus', 'double', 'heal', 'maxhp'];
+    // ×2는 상점에서 팔지 않습니다. 지도에서 아주 드물게만 나오는 물건으로 남깁니다.
+    const rest = ['plus', 'haste', 'heal', 'maxhp'];
     if (this.scene.job.usesArmor) rest.push('armor');
     while (picked.length < CFG.shop.offers && rest.length) {
       picked.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
@@ -125,7 +126,7 @@ class Shop {
 
     switch (offer.key) {
       case 'plus': s.weapon.addPlus(); break;
-      case 'double': s.weapon.addDouble(); break;
+      case 'haste': s.weapon.addHaste(); break;
       case 'upgrade': s.weapon.upgrade(); break;
       case 'heal': s.hp = s.maxHp; break;
       case 'maxhp':
@@ -159,9 +160,13 @@ class Shop {
 
       // 다음 무기는 쌓아둔 강화를 지웁니다. 한 자리에서 여러 개를 사는 상점에서는
       // 이게 안 보이면 방금 산 강화가 조용히 사라집니다. 잃을 것을 그대로 적어 둡니다.
-      if (offer.key === 'upgrade') {
+      // 속도가 이미 한계라면 사도 헛돈입니다. 사기 전에 알려 줘야 합니다.
+      if (offer.key === 'haste' && s.weapon.speedCapped) {
+        desc.setText('공격 속도가 이미 한계입니다').setColor('#ff8a80');
+      } else if (offer.key === 'upgrade') {
         const w = s.weapon;
-        const stack = (w.plus ? '+' + w.plus : '') + (w.plus && w.mult > 1 ? ' ' : '') + (w.mult > 1 ? '×' + w.mult : '');
+        // 잃는 것은 공격력 강화뿐입니다. 공격 속도는 무기를 바꿔도 남습니다.
+        const stack = w.plus ? '+' + w.plus : '';
         if (stack) {
           desc.setText('지금 강화를 잃습니다   ' + stack).setColor(can ? '#ff8a80' : '#6b7599');
         } else {

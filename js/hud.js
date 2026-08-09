@@ -75,8 +75,11 @@ class Hud {
     // 방어력은 체력바에 붙은 띠로 보여 줍니다. 가득 차면 CFG.armor.max 입니다.
     // 갑옷을 안 입는 직업은 그 자리에 회피를 보여 줍니다.
     if (s.job.usesArmor) {
+      // 방어력은 막을 때마다 조금씩 닳습니다. 띠가 눈에 띄게 줄어들어야
+      // "채워 넣어야 하는 것"으로 읽힙니다.
       this.armorBar.width = 234 * Math.min(1, s.armor / CFG.armor.max);
-      this.armorText.setText('방어 ' + s.armor + '%');
+      this.armorBar.fillColor = s.armor > 25 ? 0xb0bec5 : 0xff8a65;
+      this.armorText.setText('방어 ' + Math.round(s.armor) + '%');
     } else {
       this.armorBar.width = 234 * s.job.dodge;
       this.armorBar.fillColor = 0xce93d8;
@@ -97,7 +100,13 @@ class Hud {
     this.plusText.setText(shown ? '+' + shown : '').setX(x);
     if (shown) x += this.plusText.width + 8;
 
-    this.multText.setText(w.mult > 1 ? '×' + w.mult : '').setX(x);
+    // 속도는 속(더하기)과 ×2(곱하기)가 섞여서 한계에서 잘립니다. 그래서 쌓은
+    // 개수가 아니라 합쳐진 결과를 그대로 보여 줍니다. 한계에 닿았으면 그렇다고
+    // 적어 줘야, 다음에 속을 보고 그냥 지나칠지 판단할 수 있습니다.
+    const speed = w.speedMult;
+    this.multText.setText(speed > 1.001 ? '×' + speed.toFixed(2) + (w.speedCapped ? ' 한계' : '') : '')
+      .setColor(w.speedCapped ? '#ffb74d' : '#4fc3f7')
+      .setX(x);
 
     this.relicText.setText(w.relic ? '★ ' + w.relic.name : '');
   }

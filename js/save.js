@@ -75,12 +75,14 @@ const Save = {
   // 들었던 무기를 단계별로 기록합니다. 같은 단계를 다시 들었을 때는
   // 더 좋았던 쪽만 남깁니다 — "최종 업그레이드 상태"가 그 뜻입니다.
   // 좋고 나쁨은 공격력×속도로 견줍니다.
-  recordWeapon(jobKey, tier, plus, mult) {
+  recordWeapon(jobKey, tier, plus, mult, haste) {
     const book = this.data.weapons[jobKey] || (this.data.weapons[jobKey] = {});
     const old = book[tier];
-    const worth = (s) => (1 + s.plus * CFG.plusStep) * s.mult;
-    if (!old || worth({ plus, mult }) > worth(old)) {
-      book[tier] = { plus, mult };
+    // 예전 저장에는 haste 칸이 없으므로 0으로 봅니다.
+    const worth = (s) =>
+      (1 + s.plus * CFG.plusStep) * (1 + (s.haste || 0) * CFG.hasteStep) * s.mult;
+    if (!old || worth({ plus, mult, haste }) > worth(old)) {
+      book[tier] = { plus, mult, haste };
       this.flush();
     }
   },
@@ -91,7 +93,8 @@ const Save = {
     const tiers = book ? Object.keys(book) : [];
     if (!tiers.length) return null;
     const tier = tiers[Math.floor(Math.random() * tiers.length)];
-    return { tier: Number(tier), plus: book[tier].plus, mult: book[tier].mult };
+    const w = book[tier];
+    return { tier: Number(tier), plus: w.plus, mult: w.mult, haste: w.haste || 0 };
   },
 
   // ── 다음 판에 들고 갈 것 ──────────────────────────────

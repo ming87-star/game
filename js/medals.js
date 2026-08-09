@@ -24,8 +24,16 @@ const MEDAL_ITEMS = [
     title: '벼려둔 날', desc: '무기에 +1 강화 셋을 붙이고 시작합니다',
   },
   {
-    key: 'double', price: 3,
-    title: '가벼운 손', desc: '공격 속도 ×2로 시작합니다',
+    key: 'haste', price: 2,
+    title: '가벼운 손', desc: '공격 속도 강화 넷을 붙이고 시작합니다',
+  },
+  {
+    // 공격 속도에는 한계가 있습니다. 그 한계를 미는 것은 메달로만 됩니다 —
+    // 지도에서 아무리 주워도 넘지 못하는 선이라, 이 물건이 값어치를 갖습니다.
+    key: 'speedcap', price: 3,
+    title: '풀린 손목',
+    desc: '공격 속도 한계가 ×' + CFG.speedCapBase.toFixed(1) +
+      ' → ×' + (CFG.speedCapBase + CFG.speedCapBonus).toFixed(1),
   },
   {
     key: 'tier', price: 4,
@@ -58,13 +66,20 @@ function applyBoosts(scene, boosts) {
     applied.push('방어 +12%');
   }
 
-  // 무기 계승이 먼저입니다. 단계를 갈아 끼운 뒤에 강화를 얹어야
-  // 얹은 강화가 초기화되지 않습니다 (UP은 +1과 ×2를 지웁니다).
+  // 속도 한계부터 올립니다. 아래에서 붙이는 속도 강화가 옛 한계에 잘리지 않도록.
+  if (boosts.speedcap) {
+    scene.weapon.capBonus = CFG.speedCapBonus;
+    applied.push('속도 한계 ×' + scene.weapon.speedCap.toFixed(1));
+  }
+
+  // 무기 계승이 그다음입니다. 단계를 갈아 끼운 뒤에 강화를 얹어야
+  // 얹은 강화가 초기화되지 않습니다 (UP은 +1과 속도를 지웁니다).
   if (boosts.weapon) {
     const w = boosts.weapon;
     scene.weapon.tier = Math.min(scene.weapon.table.length - 1, w.tier);
     scene.weapon.plus = w.plus;
     scene.weapon.mult = w.mult;
+    scene.weapon.haste = w.haste || 0;
     applied.push('계승  ' + scene.weapon.name);
   } else if (boosts.tier) {
     scene.weapon.upgrade();
@@ -75,9 +90,9 @@ function applyBoosts(scene, boosts) {
     for (let i = 0; i < 3; i++) scene.weapon.addPlus();
     applied.push('+1 ×3');
   }
-  if (boosts.double) {
-    scene.weapon.addDouble();
-    applied.push('공격 속도 ×' + scene.weapon.mult);
+  if (boosts.haste) {
+    for (let i = 0; i < 4; i++) scene.weapon.addHaste();
+    applied.push('공격 속도 ×' + scene.weapon.speedMult.toFixed(2));
   }
 
   return applied;

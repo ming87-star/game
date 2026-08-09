@@ -87,7 +87,8 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
       floor: s.floorIndex, hp: Math.round(s.hp), maxHp: s.maxHp,
       kills: s.kills, coins: s.coins, totalCoins: s.totalCoins,
       job: s.job.name, relic: s.weapon.relic ? s.weapon.relic.name : null,
-      weapon: s.weapon.name, plus: Number(s.weapon.plusValue.toFixed(1)), mult: s.weapon.mult,
+      weapon: s.weapon.name, plus: Number(s.weapon.plusValue.toFixed(1)),
+      speed: Number(s.weapon.speedMult.toFixed(2)), capped: s.weapon.speedCapped,
       dmg: s.weapon.dmg, reach: Math.round(s.weapon.reach), shots: s.weapon.shots,
       // UP이 실제로 이득인지. 강화를 잃고도 화력이 오르는가로 판단합니다.
       upWorth: (() => {
@@ -98,7 +99,7 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
         const power = (t) => t.dmg / t.rate * (1 + (t.reach || 0) / 400) * (t.shots || 1);
         return power(next) > power({ dmg: w.dmg, rate: w.rate, reach: w.reach, shots: w.shots });
       })(),
-      armor: s.armor,
+      armor: Math.round(s.armor),
       lane: s.lane,
       // 사거리 안에 남아 있는 적 — 싸움을 끝내고 갈지 판단하는 데 씁니다.
       // 근접이면 사거리 안, 원거리면 어차피 멈출 필요가 없으므로 0.
@@ -118,7 +119,8 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
   const rank = (kind, s) => {
     if (kind === null) return -1;
     if (kind === 'heal') return s.hp < s.maxHp * 0.6 ? 6 : 1;
-    if (kind === 'double') return 5;
+    if (kind === 'double') return s.capped ? 1 : 8;
+    if (kind === 'haste') return s.capped ? 1 : 5;
     if (kind === 'upgrade') return s.upWorth ? 4 : 1;
     if (kind === 'armor') return s.armor < 40 ? 4 : 2;
     if (kind === 'medal') return 9; // 판을 넘어 남는 유일한 것. 무조건 집습니다
@@ -186,7 +188,7 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
     if (i % 10 === 9) {
       const t = await read();
       log.push(`${String(t.floor).padStart(3)}층  HP ${t.hp}/${t.maxHp}  적 ${t.enemies}  처치 ${t.kills}  코인 ${t.coins}` +
-        `  방어 ${t.armor}%  ${t.weapon}${t.plus ? ' +' + t.plus : ''}${t.mult > 1 ? ' ×' + t.mult : ''}` +
+        `  방어 ${t.armor}%  ${t.weapon}${t.plus ? ' +' + t.plus : ''}${t.speed > 1 ? ' ×' + t.speed + (t.capped ? '한계' : '') : ''}` +
         `  (공격력 ${t.dmg}${t.reach ? ' · 사거리 ' + t.reach : ' · ' + t.shots + '발'})${t.relic ? ' ★' + t.relic : ''}`);
     }
     if (i === 24) await shot(page, '03-combat.png');

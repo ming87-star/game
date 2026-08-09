@@ -7,7 +7,8 @@ const SLOT = {
   ENEMY: 'enemy',
   HEAL: 'heal',
   PLUS: 'plus',       // +1  현재 무기 공격력 상승
-  DOUBLE: 'double',   // ×2  공격 속도 두 배
+  HASTE: 'haste',     // 속  공격 속도 상승 (더하기)
+  DOUBLE: 'double',   // ×2  공격 속도 두 배. 아주 귀합니다
   ARMOR: 'armor',     // 방  받는 피해 감소
   UPGRADE: 'upgrade', // UP  다음 단계 무기 (강화는 초기화)
   RELIC: 'relic',     // ★  직업 유물. 한 판에 하나뿐
@@ -16,12 +17,13 @@ const SLOT = {
 };
 
 // 시간이 지나면 사라지는 것들. 상점과 적은 해당하지 않습니다.
-const ITEM_KINDS = new Set([SLOT.PLUS, SLOT.DOUBLE, SLOT.UPGRADE, SLOT.HEAL, SLOT.ARMOR, SLOT.RELIC, SLOT.MEDAL]);
+const ITEM_KINDS = new Set([SLOT.PLUS, SLOT.HASTE, SLOT.DOUBLE, SLOT.UPGRADE, SLOT.HEAL, SLOT.ARMOR, SLOT.RELIC, SLOT.MEDAL]);
 
 // 발판 위에 띄울 표시. 나중에 아이템 그림이 나오면 여기만 바꾸면 됩니다.
 const SLOT_MARK = {
   [SLOT.PLUS]:    { label: '+1', color: 0xffd54f, text: '#3e2723' },
-  [SLOT.DOUBLE]:  { label: '×2', color: 0x4fc3f7, text: '#01579b' },
+  [SLOT.HASTE]:   { label: '속', color: 0x4fc3f7, text: '#01579b' },
+  [SLOT.DOUBLE]:  { label: '×2', color: 0x00e5ff, text: '#006064' },
   [SLOT.UPGRADE]: { label: 'UP', color: 0xff8a65, text: '#3e2723' },
   [SLOT.HEAL]:    { label: '＋', color: 0x66bb6a, text: '#1b5e20' },
   [SLOT.ARMOR]:   { label: '방', color: 0x90a4ae, text: '#263238' },
@@ -90,6 +92,7 @@ function pickKind(index, need, usesArmor = true) {
   // 뒤에 두면 앞의 확률을 만질 때마다 같이 흔들려서 눈에 띄게 해 둡니다.
   if (r < (acc += c.medal)) return SLOT.MEDAL;
   if (r < (acc += c.plus)) return SLOT.PLUS;
+  if (r < (acc += c.haste)) return SLOT.HASTE;
   if (r < (acc += healChance(need))) return SLOT.HEAL;
   if (usesArmor && r < (acc += c.armor)) return SLOT.ARMOR;
   if (r < (acc += c.double)) return SLOT.DOUBLE;

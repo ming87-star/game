@@ -31,7 +31,7 @@ const ROUNDS = Number(process.argv[2]) || 400;
 const HP_RATIO = process.argv[3] === undefined ? 1 : Number(process.argv[3]);
 
 const TOP = 200;
-const ITEMS = ['plus', 'heal', 'upgrade', 'double'];
+const ITEMS = ['plus', 'haste', 'heal', 'armor', 'upgrade', 'double'];
 const BANDS = [[1, 30], [30, 70], [70, 120], [120, 200]];
 
 const NEED = healNeedFrom(HP_RATIO, 1);
@@ -68,14 +68,14 @@ const pct = (n, d) => ((n || 0) / d * 100).toFixed(1).padStart(5) + '%';
 
 console.log(`${ROUNDS}판 × ${TOP}층 · 체력 ${Math.round(HP_RATIO * 100)}% 상태 기준\n`);
 console.log('한 층에 올라섰을 때 그것을 마주칠 확률 (길 중 하나라도)\n');
-console.log('  구간        아이템    +1     회복     UP     ×2     적    아이템둘이상');
+console.log('  구간        아이템    +1      속     방     회복     UP     ×2     적    아이템둘이상');
 
 for (const [b, [from, to]] of BANDS.entries()) {
   const s = bandStats[b];
   const anyItem = ITEMS.reduce((a, k) => a + (s.has[k] || 0), 0);
   console.log(
     `  ${String(from).padStart(3)}~${String(to).padStart(3)}층  ` +
-    [anyItem, s.has.plus, s.has.heal, s.has.upgrade, s.has.double, s.has.enemy]
+    [anyItem, s.has.plus, s.has.haste, s.has.armor, s.has.heal, s.has.upgrade, s.has.double, s.has.enemy]
       .map((n) => pct(n, s.floors)).join(' ') + '   ' + pct(s.twoItems, s.floors));
 }
 
