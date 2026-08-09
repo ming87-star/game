@@ -55,17 +55,21 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
       floor: s.floorIndex, hp: Math.round(s.hp), maxHp: s.maxHp,
       kills: s.kills, coins: s.coins, totalCoins: s.totalCoins,
       weapon: s.weapon.name, plus: s.weapon.plus, mult: s.weapon.mult,
-      dmg: s.weapon.dmg, shots: s.weapon.shots,
+      dmg: s.weapon.dmg, reach: s.weapon.reach, sub: s.weapon.hasSub,
       // UP이 실제로 이득인지. 강화를 잃고도 화력이 오르는가로 판단합니다.
       upWorth: (() => {
         const w = s.weapon, next = CFG.weapons[w.tier + 1];
         if (!next) return false;
-        // 발사체는 서로 다른 적에게 날아갑니다. 단단한 적 하나를 상대할 때는
-        // 4발이 4배가 아니므로, 두 번째 발부터는 절반 값으로 셉니다.
-        const power = (dmg, shots, rate) => dmg / rate * (1 + (shots - 1) * 0.5);
-        return power(next.dmg, next.shots, next.rate) > power(w.dmg, w.shots, w.rate);
+        // 근접은 사거리 안을 한 번에 벱니다. 화력은 공격력 ÷ 주기,
+        // 거기에 사거리가 넓을수록 한 번에 더 많이 맞는 것을 얹어 봅니다.
+        const power = (dmg, rate, reach) => dmg / rate * (1 + reach / 400);
+        return power(next.dmg, next.rate, next.reach) > power(w.dmg, w.rate, w.reach);
       })(),
+      armor: s.armor,
       lane: s.lane,
+      // 사거리 안에 남아 있는 적 — 싸움을 끝내고 갈지 판단하는 데 씁니다.
+      inReach: s.enemies.getChildren().filter((e) => e.active &&
+        Phaser.Math.Distance.Between(e.x, e.y, s.player.x, s.player.y) <= s.weapon.reach).length,
       enemies: s.enemies.countActive(), dead: s.dead, shopOpen: s.shop.open,
       score: s.score(),
       kinds,
@@ -80,9 +84,12 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
     if (kind === 'heal') return s.hp < s.maxHp * 0.6 ? 6 : 1;
     if (kind === 'double') return 5;
     if (kind === 'upgrade') return s.upWorth ? 4 : 1;
+    if (kind === 'armor') return s.armor < 40 ? 4 : 2;
     if (kind === 'plus') return 3;
     if (kind === 'empty') return 2;
-    return 0; // enemy
+    // 적 발판은 코인이 궁할 때 골라 갑니다. 땅에 붙은 적은 피하면 그만이라,
+    // 늘 피하는 플레이어로 재면 전투가 통째로 빠진 채 밸런스를 보게 됩니다.
+    return s.coins < 130 ? 2.5 : 0.5;
   };
 
   // 상점 버튼을 실제 좌표로 눌러서 UI가 입력을 받는지까지 확인합니다.
@@ -125,11 +132,21 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
     await page.mouse.click(...at(dir < 0 ? 90 : dir > 0 ? 450 : 270, 620));
     await page.waitForTimeout(560);
 
+    // 근접이라 발판에 올라선 채로 싸웁니다. 기계적으로 계속 올라가면
+    // 몇 대 치다 떠나 버려서 아무것도 못 잡습니다 — 사람은 그렇게 놀지 않습니다.
+    // 발 앞에 적이 남아 있으면 정리될 때까지 (또는 체력이 위험해질 때까지) 버팁니다.
+    for (let waited = 0; waited < 2400; waited += 200) {
+      const t = await read();
+      if (!t || t.dead || t.shopOpen || !t.inReach) break;
+      if (t.hp < t.maxHp * 0.3) break; // 위험하면 두고 도망칩니다
+      await page.waitForTimeout(200);
+    }
+
     if (i % 10 === 9) {
       const t = await read();
       log.push(`${String(t.floor).padStart(3)}층  HP ${t.hp}/${t.maxHp}  적 ${t.enemies}  처치 ${t.kills}  코인 ${t.coins}` +
-        `  ${t.weapon}${t.plus ? ' +' + t.plus : ''}${t.mult > 1 ? ' ×' + t.mult : ''}` +
-        `  (공격력 ${t.dmg} · ${t.shots}발)`);
+        `  방어 ${t.armor}%  ${t.weapon}${t.plus ? ' +' + t.plus : ''}${t.mult > 1 ? ' ×' + t.mult : ''}` +
+        `  (공격력 ${t.dmg} · 사거리 ${t.reach}${t.sub ? ' · 보조' : ''})`);
     }
     if (i === 24) await shot(page, '03-combat.png');
   }

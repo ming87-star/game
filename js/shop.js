@@ -14,10 +14,11 @@ const SHOP_LAYOUT = {
 
 const SHOP_ITEMS = {
   plus:    { title: '공격력 +1',    desc: '지금 무기의 공격력을 올립니다' },
-  double:  { title: '발사체 ×2',    desc: '한 번에 나가는 수가 두 배' },
+  double:  { title: '공격 속도 ×2', desc: '휘두르는 속도가 두 배' },
   upgrade: { title: '다음 무기',     desc: '강화는 초기화됩니다' },
   heal:    { title: '체력 회복',     desc: '체력을 가득 채웁니다' },
   maxhp:   { title: '최대 체력 +' + CFG.shop.maxhpGain, desc: '최대치가 늘고 그만큼 회복합니다' },
+  armor:   { title: '방어구 +' + CFG.armor.shopGain + '%', desc: '받는 피해가 그만큼 줄어듭니다' },
 };
 
 class Shop {
@@ -39,7 +40,7 @@ class Shop {
     const picked = [];
     if (!this.scene.weapon.atMaxTier) picked.push('upgrade');
 
-    const rest = ['plus', 'double', 'heal', 'maxhp'];
+    const rest = ['plus', 'double', 'heal', 'maxhp', 'armor'];
     while (picked.length < CFG.shop.offers && rest.length) {
       picked.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
     }
@@ -110,6 +111,9 @@ class Shop {
       case 'maxhp':
         s.maxHp += CFG.shop.maxhpGain;
         s.hp = Math.min(s.maxHp, s.hp + CFG.shop.maxhpGain);
+        break;
+      case 'armor':
+        s.armor = Math.min(CFG.armor.max, s.armor + CFG.armor.shopGain);
         break;
     }
     this.refresh();

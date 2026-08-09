@@ -1,4 +1,10 @@
-// 적의 등장과 움직임. 종류마다 다르게 굴러갑니다.
+// 적의 등장과 움직임.
+//
+// 크게 둘로 나뉩니다.
+//   땅을 딛는 것(ground)  중력을 받고 발판 위를 걸어다닙니다. 위층으로는 못 쫓아옵니다.
+//                        대신 주인공이 올라설 발판을 지키고 있습니다.
+//   나는 것(!ground)      허공을 가로질러 곧장 옵니다. 지금은 날것뿐이고,
+//                        보스를 넣는다면 그쪽도 여기에 붙입니다.
 
 function enemyDef(key) {
   return CFG.enemyTypes.find((t) => t.key === key) || CFG.enemyTypes[0];
@@ -12,10 +18,9 @@ function spawnEnemy(scene, x, y, floor, typeKey) {
   e.setDepth(8);
   e.setScale(def.scale || 1);
 
-  if (def.move === 'walk') {
-    // 기는 것만 중력을 받습니다. 발판 위에 내려앉아 걷다가 끝에서 떨어집니다.
+  if (def.ground) {
     e.body.setAllowGravity(true);
-    e.body.setGravityY(CFG.crawl.gravity);
+    e.body.setGravityY(CFG.ground.gravity);
     e.dir = Math.random() < 0.5 ? -1 : 1;
   } else {
     e.body.setAllowGravity(false);
@@ -54,48 +59,35 @@ function updateEnemies(scene, time, delta) {
     if (!e.active) return;
 
     // 한참 아래로 처진 적은 정리합니다.
-    if (e.y > camBottom) { e.destroy(); return; }
+    // 땅을 딛는 적은 더 일찍 걷어냅니다. 주인공이 지나온 아래층에 남아 있어 봐야
+    // 다시 만날 일이 없는데, 등장 한도만 차지해서 위층이 텅 비게 됩니다.
+    const floorBelow = player.y + CFG.floorHeight * 2.5;
+    if (e.y > camBottom || (e.def.ground && e.y > floorBelow)) { e.destroy(); return; }
 
-    const angle = Phaser.Math.Angle.Between(e.x, e.y, player.x, player.y);
-    const dist = Phaser.Math.Distance.Between(e.x, e.y, player.x, player.y);
-
-    if (e.def.move === 'walk') {
-      walkStep(scene, e, player);
-      return;
-    }
-
-    if (e.def.move === 'ranged') {
-      // 일정 거리까지만 다가와서 멈춰 쏩니다.
-      if (dist > CFG.enemyShot.standoff) {
-        scene.physics.velocityFromRotation(angle, e.speed, e.body.velocity);
-      } else {
-        e.body.velocity.set(0, 0);
-        if (time > e.nextShotAt) {
-          e.nextShotAt = time + CFG.enemyShot.interval;
-          fireEnemyShot(scene, e, angle);
-        }
-      }
-      return;
-    }
-
-    if (e.def.move === 'wave') {
-      // 좌우로 흔들며 다가옵니다.
-      const sway = Math.sin(time / 260 + e.phase) * 0.7;
-      scene.physics.velocityFromRotation(angle + sway, e.speed, e.body.velocity);
-      return;
-    }
-
-    scene.physics.velocityFromRotation(angle, e.speed, e.body.velocity);
+    if (e.def.ground) return groundStep(scene, e, player, time);
+    return airStep(scene, e, player, time);
   });
 }
 
-// 기는 것의 걸음. 주인공이 멀면 발판 위를 순찰하고, 가까우면 쫓아옵니다.
-// 쫓을 때는 발판 끝을 개의치 않으므로 그대로 떨어집니다.
-function walkStep(scene, e, player) {
-  const chasing = Math.abs(player.y - e.y) < CFG.floorHeight * CFG.crawl.chaseWithin;
+// ── 땅을 딛는 적 ──────────────────────────────────────────
+// 주인공이 멀면 발판 끝에서 돌아서며 순찰합니다. 그래야 올라가 보면 거기 있습니다.
+// 가까워지면 낭떠러지를 개의치 않고 쫓아오다가 그대로 떨어집니다.
+function groundStep(scene, e, player, time) {
+  const near = Math.abs(player.y - e.y) < CFG.floorHeight * CFG.ground.chaseWithin;
+  const dx = player.x - e.x;
 
-  if (chasing) {
-    if (Math.abs(player.x - e.x) > CFG.crawl.turnDeadzone) e.dir = Math.sign(player.x - e.x);
+  // 사수는 사거리 안에 들면 멈춰 서서 쏩니다.
+  if (e.def.move === 'ranged' && near && Math.abs(dx) < CFG.enemyShot.standoff) {
+    e.body.velocity.x = 0;
+    if (time > e.nextShotAt) {
+      e.nextShotAt = time + CFG.enemyShot.interval;
+      fireEnemyShot(scene, e, Phaser.Math.Angle.Between(e.x, e.y, player.x, player.y));
+    }
+    return;
+  }
+
+  if (near) {
+    if (Math.abs(dx) > CFG.ground.turnDeadzone) e.dir = Math.sign(dx);
   } else if (e.body.blocked.down && !groundAhead(scene, e)) {
     e.dir *= -1; // 발판 끝이니 돌아섭니다
   }
@@ -106,13 +98,41 @@ function walkStep(scene, e, player) {
 
 // 진행 방향 바로 앞에 발판이 있는지 짚어 봅니다.
 function groundAhead(scene, e) {
-  const ahead = e.x + e.dir * e.displayWidth * CFG.crawl.edgeProbe;
+  const ahead = e.x + e.dir * e.displayWidth * CFG.ground.edgeProbe;
   const feet = e.y + e.displayHeight / 2;
 
   return scene.platforms.getChildren().some((p) => {
     if (Math.abs(p.y - CFG.platformH / 2 - feet) > 20) return false;
     return ahead > p.x - p.displayWidth / 2 && ahead < p.x + p.displayWidth / 2;
   });
+}
+
+// ── 나는 적 ───────────────────────────────────────────────
+function airStep(scene, e, player, time) {
+  const angle = Phaser.Math.Angle.Between(e.x, e.y, player.x, player.y);
+  const dist = Phaser.Math.Distance.Between(e.x, e.y, player.x, player.y);
+
+  if (e.def.move === 'ranged') {
+    if (dist > CFG.enemyShot.standoff) {
+      scene.physics.velocityFromRotation(angle, e.speed, e.body.velocity);
+    } else {
+      e.body.velocity.set(0, 0);
+      if (time > e.nextShotAt) {
+        e.nextShotAt = time + CFG.enemyShot.interval;
+        fireEnemyShot(scene, e, angle);
+      }
+    }
+    return;
+  }
+
+  if (e.def.move === 'wave') {
+    // 좌우로 흔들며 다가옵니다.
+    const sway = Math.sin(time / 260 + e.phase) * 0.7;
+    scene.physics.velocityFromRotation(angle + sway, e.speed, e.body.velocity);
+    return;
+  }
+
+  scene.physics.velocityFromRotation(angle, e.speed, e.body.velocity);
 }
 
 function fireEnemyShot(scene, enemy, angle) {

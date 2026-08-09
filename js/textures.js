@@ -99,6 +99,14 @@ function buildTextures(scene) {
   g.fillCircle(8, 8, 3);
   g.generateTexture('enemy-bullet', 16, 16);
 
+  // 검을 휘두른 자국 — 반달 모양. 실제 사거리에 맞춰 늘려 씁니다.
+  g.clear();
+  g.lineStyle(15, 0xffffff, 1);
+  g.beginPath();
+  g.arc(70, 70, 56, Phaser.Math.DegToRad(-54), Phaser.Math.DegToRad(54), false);
+  g.strokePath();
+  g.generateTexture('slash', 140, 140);
+
   // ── 그 밖 ─────────────────────────────────────────────
   g.clear();
   g.fillStyle(0xffd54f, 1);

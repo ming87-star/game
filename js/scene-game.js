@@ -17,13 +17,15 @@ class GameScene extends Phaser.Scene {
     this.maxHp = CFG.player.hp;
     this.hp = this.maxHp;
     this.weapon = new Weapon();
+    this.armor = CFG.armor.start; // 받는 피해 감소 %
     this.coins = 0;
     this.totalCoins = 0;
     this.kills = 0;
 
     this.lastHitAt = -9999;
-    this.lastShotAt = 0;
-    this.target = null;
+    this.lastSwingAt = 0;
+    this.lastSubAt = 0;
+    this.subTarget = null;
     this.pickups = [];
     this.seenTypes = new Set(); // 처음 만나는 적은 이름을 띄워 줍니다
 
@@ -46,9 +48,9 @@ class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.bullets, this.enemies, this.onBulletHit, null, this);
     this.physics.add.overlap(this.player, this.enemies, this.onEnemyTouch, null, this);
     this.physics.add.overlap(this.player, this.enemyBullets, this.onEnemyShotHit, null, this);
-    // 발판에 부딪히는 것은 걷는 적뿐입니다. 나머지는 그대로 통과해 날아옵니다.
+    // 발판에 부딪히는 것은 땅을 딛는 적뿐입니다. 나는 것은 그대로 통과합니다.
     this.physics.add.collider(this.enemies, this.platforms, null,
-      (enemy) => enemy.def && enemy.def.move === 'walk');
+      (enemy) => enemy.def && enemy.def.ground);
 
     this.cameras.main.setScroll(0, this.player.y - CFG.height * 0.68);
 
@@ -177,12 +179,28 @@ class GameScene extends Phaser.Scene {
   }
 
   spawnAmbient() {
-    const cam = this.cameras.main;
-    const x = Phaser.Math.Between(60, CFG.width - 60);
     const count = Math.min(CFG.ambient.maxCount, 1 + Math.floor(this.floorIndex / 14));
+
     for (let i = 0; i < count; i++) {
-      spawnEnemy(this, x + Phaser.Math.Between(-40, 40), cam.scrollY - 40 - i * 30,
-        this.floorIndex, pickEnemyType(this.floorIndex));
+      const type = pickEnemyType(this.floorIndex);
+      const def = enemyDef(type);
+
+      if (!def.ground) {
+        // 나는 것은 화면 위 가장자리에서 곧장 들어옵니다.
+        spawnEnemy(this, Phaser.Math.Between(60, CFG.width - 60),
+          this.cameras.main.scrollY - 40 - i * 30, this.floorIndex, type);
+        continue;
+      }
+
+      // 땅을 딛는 적은 허공에 두면 그대로 떨어져 사라집니다.
+      // 주인공이 곧 지나갈 위층 발판을 골라 그 위에 내려놓습니다.
+      const index = this.floorIndex + Phaser.Math.Between(1, 3);
+      const floor = this.floors.get(index);
+      if (!floor) continue;
+
+      const lanes = LANES.filter((l) => floor.slots[l]);
+      const slot = floor.slots[lanes[Math.floor(Math.random() * lanes.length)]];
+      spawnEnemy(this, slot.x + Phaser.Math.Between(-40, 40), slot.y - 70 - i * 26, index, type);
     }
   }
 
@@ -266,9 +284,13 @@ class GameScene extends Phaser.Scene {
           this.weapon.addPlus();
           this.popup('공격력 +1', '#ffd54f');
           break;
+        case SLOT.ARMOR:
+          this.armor = Math.min(CFG.armor.max, this.armor + CFG.armor.perItem);
+          this.popup('방어 ' + this.armor + '%', '#b0bec5');
+          break;
         case SLOT.DOUBLE:
           this.weapon.addDouble();
-          this.popup('발사체 ×' + this.weapon.mult, '#4fc3f7');
+          this.popup('공격 속도 ×' + this.weapon.mult, '#4fc3f7');
           break;
         case SLOT.UPGRADE:
           if (this.weapon.upgrade()) this.popup(this.weapon.name, '#ff8a65');
@@ -362,7 +384,8 @@ class GameScene extends Phaser.Scene {
         if (age >= CFG.item.blinkAt) {
           // 사라질 때가 가까울수록 빠르게 깜빡입니다.
           const period = CFG.item.life - age < 1400 ? 80 : 170;
-          slot.view.setAlpha(Math.floor(age / period) % 2 ? 0.2 : 1);
+          // 0.2까지 낮추면 글자가 안 보여 정체불명의 덩어리처럼 보입니다.
+          slot.view.setAlpha(Math.floor(age / period) % 2 ? 0.35 : 1);
         }
       }
     });
@@ -375,7 +398,7 @@ class GameScene extends Phaser.Scene {
       this.tweens.add({ targets: e, alpha: 0, duration: 260, onComplete: () => e.destroy() });
     });
     this.enemyBullets.clear(true, true);
-    this.target = null;
+    this.subTarget = null;
     this.shop.show(this.floorIndex);
   }
 
@@ -397,42 +420,81 @@ class GameScene extends Phaser.Scene {
   }
 
   // ── 자동 공격 ─────────────────────────────────────────
-  autoAttack(now) {
+  // 주무기는 근접 — 사거리 안의 적을 한 번에 모두 벱니다.
+  // 보조무기는 원거리 — 가장 가까운 적 하나를 약하게 칩니다.
+  attack(now) {
+    this.swing(now);
+    this.subFire(now);
+  }
+
+  distTo(e) {
+    return Phaser.Math.Distance.Between(e.x, e.y, this.player.x, this.player.y);
+  }
+
+  swing(now) {
     const w = this.weapon;
-    if (now - this.lastShotAt < w.rate) return;
+    if (now - this.lastSwingAt < w.rate) return;
 
-    const dist = (e) => Phaser.Math.Distance.Between(e.x, e.y, this.player.x, this.player.y);
-    const inRange = (e) => e.active && dist(e) <= w.range;
+    const hit = this.enemies.getChildren().filter((e) => e.active && this.distTo(e) <= w.reach);
+    if (!hit.length) return; // 허공에 휘두르지는 않습니다
 
-    const pool = this.enemies.getChildren().filter(inRange).sort((a, b) => dist(a) - dist(b));
-    if (!pool.length) { this.target = null; return; }
+    this.lastSwingAt = now;
 
+    // 휘두르는 방향은 가장 가까운 적 쪽. 보이기용이고, 실제로는 사거리 안 전부가 맞습니다.
+    const nearest = hit.reduce((a, b) => (this.distTo(a) < this.distTo(b) ? a : b));
+    this.showSlash(Phaser.Math.Angle.Between(
+      this.player.x, this.player.y - 6, nearest.x, nearest.y), w);
+
+    hit.forEach((e) => this.hitEnemy(e, w.dmg));
+  }
+
+  showSlash(angle, w) {
+    const arc = this.add.sprite(this.player.x, this.player.y - 6, 'slash')
+      .setDepth(11).setTint(w.color).setRotation(angle);
+
+    const full = w.reach / 56; // 텍스처의 반지름이 56입니다
+    arc.setScale(full * 0.65);
+    this.tweens.add({
+      targets: arc, scale: full, alpha: 0, duration: 170,
+      ease: 'Quad.out', onComplete: () => arc.destroy(),
+    });
+  }
+
+  subFire(now) {
+    const w = this.weapon;
+    if (!w.hasSub || now - this.lastSubAt < w.subRate) return;
+
+    const inRange = (e) => e.active && this.distTo(e) <= CFG.sub.range;
     // 한 번 노린 적은 죽거나 사거리를 벗어날 때까지 계속 노립니다.
-    // 매번 가장 가까운 적으로 갈아타면 피해가 흩어져 아무도 죽지 않습니다.
-    if (!this.target || !inRange(this.target)) this.target = pool[0];
-
-    const targets = [this.target, ...pool.filter((e) => e !== this.target)];
-    this.lastShotAt = now;
-
-    const shots = w.shots;
-    for (let i = 0; i < shots; i++) {
-      const target = targets[Math.min(i, targets.length - 1)];
-      const b = this.bullets.create(this.player.x, this.player.y - 6, 'bullet');
-      b.body.setAllowGravity(false);
-      b.setTint(w.color).setDepth(9);
-      b.dmg = w.dmg;
-      b.bornAt = now;
-      const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y - 6, target.x, target.y);
-      // 같은 적을 여럿이 노릴 때는 살짝 벌려 쏩니다.
-      const spread = (i - (shots - 1) / 2) * 0.1;
-      this.physics.velocityFromRotation(angle + spread, w.speed, b.body.velocity);
+    // 매 발 가장 가까운 적으로 갈아타면 피해가 흩어져 아무도 죽지 않습니다.
+    if (!this.subTarget || !inRange(this.subTarget)) {
+      this.subTarget = this.enemies.getChildren()
+        .filter(inRange)
+        .sort((a, b) => this.distTo(a) - this.distTo(b))[0] || null;
     }
+    if (!this.subTarget) return;
+
+    this.lastSubAt = now;
+    const b = this.bullets.create(this.player.x, this.player.y - 6, 'bullet');
+    b.body.setAllowGravity(false);
+    b.setTint(CFG.sub.color).setDepth(9);
+    b.dmg = w.subDmg;
+    b.bornAt = now;
+    this.physics.velocityFromRotation(
+      Phaser.Math.Angle.Between(this.player.x, this.player.y - 6, this.subTarget.x, this.subTarget.y),
+      CFG.sub.speed, b.body.velocity);
   }
 
   onBulletHit(bullet, enemy) {
     if (!bullet.active || !enemy.active) return;
-    enemy.hp -= bullet.dmg;
+    const dmg = bullet.dmg;
     bullet.destroy();
+    this.hitEnemy(enemy, dmg);
+  }
+
+  hitEnemy(enemy, dmg) {
+    if (!enemy.active) return;
+    enemy.hp -= dmg;
 
     const spark = this.add.sprite(enemy.x, enemy.y, 'spark').setDepth(11);
     this.tweens.add({ targets: spark, scale: 2.4, alpha: 0, duration: 160, onComplete: () => spark.destroy() });
@@ -461,9 +523,11 @@ class GameScene extends Phaser.Scene {
 
   hurt(amount) {
     this.lastHitAt = this.time.now;
-    this.hp -= amount;
+    // 방어력만큼 덜 맞습니다. 아무리 두꺼워도 한 대는 아프도록 최소 1은 들어갑니다.
+    const taken = Math.max(1, Math.round(amount * (1 - this.armor / 100)));
+    this.hp -= taken;
     this.cameras.main.shake(140, 0.008);
-    this.popup('-' + amount, '#ff8a80');
+    this.popup('-' + taken, '#ff8a80');
     this.tweens.add({ targets: this.player, alpha: 0.3, duration: 90, yoyo: true, repeat: 3 });
     if (this.hp <= 0) this.gameOver();
   }
@@ -521,7 +585,8 @@ class GameScene extends Phaser.Scene {
     add(this.add.rectangle(cx, cy, CFG.width, CFG.height, 0x000000, 0.66));
     add(this.add.text(cx, cy - 90, this.floorIndex + '층', font(72, '#ffffff')).setOrigin(0.5));
     add(this.add.text(cx, cy - 10, '점수 ' + this.score(), font(32, '#ffffff')).setOrigin(0.5));
-    add(this.add.text(cx, cy + 34, '처치 ' + this.kills + '   코인 ' + this.totalCoins, font(24, '#b0bec5')).setOrigin(0.5));
+    add(this.add.text(cx, cy + 34, '처치 ' + this.kills + '   코인 ' + this.totalCoins +
+      '   방어 ' + this.armor + '%', font(24, '#b0bec5')).setOrigin(0.5));
     add(this.add.text(cx, cy + 74, this.weapon.name +
       (this.weapon.plus ? ' +' + this.weapon.plus : '') +
       (this.weapon.mult > 1 ? ' ×' + this.weapon.mult : ''), font(24, '#ffd54f')).setOrigin(0.5));
@@ -554,7 +619,7 @@ class GameScene extends Phaser.Scene {
       if (b.active && time - b.bornAt > 3000) b.destroy();
     });
 
-    this.autoAttack(time);
+    this.attack(time);
 
     // 무작위 등장 — 높이 올라갈수록 간격이 짧아집니다.
     if (this.floorIndex >= CFG.ambient.startFloor && time > this.ambientAt) {

@@ -18,6 +18,8 @@ class Hud {
     this.weaponText = fixed(scene.add.text(24, 56, '', font(24, '#ffffff')));
     this.plusText = fixed(scene.add.text(0, 58, '', font(22, '#ffd54f')));
     this.multText = fixed(scene.add.text(0, 58, '', font(22, '#4fc3f7')));
+    this.subText = fixed(scene.add.text(24, 84, '', font(18, '#ffe082')));
+    this.armorText = fixed(scene.add.text(CFG.width - 24, 84, '', font(18, '#b0bec5')).setOrigin(1, 0));
 
     this.hint = fixed(scene.add.text(CFG.width / 2, CFG.height - 70,
       '왼쪽 · 위 · 오른쪽 — 한 칸씩만 옮겨 갑니다', font(22, '#ffffff')).setOrigin(0.5)).setAlpha(0.85);
@@ -73,6 +75,9 @@ class Hud {
     if (w.plus) x += this.plusText.width + 8;
 
     this.multText.setText(w.mult > 1 ? '×' + w.mult : '').setX(x);
+
+    this.subText.setText(w.hasSub ? '보조 원거리  ' + w.subDmg : '');
+    this.armorText.setText('방어 ' + s.armor + '%');
   }
 
   fadeHint(delta) {

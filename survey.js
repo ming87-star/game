@@ -99,7 +99,7 @@ const plusPace = 0.14; // 층당 +1을 마주치는 빈도 (survey 위쪽 표와
 const stacks = Math.round(perTier * plusPace);
 
 console.log(`\n\n층별 화력 대 체력 (UP을 매번 챙기고, 단계마다 +${stacks} 쌓은 경우)\n`);
-console.log('  층    무기          공격력   보통적   단단한놈    거인    한마리 잡는 시간');
+console.log('  층    무기          공격력   보통적   단단한놈    거인      몇 대 맞아야 죽나');
 
 for (let f = 0; f <= 175; f += 25) {
   const tier = Math.min(CFG.weapons.length - 1, Math.floor(f / perTier));
@@ -117,5 +117,6 @@ for (let f = 0; f <= 175; f += 25) {
   console.log(
     `  ${String(f).padStart(3)}   ${w.name.padEnd(9)} ${String(Math.round(dmg)).padStart(6)}` +
     `  ${String(normal).padStart(6)}  ${String(brute).padStart(8)}  ${String(giant).padStart(6)}` +
-    `      보통 ${(normal / dps).toFixed(2)}초 · 거인 ${(giant / dps).toFixed(2)}초`);
+    `      보통 ${Math.ceil(normal / dmg)}대 · 단단 ${Math.ceil(brute / dmg)}대 · 거인 ${Math.ceil(giant / dmg)}대` +
+    `   (보통 한 마리 ${(normal / dps).toFixed(1)}초)`);
 }

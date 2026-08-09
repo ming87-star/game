@@ -7,13 +7,14 @@ const SLOT = {
   ENEMY: 'enemy',
   HEAL: 'heal',
   PLUS: 'plus',       // +1  현재 무기 공격력 상승
-  DOUBLE: 'double',   // ×2  발사체 두 배
+  DOUBLE: 'double',   // ×2  공격 속도 두 배
+  ARMOR: 'armor',     // 방  받는 피해 감소
   UPGRADE: 'upgrade', // UP  다음 단계 무기 (강화는 초기화)
   SHOP: 'shop',
 };
 
 // 시간이 지나면 사라지는 것들. 상점과 적은 해당하지 않습니다.
-const ITEM_KINDS = new Set([SLOT.PLUS, SLOT.DOUBLE, SLOT.UPGRADE, SLOT.HEAL]);
+const ITEM_KINDS = new Set([SLOT.PLUS, SLOT.DOUBLE, SLOT.UPGRADE, SLOT.HEAL, SLOT.ARMOR]);
 
 // 발판 위에 띄울 표시. 나중에 아이템 그림이 나오면 여기만 바꾸면 됩니다.
 const SLOT_MARK = {
@@ -21,6 +22,7 @@ const SLOT_MARK = {
   [SLOT.DOUBLE]:  { label: '×2', color: 0x4fc3f7, text: '#01579b' },
   [SLOT.UPGRADE]: { label: 'UP', color: 0xff8a65, text: '#3e2723' },
   [SLOT.HEAL]:    { label: '＋', color: 0x66bb6a, text: '#1b5e20' },
+  [SLOT.ARMOR]:   { label: '방', color: 0x90a4ae, text: '#263238' },
 };
 
 function floorY(index) {
@@ -68,6 +70,7 @@ function pickKind(index, need) {
   let acc = enemyChance;
   if (r < (acc += c.plus)) return SLOT.PLUS;
   if (r < (acc += healChance(need))) return SLOT.HEAL;
+  if (r < (acc += c.armor)) return SLOT.ARMOR;
   if (r < (acc += c.double)) return SLOT.DOUBLE;
   return SLOT.EMPTY;
 }
@@ -81,10 +84,11 @@ function healNeedFrom(hp, maxHp) {
   return (1 - ratio) / (1 - floor);
 }
 
-// 약한 적이 "점점 많아지는" 느낌을 내려면 마릿수도 층에 따라 늘어야 합니다.
+// 땅을 딛는 적은 위층까지 쫓아오지 못합니다. 대신 발판을 지키고 있으므로,
+// 마릿수로 밀도를 맞춥니다. 한 발판에 여럿이 진을 치고 있는 그림입니다.
 function enemyCountFor(index) {
-  const base = 1 + Math.floor(index / 15);
-  return Math.min(3, base + (Math.random() < 0.25 ? 1 : 0));
+  const base = 1 + Math.floor(index / 18);
+  return Math.min(3, base + (Math.random() < 0.3 ? 1 : 0));
 }
 
 // 한 종류의 등장 비중. 나온 뒤 서서히 흔해지고, 다음 종류가 풀리면 물러납니다.
