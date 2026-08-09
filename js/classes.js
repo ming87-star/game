@@ -4,6 +4,8 @@
 // 그런데 한 번 피하기 시작하면 코인이 없어 강해지지 못하고, 약하니까 또 피하게 됩니다.
 // 직업은 그 나선을 끊습니다 — 셋 다 코인을 벌지만 버는 방법이 다릅니다.
 //
+// 유물은 더 이상 직업마다 하나가 아닙니다. js/relics.js 를 보세요.
+//
 //   전사  버티고 서서 번다   (두꺼운 방어구 + 긴 사거리 + 광역)
 //   궁수  지나가며 번다      (멈출 필요 없는 원거리, 한 방은 약함)
 //   도적  훔쳐서 번다        (짧고 빠른 근접 + 회피 + 절도)
@@ -43,12 +45,6 @@ const CLASSES = [
       { name: '천공검',    dmg: 6370, rate: 85,  reach: 159, color: 0x80cbc4 },
     ],
 
-    relic: {
-      key: 'farblade',
-      name: '먼 그림자 검',
-      desc: '사거리가 크게 늘어납니다',
-      reachScale: 1.9,
-    },
   },
 
   {
@@ -89,12 +85,6 @@ const CLASSES = [
       { name: '천뢰궁',     dmg: 1006, rate: 64, range: 470, shots: 6, homing: true, color: 0x80cbc4 },
     ],
 
-    relic: {
-      key: 'echobow',
-      name: '메아리 활',
-      desc: '화살이 다른 적에게 한 번 튕깁니다',
-      bounce: 1,
-    },
   },
 
   {
@@ -134,13 +124,6 @@ const CLASSES = [
       { name: '천살 단검',    dmg: 3347, rate: 44, reach: 108, color: 0x80cbc4 },
     ],
 
-    relic: {
-      key: 'goblinglove',
-      name: '고블린의 장갑',
-      desc: '훔칠 확률과 액수가 크게 늡니다',
-      stealBonus: 0.35,
-      stealAmount: 3,
-    },
   },
 ];
 

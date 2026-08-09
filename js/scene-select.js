@@ -19,7 +19,17 @@ class SelectScene extends Phaser.Scene {
       : '직업을 고르세요', font(21, '#8794b5')).setOrigin(0.5);
     this.add.text(cx, 174, '가진 메달  🏅 ' + Save.medals, font(20, '#ffca28')).setOrigin(0.5);
 
-    CLASSES.forEach((job, i) => this.buildCard(job, cx, 288 + i * 210, best));
+    CLASSES.forEach((job, i) => this.buildCard(job, cx, 278 + i * 200, best));
+
+    // 유물 도감 — 무엇을 모았고 무엇이 남았는지 보는 자리입니다.
+    const bookY = CFG.height - 44;
+    const owned = RELICS.filter((r) => Save.data.relics[r.key]).length;
+    const book = this.add.rectangle(cx, bookY, 380, 52, 0x1b2138)
+      .setStrokeStyle(2, 0x5c4a8a).setInteractive({ useHandCursor: true });
+    this.add.text(cx, bookY, '유물 도감  ' + owned + ' / ' + RELICS.length,
+      font(22, '#ffd54f')).setOrigin(0.5);
+    this.bookAt = { x: cx, y: bookY };
+    book.on('pointerdown', () => this.scene.start('relicbook'));
   }
 
   buildCard(job, cx, y, best) {
@@ -27,7 +37,7 @@ class SelectScene extends Phaser.Scene {
     const open = classUnlocked(job);
     const tint = '#' + job.color.toString(16).padStart(6, '0');
 
-    const box = this.add.rectangle(cx, y, 460, 186, open ? 0x1b2138 : 0x141826)
+    const box = this.add.rectangle(cx, y, 460, 176, open ? 0x1b2138 : 0x141826)
       .setStrokeStyle(2, open ? 0x3f4a78 : 0x252c44);
 
     // 잠긴 직업은 이름과 조건만 보여 줍니다. 무엇이 기다리는지는 알려 주되,
@@ -47,8 +57,9 @@ class SelectScene extends Phaser.Scene {
     this.add.text(cx - 205, y - 26, job.blurb, font(20, '#b0bec5'));
     this.add.text(cx - 205, y + 6, job.detail, font(17, '#8794b5')).setLineSpacing(4);
 
-    // 그 직업만 얻을 수 있는 유물. 한 판에 한 번 나올까 말까 합니다.
-    this.add.text(cx - 205, y + 66, '유물  ' + job.relic.name, font(17, '#ffd54f'));
+    // 그 직업에게만 나오는 유물. 공용 유물은 도감에서 봅니다.
+    const mine = RELICS.find((r) => r.jobs && r.jobs.includes(job.key) && r.jobs.length === 1);
+    if (mine) this.add.text(cx - 205, y + 62, '전용 유물  ' + mine.name, font(17, '#ffd54f'));
 
     box.on('pointerover', () => box.setStrokeStyle(2, job.color));
     box.on('pointerout', () => box.setStrokeStyle(2, 0x3f4a78));

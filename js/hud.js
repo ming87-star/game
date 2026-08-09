@@ -108,7 +108,11 @@ class Hud {
       .setColor(w.speedCapped ? '#ffb74d' : '#4fc3f7')
       .setX(x);
 
-    this.relicText.setText(w.relic ? '★ ' + w.relic.name : '');
+    // 유물은 여러 개를 겹쳐 듭니다. 이름을 다 적으면 줄이 넘치므로
+    // 아이콘을 나열하고 개수만 붙입니다. 자세한 것은 죽음 화면에서 봅니다.
+    this.relicText.setText(w.relics.length
+      ? w.relics.map((r) => r.icon).join(' ') + (w.relics.length > 2 ? '  ×' + w.relics.length : '')
+      : '');
   }
 
   fadeHint(delta) {

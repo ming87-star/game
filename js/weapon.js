@@ -6,8 +6,8 @@
 //   ×2  공격 속도 두 배 — 귀합니다
 //   UP  다음 단계로. 대신 강화는 전부 초기화
 //
-// 유물(relic)은 강화가 아닙니다. 한 판에 한 번 나올까 말까 한 물건이고,
-// UP을 먹어도 사라지지 않습니다.
+// 유물(relics)은 강화가 아닙니다. 200층부터 구간마다 하나씩, 셋 중 골라
+// 가져옵니다. 여러 개를 겹쳐 들 수 있고 UP을 먹어도 사라지지 않습니다.
 // 속도 한계(capBonus)도 강화가 아닙니다 — 메달로 산 것이라 판 내내 남습니다.
 class Weapon {
   constructor(job) {
@@ -17,7 +17,7 @@ class Weapon {
     this.haste = 0;
     this.mult = 1;
     this.capBonus = 0;
-    this.relic = null;
+    this.relics = [];
   }
 
   get table() { return this.job.weapons; }
@@ -31,7 +31,7 @@ class Weapon {
 
   // ── 공격 속도 ─────────────────────────────────────────
   // 속은 더하기, ×2는 곱하기. 둘을 합친 값이 한계에서 잘립니다.
-  get speedCap() { return CFG.speedCapBase + this.capBonus; }
+  get speedCap() { return CFG.speedCapBase + this.capBonus + this.relicSum('capBonus'); }
   get rawSpeed() { return (1 + this.haste * CFG.hasteStep) * this.mult; }
   get speedMult() { return Math.min(this.speedCap, this.rawSpeed); }
   // 한계에 닿았으면 그 뒤로 줍는 속은 헛것입니다. 화면에 그렇다고 적어 줘야 합니다.
@@ -39,25 +39,24 @@ class Weapon {
 
   get rate() { return this.base.rate / this.speedMult; }
 
+  // ── 유물 ──────────────────────────────────────────────
+  // 여러 개를 겹쳐 들 수 있으므로, 효과는 모아서 더하거나 곱합니다.
+  relicSum(prop) { return this.relics.reduce((a, r) => a + (r[prop] || 0), 0); }
+  relicMul(prop) { return this.relics.reduce((a, r) => a * (r[prop] || 1), 1); }
+  hasRelic(key) { return this.relics.some((r) => r.key === key); }
+
   // 근접 — 이 거리 안의 적을 한 번에 모두 벱니다.
-  get reach() {
-    const scale = this.relic && this.relic.reachScale ? this.relic.reachScale : 1;
-    return (this.base.reach || 0) * scale;
-  }
+  get reach() { return (this.base.reach || 0) * this.relicMul('reachScale'); }
 
   // 원거리 — 한 발이 적 하나를 칩니다.
   get range() { return this.base.range || 0; }
   get shots() { return this.base.shots || 1; }
-  get bounce() { return this.relic && this.relic.bounce ? this.relic.bounce : 0; }
+  get bounce() { return this.relicSum('bounce'); }
   get homing() { return !!this.base.homing; }
 
   // 도적의 절도. 유물이 있으면 확률과 액수가 함께 오릅니다.
-  get stealChance() {
-    return this.job.steal + (this.relic && this.relic.stealBonus ? this.relic.stealBonus : 0);
-  }
-  get stealAmount() {
-    return this.relic && this.relic.stealAmount ? this.relic.stealAmount : 1;
-  }
+  get stealChance() { return this.job.steal + this.relicSum('stealBonus'); }
+  get stealAmount() { return 1 + this.relicSum('stealAmount'); }
 
   get atMaxTier() { return this.tier >= this.table.length - 1; }
   get nextName() { return this.atMaxTier ? null : this.table[this.tier + 1].name; }
@@ -69,9 +68,9 @@ class Weapon {
   // ×2는 겹치지 않습니다. 한 번으로 이미 한계까지 밀어 올리기 때문입니다.
   addDouble() { this.mult = Math.min(CFG.maxMult, this.mult * 2); }
 
-  takeRelic() {
-    if (this.relic) return false;
-    this.relic = this.job.relic;
+  takeRelic(relic) {
+    if (!relic || this.hasRelic(relic.key)) return false;
+    this.relics.push(relic);
     return true;
   }
 

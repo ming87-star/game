@@ -17,6 +17,8 @@ function blankSave() {
     weapons: {},
     // 메달 상점에서 사 둔 것. 다음 판 시작 때 쓰이고 비워집니다.
     boosts: {},
+    // 유물 도감. 한 번이라도 가져간 것은 여기 남습니다.
+    relics: {},
     lastJob: 'warrior',
   };
 }
@@ -57,6 +59,13 @@ const Save = {
   unlock(key) {
     this.data.unlocked[key] = true;
     this.flush();
+  },
+
+  collectRelic(key) {
+    if (this.data.relics[key]) return false;
+    this.data.relics[key] = true;
+    this.flush();
+    return true;
   },
 
   addMedals(n) {

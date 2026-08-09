@@ -14,6 +14,7 @@ const SLOT = {
   RELIC: 'relic',     // ★  직업 유물. 한 판에 하나뿐
   MEDAL: 'medal',     // 🏅 판을 넘어 남는 화폐. 지도에서는 아주 드물게만
   SHOP: 'shop',
+  BOSS: 'boss',       // 보스 투기장. 발판도 상점도 없습니다
 };
 
 // 시간이 지나면 사라지는 것들. 상점과 적은 해당하지 않습니다.
@@ -35,8 +36,13 @@ function floorY(index) {
   return CFG.groundY - index * CFG.floorHeight;
 }
 
+// 보스 층이 먼저입니다. 200층은 상점 층이기도 하지만 투기장이 이깁니다.
+function isBossFloor(index) {
+  return index > 0 && index % CFG.bossEvery === 0;
+}
+
 function isShopFloor(index) {
-  return index > 0 && index % CFG.shopEvery === 0;
+  return index > 0 && index % CFG.shopEvery === 0 && !isBossFloor(index);
 }
 
 // 큰 상점 — 도착만 해도 체력을 돌려주는 자리입니다.
@@ -49,12 +55,29 @@ function isBigShopFloor(index) {
 // 그 구간 안의 무작위한 층에 놓입니다. 상점에서도 한 번 살 수 있으니
 // 무기 단계는 한 구간에 최대 두 번 오릅니다 — 운이 아니라 계획의 문제가 됩니다.
 let upFloorByBand = new Map();
-let relicFloor = 0; // 이번 판에 유물이 놓이는 층. 판마다 한 번만 뽑습니다.
+let relicFloorByBand = new Map();
 
 function resetTowerRun() {
   upFloorByBand = new Map();
+  relicFloorByBand = new Map();
+}
+
+// ── 유물의 자리 ─────────────────────────────────────────
+// relic.from 층부터 relic.every 층 구간마다 하나씩. 상점 층과 보스 층은 비웁니다.
+// -1이면 그 층에는 유물이 없다는 뜻입니다.
+function relicFloorFor(index) {
   const r = CFG.relic;
-  relicFloor = r.minFloor + Math.floor(Math.random() * (r.maxFloor - r.minFloor + 1));
+  if (index < r.from) return -1;
+
+  const band = Math.floor((index - r.from) / r.every);
+  if (!relicFloorByBand.has(band)) {
+    const start = r.from + band * r.every;
+    const pick = () => start + Math.floor(Math.random() * r.every);
+    let floor = pick();
+    for (let i = 0; i < 12 && (isShopFloor(floor) || isBossFloor(floor)); i++) floor = pick();
+    relicFloorByBand.set(band, floor);
+  }
+  return relicFloorByBand.get(band);
 }
 
 function upFloorFor(index) {
@@ -67,7 +90,7 @@ function upFloorFor(index) {
     // 유물도 가운데 칸을 쓰고 UP보다 먼저 놓입니다. 같은 층에 걸리면 UP이
     // 통째로 사라져서 그 구간의 무기 단계 하나를 잃습니다. 자리를 비켜 줍니다.
     let floor = pick();
-    for (let i = 0; i < 8 && floor === relicFloor; i++) floor = pick();
+    for (let i = 0; i < 8 && floor === relicFloorFor(floor); i++) floor = pick();
     upFloorByBand.set(band, floor);
   }
   return upFloorByBand.get(band);
@@ -111,8 +134,10 @@ function healNeedFrom(hp, maxHp) {
 // 땅을 딛는 적은 위층까지 쫓아오지 못합니다. 대신 발판을 지키고 있으므로,
 // 마릿수로 밀도를 맞춥니다. 한 발판에 여럿이 진을 치고 있는 그림입니다.
 function enemyCountFor(index) {
-  const base = 1 + Math.floor(index / 14);
-  return Math.min(4, base + (Math.random() < 0.3 ? 1 : 0));
+  const c = CFG.enemyCount;
+  const base = 1 + Math.floor(index / c.per);
+  const cap = index >= c.deepFloor ? c.deepCap : c.cap;
+  return Math.min(cap, base + (Math.random() < 0.3 ? 1 : 0));
 }
 
 // 한 종류의 등장 비중. 나온 뒤 서서히 흔해지고, 다음 종류가 풀리면 물러납니다.
@@ -207,6 +232,13 @@ function makeFloor(index, need = 0, usesArmor = true) {
     return floor;
   }
 
+  // 보스 투기장. 상점 층보다 먼저 봅니다 — 200층은 둘 다에 걸립니다.
+  if (isBossFloor(index)) {
+    floor.boss = true;
+    floor.slots.mid = blankSlot(index, 'mid', SLOT.BOSS);
+    return floor;
+  }
+
   // 상점 층은 가운데 넓은 발판 하나뿐입니다. 어느 쪽을 눌러도 여기로 옵니다.
   if (isShopFloor(index)) {
     floor.shop = true;
@@ -218,8 +250,8 @@ function makeFloor(index, need = 0, usesArmor = true) {
   lanes.forEach((lane) => { floor.slots[lane] = makeSlot(index, lane, need, usesArmor); });
   dedupeItems(floor, index, lanes, need, usesArmor);
 
-  // 이번 판에 하나뿐인 유물. UP과 같은 이유로 가운데에 둡니다.
-  if (index === relicFloor) {
+  // 이 구간의 유물. UP과 같은 이유로 가운데에 둡니다.
+  if (index === relicFloorFor(index)) {
     floor.slots.mid = blankSlot(index, 'mid', SLOT.RELIC);
     return floor;
   }

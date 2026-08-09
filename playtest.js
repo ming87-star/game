@@ -86,7 +86,7 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
     return {
       floor: s.floorIndex, hp: Math.round(s.hp), maxHp: s.maxHp,
       kills: s.kills, coins: s.coins, totalCoins: s.totalCoins,
-      job: s.job.name, relic: s.weapon.relic ? s.weapon.relic.name : null,
+      job: s.job.name, relics: s.weapon.relics.map((r) => r.name),
       weapon: s.weapon.name, plus: Number(s.weapon.plusValue.toFixed(1)),
       speed: Number(s.weapon.speedMult.toFixed(2)), capped: s.weapon.speedCapped,
       dmg: s.weapon.dmg, reach: Math.round(s.weapon.reach), shots: s.weapon.shots,
@@ -109,6 +109,11 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
       enemies: s.enemies.countActive(), dead: s.dead, shopOpen: s.shop.open,
       score: s.score(),
       medals: s.medals, boosts: s.boosts,
+      // 보스와 유물은 흐름을 통째로 바꿉니다. harness도 알아야 합니다.
+      bossFight: s.bossFight,
+      bossHp: s.boss && s.boss.active ? Math.round(s.boss.hp / s.boss.maxHp * 100) : null,
+      choosing: s.choosing,
+      bats: s.batCount(),
       kinds,
     };
   });
@@ -151,6 +156,8 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
 
   const log = [];
   let shopsSeen = 0;
+  let relicsTaken = 0;
+  let bossSeen = false;
   for (let i = 0; i < jumps; i++) {
     const s = await read();
     if (!s) break;
@@ -159,6 +166,25 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
     if (s.shopOpen) {
       shopsSeen++;
       await doShop(`shop-${s.floor}.png`);
+      continue;
+    }
+
+    // 유물은 판을 멈추고 세 장 중 하나를 고르게 합니다. 첫 장을 집습니다.
+    if (s.choosing) {
+      relicsTaken++;
+      await shot(page, `relic-${s.floor}.png`);
+      const card = await page.evaluate(() => window.__scene.relicChoices[0]);
+      await page.mouse.click(...at(card.x, card.y));
+      await page.waitForTimeout(400);
+      continue;
+    }
+
+    // 보스 층에서는 위로 못 갑니다. 좌우로 피하면서 자동 공격이 깎기를 기다립니다.
+    if (s.bossFight) {
+      if (!bossSeen) { bossSeen = true; await shot(page, `boss-${s.floor}.png`); }
+      // 예고된 줄을 피해 좌우로 오갑니다. 실제 조작과 같은 탭입니다.
+      await page.mouse.click(...at(Math.random() < 0.5 ? 90 : 450, 620));
+      await page.waitForTimeout(420);
       continue;
     }
 
@@ -189,7 +215,7 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
       const t = await read();
       log.push(`${String(t.floor).padStart(3)}층  HP ${t.hp}/${t.maxHp}  적 ${t.enemies}  처치 ${t.kills}  코인 ${t.coins}` +
         `  방어 ${t.armor}%  ${t.weapon}${t.plus ? ' +' + t.plus : ''}${t.speed > 1 ? ' ×' + t.speed + (t.capped ? '한계' : '') : ''}` +
-        `  (공격력 ${t.dmg}${t.reach ? ' · 사거리 ' + t.reach : ' · ' + t.shots + '발'})${t.relic ? ' ★' + t.relic : ''}`);
+        `  (공격력 ${t.dmg}${t.reach ? ' · 사거리 ' + t.reach : ' · ' + t.shots + '발'})${t.relics.length ? ' ★' + t.relics.join('·') : ''}`);
     }
     if (i === 24) await shot(page, '03-combat.png');
   }
@@ -216,7 +242,8 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
   }
 
   console.log(log.join('\n'));
-  console.log(`${jobKey} · 상점 ${shopsSeen}회 · 메달 ${state ? state.medals : 0}개` +
+  console.log(`${jobKey} · 상점 ${shopsSeen}회 · 유물 ${relicsTaken}개 · 보스 ${bossSeen ? '만남' : '못 만남'}` +
+    ` · 메달 ${state ? state.medals : 0}개` +
     (state && state.boosts && state.boosts.length ? ' · 시작 강화 ' + state.boosts.join(',') : ''));
   console.log('최종:', JSON.stringify(state));
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');

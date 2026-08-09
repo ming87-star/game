@@ -133,6 +133,73 @@ function buildTextures(scene) {
   g.fillCircle(16, 14, 3);
   g.generateTexture('e-shooter', 34, 34);
 
+  // ── 박쥐 ──────────────────────────────────────────────
+  // 도둑 — 자루를 든 보라색 박쥐
+  g.clear();
+  g.fillStyle(0x7e57c2, 1);
+  g.fillTriangle(0, 4, 14, 14, 0, 22);   // 왼 날개
+  g.fillTriangle(40, 4, 26, 14, 40, 22); // 오른 날개
+  g.fillStyle(0x5e35b1, 1);
+  g.fillRoundedRect(13, 6, 14, 18, 6);
+  g.fillTriangle(13, 8, 17, 0, 20, 8);   // 귀
+  g.fillTriangle(27, 8, 23, 0, 20, 8);
+  g.fillStyle(0xffe082, 1);
+  g.fillCircle(17, 13, 2.5);
+  g.fillCircle(23, 13, 2.5);
+  g.fillStyle(0xffca28, 1);
+  g.fillCircle(20, 26, 5); // 훔친 것을 담는 자루
+  g.generateTexture('bat-thief', 40, 32);
+
+  // 무는 놈 — 붉고 이빨이 보임
+  g.clear();
+  g.fillStyle(0xc62828, 1);
+  g.fillTriangle(0, 4, 14, 14, 0, 22);
+  g.fillTriangle(40, 4, 26, 14, 40, 22);
+  g.fillStyle(0x8e0000, 1);
+  g.fillRoundedRect(13, 6, 14, 18, 6);
+  g.fillTriangle(13, 8, 17, 0, 20, 8);
+  g.fillTriangle(27, 8, 23, 0, 20, 8);
+  g.fillStyle(0xffcdd2, 1);
+  g.fillCircle(17, 12, 2.5);
+  g.fillCircle(23, 12, 2.5);
+  g.fillStyle(0xffffff, 1);
+  g.fillTriangle(16, 20, 19, 20, 17.5, 26); // 송곳니
+  g.fillTriangle(21, 20, 24, 20, 22.5, 26);
+  g.generateTexture('bat-biter', 40, 32);
+
+  // ── 보스 ──────────────────────────────────────────────
+  // 투기장 폭을 거의 다 덮는 덩치. 어느 줄에 서 있어도 근접이 닿아야 합니다.
+  g.clear();
+  g.fillStyle(0x311b92, 1);
+  g.fillRoundedRect(10, 40, 300, 190, 40);
+  g.fillStyle(0x4527a0, 1);
+  g.fillRoundedRect(30, 60, 260, 120, 34);
+  // 뿔
+  g.fillStyle(0x1a237e, 1);
+  g.fillTriangle(10, 46, 52, 0, 74, 56);
+  g.fillTriangle(310, 46, 268, 0, 246, 56);
+  // 눈 — 크고 붉게. 무엇을 보고 있는지 알 수 있게
+  g.fillStyle(0xff5252, 1);
+  g.fillCircle(112, 112, 30);
+  g.fillCircle(208, 112, 30);
+  g.fillStyle(0xfff59d, 1);
+  g.fillCircle(112, 112, 13);
+  g.fillCircle(208, 112, 13);
+  // 아래턱 — 여기가 발판 가까이 내려옵니다
+  g.fillStyle(0x1a237e, 1);
+  g.fillRoundedRect(80, 186, 160, 44, 16);
+  g.fillStyle(0xffffff, 1);
+  for (let i = 0; i < 5; i++) g.fillTriangle(96 + i * 32, 186, 116 + i * 32, 186, 106 + i * 32, 214);
+  g.generateTexture('boss', 320, 240);
+
+  // 보스가 내리꽂는 것 — 크고 무겁게
+  g.clear();
+  g.fillStyle(0x7c4dff, 1);
+  g.fillCircle(18, 18, 16);
+  g.fillStyle(0xe1bee7, 1);
+  g.fillCircle(18, 18, 8);
+  g.generateTexture('boss-shot', 36, 36);
+
   // ── 탄 ────────────────────────────────────────────────
   g.clear();
   g.fillStyle(0xffffff, 1);
@@ -145,6 +212,16 @@ function buildTextures(scene) {
   g.fillStyle(0xffcdd2, 1);
   g.fillCircle(8, 8, 3);
   g.generateTexture('enemy-bullet', 16, 16);
+
+  // 파동 — 날아가는 초승달
+  g.clear();
+  g.fillStyle(0xffffff, 1);
+  g.beginPath();
+  g.arc(20, 22, 18, Phaser.Math.DegToRad(-70), Phaser.Math.DegToRad(70), false);
+  g.arc(8, 22, 20, Phaser.Math.DegToRad(70), Phaser.Math.DegToRad(-70), true);
+  g.closePath();
+  g.fillPath();
+  g.generateTexture('wave', 44, 44);
 
   // 검을 휘두른 자국 — 반달 모양. 실제 사거리에 맞춰 늘려 씁니다.
   g.clear();
