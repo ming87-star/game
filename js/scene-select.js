@@ -15,10 +15,11 @@ class SelectScene extends Phaser.Scene {
     this.add.text(cx, 88, '탑 오르기', font(52, '#ffffff')).setOrigin(0.5);
 
     const best = Save.bestFloor;
-    this.add.text(cx, 144, best ? '최고 기록  ' + best + '층   ·   ' + Save.deaths + '번 도전'
+    this.add.text(cx, 140, best ? '최고 기록  ' + best + '층   ·   ' + Save.deaths + '번 도전'
       : '직업을 고르세요', font(21, '#8794b5')).setOrigin(0.5);
+    this.add.text(cx, 174, '가진 메달  🏅 ' + Save.medals, font(20, '#ffca28')).setOrigin(0.5);
 
-    CLASSES.forEach((job, i) => this.buildCard(job, cx, 268 + i * 210, best));
+    CLASSES.forEach((job, i) => this.buildCard(job, cx, 288 + i * 210, best));
   }
 
   buildCard(job, cx, y, best) {
@@ -51,6 +52,8 @@ class SelectScene extends Phaser.Scene {
 
     box.on('pointerover', () => box.setStrokeStyle(2, job.color));
     box.on('pointerout', () => box.setStrokeStyle(2, 0x3f4a78));
-    box.on('pointerdown', () => this.scene.start('game', { jobKey: job.key }));
+    // 직업을 고르면 곧장 탑이 아니라 메달 상점을 거칩니다.
+    // 쌓아 둔 메달로 이번 판의 시작 상태를 손보는 자리입니다.
+    box.on('pointerdown', () => this.scene.start('medal', { jobKey: job.key }));
   }
 }

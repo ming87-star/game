@@ -8,12 +8,22 @@ const vm = require('vm');
 
 // const 선언은 스크립트마다 따로 놀기 때문에, 두 파일을 한 덩어리로 붙여
 // 같은 스코프에서 실행한 뒤 필요한 것만 꺼냅니다.
-const source = ['js/config.js', 'js/tower.js']
+// 무기표는 직업이 들고 있으므로 classes.js도 같이 붙입니다. classes.js는 Save를
+// 참조하지만 여기서 쓰는 것은 무기표뿐이라, 빈 껍데기 하나만 세워 두면 됩니다.
+const source = ['js/config.js', 'js/classes.js', 'js/tower.js']
   .map((f) => fs.readFileSync(path.join(__dirname, f), 'utf8'))
-  .join('\n;\n') + '\n;({ makeFloor, resetTowerRun, healNeedFrom, LANES, ITEM_KINDS, CFG })';
+  .join('\n;\n') + '\n;({ makeFloor, resetTowerRun, healNeedFrom, LANES, ITEM_KINDS, CFG, CLASSES })';
 
-const { makeFloor, resetTowerRun, healNeedFrom, LANES, ITEM_KINDS, CFG } =
-  vm.runInContext(source, vm.createContext({ Math }));
+const { makeFloor, resetTowerRun, healNeedFrom, LANES, ITEM_KINDS, CFG, CLASSES } =
+  vm.runInContext(source, vm.createContext({
+    Math,
+    Save: { data: { unlocked: {} }, recordWeapon() {} },
+    window: { localStorage: { getItem: () => null, setItem() {} } },
+  }));
+
+// 층별 곡선은 직업 하나를 골라서 봅니다.  node survey.js 400 1 archer
+const JOB = CLASSES.find((c) => c.key === process.argv[4]) || CLASSES[0];
+const WEAPONS = JOB.weapons;
 
 const ROUNDS = Number(process.argv[2]) || 400;
 // 회복은 체력에 따라 확률이 달라집니다. 기본은 체력이 가득한 상태로 셉니다.
@@ -83,7 +93,7 @@ const bandsSeen = upPerBand.size;
 console.log(`\n${CFG.shopEvery}층 구간마다 나온 UP 개수 — ` +
   Object.keys(counts).sort().map((n) => `${n}개: ${pct(counts[n], bandsSeen)}`).join('   '));
 console.log(counts['1'] === bandsSeen ? '  ✓ 모든 구간에 정확히 하나' : '  ✗ 구간당 하나가 아닌 경우가 있습니다');
-console.log(`\n무기를 끝까지 올리려면 UP이 ${CFG.weapons.length - 1}개 필요합니다.` +
+console.log(`\n${JOB.name} 무기를 끝까지 올리려면 UP이 ${WEAPONS.length - 1}개 필요합니다.` +
   ` 지도에서 ${CFG.shopEvery}층당 1개 + 상점에서 최대 1개.`);
 
 // ── 화력과 체력의 곡선 ──────────────────────────────────
@@ -101,21 +111,32 @@ const stacks = Math.round(perTier * plusPace);
 console.log(`\n\n층별 화력 대 체력 (UP을 매번 챙기고, 단계마다 +${stacks} 쌓은 경우)\n`);
 console.log('  층    무기          공격력   보통적   단단한놈    거인      몇 대 맞아야 죽나');
 
-for (let f = 0; f <= 175; f += 25) {
-  const tier = Math.min(CFG.weapons.length - 1, Math.floor(f / perTier));
-  const w = CFG.weapons[tier];
-  const dmg = w.dmg * (1 + stacks * CFG.plusStep);
+// 마지막 무기 단계 위로는 적 체력 증가율이 꺾입니다 (enemies.js의 enemyHpScale와 같은 식).
+// 표에서 이 무릎이 보여야 위 구간이 벽인지 아닌지 판단할 수 있습니다.
+const hpScale = (f) => {
+  const e = CFG.enemy;
+  return f <= e.hpTaperFrom
+    ? Math.pow(e.hpGrowth, f)
+    : Math.pow(e.hpGrowth, e.hpTaperFrom) * Math.pow(e.hpGrowthLate, f - e.hpTaperFrom);
+};
+
+// 마지막 무기를 드는 층보다 한참 위까지 봐야 벽이 있는지 알 수 있습니다.
+for (let f = 0; f <= 500; f += f < 300 ? 25 : 50) {
+  const tier = Math.min(WEAPONS.length - 1, Math.floor(f / perTier));
+  const w = WEAPONS[tier];
+  // 도적은 +1이 절반 값이고, 궁수는 한 번에 shots 발이 나갑니다.
+  const dmg = w.dmg * (1 + stacks * CFG.plusStep * (JOB.plusScale || 1)) * (w.shots || 1);
   const dps = dmg / w.rate * 1000;
 
   const hpAt = (mult) => Math.round(
-    (CFG.enemy.baseHp + f * CFG.enemy.hpPerFloor) * Math.pow(CFG.enemy.hpGrowth, f) * mult);
+    (CFG.enemy.baseHp + f * CFG.enemy.hpPerFloor) * hpScale(f) * mult);
 
   const normal = hpAt(1.0);
   const brute = hpAt(2.4);
   const giant = hpAt(3.5);
 
   console.log(
-    `  ${String(f).padStart(3)}   ${w.name.padEnd(9)} ${String(Math.round(dmg)).padStart(6)}` +
+    `  ${String(f).padStart(3)}   ${w.name.padEnd(11)} ${String(Math.round(dmg)).padStart(6)}` +
     `  ${String(normal).padStart(6)}  ${String(brute).padStart(8)}  ${String(giant).padStart(6)}` +
     `      보통 ${Math.ceil(normal / dmg)}대 · 단단 ${Math.ceil(brute / dmg)}대 · 거인 ${Math.ceil(giant / dmg)}대` +
     `   (보통 한 마리 ${(normal / dps).toFixed(1)}초)`);

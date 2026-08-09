@@ -19,6 +19,10 @@ class Hud {
 
     this.floorText = fixed(scene.add.text(CFG.width - 24, 14, '', font(30, '#ffffff')).setOrigin(1, 0));
     this.coinText = fixed(scene.add.text(CFG.width - 24, 52, '', font(24, '#ffd54f')).setOrigin(1, 0));
+    // 메달은 코인 왼쪽에 나란히 붙습니다. 자리는 코인 글자 너비에 따라
+    // 매번 다시 잡습니다 (아래 update). 0일 때는 자리를 비웁니다 —
+    // 아직 하나도 없는 첫 판에 설명 없는 기호가 떠 있으면 그냥 노이즈입니다.
+    this.medalText = fixed(scene.add.text(0, 55, '', font(20, '#ffca28')).setOrigin(1, 0));
 
     this.weaponText = fixed(scene.add.text(24, 66, '', font(24, '#ffffff')));
     this.plusText = fixed(scene.add.text(0, 68, '', font(22, '#ffd54f')));
@@ -81,6 +85,8 @@ class Hud {
 
     this.floorText.setText(s.floorIndex + '층');
     this.coinText.setText('◎ ' + s.coins);
+    this.medalText.setText(s.medals ? '🏅 ' + s.medals : '')
+      .setX(this.coinText.x - this.coinText.width - 16);
 
     // 무기 이름 뒤에 강화 현황을 붙입니다. 없으면 표시하지 않습니다.
     this.weaponText.setText(w.name);

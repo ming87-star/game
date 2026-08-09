@@ -35,6 +35,12 @@ const CLASSES = [
       { name: '화염도',    dmg: 322, rate: 140, reach: 135, color: 0xff8a65 },
       { name: '뇌전검',    dmg: 515, rate: 125, reach: 139, color: 0x81d4fa },
       { name: '용살검',    dmg: 772, rate: 105, reach: 143, color: 0xffb74d },
+      // 여기서부터는 275층 언저리에서야 손에 들어옵니다. 한 판에 다 보기는 어렵고,
+      // 메달과 무기 계승으로 판을 거듭해야 닿는 구간입니다.
+      { name: '파천검',    dmg: 1310, rate: 100, reach: 147, color: 0xf48fb1 },
+      { name: '성흔검',    dmg: 2230, rate: 95,  reach: 151, color: 0xfff59d },
+      { name: '혼돈의 대검', dmg: 3780, rate: 90, reach: 155, color: 0x9575cd },
+      { name: '천공검',    dmg: 6370, rate: 85,  reach: 159, color: 0x80cbc4 },
     ],
 
     relic: {
@@ -75,6 +81,12 @@ const CLASSES = [
       { name: '뇌명궁',     dmg: 133, rate: 102, range: 390, shots: 4, color: 0x81d4fa },
       // 특수 무기 — 화살이 표적을 끝까지 쫓습니다. 아주 긴 판에서만 손에 들어옵니다.
       { name: '용뼈 대궁',   dmg: 200, rate: 89,  range: 410, shots: 4, homing: true, color: 0xffb74d },
+      // 여기서부터는 유도가 기본입니다. 275층 언저리의 구간이라,
+      // 메달과 무기 계승으로 판을 거듭해야 닿습니다.
+      { name: '질풍 대궁',   dmg: 332,  rate: 82, range: 425, shots: 4, homing: true, color: 0xf48fb1 },
+      { name: '성좌궁',     dmg: 442,  rate: 76, range: 440, shots: 5, homing: true, color: 0xfff59d },
+      { name: '심연 장궁',   dmg: 734,  rate: 70, range: 455, shots: 5, homing: true, color: 0x9575cd },
+      { name: '천뢰궁',     dmg: 1006, rate: 64, range: 470, shots: 6, homing: true, color: 0x80cbc4 },
     ],
 
     relic: {
@@ -115,6 +127,11 @@ const CLASSES = [
       { name: '월아도',      dmg: 186, rate: 78,  reach: 90, color: 0xff8a65 },
       { name: '뇌전 비수',    dmg: 297, rate: 70,  reach: 93, color: 0x81d4fa },
       { name: '용아 단검',    dmg: 445, rate: 60,  reach: 96, color: 0xffb74d },
+      // 275층 언저리 구간. 도적은 +1이 절반 값이라 여기 공격력이 셋 중 가장 큽니다.
+      { name: '그믐 비수',    dmg: 745,  rate: 56, reach: 99,  color: 0xf48fb1 },
+      { name: '사혼도',      dmg: 1235, rate: 52, reach: 102, color: 0xfff59d },
+      { name: '심연의 이빨',  dmg: 2042, rate: 48, reach: 105, color: 0x9575cd },
+      { name: '천살 단검',    dmg: 3347, rate: 44, reach: 108, color: 0x80cbc4 },
     ],
 
     relic: {

@@ -6,7 +6,8 @@ class GameScene extends Phaser.Scene {
   }
 
   init(data) {
-    this.job = classByKey((data && data.jobKey) || 'warrior');
+    this.job = classByKey((data && data.jobKey) || Save.data.lastJob || 'warrior');
+    Save.setJob(this.job.key);
   }
 
   create() {
@@ -25,6 +26,11 @@ class GameScene extends Phaser.Scene {
     this.coins = 0;
     this.totalCoins = 0;
     this.kills = 0;
+    this.medals = 0; // 이번 판에 번 메달. 죽을 때 받을지 말지 고릅니다.
+
+    // 메달 상점에서 사 둔 것과 계승해 온 무기를 여기서 한 번에 바릅니다.
+    // 꺼내면 사라집니다 — 전부 이번 판에만 붙는 것들입니다.
+    this.boosts = applyBoosts(this, Save.takeBoosts());
 
     this.lastHitAt = -9999;
     this.lastSwingAt = 0;
@@ -67,6 +73,7 @@ class GameScene extends Phaser.Scene {
     this.tapBlockedUntil = 0;
     this.dimmedFloor = -1;
     this.markReach();
+    this.announceBoosts();
 
     window.__scene = this; // 브라우저 콘솔·자동 플레이테스트에서 상태를 보기 위한 통로
   }
@@ -217,11 +224,9 @@ class GameScene extends Phaser.Scene {
     this.input.on('pointerdown', (p) => {
       if (this.shop.open) return; // 상점 버튼은 상점이 직접 받습니다
       if (this.time.now < this.tapBlockedUntil) return;
-      if (this.dead) {
-        // 아래쪽을 누르면 직업부터 다시 고릅니다. 그 위는 같은 직업으로 재도전.
-        if (p.y > CFG.height - 120) return this.scene.start('select');
-        return this.scene.restart({ jobKey: this.job.key });
-      }
+      // 죽은 뒤에는 아무 데나 눌러 다시 시작할 수 없습니다. 무엇을 가져갈지
+      // 세 갈래 중 하나를 골라야 하고, 그 버튼들이 직접 입력을 받습니다.
+      if (this.dead) return;
       // 화면을 삼등분해서 왼쪽이면 한 칸 왼쪽, 가운데면 바로 위, 오른쪽이면 한 칸 오른쪽.
       // 누른 자리의 발판으로 순간이동하는 것이 아니라 방향을 고르는 것입니다.
       const third = this.scale.width / 3;
@@ -230,8 +235,7 @@ class GameScene extends Phaser.Scene {
       this.jump(step);
     });
     const key = (step) => () => {
-      if (this.shop.open) return;
-      if (this.dead) return this.scene.restart({ jobKey: this.job.key });
+      if (this.shop.open || this.dead) return;
       this.hud.flashArrow(step);
       this.jump(step);
     };
@@ -327,6 +331,12 @@ class GameScene extends Phaser.Scene {
         case SLOT.HEAL:
           this.hp = Math.min(this.maxHp, this.hp + CFG.heal);
           this.popup('+' + CFG.heal, '#a5d6a7');
+          break;
+        case SLOT.MEDAL:
+          // 스무 판에 한 번 볼까 말까 한 물건입니다. 그냥 지나가면 아까우니
+          // 화면 가운데에 크게 알려 줍니다.
+          this.medals++;
+          this.announceMedal();
           break;
         default:
           slot.taken = false; // 먹을 게 없던 발판은 그대로 둡니다
@@ -427,6 +437,12 @@ class GameScene extends Phaser.Scene {
     });
     this.enemyBullets.clear(true, true);
     this.subTarget = null;
+
+    // 상점에 닿는 것 자체가 메달 수입입니다. 즉 "얼마나 높이 올라갔나"가 곧
+    // 다음 판의 밑천이 됩니다. 큰 상점은 두 개.
+    const gain = isBigShopFloor(this.floorIndex) ? CFG.medal.perBigShop : CFG.medal.perShop;
+    this.medals += gain;
+    this.popup('🏅 +' + gain, '#ffca28');
 
     // 큰 상점은 도착만 해도 체력을 돌려줍니다. 화면에서 바로 알 수 있게 띄웁니다.
     this.bigShopHeal = 0;
@@ -578,6 +594,38 @@ class GameScene extends Phaser.Scene {
     this.kills++;
   }
 
+  // 메달로 사 둔 것과 계승해 온 무기가 실제로 붙었다는 것을 판 첫머리에 보여 줍니다.
+  // 산 것이 조용히 적용되면 메달을 쓴 보람이 안 보입니다.
+  announceBoosts() {
+    if (!this.boosts.length) return;
+    const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
+    const parts = [
+      this.add.text(CFG.width / 2, 300, '메달 상점에서', font(20, '#8794b5')).setOrigin(0.5),
+      this.add.text(CFG.width / 2, 340, this.boosts.join('   '), font(26, '#ffca28')).setOrigin(0.5),
+    ];
+    parts.forEach((t) => {
+      t.setScrollFactor(0).setDepth(150).setAlpha(0);
+      this.tweens.add({ targets: t, alpha: 1, duration: 300, yoyo: true, hold: 1700,
+        onComplete: () => t.destroy() });
+    });
+  }
+
+  // 지도에 떨어진 메달. 상점에서 받는 것과 값은 같지만 만나는 일이 거의 없어서,
+  // 만났을 때만은 유물처럼 크게 알려 줍니다.
+  announceMedal() {
+    const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
+    const parts = [
+      this.add.text(CFG.width / 2, 300, '메달을 주웠습니다', font(20, '#8794b5')).setOrigin(0.5),
+      this.add.text(CFG.width / 2, 340, '🏅 +1', font(44, '#ffca28')).setOrigin(0.5),
+      this.add.text(CFG.width / 2, 386, '죽어도 남습니다', font(20, '#ffe082')).setOrigin(0.5),
+    ];
+    parts.forEach((t) => {
+      t.setScrollFactor(0).setDepth(150).setAlpha(0);
+      this.tweens.add({ targets: t, alpha: 1, duration: 300, yoyo: true, hold: 1600,
+        onComplete: () => t.destroy() });
+    });
+  }
+
   announceRelic(relic) {
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
     const parts = [
@@ -697,50 +745,103 @@ class GameScene extends Phaser.Scene {
     const opened = classesUnlockedBy(this.floorIndex, this.totalCoins);
     opened.forEach((job) => Save.unlock(job.key));
     Save.finishRun(this.floorIndex, this.totalCoins);
+    // 죽을 때 들고 있던 무기도 도감에 남깁니다. 바로 아래에서 뽑을 후보가 됩니다.
+    this.weapon.record();
     this.physics.pause();
     this.enemies.getChildren().forEach((e) => e.setTint(0x555555));
 
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
     const cx = CFG.width / 2;
-    const cy = CFG.height / 2;
     const add = (o) => o.setScrollFactor(0).setDepth(200);
 
-    add(this.add.rectangle(cx, cy, CFG.width, CFG.height, 0x000000, 0.66));
-    add(this.add.text(cx, cy - 140, this.job.name, font(26, '#8794b5')).setOrigin(0.5));
-    add(this.add.text(cx, cy - 90, this.floorIndex + '층', font(72, '#ffffff')).setOrigin(0.5));
-    add(this.add.text(cx, cy - 10, '점수 ' + this.score(), font(32, '#ffffff')).setOrigin(0.5));
-    add(this.add.text(cx, cy + 34, '처치 ' + this.kills + '   코인 ' + this.totalCoins +
-      '   방어 ' + this.armor + '%', font(24, '#b0bec5')).setOrigin(0.5));
-    add(this.add.text(cx, cy + 74, this.weapon.name +
-      (this.weapon.plus ? ' +' + this.weapon.plus : '') +
-      (this.weapon.mult > 1 ? ' ×' + this.weapon.mult : ''), font(24, '#ffd54f')).setOrigin(0.5));
+    add(this.add.rectangle(cx, CFG.height / 2, CFG.width, CFG.height, 0x000000, 0.72));
+    add(this.add.text(cx, 138, this.job.name, font(24, '#8794b5')).setOrigin(0.5));
+    add(this.add.text(cx, 190, this.floorIndex + '층', font(66, '#ffffff')).setOrigin(0.5));
+    add(this.add.text(cx, 244, '점수 ' + this.score() + '   처치 ' + this.kills +
+      '   코인 ' + this.totalCoins, font(22, '#b0bec5')).setOrigin(0.5));
+
     // 최고 기록과 다음 해금까지 남은 거리를 같이 보여 줍니다.
     // 죽을 때마다 "얼마나 왔는지"가 보여야 한 판 더 하게 됩니다.
-    const best = Save.bestFloor;
-    add(this.add.text(cx, cy + 96,
-      this.floorIndex > wasBest ? '최고 기록 경신!' : '최고 기록 ' + best + '층',
-      font(24, this.floorIndex > wasBest ? '#ffd54f' : '#8794b5')).setOrigin(0.5));
+    add(this.add.text(cx, 278,
+      this.floorIndex > wasBest ? '최고 기록 경신!' : '최고 기록 ' + Save.bestFloor + '층',
+      font(22, this.floorIndex > wasBest ? '#ffd54f' : '#8794b5')).setOrigin(0.5));
 
     // 해금은 한 판 안에서 층과 코인을 함께 채워야 합니다. 이번 판이 어디까지 왔는지
     // 두 조건을 나란히 보여 줘야 "무엇이 모자랐는지"를 압니다.
     if (opened.length) {
-      add(this.add.text(cx, cy + 128, opened.map((j) => j.name).join(' · ') + ' 해금!',
+      add(this.add.text(cx, 314, opened.map((j) => j.name).join(' · ') + ' 해금!',
         font(26, '#a5d6a7')).setOrigin(0.5));
     } else {
       const next = CLASSES.find((c) => (c.unlockFloor || c.unlockCoins) && !Save.data.unlocked[c.key]);
       if (next) {
-        add(this.add.text(cx, cy + 128,
+        add(this.add.text(cx, 310,
           next.name + ' 해금  ' + next.unlockFloor + '층 · 코인 ' + next.unlockCoins,
-          font(19, '#8794b5')).setOrigin(0.5));
-        add(this.add.text(cx, cy + 152,
-          '이번 판  ' + this.floorIndex + '층 · 코인 ' + this.totalCoins,
-          font(19, this.floorIndex >= next.unlockFloor || this.totalCoins >= next.unlockCoins
+          font(18, '#8794b5')).setOrigin(0.5));
+        add(this.add.text(cx, 332, '이번 판  ' + this.floorIndex + '층 · 코인 ' + this.totalCoins,
+          font(18, this.floorIndex >= next.unlockFloor || this.totalCoins >= next.unlockCoins
             ? '#ffd54f' : '#4a5578')).setOrigin(0.5));
       }
     }
 
-    add(this.add.text(cx, cy + 200, '눌러서 다시 시작', font(30, '#ffd54f')).setOrigin(0.5));
-    add(this.add.text(cx, CFG.height - 70, '아래를 누르면 직업 다시 고르기', font(22, '#8794b5')).setOrigin(0.5));
+    this.buildDeathChoices(add, font, cx);
+  }
+
+  // ── 죽고 나서 무엇을 가져갈까 ─────────────────────────
+  // 셋 중 하나만 고릅니다. 메달을 받지 않으면 이번 판에 번 메달은 사라집니다.
+  // 그래서 "무기 계승"과 "직업 바꾸기"에는 값이 붙습니다 — 고민이 생기는 자리입니다.
+  // 잃는 것은 버튼에 그대로 적어 둡니다. 모르고 눌러서 잃으면 그건 함정입니다.
+  buildDeathChoices(add, font, cx) {
+    const earned = this.medals;
+    const cost = earned ? '이번 판 메달 ' + earned + '개를 버립니다' : '이번 판에 번 메달은 없습니다';
+    // 무엇이 뽑혔는지는 눌러 보기 전에 보여 줍니다. 좋은 것이 떴는지 보고
+    // 고르는 것이 이 선택의 전부입니다 — 가려 두면 그냥 도박이 됩니다.
+    const carry = Save.rollWeapon(this.job.key);
+    this.deathCarry = carry; // 자동 시험에서 "뽑힌 것"과 "들고 시작한 것"을 맞춰 보는 통로
+
+    add(this.add.text(cx, 386, '무엇을 가져갈까', font(24, '#ffffff')).setOrigin(0.5));
+
+    const choice = (y, color, title, sub, enabled, onPick) => {
+      const box = add(this.add.rectangle(cx, y, 450, 104,
+        enabled ? 0x232b47 : 0x171c2e).setStrokeStyle(2, enabled ? color : 0x2a3252));
+      add(this.add.text(cx, y - 20, title, font(26, enabled ? '#ffffff' : '#4a5578')).setOrigin(0.5));
+      add(this.add.text(cx, y + 20, sub, font(18, enabled ? '#8794b5' : '#3c456b')).setOrigin(0.5));
+      if (enabled) {
+        box.setInteractive({ useHandCursor: true });
+        box.on('pointerdown', onPick);
+      }
+      return { x: cx, y };
+    };
+
+    this.deathChoices = [
+      // 1 — 번 메달을 받고 상점으로. 쌓아 둔 메달도 여기서만 쓸 수 있습니다.
+      choice(470, 0xffca28, '🏅 메달 ' + earned + '개 받기',
+        '메달 상점으로 갑니다  (가진 메달 ' + Save.medals + ')', true, () => {
+          Save.addMedals(earned);
+          this.scene.start('medal', { jobKey: this.job.key, earned });
+        }),
+
+      // 2 — 도감에서 무작위로 뽑힌 한 자루. 무엇이 나왔는지 보고 고릅니다.
+      //     좋은 것이 뜨면 메달을 버릴 값어치가 있고, 아니면 1번이 낫습니다.
+      choice(590, 0xff8a65,
+        carry ? this.carryName(carry) + ' 들고 다시' : '계승할 무기 없음',
+        carry ? cost : '무기를 들어 본 적이 있어야 뜹니다', !!carry, () => {
+          Save.setBoost('weapon', carry);
+          this.scene.start('game', { jobKey: this.job.key });
+        }),
+
+      // 3 — 직업을 바꾸러. 무기 도감은 직업마다 따로라 갈아타면 처음부터입니다.
+      choice(710, 0x5c6bc0, '직업 바꾸기', cost, true,
+        () => this.scene.start('select')),
+    ];
+  }
+
+  // 도감에서 뽑힌 무기를 사람이 읽을 이름으로. 단계는 직업의 무기표에서 찾습니다.
+  carryName(carry) {
+    const table = this.job.weapons;
+    const base = table[Math.min(table.length - 1, carry.tier)];
+    return base.name +
+      (carry.plus ? ' +' + carry.plus : '') +
+      (carry.mult > 1 ? ' ×' + carry.mult : '');
   }
 
   // ── 매 프레임 ─────────────────────────────────────────

@@ -43,8 +43,13 @@ const server = http.createServer((req, res) => {
     await page.waitForTimeout(700);
     const locked = await page.evaluate(() =>
       CLASSES.map((j) => j.key + (classUnlocked(j) ? ':열림' : ':잠김')).join(' '));
-    await page.mouse.click(270 * 0.75, 268 * 0.75); // 전사 카드
-    await page.waitForTimeout(700);
+
+    // 직업 → 메달 상점 → 탑. 여기서는 아무것도 사지 않고 그대로 올라갑니다.
+    await page.mouse.click(270 * 0.75, 288 * 0.75); // 전사 카드
+    await page.waitForTimeout(600);
+    const start = await page.evaluate(() => window.__medal.startAt);
+    await page.mouse.click(start.x * 0.75, start.y * 0.75);
+    await page.waitForTimeout(800);
     return locked;
   };
 

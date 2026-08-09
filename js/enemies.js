@@ -10,6 +10,19 @@ function enemyDef(key) {
   return CFG.enemyTypes.find((t) => t.key === key) || CFG.enemyTypes[0];
 }
 
+// 층에 따른 체력 배수.
+//
+// 무기 단계가 남아 있는 동안(hpTaperFrom 아래)에는 주인공도 곱으로 세지므로
+// 적도 곱으로 자랍니다. 마지막 무기를 든 뒤로는 주인공의 화력이 거의 평평해지니
+// 적의 증가율도 같이 꺾습니다. 안 그러면 넘을 수 없는 벽이 생깁니다 —
+// 1.022를 그대로 두면 500층 적은 175층의 1,180배가 됩니다.
+function enemyHpScale(floor) {
+  const e = CFG.enemy;
+  const knee = e.hpTaperFrom;
+  if (floor <= knee) return Math.pow(e.hpGrowth, floor);
+  return Math.pow(e.hpGrowth, knee) * Math.pow(e.hpGrowthLate, floor - knee);
+}
+
 function spawnEnemy(scene, x, y, floor, typeKey) {
   if (scene.enemies.countActive(true) >= CFG.maxEnemies) return null;
 
@@ -29,7 +42,7 @@ function spawnEnemy(scene, x, y, floor, typeKey) {
 
   e.def = def;
   e.maxHp = Math.round((CFG.enemy.baseHp + floor * CFG.enemy.hpPerFloor)
-    * Math.pow(CFG.enemy.hpGrowth, floor) * def.hp);
+    * enemyHpScale(floor) * def.hp);
   e.hp = e.maxHp;
   e.speed = Math.min(
     CFG.enemy.maxSpeed,

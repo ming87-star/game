@@ -45,18 +45,37 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
 
   await page.goto('http://localhost:' + port + '/', { waitUntil: 'networkidle' });
   // 잠긴 직업도 시험해야 하므로 해금을 미리 채워 두고 새로고침합니다.
-  await page.evaluate(() => window.localStorage.setItem('tower-climb-v1',
-    JSON.stringify({ bestFloor: 0, deaths: 0, runs: 0, bestCoins: 0,
-      unlocked: { archer: true, rogue: true } })));
+  // 메달은 MEDALS 로 넘겨서 "몇 번 죽은 뒤"의 상태도 재 볼 수 있습니다.
+  const medals = Number(process.env.MEDALS) || 0;
+  await page.evaluate((m) => window.localStorage.setItem('tower-climb-v1',
+    JSON.stringify({ bestFloor: 0, deaths: 0, runs: 0, bestCoins: 0, medals: m,
+      weapons: {}, boosts: {}, unlocked: { archer: true, rogue: true } })), medals);
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1000);
   await shot(page, '00-select.png');
 
   // 시작 화면에서 직업 카드를 실제로 눌러서 들어갑니다.
   const cardIndex = ['warrior', 'archer', 'rogue'].indexOf(jobKey);
-  await page.mouse.click(...at(270, 268 + Math.max(0, cardIndex) * 210));
+  await page.mouse.click(...at(270, 288 + Math.max(0, cardIndex) * 210));
+  await page.waitForTimeout(800);
+
+  // 직업을 고르면 메달 상점을 거칩니다. 살 수 있는 것은 위에서부터 다 삽니다.
+  await shot(page, '01-medal.png');
+  const medalShop = await page.evaluate(() => {
+    const m = window.__medal;
+    if (!m) return null;
+    return { rows: m.rows.map((r) => ({ x: r.box.x, y: r.box.y })), start: m.startAt };
+  });
+  if (medalShop) {
+    for (const r of medalShop.rows) {
+      await page.mouse.click(...at(r.x, r.y));
+      await page.waitForTimeout(140);
+    }
+    await shot(page, '01-medal-after.png');
+    await page.mouse.click(...at(medalShop.start.x, medalShop.start.y));
+  }
   await page.waitForTimeout(1000);
-  await shot(page, '01-start.png');
+  await shot(page, '02-start.png');
 
   const read = () => page.evaluate(() => {
     const s = window.__scene;
@@ -88,6 +107,7 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
           Phaser.Math.Distance.Between(e.x, e.y, s.player.x, s.player.y) <= s.weapon.reach).length,
       enemies: s.enemies.countActive(), dead: s.dead, shopOpen: s.shop.open,
       score: s.score(),
+      medals: s.medals, boosts: s.boosts,
       kinds,
     };
   });
@@ -101,6 +121,7 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
     if (kind === 'double') return 5;
     if (kind === 'upgrade') return s.upWorth ? 4 : 1;
     if (kind === 'armor') return s.armor < 40 ? 4 : 2;
+    if (kind === 'medal') return 9; // 판을 넘어 남는 유일한 것. 무조건 집습니다
     if (kind === 'plus') return 3;
     if (kind === 'empty') return 2;
     // 적 발판은 코인이 궁할 때 골라 갑니다. 땅에 붙은 적은 피하면 그만이라,
@@ -175,8 +196,26 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
   await shot(page, '04-late.png');
 
   const state = await read();
+
+  // 죽었다면 죽음 화면의 세 갈래가 실제로 그려졌는지, 무엇을 계승할 수 있는지 봅니다.
+  if (state && state.dead) {
+    await shot(page, '05-death.png');
+    const choices = await page.evaluate(() => {
+      const s = window.__scene;
+      return {
+        buttons: s.deathChoices ? s.deathChoices.length : 0,
+        carry: window.__save.rollWeapon(s.job.key),
+        book: window.__save.data.weapons[s.job.key] || {},
+      };
+    });
+    console.log('죽음 화면: 선택지', choices.buttons + '개',
+      '· 도감', Object.keys(choices.book).length + '단계',
+      '· 뽑기 예:', JSON.stringify(choices.carry));
+  }
+
   console.log(log.join('\n'));
-  console.log(`${jobKey} · 상점 ${shopsSeen}회`);
+  console.log(`${jobKey} · 상점 ${shopsSeen}회 · 메달 ${state ? state.medals : 0}개` +
+    (state && state.boosts && state.boosts.length ? ' · 시작 강화 ' + state.boosts.join(',') : ''));
   console.log('최종:', JSON.stringify(state));
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
 

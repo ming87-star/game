@@ -60,9 +60,16 @@ class Weapon {
     return true;
   }
 
+  // 지금 상태를 도감에 남깁니다. 죽을 때 여기서 하나를 뽑아 계승합니다.
+  // 단계를 갈아탈 때와 죽을 때 부르면 각 단계의 "마지막 상태"가 모입니다.
+  record() {
+    Save.recordWeapon(this.job.key, this.tier, this.plus, this.mult);
+  }
+
   // 다음 단계로. 강화는 잃지만 유물은 남습니다.
   upgrade() {
     if (this.atMaxTier) return false;
+    this.record(); // 두고 가는 무기를 도감에 남기고 올라갑니다
     this.tier++;
     this.plus = 0;
     this.mult = 1;
