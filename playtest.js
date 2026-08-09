@@ -1,4 +1,6 @@
 // 헤드리스 브라우저로 게임을 실제로 굴려보고 화면을 찍습니다.
+//   node playtest.js          기본 60번 점프
+//   node playtest.js 120      더 높이
 const { chromium } = require('playwright');
 const http = require('http');
 const fs = require('fs');
@@ -6,6 +8,11 @@ const path = require('path');
 
 const ROOT = __dirname;
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
+
+// 게임 해상도와 뷰포트 비율이 같아서 좌표를 그냥 배율로 환산하면 됩니다.
+const VIEW = { width: 405, height: 720 };
+const SCALE = VIEW.width / 540;
+const at = (gx, gy) => [gx * SCALE, gy * SCALE];
 
 const server = http.createServer((req, res) => {
   const file = path.join(ROOT, req.url === '/' ? 'index.html' : req.url.split('?')[0]);
@@ -19,6 +26,7 @@ const server = http.createServer((req, res) => {
 const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', name) });
 
 (async () => {
+  const jumps = Number(process.argv[2]) || 60;
   fs.mkdirSync(path.join(ROOT, 'shots'), { recursive: true });
   await new Promise((r) => server.listen(8099, r));
 
@@ -27,7 +35,7 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
     executablePath: process.env.CHROME_PATH || undefined,
     args: ['--no-sandbox', '--use-gl=swiftshader'],
   });
-  const page = await browser.newPage({ viewport: { width: 405, height: 720 } });
+  const page = await browser.newPage({ viewport: VIEW });
 
   const errors = [];
   page.on('pageerror', (e) => errors.push('PAGEERROR: ' + e.message));
@@ -37,48 +45,79 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
   await page.waitForTimeout(1200);
   await shot(page, '01-start.png');
 
-  const box = { w: 405, h: 720 };
   const read = () => page.evaluate(() => {
     const s = window.__scene;
     if (!s) return null;
     const next = s.floors.get(s.floorIndex + 1);
     const kindOf = (lane) => (next && next.slots[lane] ? next.slots[lane].kind : null);
     return {
-      floor: s.floorIndex, hp: Math.round(s.hp), kills: s.kills,
-      weapon: CFG.weapons[s.weaponLevel].name, enemies: s.enemies.countActive(),
-      dead: s.dead, score: s.score(),
+      floor: s.floorIndex, hp: Math.round(s.hp), maxHp: s.maxHp,
+      kills: s.kills, coins: s.coins, totalCoins: s.totalCoins,
+      weapon: s.weapon.name, plus: s.weapon.plus, mult: s.weapon.mult,
+      dmg: s.weapon.dmg, shots: s.weapon.shots,
+      enemies: s.enemies.countActive(), dead: s.dead, shopOpen: s.shop.open,
+      score: s.score(),
       left: kindOf('left'), right: kindOf('right'),
     };
   });
 
-  // 사람처럼 고르는 가상 플레이어: 체력이 낮으면 회복, 아니면 아이템을 우선합니다.
-  const rank = (kind, hp) => {
+  // 사람처럼 고르는 가상 플레이어.
+  const rank = (kind, hp, maxHp) => {
     if (kind === null) return -1;
-    if (kind === 'heal') return hp < 60 ? 4 : 1;
-    if (kind === 'item') return 3;
+    if (kind === 'heal') return hp < maxHp * 0.6 ? 6 : 1;
+    if (kind === 'double') return 5;
+    if (kind === 'upgrade') return 4;
+    if (kind === 'plus') return 3;
     if (kind === 'empty') return 2;
     return 0; // enemy
   };
 
+  // 상점 버튼을 실제 좌표로 눌러서 UI가 입력을 받는지까지 확인합니다.
+  const doShop = async (label) => {
+    await page.waitForTimeout(400);
+    await shot(page, label);
+    const top = 960 / 2 - 620 / 2; // SHOP_LAYOUT.height
+    for (let i = 0; i < 3; i++) {
+      await page.mouse.click(...at(270, top + 148 + i * 112));
+      await page.waitForTimeout(180);
+    }
+    await shot(page, label.replace('.png', '-after.png'));
+    await page.mouse.click(...at(270, 960 / 2 - 620 / 2 + 532));
+    await page.waitForTimeout(400);
+  };
+
   const log = [];
-  for (let i = 0; i < 45; i++) {
+  let shopsSeen = 0;
+  for (let i = 0; i < jumps; i++) {
     const s = await read();
-    if (!s || s.dead) { log.push(`${i}회차: 사망 (${s && s.floor}층)`); break; }
-    const left = rank(s.left, s.hp) >= rank(s.right, s.hp);
-    await page.mouse.click(left ? box.w * 0.25 : box.w * 0.75, box.h * 0.6);
+    if (!s) break;
+    if (s.dead) { log.push(`${s.floor}층에서 사망`); break; }
+
+    if (s.shopOpen) {
+      shopsSeen++;
+      await doShop(`shop-${s.floor}.png`);
+      continue;
+    }
+
+    const left = rank(s.left, s.hp, s.maxHp) >= rank(s.right, s.hp, s.maxHp);
+    await page.mouse.click(...at(left ? 135 : 405, 620));
     await page.waitForTimeout(560);
+
     if (i % 10 === 9) {
       const t = await read();
-      log.push(`${t.floor}층  HP ${t.hp}  처치 ${t.kills}  적 ${t.enemies}  ${t.weapon}  점수 ${t.score}`);
+      log.push(`${String(t.floor).padStart(3)}층  HP ${t.hp}/${t.maxHp}  적 ${t.enemies}  처치 ${t.kills}  코인 ${t.coins}` +
+        `  ${t.weapon}${t.plus ? ' +' + t.plus : ''}${t.mult > 1 ? ' ×' + t.mult : ''}` +
+        `  (공격력 ${t.dmg} · ${t.shots}발)`);
     }
-    if (i === 6) await shot(page, '02-climb.png');
     if (i === 24) await shot(page, '03-combat.png');
   }
-  await page.waitForTimeout(1500);
+
+  await page.waitForTimeout(1200);
   await shot(page, '04-late.png');
 
   const state = await read();
   console.log(log.join('\n'));
+  console.log(`상점 ${shopsSeen}회`);
   console.log('최종:', JSON.stringify(state));
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
 

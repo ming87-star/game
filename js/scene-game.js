@@ -12,21 +12,25 @@ class GameScene extends Phaser.Scene {
     this.jumping = false;
     this.floorIndex = 0;
     this.lane = 'left';
-    this.hp = CFG.player.hp;
-    this.itemLevels = 0;
-    this.weaponLevel = 0;
+
+    this.maxHp = CFG.player.hp;
+    this.hp = this.maxHp;
+    this.weapon = new Weapon();
+    this.coins = 0;
+    this.totalCoins = 0;
     this.kills = 0;
-    this.bonus = 0;
+
     this.lastHitAt = -9999;
     this.lastShotAt = 0;
     this.target = null;
+    this.pickups = [];
 
     this.floors = new Map();
     this.enemies = this.physics.add.group();
     this.bullets = this.physics.add.group();
+    this.enemyBullets = this.physics.add.group();
 
     this.drawBackground();
-
     for (let i = 0; i <= 10; i++) this.addFloor(i);
 
     const start = this.floors.get(0).slots.left;
@@ -37,10 +41,12 @@ class GameScene extends Phaser.Scene {
 
     this.physics.add.overlap(this.bullets, this.enemies, this.onBulletHit, null, this);
     this.physics.add.overlap(this.player, this.enemies, this.onEnemyTouch, null, this);
+    this.physics.add.overlap(this.player, this.enemyBullets, this.onEnemyShotHit, null, this);
 
     this.cameras.main.setScroll(0, this.player.y - CFG.height * 0.68);
 
-    this.buildHud();
+    this.hud = new Hud(this);
+    this.shop = new Shop(this);
     this.bindInput();
 
     this.ambientAt = this.time.now + CFG.ambient.baseDelay;
@@ -66,26 +72,51 @@ class GameScene extends Phaser.Scene {
       const slot = floor.slots[lane];
       if (!slot) continue;
 
-      const bar = this.add.rectangle(slot.x, slot.y, CFG.platformW, CFG.platformH, 0x5c6bc0);
-      const lip = this.add.rectangle(slot.x, slot.y - CFG.platformH / 2 + 3, CFG.platformW, 6, 0x9fa8da);
-      floor.views.push(bar, lip);
+      const wide = slot.kind === SLOT.SHOP;
+      const w = wide ? CFG.width - 80 : CFG.platformW;
+      const color = wide ? 0xffb74d : 0x5c6bc0;
+      const lipColor = wide ? 0xffe0b2 : 0x9fa8da;
 
-      // 올라가기 전에 무엇이 있는지 보이게 해서, 좌우 선택이 판단이 되게 합니다.
-      if (slot.kind === SLOT.ITEM) {
-        slot.view = this.add.sprite(slot.x, slot.y - 34, 'item').setDepth(5);
-        this.tweens.add({ targets: slot.view, y: slot.y - 46, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-      } else if (slot.kind === SLOT.HEAL) {
-        slot.view = this.add.sprite(slot.x, slot.y - 34, 'heal').setDepth(5);
-        this.tweens.add({ targets: slot.view, y: slot.y - 46, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-      } else if (slot.kind === SLOT.ENEMY) {
-        slot.view = this.add.text(slot.x, slot.y - 40, '⚠ ' + slot.enemyCount, {
-          fontFamily: 'sans-serif', fontSize: '20px', color: '#ff8a80',
-        }).setOrigin(0.5).setDepth(5);
-      }
-      if (slot.view) floor.views.push(slot.view);
+      floor.views.push(
+        this.add.rectangle(slot.x, slot.y, w, CFG.platformH, color),
+        this.add.rectangle(slot.x, slot.y - CFG.platformH / 2 + 3, w, 6, lipColor));
+
+      const mark = this.makeMark(slot);
+      if (mark) { slot.view = mark; floor.views.push(mark); }
     }
 
     this.floors.set(index, floor);
+  }
+
+  // 올라가기 전에 무엇이 있는지 보이게 해서, 좌우 선택이 판단이 되게 합니다.
+  // 나중에 아이템 그림이 나오면 이 함수만 바꾸면 됩니다.
+  makeMark(slot) {
+    if (slot.kind === SLOT.SHOP) {
+      return this.add.text(slot.x, slot.y - 44, '상 점', {
+        fontFamily: 'sans-serif', fontSize: '26px', color: '#ffcc80',
+      }).setOrigin(0.5).setDepth(5);
+    }
+
+    if (slot.kind === SLOT.ENEMY) {
+      return this.add.text(slot.x, slot.y - 40, '⚠ ' + slot.enemyCount, {
+        fontFamily: 'sans-serif', fontSize: '20px', color: '#ff8a80',
+      }).setOrigin(0.5).setDepth(5);
+    }
+
+    // 최고 단계에서는 UP이 회복으로 대신 쓰이므로, 표시도 회복처럼 보여야 합니다.
+    const kind = slot.kind === SLOT.UPGRADE && this.weapon.atMaxTier ? SLOT.HEAL : slot.kind;
+    const mark = SLOT_MARK[kind];
+    if (!mark) return null;
+
+    const badge = this.add.container(slot.x, slot.y - 38, [
+      this.add.circle(0, 0, 18, mark.color),
+      this.add.text(0, 0, mark.label, {
+        fontFamily: 'sans-serif', fontSize: '20px', color: mark.text,
+      }).setOrigin(0.5),
+    ]).setDepth(5);
+
+    this.tweens.add({ targets: badge, y: badge.y - 12, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    return badge;
   }
 
   removeFloor(index) {
@@ -103,51 +134,42 @@ class GameScene extends Phaser.Scene {
       const slot = floor.slots[lane];
       if (!slot || slot.kind !== SLOT.ENEMY || slot.spawned) continue;
       slot.spawned = true;
-      for (let i = 0; i < slot.enemyCount; i++) {
-        this.spawnEnemy(slot.x + Phaser.Math.Between(-60, 60), slot.y - 50 - i * 26, index);
-      }
+      slot.enemyTypes.forEach((type, i) => {
+        spawnEnemy(this, slot.x + Phaser.Math.Between(-60, 60), slot.y - 50 - i * 30, index, type);
+      });
       // 실제로 나왔으니 예고 표시는 지웁니다.
       if (slot.view) { slot.view.destroy(); slot.view = null; }
     }
   }
 
-  // ── 적 ────────────────────────────────────────────────
-  spawnEnemy(x, y, floorForStats) {
-    if (this.enemies.countActive(true) >= CFG.maxEnemies) return null;
-    const e = this.enemies.create(x, y, 'enemy');
-    e.body.setAllowGravity(false);
-    e.body.setCircle(15, 1, 1);
-    e.setDepth(8);
-    e.maxHp = CFG.enemy.baseHp + floorForStats * CFG.enemy.hpPerFloor;
-    e.hp = e.maxHp;
-    e.speed = Math.min(CFG.enemy.maxSpeed, CFG.enemy.speed + floorForStats * CFG.enemy.speedPerFloor);
-    this.tweens.add({ targets: e, scaleX: 1.12, scaleY: 0.9, duration: 420, yoyo: true, repeat: -1 });
-    return e;
-  }
-
   spawnAmbient() {
-    // 화면 위쪽 가장자리에서 무작위로 들어옵니다.
     const cam = this.cameras.main;
     const x = Phaser.Math.Between(60, CFG.width - 60);
-    const y = cam.scrollY - 40;
-    const count = Math.min(CFG.ambient.maxCount, 1 + Math.floor(this.floorIndex / 10));
+    const count = Math.min(CFG.ambient.maxCount, 1 + Math.floor(this.floorIndex / 14));
     for (let i = 0; i < count; i++) {
-      this.spawnEnemy(x + Phaser.Math.Between(-40, 40), y - i * 30, this.floorIndex);
+      spawnEnemy(this, x + Phaser.Math.Between(-40, 40), cam.scrollY - 40 - i * 30,
+        this.floorIndex, pickEnemyType(this.floorIndex));
     }
   }
 
   // ── 조작 ──────────────────────────────────────────────
   bindInput() {
     this.input.on('pointerdown', (p) => {
+      if (this.shop.open) return; // 상점 버튼은 상점이 직접 받습니다
       if (this.dead) return this.scene.restart();
       this.jump(p.x < this.scale.width / 2 ? 'left' : 'right');
     });
-    this.input.keyboard.on('keydown-LEFT', () => this.dead ? this.scene.restart() : this.jump('left'));
-    this.input.keyboard.on('keydown-RIGHT', () => this.dead ? this.scene.restart() : this.jump('right'));
+    const key = (lane) => () => {
+      if (this.shop.open) return;
+      if (this.dead) return this.scene.restart();
+      this.jump(lane);
+    };
+    this.input.keyboard.on('keydown-LEFT', key('left'));
+    this.input.keyboard.on('keydown-RIGHT', key('right'));
   }
 
   jump(lane) {
-    if (this.jumping || this.dead) return;
+    if (this.jumping || this.dead || this.shop.open) return;
     const next = this.floors.get(this.floorIndex + 1);
     if (!next) return;
 
@@ -186,50 +208,59 @@ class GameScene extends Phaser.Scene {
   }
 
   land(slot) {
-    if (slot.kind === SLOT.ITEM && !slot.taken) {
+    if (!slot.taken) {
       slot.taken = true;
-      this.takeItem();
-      slot.view && slot.view.destroy();
-    } else if (slot.kind === SLOT.HEAL && !slot.taken) {
-      slot.taken = true;
-      this.hp = Math.min(CFG.player.hp, this.hp + CFG.heal);
-      this.popup('+' + CFG.heal, '#a5d6a7');
-      slot.view && slot.view.destroy();
+      switch (slot.kind) {
+        case SLOT.PLUS:
+          this.weapon.addPlus();
+          this.popup('공격력 +1', '#ffd54f');
+          break;
+        case SLOT.DOUBLE:
+          this.weapon.addDouble();
+          this.popup('발사체 ×' + this.weapon.mult, '#4fc3f7');
+          break;
+        case SLOT.UPGRADE:
+          if (this.weapon.upgrade()) this.popup(this.weapon.name, '#ff8a65');
+          else { this.hp = Math.min(this.maxHp, this.hp + CFG.heal); this.popup('+' + CFG.heal, '#a5d6a7'); }
+          break;
+        case SLOT.HEAL:
+          this.hp = Math.min(this.maxHp, this.hp + CFG.heal);
+          this.popup('+' + CFG.heal, '#a5d6a7');
+          break;
+        default:
+          slot.taken = false; // 먹을 게 없던 발판은 그대로 둡니다
+      }
+      if (slot.taken && slot.view) { slot.view.destroy(); slot.view = null; }
     }
 
     // 앞쪽 층을 계속 채워두고, 지나온 층은 정리합니다.
     for (let i = this.floorIndex; i <= this.floorIndex + 10; i++) this.addFloor(i);
     for (let i = this.floorIndex - 6; i < this.floorIndex - 3; i++) this.removeFloor(i);
+
+    if (slot.kind === SLOT.SHOP) return this.enterShop();
     for (let i = 1; i <= 2; i++) this.wakeFloor(this.floorIndex + i);
   }
 
-  // 무기 등급 = (아이템 수 + 처치 점수) / pointsPerLevel
-  syncWeapon() {
-    const points = this.itemLevels + Math.floor(this.kills / CFG.killsPerPoint);
-    const lvl = Math.min(
-      CFG.weapons.length - 1,
-      Math.floor(points / CFG.pointsPerLevel));
-    if (lvl === this.weaponLevel) return;
-    this.weaponLevel = lvl;
-    this.popup(CFG.weapons[lvl].name, '#ffd54f');
+  // ── 상점 ──────────────────────────────────────────────
+  enterShop() {
+    // 쫓아오던 적은 물러갑니다. 상점은 한숨 돌리는 자리입니다.
+    this.enemies.getChildren().slice().forEach((e) => {
+      this.tweens.add({ targets: e, alpha: 0, duration: 260, onComplete: () => e.destroy() });
+    });
+    this.enemyBullets.clear(true, true);
+    this.target = null;
+    this.shop.show(this.floorIndex);
   }
 
-  takeItem() {
-    if (this.weaponLevel >= CFG.weapons.length - 1) {
-      // 이미 최고 등급이면 점수로 돌려줍니다.
-      this.bonus += 150;
-      this.popup('+150', '#ffd54f');
-      return;
-    }
-    this.itemLevels++;
-    const before = this.weaponLevel;
-    this.syncWeapon();
-    if (this.weaponLevel === before) this.popup('강화 +1', '#ffd54f');
+  onShopClosed() {
+    // 상점을 나서는 순간부터 다시 몰려옵니다.
+    this.ambientAt = this.time.now + CFG.ambient.baseDelay;
+    for (let i = 1; i <= 2; i++) this.wakeFloor(this.floorIndex + i);
   }
 
   // ── 자동 공격 ─────────────────────────────────────────
   autoAttack(now) {
-    const w = CFG.weapons[this.weaponLevel];
+    const w = this.weapon;
     if (now - this.lastShotAt < w.rate) return;
 
     const dist = (e) => Phaser.Math.Distance.Between(e.x, e.y, this.player.x, this.player.y);
@@ -239,16 +270,14 @@ class GameScene extends Phaser.Scene {
     if (!pool.length) { this.target = null; return; }
 
     // 한 번 노린 적은 죽거나 사거리를 벗어날 때까지 계속 노립니다.
-    // 매번 가장 가까운 적로 갈아타면 피해가 흩어져 아무도 죽지 않습니다.
+    // 매번 가장 가까운 적으로 갈아타면 피해가 흩어져 아무도 죽지 않습니다.
     if (!this.target || !inRange(this.target)) this.target = pool[0];
 
-    // 추가 탄은 다른 적에게, 없으면 같은 적에게 몰아줍니다.
-    const others = pool.filter((e) => e !== this.target);
-    const targets = [this.target, ...others];
-
+    const targets = [this.target, ...pool.filter((e) => e !== this.target)];
     this.lastShotAt = now;
 
-    for (let i = 0; i < w.shots; i++) {
+    const shots = w.shots;
+    for (let i = 0; i < shots; i++) {
       const target = targets[Math.min(i, targets.length - 1)];
       const b = this.bullets.create(this.player.x, this.player.y - 6, 'bullet');
       b.body.setAllowGravity(false);
@@ -257,7 +286,7 @@ class GameScene extends Phaser.Scene {
       b.bornAt = now;
       const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y - 6, target.x, target.y);
       // 같은 적을 여럿이 노릴 때는 살짝 벌려 쏩니다.
-      const spread = (i - (w.shots - 1) / 2) * 0.12;
+      const spread = (i - (shots - 1) / 2) * 0.1;
       this.physics.velocityFromRotation(angle + spread, w.speed, b.body.velocity);
     }
   }
@@ -270,59 +299,67 @@ class GameScene extends Phaser.Scene {
     const spark = this.add.sprite(enemy.x, enemy.y, 'spark').setDepth(11);
     this.tweens.add({ targets: spark, scale: 2.4, alpha: 0, duration: 160, onComplete: () => spark.destroy() });
 
-    if (enemy.hp <= 0) {
-      enemy.destroy();
-      this.kills++;
-      this.syncWeapon();
-    } else {
+    if (enemy.hp > 0) {
       enemy.setTint(0xffffff);
       this.time.delayedCall(60, () => enemy.active && enemy.clearTint());
+      return;
     }
+
+    this.dropCoin(enemy.x, enemy.y, enemy.coin);
+    enemy.destroy();
+    this.kills++;
   }
 
   onEnemyTouch(player, enemy) {
     if (this.dead || this.time.now - this.lastHitAt < CFG.player.invulnMs) return;
+    this.hurt(enemy.contactDamage);
+  }
+
+  onEnemyShotHit(player, bullet) {
+    bullet.destroy();
+    if (this.dead || this.time.now - this.lastHitAt < CFG.player.invulnMs) return;
+    this.hurt(bullet.dmg || CFG.enemyShot.damage);
+  }
+
+  hurt(amount) {
     this.lastHitAt = this.time.now;
-    this.hp -= CFG.player.contactDamage;
+    this.hp -= amount;
     this.cameras.main.shake(140, 0.008);
-    this.popup('-' + CFG.player.contactDamage, '#ff8a80');
-    this.tweens.add({ targets: player, alpha: 0.3, duration: 90, yoyo: true, repeat: 3 });
+    this.popup('-' + amount, '#ff8a80');
+    this.tweens.add({ targets: this.player, alpha: 0.3, duration: 90, yoyo: true, repeat: 3 });
     if (this.hp <= 0) this.gameOver();
   }
 
-  // ── HUD ───────────────────────────────────────────────
-  buildHud() {
-    const font = { fontFamily: 'sans-serif', fontSize: '26px', color: '#ffffff' };
-
-    // 발판이 HUD 뒤로 지나가도 글씨가 읽히도록 어두운 띠를 깝니다.
-    this.add.rectangle(0, 0, CFG.width, 96, 0x0d1120, 0.82)
-      .setOrigin(0, 0).setScrollFactor(0).setDepth(99);
-
-    this.hpBg =this.add.rectangle(24, 30, 240, 22, 0x000000, 0.45).setOrigin(0, 0.5).setScrollFactor(0).setDepth(100);
-    this.hpBar = this.add.rectangle(27, 30, 234, 16, 0x66bb6a).setOrigin(0, 0.5).setScrollFactor(0).setDepth(101);
-
-    this.floorText = this.add.text(CFG.width - 24, 18, '', { ...font, fontSize: '30px' })
-      .setOrigin(1, 0).setScrollFactor(0).setDepth(100);
-    this.scoreText = this.add.text(CFG.width - 24, 54, '', { ...font, fontSize: '22px', color: '#b0bec5' })
-      .setOrigin(1, 0).setScrollFactor(0).setDepth(100);
-    this.weaponText = this.add.text(24, 56, '', { ...font, fontSize: '22px', color: '#ffd54f' })
-      .setScrollFactor(0).setDepth(100);
-
-    this.hint = this.add.text(CFG.width / 2, CFG.height - 70, '화면 왼쪽 / 오른쪽을 눌러 길을 고르세요', {
-      fontFamily: 'sans-serif', fontSize: '24px', color: '#ffffff',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(100).setAlpha(0.8);
+  // ── 코인 ──────────────────────────────────────────────
+  dropCoin(x, y, value) {
+    const sprite = this.add.sprite(x, y, 'coin').setDepth(12);
+    this.tweens.add({ targets: sprite, y: y - 26, duration: 200, ease: 'Quad.out' });
+    this.pickups.push({ sprite, value, speed: 90 });
   }
 
-  updateHud() {
-    this.hpBar.width = Math.max(0, 234 * (this.hp / CFG.player.hp));
-    this.hpBar.fillColor = this.hp > 50 ? 0x66bb6a : this.hp > 25 ? 0xffb74d : 0xef5350;
-    this.floorText.setText(this.floorIndex + '층');
-    this.scoreText.setText('점수 ' + this.score());
-    this.weaponText.setText(CFG.weapons[this.weaponLevel].name);
+  // 코인은 잠깐 튀었다가 주인공에게 빨려 들어옵니다.
+  updatePickups(delta) {
+    for (let i = this.pickups.length - 1; i >= 0; i--) {
+      const p = this.pickups[i];
+      p.speed = Math.min(900, p.speed + delta * 2.2);
+
+      const angle = Phaser.Math.Angle.Between(p.sprite.x, p.sprite.y, this.player.x, this.player.y);
+      const step = (p.speed * delta) / 1000;
+      p.sprite.x += Math.cos(angle) * step;
+      p.sprite.y += Math.sin(angle) * step;
+
+      if (Phaser.Math.Distance.Between(p.sprite.x, p.sprite.y, this.player.x, this.player.y) < 24) {
+        this.coins += p.value;
+        this.totalCoins += p.value;
+        p.sprite.destroy();
+        this.pickups.splice(i, 1);
+      }
+    }
   }
 
+  // ── 그 밖 ─────────────────────────────────────────────
   score() {
-    return this.floorIndex * 5 + this.kills * CFG.enemy.score + this.bonus;
+    return this.floorIndex * 10 + this.totalCoins * 2;
   }
 
   popup(text, color) {
@@ -338,18 +375,19 @@ class GameScene extends Phaser.Scene {
     this.physics.pause();
     this.enemies.getChildren().forEach((e) => e.setTint(0x555555));
 
-    const cam = this.cameras.main;
-    this.add.rectangle(CFG.width / 2, CFG.height / 2, CFG.width, CFG.height, 0x000000, 0.66)
-      .setScrollFactor(0).setDepth(200);
-    this.add.text(CFG.width / 2, CFG.height / 2 - 80, this.floorIndex + '층', {
-      fontFamily: 'sans-serif', fontSize: '72px', color: '#ffffff',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(201);
-    this.add.text(CFG.width / 2, CFG.height / 2, '점수 ' + this.score() + '   처치 ' + this.kills, {
-      fontFamily: 'sans-serif', fontSize: '30px', color: '#b0bec5',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(201);
-    this.add.text(CFG.width / 2, CFG.height / 2 + 90, '눌러서 다시 시작', {
-      fontFamily: 'sans-serif', fontSize: '30px', color: '#ffd54f',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(201);
+    const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
+    const cx = CFG.width / 2;
+    const cy = CFG.height / 2;
+    const add = (o) => o.setScrollFactor(0).setDepth(200);
+
+    add(this.add.rectangle(cx, cy, CFG.width, CFG.height, 0x000000, 0.66));
+    add(this.add.text(cx, cy - 90, this.floorIndex + '층', font(72, '#ffffff')).setOrigin(0.5));
+    add(this.add.text(cx, cy - 10, '점수 ' + this.score(), font(32, '#ffffff')).setOrigin(0.5));
+    add(this.add.text(cx, cy + 34, '처치 ' + this.kills + '   코인 ' + this.totalCoins, font(24, '#b0bec5')).setOrigin(0.5));
+    add(this.add.text(cx, cy + 74, this.weapon.name +
+      (this.weapon.plus ? ' +' + this.weapon.plus : '') +
+      (this.weapon.mult > 1 ? ' ×' + this.weapon.mult : ''), font(24, '#ffd54f')).setOrigin(0.5));
+    add(this.add.text(cx, cy + 140, '눌러서 다시 시작', font(30, '#ffd54f')).setOrigin(0.5));
   }
 
   // ── 매 프레임 ─────────────────────────────────────────
@@ -361,18 +399,20 @@ class GameScene extends Phaser.Scene {
     const want = this.player.y - CFG.height * 0.68;
     cam.scrollY += (want - cam.scrollY) * Math.min(1, delta / 130);
 
-    if (this.floorIndex > 0 && this.hint.alpha > 0) this.hint.setAlpha(Math.max(0, this.hint.alpha - delta / 800));
+    this.updatePickups(delta);
+    this.hud.update();
 
-    // 적은 주인공을 향해 곧장 다가옵니다.
-    this.enemies.getChildren().forEach((e) => {
-      if (!e.active) return;
-      const angle = Phaser.Math.Angle.Between(e.x, e.y, this.player.x, this.player.y);
-      this.physics.velocityFromRotation(angle, e.speed, e.body.velocity);
-      if (e.y > cam.scrollY + CFG.height + 300) e.destroy();
-    });
+    if (this.shop.open) return; // 상점에서는 시간이 멈춘 셈 칩니다
+
+    if (this.floorIndex > 0) this.hud.fadeHint(delta);
+
+    updateEnemies(this, time, delta);
 
     this.bullets.getChildren().forEach((b) => {
       if (b.active && time - b.bornAt > 1600) b.destroy();
+    });
+    this.enemyBullets.getChildren().forEach((b) => {
+      if (b.active && time - b.bornAt > 3000) b.destroy();
     });
 
     this.autoAttack(time);
@@ -383,7 +423,5 @@ class GameScene extends Phaser.Scene {
       const delay = Math.max(CFG.ambient.minDelay, CFG.ambient.baseDelay - this.floorIndex * CFG.ambient.delayPerFloor);
       this.ambientAt = time + delay;
     }
-
-    this.updateHud();
   }
 }
