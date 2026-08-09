@@ -427,6 +427,16 @@ class GameScene extends Phaser.Scene {
     });
     this.enemyBullets.clear(true, true);
     this.subTarget = null;
+
+    // 큰 상점은 도착만 해도 체력을 돌려줍니다. 화면에서 바로 알 수 있게 띄웁니다.
+    this.bigShopHeal = 0;
+    if (isBigShopFloor(this.floorIndex) && this.hp < this.maxHp) {
+      this.bigShopHeal = Math.min(
+        Math.round(this.maxHp * CFG.bigShopHeal), this.maxHp - Math.round(this.hp));
+      this.hp += this.bigShopHeal;
+      this.popup('+' + this.bigShopHeal, '#a5d6a7');
+    }
+
     this.shop.show(this.floorIndex);
   }
 
@@ -604,18 +614,35 @@ class GameScene extends Phaser.Scene {
     this.lastHitAt = this.time.now;
     // 방어력만큼 덜 맞습니다. 아무리 두꺼워도 한 대는 아프도록 최소 1은 들어갑니다.
     const taken = Math.max(1, Math.round(amount * (1 - this.armor / 100)));
+    const blocked = Math.max(0, amount - taken);
     this.hp -= taken;
     this.cameras.main.shake(140, 0.008);
-    this.popup('-' + taken, '#ff8a80');
+    this.popupHit(taken, blocked);
     this.tweens.add({ targets: this.player, alpha: 0.3, duration: 90, yoyo: true, repeat: 3 });
     if (this.hp <= 0) this.gameOver();
   }
 
   // ── 코인 ──────────────────────────────────────────────
+  // 센 놈이 많이 준다는 것이 눈에 보여야 합니다.
+  // 값만 올리면 숫자만 커질 뿐이라, 값이 클수록 여러 개가 쏟아지게 나눕니다.
   dropCoin(x, y, value) {
-    const sprite = this.add.sprite(x, y, 'coin').setDepth(12);
-    this.tweens.add({ targets: sprite, y: y - 26, duration: 200, ease: 'Quad.out' });
-    this.pickups.push({ sprite, value, speed: 90 });
+    const n = Phaser.Math.Clamp(Math.round(value / 2.5), 1, 7);
+    const each = Math.floor(value / n);
+    const extra = value - each * n;
+
+    for (let i = 0; i < n; i++) {
+      const sprite = this.add.sprite(
+        x + Phaser.Math.Between(-16, 16), y + Phaser.Math.Between(-8, 8), 'coin').setDepth(12);
+      this.tweens.add({
+        targets: sprite, y: sprite.y - Phaser.Math.Between(18, 36),
+        duration: 200, ease: 'Quad.out',
+      });
+      this.pickups.push({
+        sprite,
+        value: each + (i < extra ? 1 : 0),
+        speed: 60 + Math.random() * 70,
+      });
+    }
   }
 
   // 코인은 잠깐 튀었다가 주인공에게 빨려 들어옵니다.
@@ -641,6 +668,18 @@ class GameScene extends Phaser.Scene {
   // ── 그 밖 ─────────────────────────────────────────────
   score() {
     return this.floorIndex * 10 + this.totalCoins * 2;
+  }
+
+  // 맞을 때마다 "방어가 얼마나 막았는지"를 같이 보여 줍니다.
+  // 방어력이 숫자로만 있으면 올려도 올린 값을 체감하기 어렵습니다.
+  popupHit(taken, blocked) {
+    this.popup('-' + taken, '#ff8a80');
+    if (blocked <= 0) return;
+
+    const t = this.add.text(this.player.x, this.player.y - 22, '방어 ' + blocked + ' 막음', {
+      fontFamily: 'sans-serif', fontSize: '19px', color: '#b0bec5',
+    }).setOrigin(0.5).setDepth(120);
+    this.tweens.add({ targets: t, y: t.y - 42, alpha: 0, duration: 800, onComplete: () => t.destroy() });
   }
 
   popup(text, color) {

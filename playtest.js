@@ -106,13 +106,17 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
   const doShop = async (label) => {
     await page.waitForTimeout(400);
     await shot(page, label);
-    const top = 960 / 2 - 620 / 2; // SHOP_LAYOUT.height
-    for (let i = 0; i < 3; i++) {
-      await page.mouse.click(...at(270, top + 148 + i * 112));
+    // 칸 좌표는 상점이 실제로 그려 둔 것을 읽어 옵니다. 배치를 바꿔도 따라갑니다.
+    const spots = await page.evaluate(() => ({
+      rows: window.__scene.shop.rows.map((r) => ({ x: r.box.x, y: r.box.y })),
+      exit: window.__scene.shop.exitAt,
+    }));
+    for (const r of spots.rows) {
+      await page.mouse.click(...at(r.x, r.y));
       await page.waitForTimeout(180);
     }
     await shot(page, label.replace('.png', '-after.png'));
-    await page.mouse.click(...at(270, 960 / 2 - 620 / 2 + 532));
+    await page.mouse.click(...at(spots.exit.x, spots.exit.y));
     await page.waitForTimeout(400);
   };
 

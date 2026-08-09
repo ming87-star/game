@@ -14,7 +14,9 @@ const CFG = {
   jumpDuration: 320,
   jumpArc: 95,
 
-  shopEvery: 50, // 이 층마다 상점
+  shopEvery: 50,        // 이 층마다 상점
+  bigShopEvery: 100,    // 이 층마다는 "큰 상점" — 도착만 해도 체력을 돌려줍니다
+  bigShopHeal: 0.10,    // 최대 체력의 이만큼
 
   // 체력과 방어력은 직업이 정합니다 (js/classes.js).
   player: {
@@ -117,11 +119,11 @@ const CFG = {
   enemyWave: { rampFloors: 12, fadeHalfLife: 26, minWeight: 0.06 },
   enemyTypes: [
     { key: 'crawler', name: '기는 것',   from: 0,  hp: 0.8, speed: 0.55, dmg: 8,  coin: 2,  scale: 0.85, ground: true,  move: 'chase',  w0: 4.0 },
-    { key: 'brute',   name: '단단한 놈', from: 12, hp: 2.4, speed: 0.70, dmg: 13, coin: 5,  scale: 1.15, ground: true,  move: 'chase',  w0: 2.2 },
-    { key: 'flyer',   name: '날것',     from: 25, hp: 1.0, speed: 1.20, dmg: 10, coin: 4,  scale: 0.95, ground: false, move: 'wave',   w0: 2.0 },
-    { key: 'dasher',  name: '빠른 놈',   from: 40, hp: 0.7, speed: 2.20, dmg: 10, coin: 4,  scale: 0.9,  ground: true,  move: 'chase',  w0: 1.8 },
-    { key: 'giant',   name: '거인',     from: 55, hp: 3.5, speed: 0.50, dmg: 19, coin: 10, scale: 1.9,  ground: true,  move: 'chase',  w0: 1.6 },
-    { key: 'shooter', name: '사수',     from: 72, hp: 1.2, speed: 0.75, dmg: 8,  coin: 6,  scale: 1.0,  ground: true,  move: 'ranged', w0: 1.6 },
+    { key: 'brute',   name: '단단한 놈', from: 12, hp: 2.4, speed: 0.70, dmg: 13, coin: 7,  scale: 1.15, ground: true,  move: 'chase',  w0: 2.2 },
+    { key: 'flyer',   name: '날것',     from: 25, hp: 1.0, speed: 1.20, dmg: 10, coin: 5,  scale: 0.95, ground: false, move: 'wave',   w0: 2.0 },
+    { key: 'dasher',  name: '빠른 놈',   from: 40, hp: 0.7, speed: 2.20, dmg: 10, coin: 6,  scale: 0.9,  ground: true,  move: 'chase',  w0: 1.8 },
+    { key: 'giant',   name: '거인',     from: 55, hp: 3.5, speed: 0.50, dmg: 19, coin: 18, scale: 1.9,  ground: true,  move: 'chase',  w0: 1.6 },
+    { key: 'shooter', name: '사수',     from: 72, hp: 1.2, speed: 0.75, dmg: 8,  coin: 9,  scale: 1.0,  ground: true,  move: 'ranged', w0: 1.6 },
   ],
 
   // 땅을 딛는 적이 걸을 때 쓰는 값

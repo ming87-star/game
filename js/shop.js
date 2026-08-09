@@ -10,6 +10,8 @@ const SHOP_LAYOUT = {
   rowY: 148,
   rowGap: 112,
   buttonY: 532,
+  bonusY: 70,      // 큰 상점의 도착 보상 한 줄
+  bonusRoom: 34,   // 그 줄이 들어갈 만큼 패널을 키웁니다
 };
 
 const SHOP_ITEMS = {
@@ -57,22 +59,38 @@ class Shop {
     const cx = CFG.width / 2;
     const add = (o) => { this.parts.push(o.setScrollFactor(0).setDepth(300)); return o; };
 
-    // 패널 안 세로 자리. L.rowY 부터 rowGap 간격으로 상품이 놓입니다.
+    // 패널 안 세로 자리. 큰 상점은 보상 한 줄이 더 들어가므로 그만큼 키웁니다.
     const L = SHOP_LAYOUT;
-    const top = CFG.height / 2 - L.height / 2;
+    const big = isBigShopFloor(floorIndex);
+    const shift = big ? L.bonusRoom : 0;
+    const height = L.height + shift;
+    const top = CFG.height / 2 - height / 2;
 
     add(s.add.rectangle(cx, CFG.height / 2, CFG.width, CFG.height, 0x000000, 0.72));
-    add(s.add.rectangle(cx, CFG.height / 2, L.width, L.height, 0x1b2138).setStrokeStyle(3, 0x5c6bc0));
+    add(s.add.rectangle(cx, CFG.height / 2, L.width, height, 0x1b2138)
+      .setStrokeStyle(3, big ? 0xffb74d : 0x5c6bc0));
 
-    add(s.add.text(cx, top + L.titleY, floorIndex + '층 상점', font(34, '#ffffff')).setOrigin(0.5, 0));
-    this.coinLabel = add(s.add.text(cx, top + L.coinY, '', font(22, '#ffd54f')).setOrigin(0.5, 0));
+    add(s.add.text(cx, top + L.titleY, floorIndex + (big ? '층 큰 상점' : '층 상점'),
+      font(34, big ? '#ffcc80' : '#ffffff')).setOrigin(0.5, 0));
 
-    this.rows = this.offers.map((offer, i) => this.buildRow(offer, cx, top + L.rowY + i * L.rowGap));
+    // 큰 상점은 도착 자체가 보상입니다. 그 자리에서 알려 줘야 다음을 기다리게 됩니다.
+    if (big) {
+      const healed = s.bigShopHeal || 0;
+      add(s.add.text(cx, top + L.bonusY,
+        healed ? '도착 보상 — 체력 ' + healed + ' 회복' : '도착 보상 — 체력이 이미 가득합니다',
+        font(19, '#a5d6a7')).setOrigin(0.5, 0));
+    }
 
-    const btnY = top + L.buttonY;
+    this.coinLabel = add(s.add.text(cx, top + L.coinY + shift, '', font(22, '#ffd54f')).setOrigin(0.5, 0));
+
+    this.rows = this.offers.map((offer, i) =>
+      this.buildRow(offer, cx, top + L.rowY + shift + i * L.rowGap));
+
+    const btnY = top + L.buttonY + shift;
     const btn = add(s.add.rectangle(cx, btnY, 420, 62, 0x3949ab)
       .setStrokeStyle(2, 0x9fa8da).setInteractive({ useHandCursor: true }));
     add(s.add.text(cx, btnY, '계속 오르기', font(28, '#ffffff')).setOrigin(0.5));
+    this.exitAt = { x: cx, y: btnY };
     btn.on('pointerdown', () => this.close());
 
     this.refresh();

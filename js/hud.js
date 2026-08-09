@@ -8,18 +8,22 @@ class Hud {
     // 발판이 뒤로 지나가도 글씨가 읽히도록 어두운 띠를 깝니다.
     fixed(scene.add.rectangle(0, 0, CFG.width, 108, 0x0d1120, 0.85).setOrigin(0, 0));
 
-    this.hpBg = fixed(scene.add.rectangle(24, 30, 240, 22, 0x000000, 0.45).setOrigin(0, 0.5));
-    this.hpBar = fixed(scene.add.rectangle(27, 30, 234, 16, 0x66bb6a).setOrigin(0, 0.5)).setDepth(101);
-    this.hpText = fixed(scene.add.text(276, 30, '', font(18, '#b0bec5')).setOrigin(0, 0.5));
+    // 체력바와 그 아래 붙은 방어력 띠. 둘을 한 덩어리로 보이게 붙여 둡니다.
+    this.hpBg = fixed(scene.add.rectangle(24, 28, 240, 22, 0x000000, 0.45).setOrigin(0, 0.5));
+    this.hpBar = fixed(scene.add.rectangle(27, 28, 234, 16, 0x66bb6a).setOrigin(0, 0.5)).setDepth(101);
+    this.hpText = fixed(scene.add.text(276, 28, '', font(18, '#b0bec5')).setOrigin(0, 0.5));
+
+    this.armorBg = fixed(scene.add.rectangle(24, 47, 240, 12, 0x000000, 0.55).setOrigin(0, 0.5));
+    this.armorBar = fixed(scene.add.rectangle(27, 47, 0, 8, 0xb0bec5).setOrigin(0, 0.5)).setDepth(101);
+    this.armorText = fixed(scene.add.text(276, 47, '', font(15, '#cfd8dc')).setOrigin(0, 0.5));
 
     this.floorText = fixed(scene.add.text(CFG.width - 24, 14, '', font(30, '#ffffff')).setOrigin(1, 0));
     this.coinText = fixed(scene.add.text(CFG.width - 24, 52, '', font(24, '#ffd54f')).setOrigin(1, 0));
 
-    this.weaponText = fixed(scene.add.text(24, 56, '', font(24, '#ffffff')));
-    this.plusText = fixed(scene.add.text(0, 58, '', font(22, '#ffd54f')));
-    this.multText = fixed(scene.add.text(0, 58, '', font(22, '#4fc3f7')));
-    this.armorText = fixed(scene.add.text(CFG.width - 24, 84, '', font(18, '#b0bec5')).setOrigin(1, 0));
-    this.relicText = fixed(scene.add.text(CFG.width / 2, 84, '', font(18, '#ffd54f')).setOrigin(0.5, 0));
+    this.weaponText = fixed(scene.add.text(24, 66, '', font(24, '#ffffff')));
+    this.plusText = fixed(scene.add.text(0, 68, '', font(22, '#ffd54f')));
+    this.multText = fixed(scene.add.text(0, 68, '', font(22, '#4fc3f7')));
+    this.relicText = fixed(scene.add.text(CFG.width - 24, 96, '', font(17, '#ffd54f')).setOrigin(1, 0));
 
     this.hint = fixed(scene.add.text(CFG.width / 2, CFG.height - 70,
       '왼쪽 · 위 · 오른쪽 — 한 칸씩만 옮겨 갑니다', font(22, '#ffffff')).setOrigin(0.5)).setAlpha(0.85);
@@ -64,6 +68,10 @@ class Hud {
     this.hpBar.fillColor = s.hp > s.maxHp * 0.5 ? 0x66bb6a : s.hp > s.maxHp * 0.25 ? 0xffb74d : 0xef5350;
     this.hpText.setText(Math.max(0, Math.ceil(s.hp)) + ' / ' + s.maxHp);
 
+    // 방어력은 체력바에 붙은 띠로 보여 줍니다. 가득 차면 CFG.armor.max 입니다.
+    this.armorBar.width = 234 * Math.min(1, s.armor / CFG.armor.max);
+    this.armorText.setText('방어 ' + s.armor + '%');
+
     this.floorText.setText(s.floorIndex + '층');
     this.coinText.setText('◎ ' + s.coins);
 
@@ -76,7 +84,6 @@ class Hud {
 
     this.multText.setText(w.mult > 1 ? '×' + w.mult : '').setX(x);
 
-    this.armorText.setText('방어 ' + s.armor + '%');
     this.relicText.setText(w.relic ? '★ ' + w.relic.name : '');
   }
 

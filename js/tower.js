@@ -35,6 +35,11 @@ function isShopFloor(index) {
   return index > 0 && index % CFG.shopEvery === 0;
 }
 
+// 큰 상점 — 도착만 해도 체력을 돌려주는 자리입니다.
+function isBigShopFloor(index) {
+  return index > 0 && index % CFG.bigShopEvery === 0;
+}
+
 // ── UP의 자리 ───────────────────────────────────────────
 // UP만은 확률로 뿌리지 않습니다. shopEvery 층마다 정확히 한 번,
 // 그 구간 안의 무작위한 층에 놓입니다. 상점에서도 한 번 살 수 있으니
