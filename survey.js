@@ -10,15 +10,21 @@ const vm = require('vm');
 // 같은 스코프에서 실행한 뒤 필요한 것만 꺼냅니다.
 const source = ['js/config.js', 'js/tower.js']
   .map((f) => fs.readFileSync(path.join(__dirname, f), 'utf8'))
-  .join('\n;\n') + '\n;({ makeFloor, resetTowerRun, LANES, ITEM_KINDS, CFG })';
+  .join('\n;\n') + '\n;({ makeFloor, resetTowerRun, healNeedFrom, LANES, ITEM_KINDS, CFG })';
 
-const { makeFloor, resetTowerRun, LANES, ITEM_KINDS, CFG } =
+const { makeFloor, resetTowerRun, healNeedFrom, LANES, ITEM_KINDS, CFG } =
   vm.runInContext(source, vm.createContext({ Math }));
 
 const ROUNDS = Number(process.argv[2]) || 400;
+// 회복은 체력에 따라 확률이 달라집니다. 기본은 체력이 가득한 상태로 셉니다.
+//   node survey.js 400 0.3   → 체력 30%인 상태의 확률
+const HP_RATIO = process.argv[3] === undefined ? 1 : Number(process.argv[3]);
+
 const TOP = 200;
 const ITEMS = ['plus', 'heal', 'upgrade', 'double'];
 const BANDS = [[1, 30], [30, 70], [70, 120], [120, 200]];
+
+const NEED = healNeedFrom(HP_RATIO, 1);
 
 const stat = () => ({ floors: 0, has: {}, laneCount: [0, 0, 0, 0], twoItems: 0 });
 const bandStats = BANDS.map(stat);
@@ -28,7 +34,7 @@ for (let round = 0; round < ROUNDS; round++) {
   resetTowerRun(); // 판마다 UP 배치를 새로 뽑습니다
 
   for (let i = 1; i <= TOP; i++) {
-    const floor = makeFloor(i);
+    const floor = makeFloor(i, NEED);
     if (floor.shop) continue;
 
     const kinds = LANES.map((l) => floor.slots[l]).filter(Boolean).map((s) => s.kind);
@@ -50,7 +56,7 @@ for (let round = 0; round < ROUNDS; round++) {
 
 const pct = (n, d) => ((n || 0) / d * 100).toFixed(1).padStart(5) + '%';
 
-console.log(`${ROUNDS}판 × ${TOP}층\n`);
+console.log(`${ROUNDS}판 × ${TOP}층 · 체력 ${Math.round(HP_RATIO * 100)}% 상태 기준\n`);
 console.log('한 층에 올라섰을 때 그것을 마주칠 확률 (길 중 하나라도)\n');
 console.log('  구간        아이템    +1     회복     UP     ×2     적    아이템둘이상');
 

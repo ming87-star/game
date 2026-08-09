@@ -9,10 +9,18 @@ function spawnEnemy(scene, x, y, floor, typeKey) {
 
   const def = enemyDef(typeKey);
   const e = scene.enemies.create(x, y, 'e-' + def.key);
-  e.body.setAllowGravity(false);
   e.setDepth(8);
   e.setScale(def.scale || 1);
-  e.body.setCircle(e.width / 2, 0, 0);
+
+  if (def.move === 'walk') {
+    // 기는 것만 중력을 받습니다. 발판 위에 내려앉아 걷다가 끝에서 떨어집니다.
+    e.body.setAllowGravity(true);
+    e.body.setGravityY(CFG.crawl.gravity);
+    e.dir = Math.random() < 0.5 ? -1 : 1;
+  } else {
+    e.body.setAllowGravity(false);
+    e.body.setCircle(e.width / 2, 0, 0);
+  }
 
   e.def = def;
   e.maxHp = Math.round((CFG.enemy.baseHp + floor * CFG.enemy.hpPerFloor)
@@ -51,6 +59,11 @@ function updateEnemies(scene, time, delta) {
     const angle = Phaser.Math.Angle.Between(e.x, e.y, player.x, player.y);
     const dist = Phaser.Math.Distance.Between(e.x, e.y, player.x, player.y);
 
+    if (e.def.move === 'walk') {
+      walkStep(scene, e, player);
+      return;
+    }
+
     if (e.def.move === 'ranged') {
       // 일정 거리까지만 다가와서 멈춰 쏩니다.
       if (dist > CFG.enemyShot.standoff) {
@@ -73,6 +86,32 @@ function updateEnemies(scene, time, delta) {
     }
 
     scene.physics.velocityFromRotation(angle, e.speed, e.body.velocity);
+  });
+}
+
+// 기는 것의 걸음. 주인공이 멀면 발판 위를 순찰하고, 가까우면 쫓아옵니다.
+// 쫓을 때는 발판 끝을 개의치 않으므로 그대로 떨어집니다.
+function walkStep(scene, e, player) {
+  const chasing = Math.abs(player.y - e.y) < CFG.floorHeight * CFG.crawl.chaseWithin;
+
+  if (chasing) {
+    if (Math.abs(player.x - e.x) > CFG.crawl.turnDeadzone) e.dir = Math.sign(player.x - e.x);
+  } else if (e.body.blocked.down && !groundAhead(scene, e)) {
+    e.dir *= -1; // 발판 끝이니 돌아섭니다
+  }
+
+  e.body.velocity.x = e.dir * e.speed;
+  e.setFlipX(e.dir < 0);
+}
+
+// 진행 방향 바로 앞에 발판이 있는지 짚어 봅니다.
+function groundAhead(scene, e) {
+  const ahead = e.x + e.dir * e.displayWidth * CFG.crawl.edgeProbe;
+  const feet = e.y + e.displayHeight / 2;
+
+  return scene.platforms.getChildren().some((p) => {
+    if (Math.abs(p.y - CFG.platformH / 2 - feet) > 20) return false;
+    return ahead > p.x - p.displayWidth / 2 && ahead < p.x + p.displayWidth / 2;
   });
 }
 

@@ -52,13 +52,19 @@ const CFG = {
   // 구간 안의 무작위한 층에 놓입니다 (tower.js의 upFloorFor).
   // 상점에서도 한 번 살 수 있으니 한 구간에 최대 두 번 오릅니다.
   slotChance: {
-    enemyBase: 0.11,
-    enemyPerFloor: 0.006,
-    enemyMax: 0.20,
+    enemyBase: 0.22,
+    enemyPerFloor: 0.004,
+    enemyMax: 0.26,
 
     plus: 0.075,  // 한 층에 마주칠 확률 약 14%
-    heal: 0.046,  // 약 9%
     double: 0.008, // 약 2% — 가장 귀합니다
+
+    // 회복만은 고정 확률이 아닙니다. 체력이 가득 차 있으면 거의 안 나오고,
+    // 깎일수록 자주 나옵니다. 어차피 길을 골라 가야 하니 자주 나와도
+    // 공짜가 아닙니다 — 회복을 집으려면 다른 길을 포기해야 합니다.
+    healFull: 0.010, // 체력이 가득할 때 (한 층 기준 약 2%)
+    healHurt: 0.130, // 체력이 healFloor 이하일 때 (약 28%)
+    healFloor: 0.40, // 이 비율 아래로 떨어지면 최대치
   },
 
   // ── 적 ──────────────────────────────────────────────────
@@ -79,19 +85,33 @@ const CFG = {
   },
 
   // hp·speed·dmg는 위 기본값에 곱하는 배수입니다.
-  // from 층부터 나오고, w0은 등장 비중, wGrow는 층당 비중 변화입니다.
+  // from 층부터 나오고, w0은 그 종류가 한창일 때의 등장 비중입니다.
   //
-  // from을 넓게 벌려 뒀습니다. 한 판이 대략 80~110층에서 끝나므로,
-  // 15~20층에 하나씩 새 적이 풀리고 마지막 하나는 꽤 올라가야 봅니다.
-  // 처음 만나는 종류는 화면에 이름이 뜹니다 (scene-game.js의 announceEnemy).
+  // 비중은 파도처럼 움직입니다. 등장한 뒤 rampFloors 층에 걸쳐 흔해지고,
+  // 다음 종류가 풀리면 fadeHalfLife 층마다 절반으로 줄어듭니다.
+  // 그래서 "약한 적이 점점 늘다가, 새 적이 나오면서 물러나는" 흐름이 됩니다.
+  //
+  // move: chase 곧장 추격 · wave 좌우로 흔들며 접근 · ranged 거리 두고 사격
+  //       walk  발판 위를 걸어다니다 끝에서 떨어짐 (유일하게 중력을 받습니다)
+  enemyWave: { rampFloors: 12, fadeHalfLife: 26, minWeight: 0.06 },
   enemyTypes: [
-    { key: 'crawler', name: '기는 것',   from: 0,  hp: 0.8, speed: 0.75, dmg: 10, coin: 2, scale: 0.85, move: 'chase',  w0: 4,   wGrow: -0.05 },
-    { key: 'brute',   name: '단단한 놈', from: 12,  hp: 2.4, speed: 0.60, dmg: 15, coin: 5, scale: 1.15, move: 'chase',  w0: 1.2, wGrow: 0.01 },
-    { key: 'flyer',   name: '날것',     from: 25, hp: 1.0, speed: 1.20, dmg: 12, coin: 4, scale: 0.95, move: 'wave',   w0: 1.2, wGrow: 0.01 },
-    { key: 'dasher',  name: '빠른 놈',   from: 40, hp: 0.7, speed: 2.00, dmg: 12, coin: 4, scale: 0.9,  move: 'chase',  w0: 1.0, wGrow: 0.015 },
-    { key: 'giant',   name: '거인',     from: 55, hp: 3.5, speed: 0.45, dmg: 24, coin: 10, scale: 1.9,  move: 'chase',  w0: 0.8, wGrow: 0.012 },
-    { key: 'shooter', name: '사수',     from: 72, hp: 1.2, speed: 0.70, dmg: 10, coin: 6, scale: 1.0,  move: 'ranged', w0: 1.0, wGrow: 0.015 },
+    { key: 'crawler', name: '기는 것',   from: 0,  hp: 0.8, speed: 0.55, dmg: 10, coin: 2,  scale: 0.85, move: 'walk',   w0: 4.0 },
+    { key: 'brute',   name: '단단한 놈', from: 12, hp: 2.4, speed: 0.60, dmg: 15, coin: 5,  scale: 1.15, move: 'chase',  w0: 2.2 },
+    { key: 'flyer',   name: '날것',     from: 25, hp: 1.0, speed: 1.20, dmg: 12, coin: 4,  scale: 0.95, move: 'wave',   w0: 2.0 },
+    { key: 'dasher',  name: '빠른 놈',   from: 40, hp: 0.7, speed: 2.00, dmg: 12, coin: 4,  scale: 0.9,  move: 'chase',  w0: 1.8 },
+    { key: 'giant',   name: '거인',     from: 55, hp: 3.5, speed: 0.45, dmg: 24, coin: 10, scale: 1.9,  move: 'chase',  w0: 1.6 },
+    { key: 'shooter', name: '사수',     from: 72, hp: 1.2, speed: 0.70, dmg: 10, coin: 6,  scale: 1.0,  move: 'ranged', w0: 1.6 },
   ],
+
+  // 기는 것이 발판 위를 걸을 때 쓰는 값
+  crawl: {
+    gravity: 1100,
+    turnDeadzone: 12, // 주인공과 x가 이만큼 안이면 방향을 유지합니다 (덜덜 떨지 않게)
+    // 주인공이 멀면 발판 위를 왔다갔다 순찰합니다. 그래야 올라가 보면 거기 있습니다.
+    // 이 층수 안으로 들어오면 낭떠러지를 개의치 않고 쫓아옵니다 — 그러다 떨어집니다.
+    chaseWithin: 1.3,
+    edgeProbe: 0.6, // 몸 너비의 이만큼 앞을 짚어 발판이 있는지 봅니다
+  },
 
   // 사수가 쏘는 탄
   enemyShot: {
@@ -103,9 +123,9 @@ const CFG = {
 
   // 층이 올라갈수록 무작위 등장이 잦아집니다.
   ambient: {
-    startFloor: 8,
-    baseDelay: 6500,
-    delayPerFloor: 8,
+    startFloor: 3,
+    baseDelay: 5000,
+    delayPerFloor: 4,
     minDelay: 900,
     maxCount: 3,
   },

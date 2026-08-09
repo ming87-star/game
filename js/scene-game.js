@@ -31,9 +31,11 @@ class GameScene extends Phaser.Scene {
     this.enemies = this.physics.add.group();
     this.bullets = this.physics.add.group();
     this.enemyBullets = this.physics.add.group();
+    // 기는 것이 밟고 다닐 발판. 보이지 않는 정적 몸체만 깔아 둡니다.
+    this.platforms = this.physics.add.staticGroup();
 
     this.drawBackground();
-    for (let i = 0; i <= 10; i++) this.addFloor(i);
+    for (let i = 0; i <= 7; i++) this.addFloor(i);
 
     const start = this.floors.get(0).slots.mid;
     this.player = this.physics.add.sprite(start.x, start.y - STAND_OFFSET, 'player');
@@ -44,6 +46,9 @@ class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.bullets, this.enemies, this.onBulletHit, null, this);
     this.physics.add.overlap(this.player, this.enemies, this.onEnemyTouch, null, this);
     this.physics.add.overlap(this.player, this.enemyBullets, this.onEnemyShotHit, null, this);
+    // 발판에 부딪히는 것은 걷는 적뿐입니다. 나머지는 그대로 통과해 날아옵니다.
+    this.physics.add.collider(this.enemies, this.platforms, null,
+      (enemy) => enemy.def && enemy.def.move === 'walk');
 
     this.cameras.main.setScroll(0, this.player.y - CFG.height * 0.68);
 
@@ -70,7 +75,7 @@ class GameScene extends Phaser.Scene {
   // ── 층 만들기 / 지우기 ────────────────────────────────
   addFloor(index) {
     if (this.floors.has(index)) return;
-    const floor = makeFloor(index);
+    const floor = makeFloor(index, healNeedFrom(this.hp, this.maxHp));
     floor.views = [];
 
     for (const lane of LANES) {
@@ -87,6 +92,11 @@ class GameScene extends Phaser.Scene {
         this.add.rectangle(slot.x, slot.y - CFG.platformH / 2 + 3, w, 6, lipColor),
       ];
       floor.views.push(...slot.deck);
+
+      const solid = this.add.rectangle(slot.x, slot.y, w, CFG.platformH, 0x000000, 0);
+      this.physics.add.existing(solid, true);
+      this.platforms.add(solid);
+      floor.views.push(solid);
 
       const mark = this.makeMark(slot);
       if (mark) { slot.view = mark; floor.views.push(mark); }
@@ -184,11 +194,14 @@ class GameScene extends Phaser.Scene {
       // 화면을 삼등분해서 왼쪽이면 한 칸 왼쪽, 가운데면 바로 위, 오른쪽이면 한 칸 오른쪽.
       // 누른 자리의 발판으로 순간이동하는 것이 아니라 방향을 고르는 것입니다.
       const third = this.scale.width / 3;
-      this.jump(p.x < third ? -1 : p.x < third * 2 ? 0 : 1);
+      const step = p.x < third ? -1 : p.x < third * 2 ? 0 : 1;
+      this.hud.flashArrow(step);
+      this.jump(step);
     });
     const key = (step) => () => {
       if (this.shop.open) return;
       if (this.dead) return this.scene.restart();
+      this.hud.flashArrow(step);
       this.jump(step);
     };
     this.input.keyboard.on('keydown-LEFT', key(-1));
@@ -272,7 +285,7 @@ class GameScene extends Phaser.Scene {
     }
 
     // 앞쪽 층을 계속 채워두고, 지나온 층은 정리합니다.
-    for (let i = this.floorIndex; i <= this.floorIndex + 10; i++) this.addFloor(i);
+    for (let i = this.floorIndex; i <= this.floorIndex + 7; i++) this.addFloor(i);
     for (let i = this.floorIndex - 6; i < this.floorIndex - 3; i++) this.removeFloor(i);
     this.armItems();
 
@@ -307,6 +320,12 @@ class GameScene extends Phaser.Scene {
       slot.deck.forEach((v) => v.setAlpha(alpha));
     });
     this.dimmedFloor = index;
+
+    // 눌렀을 때 실제로 그 방향 발판에 닿는지를 화살표에 반영합니다.
+    this.hud.setArrows([-1, 0, 1].map((step) => {
+      const want = Phaser.Math.Clamp(here + step, 0, LANES.length - 1);
+      return !!floor.slots[LANES[want]];
+    }));
   }
 
   // ── 아이템 수명 ───────────────────────────────────────

@@ -21,6 +21,37 @@ class Hud {
 
     this.hint = fixed(scene.add.text(CFG.width / 2, CFG.height - 70,
       '왼쪽 · 위 · 오른쪽 — 한 칸씩만 옮겨 갑니다', font(22, '#ffffff')).setOrigin(0.5)).setAlpha(0.85);
+
+    // 누르는 자리에 그 방향을 그려 둡니다. 화면을 삼등분한 가운데에 하나씩.
+    this.arrows = [-1, 0, 1].map((step, i) => {
+      const x = CFG.width / 6 * (1 + i * 2);
+      const y = CFG.height - 168;
+      const ring = fixed(scene.add.circle(x, y, 36, 0xffffff, 0.05).setStrokeStyle(2, 0xffffff, 0.16));
+      const glyph = fixed(scene.add.text(x, y, ['◀', '▲', '▶'][i], font(34, '#ffffff')).setOrigin(0.5));
+      return { step, ring, glyph };
+    });
+    this.setArrows([true, true, true]);
+  }
+
+  // 그 방향에 실제로 발판이 있는지에 따라 밝기를 달리합니다.
+  setArrows(available) {
+    this.arrows.forEach((a, i) => {
+      const on = available[i];
+      a.ring.setFillStyle(0xffffff, on ? 0.06 : 0.02).setStrokeStyle(2, 0xffffff, on ? 0.2 : 0.07);
+      a.glyph.setAlpha(on ? 0.75 : 0.2);
+    });
+  }
+
+  // 눌린 방향을 잠깐 부풀려 눌렸다는 것을 알려 줍니다.
+  flashArrow(step) {
+    const a = this.arrows.find((x) => x.step === step);
+    if (!a) return;
+    this.scene.tweens.killTweensOf([a.ring, a.glyph]);
+    a.ring.setScale(1);
+    a.glyph.setScale(1);
+    this.scene.tweens.add({
+      targets: [a.ring, a.glyph], scale: 1.25, duration: 90, yoyo: true, ease: 'Quad.out',
+    });
   }
 
   update() {

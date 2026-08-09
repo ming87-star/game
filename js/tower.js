@@ -52,7 +52,13 @@ function upFloorFor(index) {
 }
 
 // ── 한 칸에 무엇이 놓일까 ───────────────────────────────
-function pickKind(index) {
+// need는 "회복이 얼마나 급한가" 0~1입니다. 체력이 가득이면 0, healFloor 이하면 1.
+function healChance(need) {
+  const c = CFG.slotChance;
+  return c.healFull + (c.healHurt - c.healFull) * need;
+}
+
+function pickKind(index, need) {
   const c = CFG.slotChance;
   const enemyChance = Math.min(c.enemyMax, c.enemyBase + index * c.enemyPerFloor);
 
@@ -61,20 +67,47 @@ function pickKind(index) {
 
   let acc = enemyChance;
   if (r < (acc += c.plus)) return SLOT.PLUS;
-  if (r < (acc += c.heal)) return SLOT.HEAL;
+  if (r < (acc += healChance(need))) return SLOT.HEAL;
   if (r < (acc += c.double)) return SLOT.DOUBLE;
   return SLOT.EMPTY;
 }
 
+// 체력 비율을 "회복이 급한 정도"로 바꿉니다.
+function healNeedFrom(hp, maxHp) {
+  const ratio = maxHp > 0 ? hp / maxHp : 1;
+  const floor = CFG.slotChance.healFloor;
+  if (ratio >= 1) return 0;
+  if (ratio <= floor) return 1;
+  return (1 - ratio) / (1 - floor);
+}
+
+// 약한 적이 "점점 많아지는" 느낌을 내려면 마릿수도 층에 따라 늘어야 합니다.
 function enemyCountFor(index) {
-  const base = 1 + Math.floor(index / 30);
+  const base = 1 + Math.floor(index / 15);
   return Math.min(3, base + (Math.random() < 0.25 ? 1 : 0));
+}
+
+// 한 종류의 등장 비중. 나온 뒤 서서히 흔해지고, 다음 종류가 풀리면 물러납니다.
+function typeWeight(def, index) {
+  if (index < def.from) return 0;
+  const w = CFG.enemyWave;
+
+  // 등장 직후엔 드물다가 rampFloors 층에 걸쳐 제 비중까지 올라옵니다.
+  const ramp = Math.min(1, 0.3 + 0.7 * (index - def.from) / w.rampFloors);
+
+  // 다음 종류가 풀린 뒤부터 절반씩 줄어듭니다.
+  const next = CFG.enemyTypes.find((t) => t.from > def.from);
+  const fade = next
+    ? Math.pow(0.5, Math.max(0, index - next.from) / w.fadeHalfLife)
+    : 1;
+
+  return Math.max(w.minWeight, def.w0 * ramp * fade);
 }
 
 // 그 층에 나올 수 있는 적 종류 중 하나를 비중에 따라 고릅니다.
 function pickEnemyType(index) {
   const pool = CFG.enemyTypes.filter((t) => index >= t.from);
-  const weights = pool.map((t) => Math.max(0.2, t.w0 + (index - t.from) * t.wGrow));
+  const weights = pool.map((t) => typeWeight(t, index));
   const total = weights.reduce((a, b) => a + b, 0);
 
   let r = Math.random() * total;
@@ -95,8 +128,8 @@ function blankSlot(index, lane, kind) {
   };
 }
 
-function makeSlot(index, lane) {
-  const slot = blankSlot(index, lane, pickKind(index));
+function makeSlot(index, lane, need) {
+  const slot = blankSlot(index, lane, pickKind(index, need));
   if (slot.kind === SLOT.ENEMY) {
     slot.enemyCount = enemyCountFor(index);
     for (let i = 0; i < slot.enemyCount; i++) slot.enemyTypes.push(pickEnemyType(index));
@@ -122,7 +155,7 @@ function pickLanes(index) {
 // 같은 아이템이 둘 이상 놓이면 고를 것이 없으니 한쪽을 다시 굴립니다.
 // 빈 칸끼리·적끼리는 그냥 둡니다. 여기서까지 다시 굴리면 "빈 칸이 남을 확률"이
 // 사라져서, 기본 확률을 아무리 낮춰도 아이템이 넘쳐납니다.
-function dedupeItems(floor, index, lanes) {
+function dedupeItems(floor, index, lanes, need) {
   for (let pass = 0; pass < 4; pass++) {
     const seen = new Set();
     let clash = null;
@@ -134,11 +167,11 @@ function dedupeItems(floor, index, lanes) {
       seen.add(kind);
     }
     if (!clash) return;
-    floor.slots[clash] = makeSlot(index, clash);
+    floor.slots[clash] = makeSlot(index, clash, need);
   }
 }
 
-function makeFloor(index) {
+function makeFloor(index, need = 0) {
   const floor = { index, y: floorY(index), slots: {}, shop: false };
 
   if (index === 0) {
@@ -154,8 +187,8 @@ function makeFloor(index) {
   }
 
   const lanes = pickLanes(index);
-  lanes.forEach((lane) => { floor.slots[lane] = makeSlot(index, lane); });
-  dedupeItems(floor, index, lanes);
+  lanes.forEach((lane) => { floor.slots[lane] = makeSlot(index, lane, need); });
+  dedupeItems(floor, index, lanes, need);
 
   // 이 구간에 하나뿐인 UP이 놓이는 층입니다.
   // 가운데에 둡니다 — 한 칸씩만 옮겨 갈 수 있으니 양 끝에 놓으면
