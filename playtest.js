@@ -55,6 +55,15 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
       kills: s.kills, coins: s.coins, totalCoins: s.totalCoins,
       weapon: s.weapon.name, plus: s.weapon.plus, mult: s.weapon.mult,
       dmg: s.weapon.dmg, shots: s.weapon.shots,
+      // UP이 실제로 이득인지. 강화를 잃고도 화력이 오르는가로 판단합니다.
+      upWorth: (() => {
+        const w = s.weapon, next = CFG.weapons[w.tier + 1];
+        if (!next) return false;
+        // 발사체는 서로 다른 적에게 날아갑니다. 단단한 적 하나를 상대할 때는
+        // 4발이 4배가 아니므로, 두 번째 발부터는 절반 값으로 셉니다.
+        const power = (dmg, shots, rate) => dmg / rate * (1 + (shots - 1) * 0.5);
+        return power(next.dmg, next.shots, next.rate) > power(w.dmg, w.shots, w.rate);
+      })(),
       enemies: s.enemies.countActive(), dead: s.dead, shopOpen: s.shop.open,
       score: s.score(),
       left: kindOf('left'), right: kindOf('right'),
@@ -62,11 +71,13 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
   });
 
   // 사람처럼 고르는 가상 플레이어.
-  const rank = (kind, hp, maxHp) => {
+  // UP은 손해일 때가 있어서, 이득일 때만 노립니다. 무조건 먹는 플레이어로
+  // 재면 밸런스가 실제보다 나쁘게 나옵니다.
+  const rank = (kind, s) => {
     if (kind === null) return -1;
-    if (kind === 'heal') return hp < maxHp * 0.6 ? 6 : 1;
+    if (kind === 'heal') return s.hp < s.maxHp * 0.6 ? 6 : 1;
     if (kind === 'double') return 5;
-    if (kind === 'upgrade') return 4;
+    if (kind === 'upgrade') return s.upWorth ? 4 : 1;
     if (kind === 'plus') return 3;
     if (kind === 'empty') return 2;
     return 0; // enemy
@@ -99,7 +110,7 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
       continue;
     }
 
-    const left = rank(s.left, s.hp, s.maxHp) >= rank(s.right, s.hp, s.maxHp);
+    const left = rank(s.left, s) >= rank(s.right, s);
     await page.mouse.click(...at(left ? 135 : 405, 620));
     await page.waitForTimeout(560);
 

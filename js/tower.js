@@ -30,22 +30,26 @@ function isShopFloor(index) {
 }
 
 function pickKind(index) {
-  // 층이 높아질수록 적이 있는 발판이 늘어납니다.
-  const enemyChance = Math.min(0.5, 0.20 + index * 0.011);
+  const c = CFG.slotChance;
+
+  // 층이 높아질수록 적이 있는 발판은 늘고, UP은 귀해집니다.
+  const enemyChance = Math.min(c.enemyMax, c.enemyBase + index * c.enemyPerFloor);
+  const upChance = Math.max(c.upgradeMin, c.upgrade - index * c.upgradeDecay);
+
   const r = Math.random();
   if (r < enemyChance) return SLOT.ENEMY;
 
   let acc = enemyChance;
-  if (r < (acc += 0.14)) return SLOT.PLUS;
-  if (r < (acc += 0.08)) return SLOT.HEAL;
-  if (r < (acc += 0.06)) return SLOT.UPGRADE;
-  if (r < (acc += 0.02)) return SLOT.DOUBLE;
+  if (r < (acc += c.plus)) return SLOT.PLUS;
+  if (r < (acc += c.heal)) return SLOT.HEAL;
+  if (r < (acc += upChance)) return SLOT.UPGRADE;
+  if (r < (acc += c.double)) return SLOT.DOUBLE;
   return SLOT.EMPTY;
 }
 
 function enemyCountFor(index) {
-  const base = 1 + Math.floor(index / 18);
-  return Math.min(3, base + (Math.random() < 0.3 ? 1 : 0));
+  const base = 1 + Math.floor(index / 22);
+  return Math.min(3, base + (Math.random() < 0.25 ? 1 : 0));
 }
 
 // 그 층에 나올 수 있는 적 종류 중 하나를 비중에 따라 고릅니다.
@@ -125,8 +129,12 @@ function makeFloor(index) {
   floor.slots.left = makeSlot(index, 'left');
   floor.slots.right = makeSlot(index, 'right');
 
+  // 같은 아이템이 양쪽에 나오면 고를 것이 없으니 한쪽을 다시 굴립니다.
+  // 다만 빈 칸끼리·적끼리는 그냥 둡니다. 여기서 다시 굴리면 "빈 칸이 남을 확률"이
+  // 사라져서, 기본 확률을 아무리 낮춰도 아이템이 넘쳐나게 됩니다.
   let guard = 0;
-  while (floor.slots.left.kind === floor.slots.right.kind && guard++ < 6) {
+  while (floor.slots.left.kind === floor.slots.right.kind
+    && ITEM_KINDS.has(floor.slots.left.kind) && guard++ < 4) {
     floor.slots.right = makeSlot(index, 'right');
   }
   return floor;

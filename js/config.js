@@ -17,7 +17,7 @@ const CFG = {
   shopEvery: 50, // 이 층마다 상점
 
   player: {
-    hp: 120,
+    hp: 140,
     invulnMs: 800,
   },
 
@@ -27,30 +27,53 @@ const CFG = {
   //   ×2  한 번에 나가는 발사체를 두 배로
   //   UP  다음 단계 무기로. 대신 강화는 전부 초기화
   // 그래서 "지금 무기를 계속 키울까, 갈아탈까"가 판단이 됩니다.
+  // 단계 사이 화력 차이를 약 1.8배로 벌려 뒀습니다. plusStep이 0.12이므로
+  // +1을 7~10개쯤 쌓아야 비로소 UP이 손해가 됩니다. 그 지점이 판단이 생기는 자리입니다.
+  // (dmg × shots ÷ rate 가 그 무기의 대략적인 화력입니다)
   weapons: [
-    { name: '녹슨 단검', dmg: 16,  rate: 400, range: 230, shots: 1, speed: 560, color: 0xcfd8dc },
-    { name: '강철 검',   dmg: 25,  rate: 380, range: 240, shots: 1, speed: 600, color: 0x90caf9 },
-    { name: '쌍날 검',   dmg: 22,  rate: 340, range: 250, shots: 2, speed: 620, color: 0xa5d6a7 },
-    { name: '은빛 창',   dmg: 36,  rate: 320, range: 260, shots: 2, speed: 650, color: 0xb0bec5 },
-    { name: '마력 검',   dmg: 48,  rate: 300, range: 270, shots: 2, speed: 670, color: 0xce93d8 },
-    { name: '화염도',    dmg: 56,  rate: 270, range: 280, shots: 3, speed: 690, color: 0xff8a65 },
-    { name: '뇌전검',    dmg: 74,  rate: 240, range: 290, shots: 3, speed: 710, color: 0x81d4fa },
-    { name: '용살검',    dmg: 100, rate: 200, range: 300, shots: 4, speed: 740, color: 0xffb74d },
+    { name: '녹슨 단검', dmg: 24,  rate: 400, range: 230, shots: 1, speed: 560, color: 0xcfd8dc },
+    { name: '강철 검',   dmg: 43,  rate: 380, range: 240, shots: 1, speed: 600, color: 0x90caf9 },
+    { name: '쌍날 검',   dmg: 44,  rate: 340, range: 250, shots: 2, speed: 620, color: 0xa5d6a7 },
+    { name: '은빛 창',   dmg: 75,  rate: 320, range: 260, shots: 2, speed: 650, color: 0xb0bec5 },
+    { name: '마력 검',   dmg: 125, rate: 300, range: 270, shots: 2, speed: 670, color: 0xce93d8 },
+    { name: '화염도',    dmg: 135, rate: 270, range: 280, shots: 3, speed: 690, color: 0xff8a65 },
+    { name: '뇌전검',    dmg: 215, rate: 240, range: 290, shots: 3, speed: 710, color: 0x81d4fa },
+    { name: '용살검',    dmg: 330, rate: 200, range: 300, shots: 4, speed: 740, color: 0xffb74d },
   ],
-  plusStep: 0.18, // +1 하나당 기본 공격력의 18%를 더합니다
+  plusStep: 0.12, // +1 하나당 기본 공격력의 12%. 흔한 아이템이라 한 개는 작게 올립니다
   maxShots: 8,    // ×2가 겹쳐도 이보다 많이 쏘지는 않습니다
   maxMult: 4,     // ×2는 두 번까지만 겹칩니다
 
+  // ── 발판에 무엇이 놓일까 ────────────────────────────────
+  // 한 칸 기준 확률입니다. 한 층에 두 칸이 있으니 실제로 마주칠 확률은
+  // 1-(1-p)² 로 거의 두 배가 됩니다. 여기 숫자를 조금만 올려도 체감은 크게 바뀝니다.
+  //
+  // UP은 특히 조심해야 합니다. 흔해지면 무기 단계가 순식간에 올라가
+  // "지금 것을 키울까 갈아탈까"라는 판단 자체가 사라집니다.
+  // 층이 올라갈수록 더 귀해지게 해 뒀습니다.
+  slotChance: {
+    enemyBase: 0.20,
+    enemyPerFloor: 0.011,
+    enemyMax: 0.38,
+
+    plus: 0.075,   // 한 층에 마주칠 확률 약 14%
+    heal: 0.045,   // 약 9%
+    upgrade: 0.028, // 약 5% — 아래 decay로 더 줄어듭니다
+    upgradeDecay: 0.00008,
+    upgradeMin: 0.008,
+    double: 0.009, // 약 2% — 가장 귀합니다
+  },
+
   // ── 적 ──────────────────────────────────────────────────
-  maxEnemies: 20,
+  maxEnemies: 14,
   enemy: {
     baseHp: 14,
-    hpPerFloor: 1.5,
+    hpPerFloor: 1.0,
     // 주인공의 화력은 강화가 겹치며 곱으로 자랍니다. 적 체력도 곱으로 자라지 않으면
     // 어느 층부터는 아무것도 위협이 되지 않습니다. 결국 탑이 이깁니다.
-    hpGrowth: 1.013,
+    hpGrowth: 1.010,
     // 적의 공격력도 같이 올라야 합니다. 안 그러면 못 죽이는데 죽지도 않는 교착이 됩니다.
-    dmgPerFloor: 0.022,
+    dmgPerFloor: 0.016,
     baseSpeed: 55,
     speedPerFloor: 0.9,
     maxSpeed: 210,
@@ -63,7 +86,7 @@ const CFG = {
     { key: 'brute',   name: '단단한 놈', from: 8,  hp: 2.4, speed: 0.60, dmg: 15, coin: 3, scale: 1.15, move: 'chase',  w0: 1.2, wGrow: 0.01 },
     { key: 'flyer',   name: '날것',     from: 14, hp: 1.0, speed: 1.20, dmg: 12, coin: 2, scale: 0.95, move: 'wave',   w0: 1.2, wGrow: 0.01 },
     { key: 'dasher',  name: '빠른 놈',   from: 20, hp: 0.7, speed: 2.00, dmg: 12, coin: 3, scale: 0.9,  move: 'chase',  w0: 1.0, wGrow: 0.015 },
-    { key: 'giant',   name: '거인',     from: 28, hp: 4.5, speed: 0.45, dmg: 24, coin: 7, scale: 1.9,  move: 'chase',  w0: 0.8, wGrow: 0.012 },
+    { key: 'giant',   name: '거인',     from: 28, hp: 3.5, speed: 0.45, dmg: 24, coin: 7, scale: 1.9,  move: 'chase',  w0: 0.8, wGrow: 0.012 },
     { key: 'shooter', name: '사수',     from: 34, hp: 1.2, speed: 0.70, dmg: 10, coin: 4, scale: 1.0,  move: 'ranged', w0: 1.0, wGrow: 0.015 },
   ],
 
@@ -78,10 +101,10 @@ const CFG = {
   // 층이 올라갈수록 무작위 등장이 잦아집니다.
   ambient: {
     startFloor: 4,
-    baseDelay: 4000,
-    delayPerFloor: 36,
+    baseDelay: 4500,
+    delayPerFloor: 18,
     minDelay: 900,
-    maxCount: 4,
+    maxCount: 3,
   },
 
   heal: 35,
