@@ -1,0 +1,14 @@
+{
+  "name": "tower-climber",
+  "version": "0.1.0",
+  "description": "탭으로 좌우 길을 골라 오르는 타워 클라이머",
+  "private": true,
+  "scripts": {
+    "build": "node build.js",
+    "playtest": "node playtest.js"
+  },
+  "devDependencies": {
+    "phaser": "^4.2.1",
+    "playwright": "^1.62.1"
+  }
+}
