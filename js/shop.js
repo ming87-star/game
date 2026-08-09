@@ -130,6 +130,20 @@ class Shop {
       box.setFillStyle(can ? 0x232b47 : 0x1c2136).setStrokeStyle(2, can ? 0x3f4a78 : 0x2a3252);
       name.setColor(can ? '#ffffff' : '#6b7599');
       price.setColor(can ? '#ffd54f' : '#6b7599');
+
+      // 다음 무기는 쌓아둔 강화를 지웁니다. 한 자리에서 여러 개를 사는 상점에서는
+      // 이게 안 보이면 방금 산 강화가 조용히 사라집니다. 잃을 것을 그대로 적어 둡니다.
+      if (offer.key === 'upgrade') {
+        const w = s.weapon;
+        const stack = (w.plus ? '+' + w.plus : '') + (w.plus && w.mult > 1 ? ' ' : '') + (w.mult > 1 ? '×' + w.mult : '');
+        if (stack) {
+          desc.setText('지금 강화를 잃습니다   ' + stack).setColor(can ? '#ff8a80' : '#6b7599');
+        } else {
+          desc.setText(SHOP_ITEMS.upgrade.desc).setColor(can ? '#8794b5' : '#4a5578');
+        }
+      } else {
+        desc.setColor(can ? '#8794b5' : '#4a5578');
+      }
     });
   }
 

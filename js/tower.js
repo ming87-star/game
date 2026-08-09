@@ -10,6 +10,9 @@ const SLOT = {
   SHOP: 'shop',
 };
 
+// 시간이 지나면 사라지는 것들. 상점과 적은 해당하지 않습니다.
+const ITEM_KINDS = new Set([SLOT.PLUS, SLOT.DOUBLE, SLOT.UPGRADE, SLOT.HEAL]);
+
 // 발판 위에 띄울 표시. 나중에 아이템 그림이 나오면 여기만 바꾸면 됩니다.
 const SLOT_MARK = {
   [SLOT.PLUS]:    { label: '+1', color: 0xffd54f, text: '#3e2723' },
@@ -70,6 +73,9 @@ function makeSlot(index, lane) {
     enemyTypes: [],
     taken: false,
     spawned: false,
+    armed: false,   // 사라지는 시계가 돌기 시작했는지
+    armedAt: 0,     // 그 시계를 켠 시각 (게임 시작 직후면 0일 수 있습니다)
+    expired: false, // 시간이 다 되어 사라졌는지
   };
 
   if (kind === SLOT.ENEMY) {
@@ -85,6 +91,7 @@ function blankSlot(index, lane, kind) {
     x: CFG.laneX[lane],
     y: floorY(index),
     enemyCount: 0, enemyTypes: [], taken: false, spawned: false,
+    armed: false, armedAt: 0, expired: false,
   };
 }
 

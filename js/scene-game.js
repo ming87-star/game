@@ -50,6 +50,7 @@ class GameScene extends Phaser.Scene {
     this.bindInput();
 
     this.ambientAt = this.time.now + CFG.ambient.baseDelay;
+    this.armItems();
 
     window.__scene = this; // 브라우저 콘솔·자동 플레이테스트에서 상태를 보기 위한 통로
   }
@@ -208,7 +209,7 @@ class GameScene extends Phaser.Scene {
   }
 
   land(slot) {
-    if (!slot.taken) {
+    if (!slot.taken && !slot.expired) {
       slot.taken = true;
       switch (slot.kind) {
         case SLOT.PLUS:
@@ -236,9 +237,50 @@ class GameScene extends Phaser.Scene {
     // 앞쪽 층을 계속 채워두고, 지나온 층은 정리합니다.
     for (let i = this.floorIndex; i <= this.floorIndex + 10; i++) this.addFloor(i);
     for (let i = this.floorIndex - 6; i < this.floorIndex - 3; i++) this.removeFloor(i);
+    this.armItems();
 
     if (slot.kind === SLOT.SHOP) return this.enterShop();
     for (let i = 1; i <= 2; i++) this.wakeFloor(this.floorIndex + i);
+  }
+
+  // ── 아이템 수명 ───────────────────────────────────────
+  // 주인공이 가까이 오면 그때부터 시간이 흐릅니다. 멀리 있는 층의 아이템까지
+  // 미리 녹아 없어지면 곤란하니, 사정권에 든 것만 시계를 켭니다.
+  armItems() {
+    const now = this.time.now;
+    for (let i = 1; i <= CFG.item.armWithin; i++) {
+      const floor = this.floors.get(this.floorIndex + i);
+      if (!floor) continue;
+      for (const lane of ['left', 'right']) {
+        const slot = floor.slots[lane];
+        if (!slot || slot.armed || !ITEM_KINDS.has(slot.kind)) continue;
+        slot.armed = true;
+        slot.armedAt = now;
+      }
+    }
+  }
+
+  updateItems(now) {
+    this.floors.forEach((floor) => {
+      for (const lane of ['left', 'right']) {
+        const slot = floor.slots[lane];
+        if (!slot || !slot.view || !slot.armed || slot.taken || slot.expired) continue;
+        if (!ITEM_KINDS.has(slot.kind)) continue;
+
+        const age = now - slot.armedAt;
+        if (age >= CFG.item.life) {
+          slot.expired = true;
+          slot.view.destroy();
+          slot.view = null;
+          continue;
+        }
+        if (age >= CFG.item.blinkAt) {
+          // 사라질 때가 가까울수록 빠르게 깜빡입니다.
+          const period = CFG.item.life - age < 1400 ? 80 : 170;
+          slot.view.setAlpha(Math.floor(age / period) % 2 ? 0.2 : 1);
+        }
+      }
+    });
   }
 
   // ── 상점 ──────────────────────────────────────────────
@@ -256,6 +298,17 @@ class GameScene extends Phaser.Scene {
     // 상점을 나서는 순간부터 다시 몰려옵니다.
     this.ambientAt = this.time.now + CFG.ambient.baseDelay;
     for (let i = 1; i <= 2; i++) this.wakeFloor(this.floorIndex + i);
+
+    // 상점에 머문 시간만큼 위층 아이템이 삭아 있으면 억울합니다. 시계를 다시 겁니다.
+    for (let i = 1; i <= CFG.item.armWithin; i++) {
+      const floor = this.floors.get(this.floorIndex + i);
+      if (!floor) continue;
+      for (const lane of ['left', 'right']) {
+        const slot = floor.slots[lane];
+        if (slot && !slot.expired && slot.view) { slot.armed = false; slot.view.setAlpha(1); }
+      }
+    }
+    this.armItems();
   }
 
   // ── 자동 공격 ─────────────────────────────────────────
@@ -404,6 +457,7 @@ class GameScene extends Phaser.Scene {
 
     if (this.shop.open) return; // 상점에서는 시간이 멈춘 셈 칩니다
 
+    this.updateItems(time);
     if (this.floorIndex > 0) this.hud.fadeHint(delta);
 
     updateEnemies(this, time, delta);
