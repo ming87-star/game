@@ -79,3 +79,37 @@ console.log(`\n${CFG.shopEvery}층 구간마다 나온 UP 개수 — ` +
 console.log(counts['1'] === bandsSeen ? '  ✓ 모든 구간에 정확히 하나' : '  ✗ 구간당 하나가 아닌 경우가 있습니다');
 console.log(`\n무기를 끝까지 올리려면 UP이 ${CFG.weapons.length - 1}개 필요합니다.` +
   ` 지도에서 ${CFG.shopEvery}층당 1개 + 상점에서 최대 1개.`);
+
+// ── 화력과 체력의 곡선 ──────────────────────────────────
+// UP은 50층 구간마다 지도에 하나 + 상점에 하나이므로, 무기 단계는 대략
+// shopEvery/2 층마다 하나씩 오릅니다. 그 속도에 적 체력이 맞물려야 합니다.
+// 한 마리 잡는 데 걸리는 시간이 층이 올라가며 서서히 늘어나야 정상입니다.
+const perTier = CFG.shopEvery / 2;
+const plusPace = 0.14; // 층당 +1을 마주치는 빈도 (survey 위쪽 표와 같습니다)
+
+// UP을 먹을 때마다 +1이 초기화되므로, 실제로 들고 있는 강화는 층수에 비례하지
+// 않습니다. "마지막 단계 상승 이후에 주운 것"만 남습니다. 이걸 빼먹으면
+// 주인공을 실제보다 훨씬 세게 잡고 밸런스를 맞추게 됩니다.
+const stacks = Math.round(perTier * plusPace);
+
+console.log(`\n\n층별 화력 대 체력 (UP을 매번 챙기고, 단계마다 +${stacks} 쌓은 경우)\n`);
+console.log('  층    무기          공격력   보통적   단단한놈    거인    한마리 잡는 시간');
+
+for (let f = 0; f <= 175; f += 25) {
+  const tier = Math.min(CFG.weapons.length - 1, Math.floor(f / perTier));
+  const w = CFG.weapons[tier];
+  const dmg = w.dmg * (1 + stacks * CFG.plusStep);
+  const dps = dmg / w.rate * 1000;
+
+  const hpAt = (mult) => Math.round(
+    (CFG.enemy.baseHp + f * CFG.enemy.hpPerFloor) * Math.pow(CFG.enemy.hpGrowth, f) * mult);
+
+  const normal = hpAt(1.0);
+  const brute = hpAt(2.4);
+  const giant = hpAt(3.5);
+
+  console.log(
+    `  ${String(f).padStart(3)}   ${w.name.padEnd(9)} ${String(Math.round(dmg)).padStart(6)}` +
+    `  ${String(normal).padStart(6)}  ${String(brute).padStart(8)}  ${String(giant).padStart(6)}` +
+    `      보통 ${(normal / dps).toFixed(2)}초 · 거인 ${(giant / dps).toFixed(2)}초`);
+}

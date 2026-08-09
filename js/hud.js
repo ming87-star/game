@@ -20,7 +20,7 @@ class Hud {
     this.multText = fixed(scene.add.text(0, 58, '', font(22, '#4fc3f7')));
 
     this.hint = fixed(scene.add.text(CFG.width / 2, CFG.height - 70,
-      '왼쪽 / 가운데 / 오른쪽을 눌러 길을 고르세요', font(22, '#ffffff')).setOrigin(0.5)).setAlpha(0.85);
+      '왼쪽 · 위 · 오른쪽 — 한 칸씩만 옮겨 갑니다', font(22, '#ffffff')).setOrigin(0.5)).setAlpha(0.85);
   }
 
   update() {

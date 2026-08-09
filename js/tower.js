@@ -67,7 +67,7 @@ function pickKind(index) {
 }
 
 function enemyCountFor(index) {
-  const base = 1 + Math.floor(index / 22);
+  const base = 1 + Math.floor(index / 30);
   return Math.min(3, base + (Math.random() < 0.25 ? 1 : 0));
 }
 
@@ -106,16 +106,17 @@ function makeSlot(index, lane) {
 
 // ── 한 층 ───────────────────────────────────────────────
 // 길이 늘 셋인 것은 아닙니다. 둘로 좁아지거나 외길이 되기도 합니다.
+//
+// 다만 가운데 길은 반드시 있습니다. 주인공은 한 번에 한 칸씩만 옮겨 가므로,
+// 왼쪽 끝에 서 있는데 다음 층에 오른쪽 길만 있으면 갈 곳이 없어집니다.
+// 가운데가 늘 열려 있으면 어느 자리에서든 최소한 한 곳은 닿습니다.
 function pickLanes(index) {
   if (index <= 2) return LANES.slice();
 
   const r = Math.random();
   if (r < 0.45) return LANES.slice();
-  if (r < 0.90) {
-    const drop = LANES[Math.floor(Math.random() * LANES.length)];
-    return LANES.filter((l) => l !== drop);
-  }
-  return [LANES[Math.floor(Math.random() * LANES.length)]];
+  if (r < 0.90) return Math.random() < 0.5 ? ['left', 'mid'] : ['mid', 'right'];
+  return ['mid'];
 }
 
 // 같은 아이템이 둘 이상 놓이면 고를 것이 없으니 한쪽을 다시 굴립니다.
@@ -157,9 +158,10 @@ function makeFloor(index) {
   dedupeItems(floor, index, lanes);
 
   // 이 구간에 하나뿐인 UP이 놓이는 층입니다.
+  // 가운데에 둡니다 — 한 칸씩만 옮겨 갈 수 있으니 양 끝에 놓으면
+  // 반대편에 서 있던 판은 그 구간의 UP을 통째로 놓칩니다.
   if (index === upFloorFor(index)) {
-    const lane = lanes[Math.floor(Math.random() * lanes.length)];
-    floor.slots[lane] = blankSlot(index, lane, SLOT.UPGRADE);
+    floor.slots.mid = blankSlot(index, 'mid', SLOT.UPGRADE);
   }
 
   return floor;

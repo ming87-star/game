@@ -65,6 +65,7 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
         const power = (dmg, shots, rate) => dmg / rate * (1 + (shots - 1) * 0.5);
         return power(next.dmg, next.shots, next.rate) > power(w.dmg, w.shots, w.rate);
       })(),
+      lane: s.lane,
       enemies: s.enemies.countActive(), dead: s.dead, shopOpen: s.shop.open,
       score: s.score(),
       kinds,
@@ -111,10 +112,17 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
       continue;
     }
 
-    // 세 갈래 중 가장 나은 길을 고릅니다.
+    // 한 칸 이내로 닿는 길 중에서 가장 나은 쪽을 고르고, 그 "방향"을 누릅니다.
     const lanes = ['left', 'mid', 'right'];
-    const best = lanes.reduce((a, b) => (rank(s.kinds[b], s) > rank(s.kinds[a], s) ? b : a));
-    await page.mouse.click(...at({ left: 90, mid: 270, right: 450 }[best], 620));
+    const here = lanes.indexOf(s.lane);
+    const reachable = lanes
+      .map((l, i) => ({ l, i }))
+      .filter((c) => Math.abs(c.i - here) <= 1 && s.kinds[c.l] !== null);
+    const pick = reachable.length
+      ? reachable.reduce((a, b) => (rank(s.kinds[b.l], s) > rank(s.kinds[a.l], s) ? b : a))
+      : { i: here };
+    const dir = Math.sign(pick.i - here); // -1 왼쪽 · 0 위 · +1 오른쪽
+    await page.mouse.click(...at(dir < 0 ? 90 : dir > 0 ? 450 : 270, 620));
     await page.waitForTimeout(560);
 
     if (i % 10 === 9) {

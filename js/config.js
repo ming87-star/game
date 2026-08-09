@@ -52,23 +52,25 @@ const CFG = {
   // 구간 안의 무작위한 층에 놓입니다 (tower.js의 upFloorFor).
   // 상점에서도 한 번 살 수 있으니 한 구간에 최대 두 번 오릅니다.
   slotChance: {
-    enemyBase: 0.14,
-    enemyPerFloor: 0.007,
-    enemyMax: 0.26,
+    enemyBase: 0.11,
+    enemyPerFloor: 0.006,
+    enemyMax: 0.20,
 
-    plus: 0.065,  // 한 층에 마주칠 확률 약 14%
-    heal: 0.040,  // 약 9%
+    plus: 0.075,  // 한 층에 마주칠 확률 약 14%
+    heal: 0.046,  // 약 9%
     double: 0.008, // 약 2% — 가장 귀합니다
   },
 
   // ── 적 ──────────────────────────────────────────────────
-  maxEnemies: 14,
+  maxEnemies: 12,
   enemy: {
-    baseHp: 14,
-    hpPerFloor: 0.55,
-    // 주인공의 화력은 강화가 겹치며 곱으로 자랍니다. 적 체력도 곱으로 자라지 않으면
-    // 어느 층부터는 아무것도 위협이 되지 않습니다. 결국 탑이 이깁니다.
-    hpGrowth: 1.005,
+    baseHp: 16,
+    hpPerFloor: 0,
+    // 무기 단계는 25층에 하나씩 오르고 단계마다 화력이 약 1.8배입니다.
+    // 즉 주인공의 화력은 곱으로 자랍니다. 적 체력을 더하기로 올리면
+    // 위로 갈수록 전투가 싱거워집니다 — 그래서 여기도 곱입니다.
+    // survey.js 끝의 "한 마리 잡는 시간"이 서서히 늘어나면 맞은 것입니다.
+    hpGrowth: 1.026,
     // 적의 공격력도 같이 올라야 합니다. 안 그러면 못 죽이는데 죽지도 않는 교착이 됩니다.
     dmgPerFloor: 0.016,
     baseSpeed: 55,
@@ -83,12 +85,12 @@ const CFG = {
   // 15~20층에 하나씩 새 적이 풀리고 마지막 하나는 꽤 올라가야 봅니다.
   // 처음 만나는 종류는 화면에 이름이 뜹니다 (scene-game.js의 announceEnemy).
   enemyTypes: [
-    { key: 'crawler', name: '기는 것',   from: 0,  hp: 0.8, speed: 0.75, dmg: 10, coin: 1, scale: 0.85, move: 'chase',  w0: 4,   wGrow: -0.05 },
-    { key: 'brute',   name: '단단한 놈', from: 12,  hp: 2.4, speed: 0.60, dmg: 15, coin: 3, scale: 1.15, move: 'chase',  w0: 1.2, wGrow: 0.01 },
-    { key: 'flyer',   name: '날것',     from: 25, hp: 1.0, speed: 1.20, dmg: 12, coin: 2, scale: 0.95, move: 'wave',   w0: 1.2, wGrow: 0.01 },
-    { key: 'dasher',  name: '빠른 놈',   from: 40, hp: 0.7, speed: 2.00, dmg: 12, coin: 3, scale: 0.9,  move: 'chase',  w0: 1.0, wGrow: 0.015 },
-    { key: 'giant',   name: '거인',     from: 55, hp: 3.5, speed: 0.45, dmg: 24, coin: 7, scale: 1.9,  move: 'chase',  w0: 0.8, wGrow: 0.012 },
-    { key: 'shooter', name: '사수',     from: 72, hp: 1.2, speed: 0.70, dmg: 10, coin: 4, scale: 1.0,  move: 'ranged', w0: 1.0, wGrow: 0.015 },
+    { key: 'crawler', name: '기는 것',   from: 0,  hp: 0.8, speed: 0.75, dmg: 10, coin: 2, scale: 0.85, move: 'chase',  w0: 4,   wGrow: -0.05 },
+    { key: 'brute',   name: '단단한 놈', from: 12,  hp: 2.4, speed: 0.60, dmg: 15, coin: 5, scale: 1.15, move: 'chase',  w0: 1.2, wGrow: 0.01 },
+    { key: 'flyer',   name: '날것',     from: 25, hp: 1.0, speed: 1.20, dmg: 12, coin: 4, scale: 0.95, move: 'wave',   w0: 1.2, wGrow: 0.01 },
+    { key: 'dasher',  name: '빠른 놈',   from: 40, hp: 0.7, speed: 2.00, dmg: 12, coin: 4, scale: 0.9,  move: 'chase',  w0: 1.0, wGrow: 0.015 },
+    { key: 'giant',   name: '거인',     from: 55, hp: 3.5, speed: 0.45, dmg: 24, coin: 10, scale: 1.9,  move: 'chase',  w0: 0.8, wGrow: 0.012 },
+    { key: 'shooter', name: '사수',     from: 72, hp: 1.2, speed: 0.70, dmg: 10, coin: 6, scale: 1.0,  move: 'ranged', w0: 1.0, wGrow: 0.015 },
   ],
 
   // 사수가 쏘는 탄
@@ -102,8 +104,8 @@ const CFG = {
   // 층이 올라갈수록 무작위 등장이 잦아집니다.
   ambient: {
     startFloor: 8,
-    baseDelay: 5200,
-    delayPerFloor: 14,
+    baseDelay: 6500,
+    delayPerFloor: 8,
     minDelay: 900,
     maxCount: 3,
   },
@@ -126,7 +128,7 @@ const CFG = {
     prices: {
       plus:    { base: 30,  perShop: 18 },
       double:  { base: 110, perShop: 70 },
-      upgrade: { base: 55,  perShop: 40 },
+      upgrade: { base: 45,  perShop: 30 },
       heal:    { base: 35,  perShop: 15 },
       maxhp:   { base: 90,  perShop: 40 },
     },

@@ -53,6 +53,8 @@ class GameScene extends Phaser.Scene {
 
     this.ambientAt = this.time.now + CFG.ambient.baseDelay;
     this.armItems();
+    this.dimmedFloor = -1;
+    this.markReach();
 
     window.__scene = this; // 브라우저 콘솔·자동 플레이테스트에서 상태를 보기 위한 통로
   }
@@ -80,9 +82,11 @@ class GameScene extends Phaser.Scene {
       const color = wide ? 0xffb74d : 0x5c6bc0;
       const lipColor = wide ? 0xffe0b2 : 0x9fa8da;
 
-      floor.views.push(
+      slot.deck = [
         this.add.rectangle(slot.x, slot.y, w, CFG.platformH, color),
-        this.add.rectangle(slot.x, slot.y - CFG.platformH / 2 + 3, w, 6, lipColor));
+        this.add.rectangle(slot.x, slot.y - CFG.platformH / 2 + 3, w, 6, lipColor),
+      ];
+      floor.views.push(...slot.deck);
 
       const mark = this.makeMark(slot);
       if (mark) { slot.view = mark; floor.views.push(mark); }
@@ -177,31 +181,38 @@ class GameScene extends Phaser.Scene {
     this.input.on('pointerdown', (p) => {
       if (this.shop.open) return; // 상점 버튼은 상점이 직접 받습니다
       if (this.dead) return this.scene.restart();
-      // 화면을 세로로 삼등분해서 누른 자리의 길로 갑니다.
+      // 화면을 삼등분해서 왼쪽이면 한 칸 왼쪽, 가운데면 바로 위, 오른쪽이면 한 칸 오른쪽.
+      // 누른 자리의 발판으로 순간이동하는 것이 아니라 방향을 고르는 것입니다.
       const third = this.scale.width / 3;
-      this.jump(p.x < third ? 'left' : p.x < third * 2 ? 'mid' : 'right');
+      this.jump(p.x < third ? -1 : p.x < third * 2 ? 0 : 1);
     });
-    const key = (lane) => () => {
+    const key = (step) => () => {
       if (this.shop.open) return;
       if (this.dead) return this.scene.restart();
-      this.jump(lane);
+      this.jump(step);
     };
-    this.input.keyboard.on('keydown-LEFT', key('left'));
-    this.input.keyboard.on('keydown-UP', key('mid'));
-    this.input.keyboard.on('keydown-DOWN', key('mid'));
-    this.input.keyboard.on('keydown-RIGHT', key('right'));
+    this.input.keyboard.on('keydown-LEFT', key(-1));
+    this.input.keyboard.on('keydown-UP', key(0));
+    this.input.keyboard.on('keydown-DOWN', key(0));
+    this.input.keyboard.on('keydown-RIGHT', key(1));
   }
 
-  jump(lane) {
+  // step: -1 왼쪽 · 0 바로 위 · +1 오른쪽. 한 번에 한 칸까지만 옮겨 갑니다.
+  jump(step) {
     if (this.jumping || this.dead || this.shop.open) return;
     const next = this.floors.get(this.floorIndex + 1);
     if (!next) return;
 
-    // 누른 쪽에 발판이 없으면 가장 가까운 길로 갑니다. 점프는 실패하지 않습니다.
-    const slot = next.slots[lane] || LANES
-      .map((l) => next.slots[l])
-      .filter(Boolean)
-      .sort((a, b) => Math.abs(a.x - CFG.laneX[lane]) - Math.abs(b.x - CFG.laneX[lane]))[0];
+    const here = LANES.indexOf(this.lane);
+    const want = Phaser.Math.Clamp(here + step, 0, LANES.length - 1);
+
+    // 닿을 수 있는 길은 지금 자리에서 한 칸 이내뿐입니다.
+    // 그 안에서 원하는 쪽에 발판이 없으면 가장 가까운 길로 갑니다 — 점프는 실패하지 않습니다.
+    const slot = next.slots[LANES[want]] || LANES
+      .map((l, i) => ({ slot: next.slots[l], i }))
+      .filter((c) => c.slot && Math.abs(c.i - here) <= 1)
+      .sort((a, b) => Math.abs(a.i - want) - Math.abs(b.i - want))
+      .map((c) => c.slot)[0];
     if (!slot) return;
 
     this.jumping = true;
@@ -265,8 +276,37 @@ class GameScene extends Phaser.Scene {
     for (let i = this.floorIndex - 6; i < this.floorIndex - 3; i++) this.removeFloor(i);
     this.armItems();
 
+    this.markReach();
+
     if (slot.kind === SLOT.SHOP) return this.enterShop();
     for (let i = 1; i <= 2; i++) this.wakeFloor(this.floorIndex + i);
+  }
+
+  // 다음 층에서 닿을 수 없는 길은 흐리게 해 둡니다.
+  // 한 칸씩만 옮겨 갈 수 있다는 규칙이 눈에 보여야 합니다.
+  markReach() {
+    const restore = (index) => {
+      const floor = this.floors.get(index);
+      if (!floor) return;
+      LANES.forEach((lane) => {
+        const slot = floor.slots[lane];
+        if (slot && slot.deck) slot.deck.forEach((v) => v.setAlpha(1));
+      });
+    };
+    restore(this.dimmedFloor);
+
+    const index = this.floorIndex + 1;
+    const floor = this.floors.get(index);
+    if (!floor) return;
+
+    const here = LANES.indexOf(this.lane);
+    LANES.forEach((lane, i) => {
+      const slot = floor.slots[lane];
+      if (!slot || !slot.deck) return;
+      const alpha = Math.abs(i - here) <= 1 ? 1 : 0.25;
+      slot.deck.forEach((v) => v.setAlpha(alpha));
+    });
+    this.dimmedFloor = index;
   }
 
   // ── 아이템 수명 ───────────────────────────────────────
