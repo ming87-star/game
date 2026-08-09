@@ -12,5 +12,5 @@ new Phaser.Game({
     default: 'arcade',
     arcade: { gravity: { y: 0 }, debug: false },
   },
-  scene: [GameScene],
+  scene: [SelectScene, GameScene],
 });

@@ -1,37 +1,64 @@
-// 무기 한 자루의 상태. 단계(tier)와 강화(+1, ×2)를 따로 들고 있습니다.
+// 무기 한 자루의 상태. 무기표는 직업이 들고 옵니다.
 //
-// 주무기는 근접입니다. 보조무기(원거리)는 일정 단계부터 딸려 오고,
-// 주무기 공격력에 비례하되 훨씬 약합니다.
+// 단계(tier)와 강화(+1, ×2)가 따로 놉니다.
+//   +1  공격력을 올림
+//   ×2  공격 속도 두 배
+//   UP  다음 단계로. 대신 강화는 전부 초기화
+//
+// 유물(relic)은 강화가 아닙니다. 한 판에 한 번 나올까 말까 한 물건이고,
+// UP을 먹어도 사라지지 않습니다.
 class Weapon {
-  constructor() {
+  constructor(job) {
+    this.job = job;
     this.tier = 0;
-    this.plus = 0;  // +1 을 먹은 횟수
-    this.mult = 1;  // ×2 를 먹을 때마다 두 배 (공격 속도)
+    this.plus = 0;
+    this.mult = 1;
+    this.relic = null;
   }
 
-  get base() { return CFG.weapons[this.tier]; }
+  get table() { return this.job.weapons; }
+  get base() { return this.table[this.tier]; }
   get name() { return this.base.name; }
-  get reach() { return this.base.reach; }
   get color() { return this.base.color; }
 
   get dmg() { return Math.round(this.base.dmg * (1 + this.plus * CFG.plusStep)); }
   get rate() { return this.base.rate / this.mult; }
 
-  // ── 보조무기 ──────────────────────────────────────────
-  get hasSub() { return this.tier >= CFG.sub.fromTier; }
-  get subDmg() { return Math.round(this.dmg * CFG.sub.dmgRatio); }
-  get subRate() { return CFG.sub.rate / this.mult; }
+  // 근접 — 이 거리 안의 적을 한 번에 모두 벱니다.
+  get reach() {
+    const scale = this.relic && this.relic.reachScale ? this.relic.reachScale : 1;
+    return (this.base.reach || 0) * scale;
+  }
 
-  get atMaxTier() { return this.tier >= CFG.weapons.length - 1; }
-  get nextName() { return this.atMaxTier ? null : CFG.weapons[this.tier + 1].name; }
+  // 원거리 — 한 발이 적 하나를 칩니다.
+  get range() { return this.base.range || 0; }
+  get shots() { return this.base.shots || 1; }
+  get bounce() { return this.relic && this.relic.bounce ? this.relic.bounce : 0; }
+  get homing() { return !!this.base.homing; }
+
+  // 도적의 절도. 유물이 있으면 확률과 액수가 함께 오릅니다.
+  get stealChance() {
+    return this.job.steal + (this.relic && this.relic.stealBonus ? this.relic.stealBonus : 0);
+  }
+  get stealAmount() {
+    return this.relic && this.relic.stealAmount ? this.relic.stealAmount : 1;
+  }
+
+  get atMaxTier() { return this.tier >= this.table.length - 1; }
+  get nextName() { return this.atMaxTier ? null : this.table[this.tier + 1].name; }
 
   addPlus() { this.plus++; }
 
   // 두 배가 계속 겹치면 지수로 늘어나 손쓸 수 없게 됩니다. 상한을 둡니다.
   addDouble() { this.mult = Math.min(CFG.maxMult, this.mult * 2); }
-  get multMaxed() { return this.mult >= CFG.maxMult; }
 
-  // 다음 단계로. 강화는 전부 잃습니다 — 그래서 먹을지 말지가 판단이 됩니다.
+  takeRelic() {
+    if (this.relic) return false;
+    this.relic = this.job.relic;
+    return true;
+  }
+
+  // 다음 단계로. 강화는 잃지만 유물은 남습니다.
   upgrade() {
     if (this.atMaxTier) return false;
     this.tier++;

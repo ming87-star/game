@@ -10,11 +10,12 @@ const SLOT = {
   DOUBLE: 'double',   // ×2  공격 속도 두 배
   ARMOR: 'armor',     // 방  받는 피해 감소
   UPGRADE: 'upgrade', // UP  다음 단계 무기 (강화는 초기화)
+  RELIC: 'relic',     // ★  직업 유물. 한 판에 하나뿐
   SHOP: 'shop',
 };
 
 // 시간이 지나면 사라지는 것들. 상점과 적은 해당하지 않습니다.
-const ITEM_KINDS = new Set([SLOT.PLUS, SLOT.DOUBLE, SLOT.UPGRADE, SLOT.HEAL, SLOT.ARMOR]);
+const ITEM_KINDS = new Set([SLOT.PLUS, SLOT.DOUBLE, SLOT.UPGRADE, SLOT.HEAL, SLOT.ARMOR, SLOT.RELIC]);
 
 // 발판 위에 띄울 표시. 나중에 아이템 그림이 나오면 여기만 바꾸면 됩니다.
 const SLOT_MARK = {
@@ -23,6 +24,7 @@ const SLOT_MARK = {
   [SLOT.UPGRADE]: { label: 'UP', color: 0xff8a65, text: '#3e2723' },
   [SLOT.HEAL]:    { label: '＋', color: 0x66bb6a, text: '#1b5e20' },
   [SLOT.ARMOR]:   { label: '방', color: 0x90a4ae, text: '#263238' },
+  [SLOT.RELIC]:   { label: '★', color: 0xffd54f, text: '#3e2723' },
 };
 
 function floorY(index) {
@@ -38,9 +40,12 @@ function isShopFloor(index) {
 // 그 구간 안의 무작위한 층에 놓입니다. 상점에서도 한 번 살 수 있으니
 // 무기 단계는 한 구간에 최대 두 번 오릅니다 — 운이 아니라 계획의 문제가 됩니다.
 let upFloorByBand = new Map();
+let relicFloor = 0; // 이번 판에 유물이 놓이는 층. 판마다 한 번만 뽑습니다.
 
 function resetTowerRun() {
   upFloorByBand = new Map();
+  const r = CFG.relic;
+  relicFloor = r.minFloor + Math.floor(Math.random() * (r.maxFloor - r.minFloor + 1));
 }
 
 function upFloorFor(index) {
@@ -193,6 +198,12 @@ function makeFloor(index, need = 0) {
   const lanes = pickLanes(index);
   lanes.forEach((lane) => { floor.slots[lane] = makeSlot(index, lane, need); });
   dedupeItems(floor, index, lanes, need);
+
+  // 이번 판에 하나뿐인 유물. UP과 같은 이유로 가운데에 둡니다.
+  if (index === relicFloor) {
+    floor.slots.mid = blankSlot(index, 'mid', SLOT.RELIC);
+    return floor;
+  }
 
   // 이 구간에 하나뿐인 UP이 놓이는 층입니다.
   // 가운데에 둡니다 — 한 칸씩만 옮겨 갈 수 있으니 양 끝에 놓으면

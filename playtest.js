@@ -27,6 +27,7 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
 
 (async () => {
   const jumps = Number(process.argv[2]) || 60;
+  const jobKey = process.argv[3] || 'warrior';
   fs.mkdirSync(path.join(ROOT, 'shots'), { recursive: true });
   await new Promise((r) => server.listen(8099, r));
 
@@ -42,7 +43,13 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
   page.on('console', (m) => { if (m.type() === 'error') errors.push('CONSOLE: ' + m.text()); });
 
   await page.goto('http://localhost:8099/', { waitUntil: 'networkidle' });
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(1000);
+  await shot(page, '00-select.png');
+
+  // 시작 화면에서 직업 카드를 실제로 눌러서 들어갑니다.
+  const cardIndex = ['warrior', 'archer', 'rogue'].indexOf(jobKey);
+  await page.mouse.click(...at(270, 268 + Math.max(0, cardIndex) * 210));
+  await page.waitForTimeout(1000);
   await shot(page, '01-start.png');
 
   const read = () => page.evaluate(() => {
@@ -54,22 +61,25 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
     return {
       floor: s.floorIndex, hp: Math.round(s.hp), maxHp: s.maxHp,
       kills: s.kills, coins: s.coins, totalCoins: s.totalCoins,
+      job: s.job.name, relic: s.weapon.relic ? s.weapon.relic.name : null,
       weapon: s.weapon.name, plus: s.weapon.plus, mult: s.weapon.mult,
-      dmg: s.weapon.dmg, reach: s.weapon.reach, sub: s.weapon.hasSub,
+      dmg: s.weapon.dmg, reach: Math.round(s.weapon.reach), shots: s.weapon.shots,
       // UP이 실제로 이득인지. 강화를 잃고도 화력이 오르는가로 판단합니다.
       upWorth: (() => {
-        const w = s.weapon, next = CFG.weapons[w.tier + 1];
+        const w = s.weapon, next = w.table[w.tier + 1];
         if (!next) return false;
         // 근접은 사거리 안을 한 번에 벱니다. 화력은 공격력 ÷ 주기,
         // 거기에 사거리가 넓을수록 한 번에 더 많이 맞는 것을 얹어 봅니다.
-        const power = (dmg, rate, reach) => dmg / rate * (1 + reach / 400);
-        return power(next.dmg, next.rate, next.reach) > power(w.dmg, w.rate, w.reach);
+        const power = (t) => t.dmg / t.rate * (1 + (t.reach || 0) / 400) * (t.shots || 1);
+        return power(next) > power({ dmg: w.dmg, rate: w.rate, reach: w.reach, shots: w.shots });
       })(),
       armor: s.armor,
       lane: s.lane,
       // 사거리 안에 남아 있는 적 — 싸움을 끝내고 갈지 판단하는 데 씁니다.
-      inReach: s.enemies.getChildren().filter((e) => e.active &&
-        Phaser.Math.Distance.Between(e.x, e.y, s.player.x, s.player.y) <= s.weapon.reach).length,
+      // 근접이면 사거리 안, 원거리면 어차피 멈출 필요가 없으므로 0.
+      inReach: s.job.attack === 'ranged' ? 0 :
+        s.enemies.getChildren().filter((e) => e.active &&
+          Phaser.Math.Distance.Between(e.x, e.y, s.player.x, s.player.y) <= s.weapon.reach).length,
       enemies: s.enemies.countActive(), dead: s.dead, shopOpen: s.shop.open,
       score: s.score(),
       kinds,
@@ -146,7 +156,7 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
       const t = await read();
       log.push(`${String(t.floor).padStart(3)}층  HP ${t.hp}/${t.maxHp}  적 ${t.enemies}  처치 ${t.kills}  코인 ${t.coins}` +
         `  방어 ${t.armor}%  ${t.weapon}${t.plus ? ' +' + t.plus : ''}${t.mult > 1 ? ' ×' + t.mult : ''}` +
-        `  (공격력 ${t.dmg} · 사거리 ${t.reach}${t.sub ? ' · 보조' : ''})`);
+        `  (공격력 ${t.dmg}${t.reach ? ' · 사거리 ' + t.reach : ' · ' + t.shots + '발'})${t.relic ? ' ★' + t.relic : ''}`);
     }
     if (i === 24) await shot(page, '03-combat.png');
   }
@@ -156,7 +166,7 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
 
   const state = await read();
   console.log(log.join('\n'));
-  console.log(`상점 ${shopsSeen}회`);
+  console.log(`${jobKey} · 상점 ${shopsSeen}회`);
   console.log('최종:', JSON.stringify(state));
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
 

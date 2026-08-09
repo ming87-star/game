@@ -1,0 +1,118 @@
+// 직업. 이 게임의 가장 큰 갈림길입니다.
+//
+// 땅에 붙은 적은 위층까지 쫓아오지 못하므로, 싸움은 원래 "선택"입니다.
+// 그런데 한 번 피하기 시작하면 코인이 없어 강해지지 못하고, 약하니까 또 피하게 됩니다.
+// 직업은 그 나선을 끊습니다 — 셋 다 코인을 벌지만 버는 방법이 다릅니다.
+//
+//   전사  버티고 서서 번다   (두꺼운 방어구 + 긴 사거리 + 광역)
+//   궁수  지나가며 번다      (멈출 필요 없는 원거리, 한 방은 약함)
+//   도적  훔쳐서 번다        (짧고 빠른 근접 + 회피 + 절도)
+
+const CLASSES = [
+  {
+    key: 'warrior',
+    name: '전사',
+    blurb: '두껍게 막고 크게 벤다',
+    detail: '방어력이 높아 발판에 버티고 서서 싸울 수 있습니다.\n사거리 안의 적을 한 번에 모두 벱니다.',
+    color: 0xef9a9a,
+
+    hp: 205,
+    armor: 34,
+    attack: 'melee',
+    dodge: 0,
+    steal: 0,
+
+    // 근접: 사거리 안을 한 번에 벱니다. 사거리가 길어 여럿이 함께 맞습니다.
+    weapons: [
+      { name: '녹슨 장검', dmg: 24,  rate: 205, reach: 100, color: 0xcfd8dc },
+      { name: '강철 검',   dmg: 43,  rate: 195, reach: 108, color: 0x90caf9 },
+      { name: '쌍날 검',   dmg: 69,  rate: 175, reach: 116, color: 0xa5d6a7 },
+      { name: '은빛 창',   dmg: 118, rate: 165, reach: 124, color: 0xb0bec5 },
+      { name: '마력 검',   dmg: 199, rate: 155, reach: 130, color: 0xce93d8 },
+      { name: '화염도',    dmg: 322, rate: 140, reach: 135, color: 0xff8a65 },
+      { name: '뇌전검',    dmg: 515, rate: 125, reach: 139, color: 0x81d4fa },
+      { name: '용살검',    dmg: 772, rate: 105, reach: 143, color: 0xffb74d },
+    ],
+
+    relic: {
+      key: 'farblade',
+      name: '먼 그림자 검',
+      desc: '사거리가 크게 늘어납니다',
+      reachScale: 1.9,
+    },
+  },
+
+  {
+    key: 'archer',
+    name: '궁수',
+    blurb: '멈추지 않고 쏜다',
+    detail: '처음부터 원거리. 한 발은 근접보다 약하지만 멈출 필요가 없습니다.\n좋은 활일수록 빨라지고 화살이 여러 발 나갑니다.',
+    color: 0xa5d6a7,
+
+    hp: 160,
+    armor: 16,
+    attack: 'ranged',
+    dodge: 0,
+    steal: 0,
+
+    // 원거리: 한 발이 적 하나를 칩니다. shots 만큼 서로 다른 적을 동시에 노립니다.
+    // 주기가 짧은 이유: 궁수는 멈추지 않고 지나가며 잡아야 합니다.
+    // 한 발이 근접보다 약한 대신 훨씬 자주 나갑니다.
+    weapons: [
+      { name: '낡은 단궁',   dmg: 24,  rate: 160, range: 300, shots: 1, color: 0xd7ccc8 },
+      { name: '사냥꾼의 활', dmg: 42,  rate: 152, range: 315, shots: 1, color: 0xbcaaa4 },
+      { name: '각궁',       dmg: 35,  rate: 140, range: 330, shots: 2, color: 0xa5d6a7 },
+      { name: '강철 석궁',   dmg: 60,  rate: 132, range: 345, shots: 2, color: 0xb0bec5 },
+      { name: '바람의 활',   dmg: 69,  rate: 124, range: 360, shots: 3, color: 0x80deea },
+      { name: '불꽃 장궁',   dmg: 111, rate: 113, range: 375, shots: 3, color: 0xff8a65 },
+      { name: '뇌명궁',     dmg: 133, rate: 102, range: 390, shots: 4, color: 0x81d4fa },
+      // 특수 무기 — 화살이 표적을 끝까지 쫓습니다. 아주 긴 판에서만 손에 들어옵니다.
+      { name: '용뼈 대궁',   dmg: 200, rate: 89,  range: 410, shots: 4, homing: true, color: 0xffb74d },
+    ],
+
+    relic: {
+      key: 'echobow',
+      name: '메아리 활',
+      desc: '화살이 다른 적에게 한 번 튕깁니다',
+      bounce: 1,
+    },
+  },
+
+  {
+    key: 'rogue',
+    name: '도적',
+    blurb: '빠르게 찌르고 훔친다',
+    detail: '사거리는 짧지만 매우 빠릅니다. 공격을 흘려 넘기고,\n적을 잡지 않아도 코인을 훔칩니다.',
+    color: 0xce93d8,
+
+    hp: 165,
+    armor: 18,
+    attack: 'melee',
+    dodge: 0.18,  // 이 확률로 피해를 통째로 흘립니다
+    steal: 0.20,  // 때릴 때마다 이 확률로 코인을 훔칩니다 (잡지 않아도)
+
+    // 근접이지만 사거리가 짧고 대신 훨씬 빠릅니다.
+    weapons: [
+      { name: '이 빠진 단도', dmg: 14,  rate: 115, reach: 70, color: 0xcfd8dc },
+      { name: '사냥칼',      dmg: 25,  rate: 110, reach: 74, color: 0x90caf9 },
+      { name: '쌍단도',      dmg: 40,  rate: 98,  reach: 78, color: 0xa5d6a7 },
+      { name: '독니',        dmg: 68,  rate: 92,  reach: 83, color: 0x9ccc65 },
+      { name: '그림자 단검',  dmg: 115, rate: 87,  reach: 87, color: 0xce93d8 },
+      { name: '월아도',      dmg: 186, rate: 78,  reach: 90, color: 0xff8a65 },
+      { name: '뇌전 비수',    dmg: 297, rate: 70,  reach: 93, color: 0x81d4fa },
+      { name: '용아 단검',    dmg: 445, rate: 60,  reach: 96, color: 0xffb74d },
+    ],
+
+    relic: {
+      key: 'goblinglove',
+      name: '고블린의 장갑',
+      desc: '훔칠 확률과 액수가 크게 늡니다',
+      stealBonus: 0.35,
+      stealAmount: 3,
+    },
+  },
+];
+
+function classByKey(key) {
+  return CLASSES.find((c) => c.key === key) || CLASSES[0];
+}

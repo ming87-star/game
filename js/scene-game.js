@@ -5,6 +5,10 @@ class GameScene extends Phaser.Scene {
     super('game');
   }
 
+  init(data) {
+    this.job = classByKey((data && data.jobKey) || 'warrior');
+  }
+
   create() {
     buildTextures(this);
 
@@ -14,10 +18,10 @@ class GameScene extends Phaser.Scene {
     this.lane = 'mid';
     resetTowerRun(); // 이번 판의 UP 배치를 새로 뽑습니다
 
-    this.maxHp = CFG.player.hp;
+    this.maxHp = this.job.hp;
     this.hp = this.maxHp;
-    this.weapon = new Weapon();
-    this.armor = CFG.armor.start; // 받는 피해 감소 %
+    this.weapon = new Weapon(this.job);
+    this.armor = this.job.armor; // 받는 피해 감소 %
     this.coins = 0;
     this.totalCoins = 0;
     this.kills = 0;
@@ -60,6 +64,7 @@ class GameScene extends Phaser.Scene {
 
     this.ambientAt = this.time.now + CFG.ambient.baseDelay;
     this.armItems();
+    this.tapBlockedUntil = 0;
     this.dimmedFloor = -1;
     this.markReach();
 
@@ -179,6 +184,9 @@ class GameScene extends Phaser.Scene {
   }
 
   spawnAmbient() {
+    // 상점 층은 한숨 돌리는 자리입니다. 여기 서 있는 동안은 아무도 오지 않습니다.
+    if (isShopFloor(this.floorIndex)) return;
+
     const count = Math.min(CFG.ambient.maxCount, 1 + Math.floor(this.floorIndex / 14));
 
     for (let i = 0; i < count; i++) {
@@ -208,7 +216,12 @@ class GameScene extends Phaser.Scene {
   bindInput() {
     this.input.on('pointerdown', (p) => {
       if (this.shop.open) return; // 상점 버튼은 상점이 직접 받습니다
-      if (this.dead) return this.scene.restart();
+      if (this.time.now < this.tapBlockedUntil) return;
+      if (this.dead) {
+        // 아래쪽을 누르면 직업부터 다시 고릅니다. 그 위는 같은 직업으로 재도전.
+        if (p.y > CFG.height - 120) return this.scene.start('select');
+        return this.scene.restart({ jobKey: this.job.key });
+      }
       // 화면을 삼등분해서 왼쪽이면 한 칸 왼쪽, 가운데면 바로 위, 오른쪽이면 한 칸 오른쪽.
       // 누른 자리의 발판으로 순간이동하는 것이 아니라 방향을 고르는 것입니다.
       const third = this.scale.width / 3;
@@ -218,7 +231,7 @@ class GameScene extends Phaser.Scene {
     });
     const key = (step) => () => {
       if (this.shop.open) return;
-      if (this.dead) return this.scene.restart();
+      if (this.dead) return this.scene.restart({ jobKey: this.job.key });
       this.hud.flashArrow(step);
       this.jump(step);
     };
@@ -255,6 +268,17 @@ class GameScene extends Phaser.Scene {
     const toY = slot.y - STAND_OFFSET;
     const arc = { t: 0 };
 
+    // 도적은 뛰면서 한 바퀴 돕니다.
+    if (this.job.key === 'rogue') {
+      this.player.setRotation(0);
+      this.tweens.add({
+        targets: this.player,
+        rotation: (slot.x < fromX ? -1 : 1) * Math.PI * 2,
+        duration: CFG.jumpDuration,
+        onComplete: () => this.player.setRotation(0),
+      });
+    }
+
     this.tweens.add({
       targets: arc,
       t: 1,
@@ -283,6 +307,10 @@ class GameScene extends Phaser.Scene {
         case SLOT.PLUS:
           this.weapon.addPlus();
           this.popup('공격력 +1', '#ffd54f');
+          break;
+        case SLOT.RELIC:
+          if (this.weapon.takeRelic()) this.announceRelic(this.weapon.relic);
+          else { this.armor = Math.min(CFG.armor.max, this.armor + CFG.armor.perItem); this.popup('방어 ' + this.armor + '%', '#b0bec5'); }
           break;
         case SLOT.ARMOR:
           this.armor = Math.min(CFG.armor.max, this.armor + CFG.armor.perItem);
@@ -403,9 +431,12 @@ class GameScene extends Phaser.Scene {
   }
 
   onShopClosed() {
-    // 상점을 나서는 순간부터 다시 몰려옵니다.
+    // 상점을 나서도 바로 몰려오지는 않습니다. 위층 적은 실제로 올라설 때 깨어납니다.
     this.ambientAt = this.time.now + CFG.ambient.baseDelay;
-    for (let i = 1; i <= 2; i++) this.wakeFloor(this.floorIndex + i);
+
+    // "계속 오르기"를 누른 그 탭이 상점이 닫힌 뒤 게임 입력으로 한 번 더 먹혀서
+    // 곧바로 가운데로 뛰어 버립니다. 잠깐 입력을 막아 그 한 번을 흘립니다.
+    this.tapBlockedUntil = this.time.now + 300;
 
     // 상점에 머문 시간만큼 위층 아이템이 삭아 있으면 억울합니다. 시계를 다시 겁니다.
     for (let i = 1; i <= CFG.item.armWithin; i++) {
@@ -420,17 +451,17 @@ class GameScene extends Phaser.Scene {
   }
 
   // ── 자동 공격 ─────────────────────────────────────────
-  // 주무기는 근접 — 사거리 안의 적을 한 번에 모두 벱니다.
-  // 보조무기는 원거리 — 가장 가까운 적 하나를 약하게 칩니다.
+  // 전사·도적은 근접 (사거리 안을 한 번에), 궁수는 원거리 (적 하나씩).
   attack(now) {
-    this.swing(now);
-    this.subFire(now);
+    if (this.job.attack === 'ranged') this.shoot(now);
+    else this.swing(now);
   }
 
   distTo(e) {
     return Phaser.Math.Distance.Between(e.x, e.y, this.player.x, this.player.y);
   }
 
+  // ── 근접 ──────────────────────────────────────────────
   swing(now) {
     const w = this.weapon;
     if (now - this.lastSwingAt < w.rate) return;
@@ -440,12 +471,17 @@ class GameScene extends Phaser.Scene {
 
     this.lastSwingAt = now;
 
-    // 휘두르는 방향은 가장 가까운 적 쪽. 보이기용이고, 실제로는 사거리 안 전부가 맞습니다.
     const nearest = hit.reduce((a, b) => (this.distTo(a) < this.distTo(b) ? a : b));
     this.showSlash(Phaser.Math.Angle.Between(
       this.player.x, this.player.y - 6, nearest.x, nearest.y), w);
 
-    hit.forEach((e) => this.hitEnemy(e, w.dmg));
+    hit.forEach((e) => {
+      // 도적은 때리면서 주머니를 텁니다. 잡지 않아도 코인이 나옵니다.
+      if (w.stealChance > 0 && Math.random() < w.stealChance) {
+        this.dropCoin(e.x, e.y - 10, w.stealAmount);
+      }
+      this.hitEnemy(e, w.dmg);
+    });
   }
 
   showSlash(angle, w) {
@@ -460,36 +496,58 @@ class GameScene extends Phaser.Scene {
     });
   }
 
-  subFire(now) {
+  // ── 원거리 ────────────────────────────────────────────
+  shoot(now) {
     const w = this.weapon;
-    if (!w.hasSub || now - this.lastSubAt < w.subRate) return;
+    if (now - this.lastSubAt < w.rate) return;
 
-    const inRange = (e) => e.active && this.distTo(e) <= CFG.sub.range;
+    const inRange = (e) => e.active && this.distTo(e) <= w.range;
+    const pool = this.enemies.getChildren().filter(inRange)
+      .sort((a, b) => this.distTo(a) - this.distTo(b));
+    if (!pool.length) { this.subTarget = null; return; }
+
     // 한 번 노린 적은 죽거나 사거리를 벗어날 때까지 계속 노립니다.
     // 매 발 가장 가까운 적으로 갈아타면 피해가 흩어져 아무도 죽지 않습니다.
-    if (!this.subTarget || !inRange(this.subTarget)) {
-      this.subTarget = this.enemies.getChildren()
-        .filter(inRange)
-        .sort((a, b) => this.distTo(a) - this.distTo(b))[0] || null;
-    }
-    if (!this.subTarget) return;
+    // 궁수는 멈추지 않고 지나가므로 이걸 안 하면 처치가 0이 됩니다.
+    if (!this.subTarget || !inRange(this.subTarget)) this.subTarget = pool[0];
 
     this.lastSubAt = now;
-    const b = this.bullets.create(this.player.x, this.player.y - 6, 'bullet');
+    const others = pool.filter((e) => e !== this.subTarget);
+    for (let i = 0; i < w.shots; i++) {
+      const target = i === 0 ? this.subTarget : (others[i - 1] || this.subTarget);
+      this.fireArrow(this.player.x, this.player.y - 6, target, w.dmg, w.bounce);
+    }
+  }
+
+  fireArrow(x, y, target, dmg, bounce) {
+    const b = this.bullets.create(x, y, 'bullet');
     b.body.setAllowGravity(false);
-    b.setTint(CFG.sub.color).setDepth(9);
-    b.dmg = w.subDmg;
-    b.bornAt = now;
+    b.setTint(this.weapon.color).setDepth(9);
+    b.dmg = dmg;
+    b.bounce = bounce;
+    b.from = target;
+    b.homing = this.weapon.homing;
+    b.bornAt = this.time.now;
     this.physics.velocityFromRotation(
-      Phaser.Math.Angle.Between(this.player.x, this.player.y - 6, this.subTarget.x, this.subTarget.y),
-      CFG.sub.speed, b.body.velocity);
+      Phaser.Math.Angle.Between(x, y, target.x, target.y), CFG.arrowSpeed, b.body.velocity);
   }
 
   onBulletHit(bullet, enemy) {
     if (!bullet.active || !enemy.active) return;
-    const dmg = bullet.dmg;
+    const { dmg, bounce } = bullet;
+    const at = { x: bullet.x, y: bullet.y };
     bullet.destroy();
     this.hitEnemy(enemy, dmg);
+
+    // 메아리 활 — 맞은 자리에서 다른 적에게 한 번 더 튕깁니다.
+    if (bounce > 0) {
+      const next = this.enemies.getChildren()
+        .filter((e) => e.active && e !== enemy &&
+          Phaser.Math.Distance.Between(e.x, e.y, at.x, at.y) <= CFG.bounceRange)
+        .sort((a, b) => Phaser.Math.Distance.Between(a.x, a.y, at.x, at.y) -
+                        Phaser.Math.Distance.Between(b.x, b.y, at.x, at.y))[0];
+      if (next) this.fireArrow(at.x, at.y, next, Math.round(dmg * 0.8), bounce - 1);
+    }
   }
 
   hitEnemy(enemy, dmg) {
@@ -510,6 +568,20 @@ class GameScene extends Phaser.Scene {
     this.kills++;
   }
 
+  announceRelic(relic) {
+    const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
+    const parts = [
+      this.add.text(CFG.width / 2, 300, '유물', font(20, '#8794b5')).setOrigin(0.5),
+      this.add.text(CFG.width / 2, 338, relic.name, font(40, '#ffd54f')).setOrigin(0.5),
+      this.add.text(CFG.width / 2, 382, relic.desc, font(20, '#ffe082')).setOrigin(0.5),
+    ];
+    parts.forEach((t) => {
+      t.setScrollFactor(0).setDepth(150).setAlpha(0);
+      this.tweens.add({ targets: t, alpha: 1, duration: 300, yoyo: true, hold: 1900,
+        onComplete: () => t.destroy() });
+    });
+  }
+
   onEnemyTouch(player, enemy) {
     if (this.dead || this.time.now - this.lastHitAt < CFG.player.invulnMs) return;
     this.hurt(enemy.contactDamage);
@@ -522,6 +594,13 @@ class GameScene extends Phaser.Scene {
   }
 
   hurt(amount) {
+    // 도적은 일정 확률로 통째로 흘려 넘깁니다.
+    if (this.job.dodge > 0 && Math.random() < this.job.dodge) {
+      this.lastHitAt = this.time.now;
+      this.popup('회피', '#ce93d8');
+      return;
+    }
+
     this.lastHitAt = this.time.now;
     // 방어력만큼 덜 맞습니다. 아무리 두꺼워도 한 대는 아프도록 최소 1은 들어갑니다.
     const taken = Math.max(1, Math.round(amount * (1 - this.armor / 100)));
@@ -583,6 +662,7 @@ class GameScene extends Phaser.Scene {
     const add = (o) => o.setScrollFactor(0).setDepth(200);
 
     add(this.add.rectangle(cx, cy, CFG.width, CFG.height, 0x000000, 0.66));
+    add(this.add.text(cx, cy - 140, this.job.name, font(26, '#8794b5')).setOrigin(0.5));
     add(this.add.text(cx, cy - 90, this.floorIndex + '층', font(72, '#ffffff')).setOrigin(0.5));
     add(this.add.text(cx, cy - 10, '점수 ' + this.score(), font(32, '#ffffff')).setOrigin(0.5));
     add(this.add.text(cx, cy + 34, '처치 ' + this.kills + '   코인 ' + this.totalCoins +
@@ -591,6 +671,7 @@ class GameScene extends Phaser.Scene {
       (this.weapon.plus ? ' +' + this.weapon.plus : '') +
       (this.weapon.mult > 1 ? ' ×' + this.weapon.mult : ''), font(24, '#ffd54f')).setOrigin(0.5));
     add(this.add.text(cx, cy + 140, '눌러서 다시 시작', font(30, '#ffd54f')).setOrigin(0.5));
+    add(this.add.text(cx, CFG.height - 70, '아래를 누르면 직업 다시 고르기', font(22, '#8794b5')).setOrigin(0.5));
   }
 
   // ── 매 프레임 ─────────────────────────────────────────
@@ -613,7 +694,18 @@ class GameScene extends Phaser.Scene {
     updateEnemies(this, time, delta);
 
     this.bullets.getChildren().forEach((b) => {
-      if (b.active && time - b.bornAt > 1600) b.destroy();
+      if (!b.active) return;
+      if (time - b.bornAt > 1600) { b.destroy(); return; }
+
+      // 화살은 표적을 조금 따라갑니다. 쏘는 순간의 자리로만 날리면
+      // 걸어다니는 적을 스쳐 지나가 버려서 좀처럼 맞지 않습니다.
+      if (b.from && b.from.active) {
+        const want = Phaser.Math.Angle.Between(b.x, b.y, b.from.x, b.from.y);
+        const now2 = Math.atan2(b.body.velocity.y, b.body.velocity.x);
+        const rate = b.homing ? CFG.arrowHomingTurn : CFG.arrowTurn;
+        const turn = Phaser.Math.Angle.RotateTo(now2, want, rate * delta / 1000);
+        this.physics.velocityFromRotation(turn, CFG.arrowSpeed, b.body.velocity);
+      }
     });
     this.enemyBullets.getChildren().forEach((b) => {
       if (b.active && time - b.bornAt > 3000) b.destroy();
