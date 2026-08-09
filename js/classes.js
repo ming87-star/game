@@ -12,6 +12,7 @@ const CLASSES = [
   {
     key: 'warrior',
     name: '전사',
+    unlockFloor: 0, unlockCoins: 0, // 처음부터 열려 있는 유일한 직업
     blurb: '두껍게 막고 크게 벤다',
     detail: '방어력이 높아 발판에 버티고 서서 싸울 수 있습니다.\n사거리 안의 적을 한 번에 모두 벱니다.',
     color: 0xef9a9a,
@@ -47,6 +48,8 @@ const CLASSES = [
   {
     key: 'archer',
     name: '궁수',
+    // 한 판 안에서 둘 다 채워야 열립니다 — 멀리 가기만 해서도, 벌기만 해서도 안 됩니다.
+    unlockFloor: 500, unlockCoins: 1000,
     blurb: '멈추지 않고 쏜다',
     detail: '처음부터 원거리. 한 발은 근접보다 약하지만 멈출 필요가 없습니다.\n좋은 활일수록 빨라지고 화살이 여러 발 나갑니다.',
     color: 0xa5d6a7,
@@ -85,6 +88,7 @@ const CLASSES = [
   {
     key: 'rogue',
     name: '도적',
+    unlockFloor: 700, unlockCoins: 2000,
     blurb: '빠르게 찌르고 훔친다',
     detail: '사거리는 짧지만 매우 빠릅니다. 갑옷은 입지 않고 흘려 넘깁니다.\n적을 잡지 않아도 코인을 훔칩니다.',
     color: 0xce93d8,
@@ -125,4 +129,19 @@ const CLASSES = [
 
 function classByKey(key) {
   return CLASSES.find((c) => c.key === key) || CLASSES[0];
+}
+
+// 전사만 처음부터 열려 있습니다. 나머지는 한 판 안에서 층과 코인을 함께 채워야 합니다.
+function classUnlocked(job) {
+  if (!job.unlockFloor && !job.unlockCoins) return true;
+  return !!Save.data.unlocked[job.key];
+}
+
+// 방금 끝난 판이 조건을 채웠는지. 채웠으면 그 직업 키를 돌려줍니다.
+function classesUnlockedBy(floor, coins) {
+  return CLASSES.filter((job) =>
+    (job.unlockFloor || job.unlockCoins) &&
+    !Save.data.unlocked[job.key] &&
+    floor >= (job.unlockFloor || 0) &&
+    coins >= (job.unlockCoins || 0));
 }

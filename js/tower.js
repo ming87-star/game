@@ -97,8 +97,8 @@ function healNeedFrom(hp, maxHp) {
 // 땅을 딛는 적은 위층까지 쫓아오지 못합니다. 대신 발판을 지키고 있으므로,
 // 마릿수로 밀도를 맞춥니다. 한 발판에 여럿이 진을 치고 있는 그림입니다.
 function enemyCountFor(index) {
-  const base = 1 + Math.floor(index / 18);
-  return Math.min(3, base + (Math.random() < 0.3 ? 1 : 0));
+  const base = 1 + Math.floor(index / 14);
+  return Math.min(4, base + (Math.random() < 0.3 ? 1 : 0));
 }
 
 // 한 종류의 등장 비중. 나온 뒤 서서히 흔해지고, 다음 종류가 풀리면 물러납니다.

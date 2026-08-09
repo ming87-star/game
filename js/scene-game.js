@@ -692,6 +692,11 @@ class GameScene extends Phaser.Scene {
   gameOver() {
     this.dead = true;
     this.hp = 0;
+    // 판을 넘어 남는 기록. 직업 해금이 여기에 기댑니다.
+    const wasBest = Save.bestFloor;
+    const opened = classesUnlockedBy(this.floorIndex, this.totalCoins);
+    opened.forEach((job) => Save.unlock(job.key));
+    Save.finishRun(this.floorIndex, this.totalCoins);
     this.physics.pause();
     this.enemies.getChildren().forEach((e) => e.setTint(0x555555));
 
@@ -709,7 +714,32 @@ class GameScene extends Phaser.Scene {
     add(this.add.text(cx, cy + 74, this.weapon.name +
       (this.weapon.plus ? ' +' + this.weapon.plus : '') +
       (this.weapon.mult > 1 ? ' ×' + this.weapon.mult : ''), font(24, '#ffd54f')).setOrigin(0.5));
-    add(this.add.text(cx, cy + 140, '눌러서 다시 시작', font(30, '#ffd54f')).setOrigin(0.5));
+    // 최고 기록과 다음 해금까지 남은 거리를 같이 보여 줍니다.
+    // 죽을 때마다 "얼마나 왔는지"가 보여야 한 판 더 하게 됩니다.
+    const best = Save.bestFloor;
+    add(this.add.text(cx, cy + 96,
+      this.floorIndex > wasBest ? '최고 기록 경신!' : '최고 기록 ' + best + '층',
+      font(24, this.floorIndex > wasBest ? '#ffd54f' : '#8794b5')).setOrigin(0.5));
+
+    // 해금은 한 판 안에서 층과 코인을 함께 채워야 합니다. 이번 판이 어디까지 왔는지
+    // 두 조건을 나란히 보여 줘야 "무엇이 모자랐는지"를 압니다.
+    if (opened.length) {
+      add(this.add.text(cx, cy + 128, opened.map((j) => j.name).join(' · ') + ' 해금!',
+        font(26, '#a5d6a7')).setOrigin(0.5));
+    } else {
+      const next = CLASSES.find((c) => (c.unlockFloor || c.unlockCoins) && !Save.data.unlocked[c.key]);
+      if (next) {
+        add(this.add.text(cx, cy + 128,
+          next.name + ' 해금  ' + next.unlockFloor + '층 · 코인 ' + next.unlockCoins,
+          font(19, '#8794b5')).setOrigin(0.5));
+        add(this.add.text(cx, cy + 152,
+          '이번 판  ' + this.floorIndex + '층 · 코인 ' + this.totalCoins,
+          font(19, this.floorIndex >= next.unlockFloor || this.totalCoins >= next.unlockCoins
+            ? '#ffd54f' : '#4a5578')).setOrigin(0.5));
+      }
+    }
+
+    add(this.add.text(cx, cy + 200, '눌러서 다시 시작', font(30, '#ffd54f')).setOrigin(0.5));
     add(this.add.text(cx, CFG.height - 70, '아래를 누르면 직업 다시 고르기', font(22, '#8794b5')).setOrigin(0.5));
   }
 

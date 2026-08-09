@@ -29,7 +29,8 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
   const jumps = Number(process.argv[2]) || 60;
   const jobKey = process.argv[3] || 'warrior';
   fs.mkdirSync(path.join(ROOT, 'shots'), { recursive: true });
-  await new Promise((r) => server.listen(8099, r));
+  const port = Number(process.env.PORT) || 8099;
+  await new Promise((r) => server.listen(port, r));
 
   // CHROME_PATH가 있으면 그 브라우저를 쓰고, 없으면 playwright가 받아둔 것을 씁니다.
   const browser = await chromium.launch({
@@ -42,7 +43,12 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
   page.on('pageerror', (e) => errors.push('PAGEERROR: ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push('CONSOLE: ' + m.text()); });
 
-  await page.goto('http://localhost:8099/', { waitUntil: 'networkidle' });
+  await page.goto('http://localhost:' + port + '/', { waitUntil: 'networkidle' });
+  // 잠긴 직업도 시험해야 하므로 해금을 미리 채워 두고 새로고침합니다.
+  await page.evaluate(() => window.localStorage.setItem('tower-climb-v1',
+    JSON.stringify({ bestFloor: 0, deaths: 0, runs: 0, bestCoins: 0,
+      unlocked: { archer: true, rogue: true } })));
+  await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1000);
   await shot(page, '00-select.png');
 

@@ -12,19 +12,36 @@ class SelectScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#0d1120');
     this.add.rectangle(cx, CFG.height / 2, 500, CFG.height, 0x141a2e);
 
-    this.add.text(cx, 96, '탑 오르기', font(52, '#ffffff')).setOrigin(0.5);
-    this.add.text(cx, 152, '직업을 고르세요', font(22, '#8794b5')).setOrigin(0.5);
+    this.add.text(cx, 88, '탑 오르기', font(52, '#ffffff')).setOrigin(0.5);
 
-    CLASSES.forEach((job, i) => this.buildCard(job, cx, 268 + i * 210));
+    const best = Save.bestFloor;
+    this.add.text(cx, 144, best ? '최고 기록  ' + best + '층   ·   ' + Save.deaths + '번 도전'
+      : '직업을 고르세요', font(21, '#8794b5')).setOrigin(0.5);
+
+    CLASSES.forEach((job, i) => this.buildCard(job, cx, 268 + i * 210, best));
   }
 
-  buildCard(job, cx, y) {
+  buildCard(job, cx, y, best) {
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
+    const open = classUnlocked(job);
     const tint = '#' + job.color.toString(16).padStart(6, '0');
 
-    const box = this.add.rectangle(cx, y, 460, 186, 0x1b2138)
-      .setStrokeStyle(2, 0x3f4a78).setInteractive({ useHandCursor: true });
+    const box = this.add.rectangle(cx, y, 460, 186, open ? 0x1b2138 : 0x141826)
+      .setStrokeStyle(2, open ? 0x3f4a78 : 0x252c44);
 
+    // 잠긴 직업은 이름과 조건만 보여 줍니다. 무엇이 기다리는지는 알려 주되,
+    // 지금 고를 수는 없어야 목표가 됩니다.
+    if (!open) {
+      this.add.text(cx - 205, y - 66, job.name, font(34, '#4a5578'));
+      this.add.text(cx - 205, y - 22, job.blurb, font(20, '#3c456b'));
+      this.add.text(cx, y + 26, '한 판에서  ' + job.unlockFloor + '층 · 코인 ' + job.unlockCoins,
+        font(21, '#8794b5')).setOrigin(0.5);
+      this.add.text(cx, y + 58, '최고  ' + Save.bestFloor + '층 · 코인 ' + Save.data.bestCoins,
+        font(17, '#4a5578')).setOrigin(0.5);
+      return;
+    }
+
+    box.setInteractive({ useHandCursor: true });
     this.add.text(cx - 205, y - 66, job.name, font(34, tint));
     this.add.text(cx - 205, y - 26, job.blurb, font(20, '#b0bec5'));
     this.add.text(cx - 205, y + 6, job.detail, font(17, '#8794b5')).setLineSpacing(4);
