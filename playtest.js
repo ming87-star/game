@@ -49,7 +49,8 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
     const s = window.__scene;
     if (!s) return null;
     const next = s.floors.get(s.floorIndex + 1);
-    const kindOf = (lane) => (next && next.slots[lane] ? next.slots[lane].kind : null);
+    const kinds = {};
+    LANES.forEach((l) => { kinds[l] = next && next.slots[l] ? next.slots[l].kind : null; });
     return {
       floor: s.floorIndex, hp: Math.round(s.hp), maxHp: s.maxHp,
       kills: s.kills, coins: s.coins, totalCoins: s.totalCoins,
@@ -66,7 +67,7 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
       })(),
       enemies: s.enemies.countActive(), dead: s.dead, shopOpen: s.shop.open,
       score: s.score(),
-      left: kindOf('left'), right: kindOf('right'),
+      kinds,
     };
   });
 
@@ -110,8 +111,10 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
       continue;
     }
 
-    const left = rank(s.left, s) >= rank(s.right, s);
-    await page.mouse.click(...at(left ? 135 : 405, 620));
+    // 세 갈래 중 가장 나은 길을 고릅니다.
+    const lanes = ['left', 'mid', 'right'];
+    const best = lanes.reduce((a, b) => (rank(s.kinds[b], s) > rank(s.kinds[a], s) ? b : a));
+    await page.mouse.click(...at({ left: 90, mid: 270, right: 450 }[best], 620));
     await page.waitForTimeout(560);
 
     if (i % 10 === 9) {

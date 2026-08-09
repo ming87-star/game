@@ -5,8 +5,8 @@ const CFG = {
 
   // 탑 구조
   floorHeight: 165,
-  laneX: { left: 145, right: 395 },
-  platformW: 200,
+  laneX: { left: 95, mid: 270, right: 445 },
+  platformW: 140,
   platformH: 20,
   groundY: 880,
 
@@ -18,7 +18,7 @@ const CFG = {
 
   player: {
     hp: 140,
-    invulnMs: 800,
+    invulnMs: 950,
   },
 
   // ── 무기 ────────────────────────────────────────────────
@@ -45,33 +45,30 @@ const CFG = {
   maxMult: 4,     // ×2는 두 번까지만 겹칩니다
 
   // ── 발판에 무엇이 놓일까 ────────────────────────────────
-  // 한 칸 기준 확률입니다. 한 층에 두 칸이 있으니 실제로 마주칠 확률은
-  // 1-(1-p)² 로 거의 두 배가 됩니다. 여기 숫자를 조금만 올려도 체감은 크게 바뀝니다.
+  // 한 칸 기준 확률입니다. 한 층에 길이 최대 셋이라 실제로 마주칠 확률은
+  // 1-(1-p)³ 로 세 배 가까이 됩니다. 여기 숫자를 조금만 올려도 체감은 크게 바뀝니다.
   //
-  // UP은 특히 조심해야 합니다. 흔해지면 무기 단계가 순식간에 올라가
-  // "지금 것을 키울까 갈아탈까"라는 판단 자체가 사라집니다.
-  // 층이 올라갈수록 더 귀해지게 해 뒀습니다.
+  // UP은 여기 없습니다. 확률이 아니라 shopEvery 층마다 정확히 한 번,
+  // 구간 안의 무작위한 층에 놓입니다 (tower.js의 upFloorFor).
+  // 상점에서도 한 번 살 수 있으니 한 구간에 최대 두 번 오릅니다.
   slotChance: {
-    enemyBase: 0.20,
-    enemyPerFloor: 0.011,
-    enemyMax: 0.38,
+    enemyBase: 0.14,
+    enemyPerFloor: 0.007,
+    enemyMax: 0.26,
 
-    plus: 0.075,   // 한 층에 마주칠 확률 약 14%
-    heal: 0.045,   // 약 9%
-    upgrade: 0.028, // 약 5% — 아래 decay로 더 줄어듭니다
-    upgradeDecay: 0.00008,
-    upgradeMin: 0.008,
-    double: 0.009, // 약 2% — 가장 귀합니다
+    plus: 0.065,  // 한 층에 마주칠 확률 약 14%
+    heal: 0.040,  // 약 9%
+    double: 0.008, // 약 2% — 가장 귀합니다
   },
 
   // ── 적 ──────────────────────────────────────────────────
   maxEnemies: 14,
   enemy: {
     baseHp: 14,
-    hpPerFloor: 1.0,
+    hpPerFloor: 0.55,
     // 주인공의 화력은 강화가 겹치며 곱으로 자랍니다. 적 체력도 곱으로 자라지 않으면
     // 어느 층부터는 아무것도 위협이 되지 않습니다. 결국 탑이 이깁니다.
-    hpGrowth: 1.010,
+    hpGrowth: 1.005,
     // 적의 공격력도 같이 올라야 합니다. 안 그러면 못 죽이는데 죽지도 않는 교착이 됩니다.
     dmgPerFloor: 0.016,
     baseSpeed: 55,
@@ -81,13 +78,17 @@ const CFG = {
 
   // hp·speed·dmg는 위 기본값에 곱하는 배수입니다.
   // from 층부터 나오고, w0은 등장 비중, wGrow는 층당 비중 변화입니다.
+  //
+  // from을 넓게 벌려 뒀습니다. 한 판이 대략 80~110층에서 끝나므로,
+  // 15~20층에 하나씩 새 적이 풀리고 마지막 하나는 꽤 올라가야 봅니다.
+  // 처음 만나는 종류는 화면에 이름이 뜹니다 (scene-game.js의 announceEnemy).
   enemyTypes: [
     { key: 'crawler', name: '기는 것',   from: 0,  hp: 0.8, speed: 0.75, dmg: 10, coin: 1, scale: 0.85, move: 'chase',  w0: 4,   wGrow: -0.05 },
-    { key: 'brute',   name: '단단한 놈', from: 8,  hp: 2.4, speed: 0.60, dmg: 15, coin: 3, scale: 1.15, move: 'chase',  w0: 1.2, wGrow: 0.01 },
-    { key: 'flyer',   name: '날것',     from: 14, hp: 1.0, speed: 1.20, dmg: 12, coin: 2, scale: 0.95, move: 'wave',   w0: 1.2, wGrow: 0.01 },
-    { key: 'dasher',  name: '빠른 놈',   from: 20, hp: 0.7, speed: 2.00, dmg: 12, coin: 3, scale: 0.9,  move: 'chase',  w0: 1.0, wGrow: 0.015 },
-    { key: 'giant',   name: '거인',     from: 28, hp: 3.5, speed: 0.45, dmg: 24, coin: 7, scale: 1.9,  move: 'chase',  w0: 0.8, wGrow: 0.012 },
-    { key: 'shooter', name: '사수',     from: 34, hp: 1.2, speed: 0.70, dmg: 10, coin: 4, scale: 1.0,  move: 'ranged', w0: 1.0, wGrow: 0.015 },
+    { key: 'brute',   name: '단단한 놈', from: 12,  hp: 2.4, speed: 0.60, dmg: 15, coin: 3, scale: 1.15, move: 'chase',  w0: 1.2, wGrow: 0.01 },
+    { key: 'flyer',   name: '날것',     from: 25, hp: 1.0, speed: 1.20, dmg: 12, coin: 2, scale: 0.95, move: 'wave',   w0: 1.2, wGrow: 0.01 },
+    { key: 'dasher',  name: '빠른 놈',   from: 40, hp: 0.7, speed: 2.00, dmg: 12, coin: 3, scale: 0.9,  move: 'chase',  w0: 1.0, wGrow: 0.015 },
+    { key: 'giant',   name: '거인',     from: 55, hp: 3.5, speed: 0.45, dmg: 24, coin: 7, scale: 1.9,  move: 'chase',  w0: 0.8, wGrow: 0.012 },
+    { key: 'shooter', name: '사수',     from: 72, hp: 1.2, speed: 0.70, dmg: 10, coin: 4, scale: 1.0,  move: 'ranged', w0: 1.0, wGrow: 0.015 },
   ],
 
   // 사수가 쏘는 탄
@@ -100,9 +101,9 @@ const CFG = {
 
   // 층이 올라갈수록 무작위 등장이 잦아집니다.
   ambient: {
-    startFloor: 4,
-    baseDelay: 4500,
-    delayPerFloor: 18,
+    startFloor: 8,
+    baseDelay: 5200,
+    delayPerFloor: 14,
     minDelay: 900,
     maxCount: 3,
   },
@@ -125,7 +126,7 @@ const CFG = {
     prices: {
       plus:    { base: 30,  perShop: 18 },
       double:  { base: 110, perShop: 70 },
-      upgrade: { base: 70,  perShop: 45 },
+      upgrade: { base: 55,  perShop: 40 },
       heal:    { base: 35,  perShop: 15 },
       maxhp:   { base: 90,  perShop: 40 },
     },

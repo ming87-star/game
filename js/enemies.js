@@ -30,6 +30,11 @@ function spawnEnemy(scene, x, y, floor, typeKey) {
   // 거인은 무겁게, 빠른 놈은 팔딱거리게 — 움직임만 봐도 구분되게 합니다.
   const beat = def.key === 'giant' ? 900 : def.key === 'dasher' ? 220 : 420;
   scene.tweens.add({ targets: e, scaleX: (def.scale || 1) * 1.12, scaleY: (def.scale || 1) * 0.9, duration: beat, yoyo: true, repeat: -1 });
+
+  if (!scene.seenTypes.has(def.key)) {
+    scene.seenTypes.add(def.key);
+    scene.announceEnemy(def);
+  }
   return e;
 }
 

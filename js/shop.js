@@ -33,13 +33,15 @@ class Shop {
   }
 
   rollOffers(shopNo) {
-    const pool = ['plus', 'double', 'upgrade', 'heal', 'maxhp'];
-    // 최고 단계 무기면 다음 무기를 팔 이유가 없습니다.
-    const usable = pool.filter((k) => !(k === 'upgrade' && this.scene.weapon.atMaxTier));
-
+    // 다음 무기는 늘 팝니다. 지도에서는 구간마다 딱 한 번뿐이라,
+    // 상점까지 운에 맡기면 무기 단계가 사실상 오르지 않습니다.
+    // 지도에서 얻거나 여기서 사거나 — 두 길을 확실히 열어 둡니다.
     const picked = [];
-    while (picked.length < CFG.shop.offers && usable.length) {
-      picked.push(usable.splice(Math.floor(Math.random() * usable.length), 1)[0]);
+    if (!this.scene.weapon.atMaxTier) picked.push('upgrade');
+
+    const rest = ['plus', 'double', 'heal', 'maxhp'];
+    while (picked.length < CFG.shop.offers && rest.length) {
+      picked.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
     }
     return picked.map((key) => ({ key, price: this.priceOf(key, shopNo), sold: false }));
   }

@@ -11,7 +11,8 @@ class GameScene extends Phaser.Scene {
     this.dead = false;
     this.jumping = false;
     this.floorIndex = 0;
-    this.lane = 'left';
+    this.lane = 'mid';
+    resetTowerRun(); // 이번 판의 UP 배치를 새로 뽑습니다
 
     this.maxHp = CFG.player.hp;
     this.hp = this.maxHp;
@@ -24,6 +25,7 @@ class GameScene extends Phaser.Scene {
     this.lastShotAt = 0;
     this.target = null;
     this.pickups = [];
+    this.seenTypes = new Set(); // 처음 만나는 적은 이름을 띄워 줍니다
 
     this.floors = new Map();
     this.enemies = this.physics.add.group();
@@ -33,7 +35,7 @@ class GameScene extends Phaser.Scene {
     this.drawBackground();
     for (let i = 0; i <= 10; i++) this.addFloor(i);
 
-    const start = this.floors.get(0).slots.left;
+    const start = this.floors.get(0).slots.mid;
     this.player = this.physics.add.sprite(start.x, start.y - STAND_OFFSET, 'player');
     this.player.setDepth(10);
     this.player.body.setSize(26, 40).setOffset(6, 6);
@@ -59,7 +61,7 @@ class GameScene extends Phaser.Scene {
   drawBackground() {
     this.cameras.main.setBackgroundColor('#141a2e');
     // 탑 안쪽 벽. 화면에 고정해서 아무리 올라가도 끊기지 않게 합니다.
-    this.add.rectangle(CFG.width / 2, CFG.height / 2, 330, CFG.height, 0x1d2542)
+    this.add.rectangle(CFG.width / 2, CFG.height / 2, 500, CFG.height, 0x1d2542)
       .setScrollFactor(0).setDepth(-5);
   }
 
@@ -69,7 +71,7 @@ class GameScene extends Phaser.Scene {
     const floor = makeFloor(index);
     floor.views = [];
 
-    for (const lane of ['left', 'right']) {
+    for (const lane of LANES) {
       const slot = floor.slots[lane];
       if (!slot) continue;
 
@@ -131,16 +133,33 @@ class GameScene extends Phaser.Scene {
   wakeFloor(index) {
     const floor = this.floors.get(index);
     if (!floor) return;
-    for (const lane of ['left', 'right']) {
+    for (const lane of LANES) {
       const slot = floor.slots[lane];
       if (!slot || slot.kind !== SLOT.ENEMY || slot.spawned) continue;
       slot.spawned = true;
       slot.enemyTypes.forEach((type, i) => {
-        spawnEnemy(this, slot.x + Phaser.Math.Between(-60, 60), slot.y - 50 - i * 30, index, type);
+        spawnEnemy(this, slot.x + Phaser.Math.Between(-45, 45), slot.y - 50 - i * 30, index, type);
       });
       // 실제로 나왔으니 예고 표시는 지웁니다.
       if (slot.view) { slot.view.destroy(); slot.view = null; }
     }
+  }
+
+  // 이 판에서 처음 나온 종류라면 이름을 띄웁니다.
+  // 올라갈수록 새 적이 풀리는데, 알려주지 않으면 그냥 빨간 덩어리가 하나 늘 뿐입니다.
+  announceEnemy(def) {
+    const label = this.add.text(CFG.width / 2, 168, '새로운 적', {
+      fontFamily: 'sans-serif', fontSize: '20px', color: '#8794b5',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(150);
+    const name = this.add.text(CFG.width / 2, 202, def.name, {
+      fontFamily: 'sans-serif', fontSize: '38px', color: '#ff8a80',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(150);
+
+    [label, name].forEach((t) => {
+      t.setAlpha(0);
+      this.tweens.add({ targets: t, alpha: 1, duration: 260, yoyo: true, hold: 1500,
+        onComplete: () => t.destroy() });
+    });
   }
 
   spawnAmbient() {
@@ -158,7 +177,9 @@ class GameScene extends Phaser.Scene {
     this.input.on('pointerdown', (p) => {
       if (this.shop.open) return; // 상점 버튼은 상점이 직접 받습니다
       if (this.dead) return this.scene.restart();
-      this.jump(p.x < this.scale.width / 2 ? 'left' : 'right');
+      // 화면을 세로로 삼등분해서 누른 자리의 길로 갑니다.
+      const third = this.scale.width / 3;
+      this.jump(p.x < third ? 'left' : p.x < third * 2 ? 'mid' : 'right');
     });
     const key = (lane) => () => {
       if (this.shop.open) return;
@@ -166,6 +187,8 @@ class GameScene extends Phaser.Scene {
       this.jump(lane);
     };
     this.input.keyboard.on('keydown-LEFT', key('left'));
+    this.input.keyboard.on('keydown-UP', key('mid'));
+    this.input.keyboard.on('keydown-DOWN', key('mid'));
     this.input.keyboard.on('keydown-RIGHT', key('right'));
   }
 
@@ -174,8 +197,11 @@ class GameScene extends Phaser.Scene {
     const next = this.floors.get(this.floorIndex + 1);
     if (!next) return;
 
-    // 누른 쪽에 발판이 없으면 남은 한쪽으로 갑니다. 점프는 실패하지 않습니다.
-    const slot = next.slots[lane] || next.slots[lane === 'left' ? 'right' : 'left'];
+    // 누른 쪽에 발판이 없으면 가장 가까운 길로 갑니다. 점프는 실패하지 않습니다.
+    const slot = next.slots[lane] || LANES
+      .map((l) => next.slots[l])
+      .filter(Boolean)
+      .sort((a, b) => Math.abs(a.x - CFG.laneX[lane]) - Math.abs(b.x - CFG.laneX[lane]))[0];
     if (!slot) return;
 
     this.jumping = true;
@@ -251,7 +277,7 @@ class GameScene extends Phaser.Scene {
     for (let i = 1; i <= CFG.item.armWithin; i++) {
       const floor = this.floors.get(this.floorIndex + i);
       if (!floor) continue;
-      for (const lane of ['left', 'right']) {
+      for (const lane of LANES) {
         const slot = floor.slots[lane];
         if (!slot || slot.armed || !ITEM_KINDS.has(slot.kind)) continue;
         slot.armed = true;
@@ -262,7 +288,7 @@ class GameScene extends Phaser.Scene {
 
   updateItems(now) {
     this.floors.forEach((floor) => {
-      for (const lane of ['left', 'right']) {
+      for (const lane of LANES) {
         const slot = floor.slots[lane];
         if (!slot || !slot.view || !slot.armed || slot.taken || slot.expired) continue;
         if (!ITEM_KINDS.has(slot.kind)) continue;
@@ -303,7 +329,7 @@ class GameScene extends Phaser.Scene {
     for (let i = 1; i <= CFG.item.armWithin; i++) {
       const floor = this.floors.get(this.floorIndex + i);
       if (!floor) continue;
-      for (const lane of ['left', 'right']) {
+      for (const lane of LANES) {
         const slot = floor.slots[lane];
         if (slot && !slot.expired && slot.view) { slot.armed = false; slot.view.setAlpha(1); }
       }
