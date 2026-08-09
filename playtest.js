@@ -62,7 +62,7 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
       floor: s.floorIndex, hp: Math.round(s.hp), maxHp: s.maxHp,
       kills: s.kills, coins: s.coins, totalCoins: s.totalCoins,
       job: s.job.name, relic: s.weapon.relic ? s.weapon.relic.name : null,
-      weapon: s.weapon.name, plus: s.weapon.plus, mult: s.weapon.mult,
+      weapon: s.weapon.name, plus: Number(s.weapon.plusValue.toFixed(1)), mult: s.weapon.mult,
       dmg: s.weapon.dmg, reach: Math.round(s.weapon.reach), shots: s.weapon.shots,
       // UP이 실제로 이득인지. 강화를 잃고도 화력이 오르는가로 판단합니다.
       upWorth: (() => {

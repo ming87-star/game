@@ -42,7 +42,9 @@ class Shop {
     const picked = [];
     if (!this.scene.weapon.atMaxTier) picked.push('upgrade');
 
-    const rest = ['plus', 'double', 'heal', 'maxhp', 'armor'];
+    // 갑옷을 안 입는 직업에게는 방어구를 팔지 않습니다.
+    const rest = ['plus', 'double', 'heal', 'maxhp'];
+    if (this.scene.job.usesArmor) rest.push('armor');
     while (picked.length < CFG.shop.offers && rest.length) {
       picked.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
     }

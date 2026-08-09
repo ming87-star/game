@@ -18,6 +18,8 @@ const CLASSES = [
 
     hp: 205,
     armor: 34,
+    usesArmor: true,
+    plusScale: 1,
     attack: 'melee',
     dodge: 0,
     steal: 0,
@@ -51,6 +53,8 @@ const CLASSES = [
 
     hp: 160,
     armor: 16,
+    usesArmor: true,
+    plusScale: 1,
     attack: 'ranged',
     dodge: 0,
     steal: 0,
@@ -82,11 +86,17 @@ const CLASSES = [
     key: 'rogue',
     name: '도적',
     blurb: '빠르게 찌르고 훔친다',
-    detail: '사거리는 짧지만 매우 빠릅니다. 공격을 흘려 넘기고,\n적을 잡지 않아도 코인을 훔칩니다.',
+    detail: '사거리는 짧지만 매우 빠릅니다. 갑옷은 입지 않고 흘려 넘깁니다.\n적을 잡지 않아도 코인을 훔칩니다.',
     color: 0xce93d8,
 
     hp: 165,
-    armor: 18,
+    // 도적은 갑옷을 입지 않습니다. 맞으면 그대로 맞고, 대신 흘려 넘깁니다.
+    // 방어구 아이템도 도적에게는 나오지 않습니다 (밟아도 아무 일 없으면 빈 칸이니까).
+    armor: 0,
+    usesArmor: false,
+    // 그리고 +1 하나가 절반 값입니다. 빠른 공격 속도와 절도까지 겹치면
+    // 강화가 그대로 곱해져서 손댈 수 없이 세집니다.
+    plusScale: 0.5,
     attack: 'melee',
     dodge: 0.18,  // 이 확률로 피해를 통째로 흘립니다
     steal: 0.20,  // 때릴 때마다 이 확률로 코인을 훔칩니다 (잡지 않아도)

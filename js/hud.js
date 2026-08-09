@@ -69,8 +69,15 @@ class Hud {
     this.hpText.setText(Math.max(0, Math.ceil(s.hp)) + ' / ' + s.maxHp);
 
     // 방어력은 체력바에 붙은 띠로 보여 줍니다. 가득 차면 CFG.armor.max 입니다.
-    this.armorBar.width = 234 * Math.min(1, s.armor / CFG.armor.max);
-    this.armorText.setText('방어 ' + s.armor + '%');
+    // 갑옷을 안 입는 직업은 그 자리에 회피를 보여 줍니다.
+    if (s.job.usesArmor) {
+      this.armorBar.width = 234 * Math.min(1, s.armor / CFG.armor.max);
+      this.armorText.setText('방어 ' + s.armor + '%');
+    } else {
+      this.armorBar.width = 234 * s.job.dodge;
+      this.armorBar.fillColor = 0xce93d8;
+      this.armorText.setText('회피 ' + Math.round(s.job.dodge * 100) + '%');
+    }
 
     this.floorText.setText(s.floorIndex + '층');
     this.coinText.setText('◎ ' + s.coins);
@@ -79,8 +86,10 @@ class Hud {
     this.weaponText.setText(w.name);
     let x = this.weaponText.x + this.weaponText.width + 10;
 
-    this.plusText.setText(w.plus ? '+' + w.plus : '').setX(x);
-    if (w.plus) x += this.plusText.width + 8;
+    // 도적은 +1이 절반 값이라 실제 붙은 양을 그대로 적습니다 (+2.5 처럼).
+    const shown = Number(w.plusValue.toFixed(1));
+    this.plusText.setText(shown ? '+' + shown : '').setX(x);
+    if (shown) x += this.plusText.width + 8;
 
     this.multText.setText(w.mult > 1 ? '×' + w.mult : '').setX(x);
 

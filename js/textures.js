@@ -5,14 +5,61 @@ function buildTextures(scene) {
   const g = scene.make.graphics({ add: false });
 
   // ── 주인공 ────────────────────────────────────────────
+  // 직업마다 실루엣을 다르게 둡니다. 어깨·후드·망토처럼 윤곽에서 갈리게 해야
+  // 작게 줄여도 구분됩니다. 색만 바꾸면 멀리서 똑같아 보입니다.
+
+  // 전사 — 각진 어깨와 투구. 셋 중 가장 넓습니다.
   g.clear();
-  g.fillStyle(0x4dd0e1, 1);
-  g.fillRoundedRect(6, 14, 26, 30, 6);
+  g.fillStyle(0x546e7a, 1);
+  g.fillRoundedRect(3, 20, 32, 24, 4);        // 어깨 갑옷
+  g.fillStyle(0x78909c, 1);
+  g.fillRect(6, 26, 26, 5);                    // 가슴 띠
+  g.fillStyle(0xef9a9a, 1);
+  g.fillRoundedRect(9, 40, 20, 8, 3);          // 허리 아래
+  g.fillStyle(0x90a4ae, 1);
+  g.fillRoundedRect(8, 4, 22, 18, 6);          // 투구
+  g.fillStyle(0x263238, 1);
+  g.fillRect(11, 12, 16, 4);                   // 눈 구멍
+  g.fillStyle(0xef5350, 1);
+  g.fillTriangle(19, 0, 15, 6, 23, 6);         // 투구 깃
+  g.generateTexture('player-warrior', 38, 48);
+
+  // 궁수 — 뾰족한 후드와 등에 멘 활. 몸이 가늡니다.
+  g.clear();
+  g.fillStyle(0x66bb6a, 1);
+  g.lineStyle(3, 0x33691e, 1);
+  g.beginPath();
+  g.arc(28, 24, 12, Phaser.Math.DegToRad(-72), Phaser.Math.DegToRad(72), false);
+  g.strokePath();                              // 등 뒤 활
+  g.fillStyle(0x81c784, 1);
+  g.fillRoundedRect(9, 20, 20, 22, 5);         // 몸
+  g.fillStyle(0x4caf50, 1);
+  g.fillRoundedRect(11, 40, 16, 8, 3);
   g.fillStyle(0xffe0b2, 1);
-  g.fillCircle(19, 11, 10);
-  g.fillStyle(0x00838f, 1);
-  g.fillRect(6, 40, 26, 6);
-  g.generateTexture('player', 38, 48);
+  g.fillCircle(19, 14, 8);                     // 얼굴
+  g.fillStyle(0x2e7d32, 1);
+  g.fillTriangle(8, 16, 19, 0, 30, 16);        // 뾰족한 후드
+  g.fillStyle(0xffe0b2, 1);
+  g.fillCircle(19, 15, 6);
+  g.generateTexture('player-archer', 42, 48);
+
+  // 도적 — 낮게 웅크린 자세, 펄럭이는 망토, 얼굴 가리개.
+  g.clear();
+  g.fillStyle(0x7e57c2, 1);
+  g.fillTriangle(2, 22, 16, 20, 10, 46);       // 뒤로 날리는 망토
+  g.fillStyle(0xb39ddb, 1);
+  g.fillRoundedRect(11, 22, 19, 20, 6);        // 몸
+  g.fillStyle(0x5e35b1, 1);
+  g.fillRoundedRect(13, 40, 15, 8, 3);
+  g.fillStyle(0xffe0b2, 1);
+  g.fillCircle(21, 15, 8);
+  g.fillStyle(0x4527a0, 1);
+  g.fillRoundedRect(12, 5, 18, 11, 5);         // 후드
+  g.fillRect(13, 16, 16, 5);                   // 얼굴 가리개
+  g.fillStyle(0xffee58, 1);
+  g.fillCircle(18, 14, 2);                     // 눈
+  g.fillCircle(25, 14, 2);
+  g.generateTexture('player-rogue', 40, 48);
 
   // ── 적 ────────────────────────────────────────────────
   // 종류마다 실루엣과 색을 다르게 해서 멀리서도 구분되게 합니다.

@@ -44,7 +44,7 @@ class GameScene extends Phaser.Scene {
     for (let i = 0; i <= 7; i++) this.addFloor(i);
 
     const start = this.floors.get(0).slots.mid;
-    this.player = this.physics.add.sprite(start.x, start.y - STAND_OFFSET, 'player');
+    this.player = this.physics.add.sprite(start.x, start.y - STAND_OFFSET, 'player-' + this.job.key);
     this.player.setDepth(10);
     this.player.body.setSize(26, 40).setOffset(6, 6);
     this.player.body.setAllowGravity(false);
@@ -82,7 +82,7 @@ class GameScene extends Phaser.Scene {
   // ── 층 만들기 / 지우기 ────────────────────────────────
   addFloor(index) {
     if (this.floors.has(index)) return;
-    const floor = makeFloor(index, healNeedFrom(this.hp, this.maxHp));
+    const floor = makeFloor(index, healNeedFrom(this.hp, this.maxHp), this.job.usesArmor);
     floor.views = [];
 
     for (const lane of LANES) {

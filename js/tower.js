@@ -70,7 +70,7 @@ function healChance(need) {
   return c.healFull + (c.healHurt - c.healFull) * need;
 }
 
-function pickKind(index, need) {
+function pickKind(index, need, usesArmor = true) {
   const c = CFG.slotChance;
   const enemyChance = Math.min(c.enemyMax, c.enemyBase + index * c.enemyPerFloor);
 
@@ -80,7 +80,7 @@ function pickKind(index, need) {
   let acc = enemyChance;
   if (r < (acc += c.plus)) return SLOT.PLUS;
   if (r < (acc += healChance(need))) return SLOT.HEAL;
-  if (r < (acc += c.armor)) return SLOT.ARMOR;
+  if (usesArmor && r < (acc += c.armor)) return SLOT.ARMOR;
   if (r < (acc += c.double)) return SLOT.DOUBLE;
   return SLOT.EMPTY;
 }
@@ -142,8 +142,8 @@ function blankSlot(index, lane, kind) {
   };
 }
 
-function makeSlot(index, lane, need) {
-  const slot = blankSlot(index, lane, pickKind(index, need));
+function makeSlot(index, lane, need, usesArmor) {
+  const slot = blankSlot(index, lane, pickKind(index, need, usesArmor));
   if (slot.kind === SLOT.ENEMY) {
     slot.enemyCount = enemyCountFor(index);
     for (let i = 0; i < slot.enemyCount; i++) slot.enemyTypes.push(pickEnemyType(index));
@@ -169,7 +169,7 @@ function pickLanes(index) {
 // 같은 아이템이 둘 이상 놓이면 고를 것이 없으니 한쪽을 다시 굴립니다.
 // 빈 칸끼리·적끼리는 그냥 둡니다. 여기서까지 다시 굴리면 "빈 칸이 남을 확률"이
 // 사라져서, 기본 확률을 아무리 낮춰도 아이템이 넘쳐납니다.
-function dedupeItems(floor, index, lanes, need) {
+function dedupeItems(floor, index, lanes, need, usesArmor) {
   for (let pass = 0; pass < 4; pass++) {
     const seen = new Set();
     let clash = null;
@@ -181,11 +181,11 @@ function dedupeItems(floor, index, lanes, need) {
       seen.add(kind);
     }
     if (!clash) return;
-    floor.slots[clash] = makeSlot(index, clash, need);
+    floor.slots[clash] = makeSlot(index, clash, need, usesArmor);
   }
 }
 
-function makeFloor(index, need = 0) {
+function makeFloor(index, need = 0, usesArmor = true) {
   const floor = { index, y: floorY(index), slots: {}, shop: false };
 
   if (index === 0) {
@@ -201,8 +201,8 @@ function makeFloor(index, need = 0) {
   }
 
   const lanes = pickLanes(index);
-  lanes.forEach((lane) => { floor.slots[lane] = makeSlot(index, lane, need); });
-  dedupeItems(floor, index, lanes, need);
+  lanes.forEach((lane) => { floor.slots[lane] = makeSlot(index, lane, need, usesArmor); });
+  dedupeItems(floor, index, lanes, need, usesArmor);
 
   // 이번 판에 하나뿐인 유물. UP과 같은 이유로 가운데에 둡니다.
   if (index === relicFloor) {

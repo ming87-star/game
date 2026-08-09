@@ -21,7 +21,9 @@ class Weapon {
   get name() { return this.base.name; }
   get color() { return this.base.color; }
 
-  get dmg() { return Math.round(this.base.dmg * (1 + this.plus * CFG.plusStep)); }
+  // 도적은 +1 하나가 절반 값입니다 (job.plusScale).
+  get plusValue() { return this.plus * (this.job.plusScale || 1); }
+  get dmg() { return Math.round(this.base.dmg * (1 + this.plusValue * CFG.plusStep)); }
   get rate() { return this.base.rate / this.mult; }
 
   // 근접 — 이 거리 안의 적을 한 번에 모두 벱니다.
