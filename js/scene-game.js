@@ -1582,13 +1582,19 @@ class GameScene extends Phaser.Scene {
   updateBats(time) {
     if (this.bossFight) return; // 투기장에는 오지 않습니다
     const b = CFG.bats;
+    // 첫 상점까지는 아무리 늑장을 부려도 안 옵니다. 규칙을 익히는 구간에서
+    // 뒤에서 쫓기면 배우는 대신 도망만 치게 됩니다.
+    if (this.floorIndex < (b.fromFloor || 0)) return;
+
     const late = time - this.lastShopAt - b.graceMs;
     if (late < 0) return;
 
+    // 먼저 알려 주고, warnLeadMs 뒤에 날아듭니다. 글씨를 읽는 사이에 이미
+    // 물려 있으면 그건 경고가 아니라 통보입니다.
     if (!this.batsWarned) {
       this.batsWarned = true;
       this.warnBats();
-      this.nextBatAt = time + 600;
+      this.nextBatAt = time + (b.warnLeadMs || 600);
     }
     if (time < this.nextBatAt) return;
 
@@ -1612,8 +1618,12 @@ class GameScene extends Phaser.Scene {
   warnBats() {
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
     const parts = [
-      this.add.text(CFG.width / 2, 300, '박쥐가 몰려옵니다', font(30, '#b39ddb')).setOrigin(0.5),
-      this.add.text(CFG.width / 2, 340, '상점까지 서두르세요', font(20, '#8794b5')).setOrigin(0.5),
+      this.add.text(CFG.width / 2, 296, '이제 서두르지 않으면',
+        font(26, '#b39ddb')).setOrigin(0.5),
+      this.add.text(CFG.width / 2, 332, '박쥐에게 아이템을 뺏깁니다',
+        font(26, '#b39ddb')).setOrigin(0.5),
+      this.add.text(CFG.width / 2, 372, '다음 상점에 닿으면 물러갑니다',
+        font(19, '#8794b5')).setOrigin(0.5),
     ];
     parts.forEach((t) => {
       t.setScrollFactor(0).setDepth(150).setAlpha(0);

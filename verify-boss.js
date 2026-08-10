@@ -259,12 +259,48 @@ const check = (ok, label, got) => {
     '"그냥 두기"를 고르면 들고 있던 것이 그대로', kept.held.join(','));
 
   // ── 박쥐 ───────────────────────────────────────────────
+  // 첫 상점까지는 아무리 늑장을 부려도 안 옵니다. 규칙을 익히는 구간이니까요.
+  const early = await page.evaluate(async () => {
+    const s = window.__scene;
+    s.bossFight = false;
+    s.clearBats();
+    s.floorIndex = CFG.bats.fromFloor - 10;           // 40층 언저리
+    s.lastShopAt = s.time.now - CFG.bats.graceMs * 4; // 아주 오래 늑장
+    s.batsWarned = false;
+    for (let i = 0; i < 8; i++) s.updateBats(s.time.now + i * CFG.bats.spawnEvery);
+    return { floor: s.floorIndex, count: s.batCount(), warned: s.batsWarned };
+  });
+  check(early.count === 0 && !early.warned,
+    '첫 상점 아래에서는 늑장을 부려도 안 옴',
+    early.floor + '층 · ' + early.count + '마리');
+
+  // 50층부터는 **먼저 알려 주고** 그 뒤에 옵니다.
+  const warn = await page.evaluate(async () => {
+    const s = window.__scene;
+    s.floorIndex = CFG.bats.fromFloor + 5;
+    s.lastShopAt = s.time.now - CFG.bats.graceMs - 1;
+    s.batsWarned = false;
+    const t0 = s.time.now;
+    s.updateBats(t0);                       // 경고만 뜨는 순간
+    const justWarned = { warned: s.batsWarned, count: s.batCount() };
+    s.updateBats(t0 + CFG.bats.warnLeadMs - 200); // 아직 알림이 떠 있을 때
+    const stillNone = s.batCount();
+    s.updateBats(t0 + CFG.bats.warnLeadMs + 50);  // 알림이 지난 뒤
+    return { justWarned, stillNone, after: s.batCount(), lead: CFG.bats.warnLeadMs };
+  });
+  check(warn.justWarned.warned && warn.justWarned.count === 0 && warn.stillNone === 0,
+    '경고가 먼저 뜨고 그동안은 한 마리도 안 옴', warn.lead + 'ms 앞서');
+  check(warn.after > 0, '알린 뒤에 날아듦', warn.after + '마리');
+
   const bats = await page.evaluate(async () => {
     const s = window.__scene;
     s.coins = 200;
+    s.floorIndex = CFG.bats.fromFloor + 20;
     s.lastShopAt = s.time.now - CFG.bats.graceMs - 1;  // 시계를 늦춰 둡니다
     s.batsWarned = false;
-    for (let i = 0; i < 6; i++) { s.updateBats(s.time.now + i * CFG.bats.spawnEvery); }
+    for (let i = 0; i < 6; i++) {
+      s.updateBats(s.time.now + CFG.bats.warnLeadMs + i * CFG.bats.spawnEvery);
+    }
     return { count: s.batCount(), coins: s.coins };
   });
   check(bats.count > 0, '오래 머무르면 박쥐가 몰려옴', bats.count + '마리');
