@@ -97,6 +97,9 @@ class GameScene extends Phaser.Scene {
     this.player.setDepth(10);
     this.player.body.setSize(26, 40).setOffset(6, 6);
     this.player.body.setAllowGravity(false);
+    // 보이는 몸은 따로입니다. 물리 몸은 그대로 두고 겉몸에만 모션을 얹습니다
+    // (까닭은 js/motion.js 맨 위에).
+    this.rig = new PlayerRig(this);
 
     this.physics.add.overlap(this.bullets, this.enemies, this.onBulletHit, null, this);
     this.physics.add.overlap(this.player, this.enemies, this.onEnemyTouch, null, this);
@@ -878,6 +881,26 @@ class GameScene extends Phaser.Scene {
     else this.swing(now);
   }
 
+  // 무기에 맞는 몸짓을 걸고, **이펙트를 얼마나 늦출지**를 돌려줍니다.
+  // 창은 찌르고 검은 베고 석궁은 뒤로 밀립니다 (js/motion.js 의 MOTIONS).
+  playAttackMotion(target) {
+    const motion = motionFor(this.job, this.weapon);
+    const ms = motionMs(this.weapon.rate);
+    this.rig.face(target.x);
+    this.rig.play(motion.keys, ms);
+    return motionLead(motion, ms);
+  }
+
+  // 몸이 지나간 뒤에 그림을 띄웁니다. 0ms 면 곧장 부릅니다 —
+  // 늦출 것이 없는데 굳이 한 프레임을 흘려보낼 이유가 없습니다.
+  //
+  // 판이 멈추거나(상점·유물) 주인공이 죽은 뒤에 뒤늦게 터지면 안 되므로
+  // 그때는 그냥 버립니다.
+  after(ms, fn) {
+    if (ms <= 0) return fn();
+    this.time.delayedCall(ms, () => { if (!this.dead && this.scene.isActive()) fn(); });
+  }
+
   distTo(e) {
     return Phaser.Math.Distance.Between(e.x, e.y, this.player.x, this.player.y);
   }
@@ -896,7 +919,11 @@ class GameScene extends Phaser.Scene {
     const nearest = hit.reduce((a, b) => (this.meleeDist(a) < this.meleeDist(b) ? a : b));
     const angle = Phaser.Math.Angle.Between(
       this.player.x, this.player.y - 6, nearest.x, nearest.y);
-    this.showSlash(angle, w);
+
+    // 몸을 그쪽으로 돌리고 무기에 맞는 몸짓을 겁니다. 칼자국은 **몸이 지나간
+    // 뒤에** 떠야 합니다 — 곧장 띄우면 서 있는 사람 옆에서 자국이 저절로 납니다.
+    const lead = this.playAttackMotion(nearest);
+    this.after(lead, () => this.showSlash(angle, w));
 
     // 파동검 — 벤 자리에서 **휘두른 방향으로** 나갑니다. 표적을 고르지 않습니다.
     //
@@ -906,7 +933,7 @@ class GameScene extends Phaser.Scene {
     // 쪽이어야 합니다 — 맞는 것은 그 선 위에 있던 놈들입니다.
     const wave = w.relicSum('wave');
     if (wave > 0 && this.swings % CFG.waveEvery === 0) {
-      this.fireWave(angle, Math.round(w.dmg * wave));
+      this.after(lead, () => this.fireWave(angle, Math.round(w.dmg * wave)));
     }
 
     hit.forEach((e) => {
@@ -924,9 +951,6 @@ class GameScene extends Phaser.Scene {
     });
   }
 
-  // 훔친 순간. 코인만 튀어나오면 잡아서 나온 것인지 훔쳐서 나온 것인지
-  // 구분이 안 됩니다. 고리가 **오므라들고** 조각이 주인공 쪽으로 빨려 와야
-  // "저놈에게서 빼내 왔다"로 읽힙니다 — 죽을 때의 퍼지는 고리와 반대입니다.
   // 공격력을 주우면 **망치가 한 번 내리쳐집니다.**
   //
   // 다른 아이템은 주우면 숫자가 오르고 끝인데, 공격력만은 "벼렸다"는 동작이
@@ -965,6 +989,9 @@ class GameScene extends Phaser.Scene {
     });
   }
 
+  // 훔친 순간. 코인만 튀어나오면 잡아서 나온 것인지 훔쳐서 나온 것인지
+  // 구분이 안 됩니다. 고리가 **오므라들고** 조각이 주인공 쪽으로 빨려 와야
+  // "저놈에게서 빼내 왔다"로 읽힙니다 — 죽을 때의 퍼지는 고리와 반대입니다.
   stealFx(x, y) {
     const ring = this.add.circle(x, y, 22, 0x000000, 0)
       .setStrokeStyle(2.5, 0xce93d8, 0.9).setDepth(12);
@@ -1081,11 +1108,35 @@ class GameScene extends Phaser.Scene {
     if (!this.subTarget || !inRange(this.subTarget)) this.subTarget = pool[0];
 
     this.lastSubAt = now;
+
+    // 활은 당기고 놓습니다. 화살은 **놓는 순간에** 나가야 하므로 그만큼 늦춥니다.
+    // 석궁은 당기는 마디가 없어 늦출 것도 없습니다 — 곧장 나가고 몸이 뒤로 밀립니다.
+    const lead = this.playAttackMotion(this.subTarget);
+
     const others = pool.filter((e) => e !== this.subTarget);
     for (let i = 0; i < w.shots; i++) {
       const target = i === 0 ? this.subTarget : (others[i - 1] || this.subTarget);
-      this.fireArrow(this.player.x, this.player.y - 6, target, w.dmg, w.bounce);
+      // 시위를 당기는 사이에 그놈이 죽을 수 있습니다. 죽은 것을 겨누면 터지고,
+      // 그렇다고 화살을 그냥 버리면 **모르는 사이에 궁수가 약해집니다** —
+      // 여럿을 상대할수록 자주 죽으니 화살도 자주 사라집니다.
+      // 그래서 겨눌 것을 다시 고릅니다. 활은 이미 당겨 놓았으니까요.
+      this.after(lead, () => {
+        const at = target.active ? target : this.pickAim(inRange);
+        if (at) this.fireArrow(this.player.x, this.player.y - 6, at, w.dmg, w.bounce);
+      });
     }
+  }
+
+  // 사거리 안에서 가장 가까운 놈. 아무도 없으면 아무것도 안 돌려줍니다.
+  pickAim(inRange) {
+    let best = null;
+    let bestGap = Infinity;
+    this.enemies.getChildren().forEach((e) => {
+      if (!inRange(e)) return;
+      const gap = this.meleeDist(e);
+      if (gap < bestGap) { bestGap = gap; best = e; }
+    });
+    return best;
   }
 
   fireArrow(x, y, target, dmg, bounce) {
@@ -2005,6 +2056,10 @@ class GameScene extends Phaser.Scene {
     });
 
     this.attack(time);
+
+    // 겉몸은 언제나 물리 몸을 따라갑니다. 공격이 없어도 매 프레임 돌아야
+    // 뛰거나 줄을 옮길 때 겉몸이 뒤처지지 않습니다.
+    this.rig.sync();
 
     this.updateBats(time);
 
