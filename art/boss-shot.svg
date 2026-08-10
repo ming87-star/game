@@ -1,0 +1,17 @@
+<!-- 수문장이 내리꽂는 것 36×36 · 위에서 아래로 떨어집니다
+     옆을 보는 다른 그림과 달리 이것만 위아래 방향입니다. 떨어지는 쪽(아래)이
+     뾰족해야 어디로 오는지가 읽힙니다. 속심을 밝게 둬야 어두운 탑에서 보입니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+  <defs>
+    <radialGradient id="halo" cx="50%" cy="42%" r="52%">
+      <stop offset="0%" stop-color="#e1bee7" stop-opacity=".8"/>
+      <stop offset="100%" stop-color="#7c4dff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="18" cy="17" r="18" fill="url(#halo)"/>
+  <path d="M18 2 q13 6 13 17 q0 12 -13 15 q-13 -3 -13 -15 q0 -11 13 -17 z"
+        fill="#7c4dff" stroke="#2a1060" stroke-width="1.8" stroke-linejoin="round"/>
+  <path d="M18 6 q8 5 8 12 q0 8 -8 10 q-8 -2 -8 -10 q0 -7 8 -12 z" fill="#b388ff"/>
+  <path d="M18 10 q5 4 5 9 q0 5 -5 6 q-5 -1 -5 -6 q0 -5 5 -9 z" fill="#ede7f6"/>
+  <path d="M13 9 q3 -4 6 -5 q-4 3 -5 6 z" fill="#ffffff" opacity=".7"/>
+</svg>

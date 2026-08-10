@@ -1,0 +1,23 @@
+<!-- 외눈의 빔 조각 36×36 · 위에서 아래로
+     덩어리가 아니라 빛줄기의 한 토막입니다. 세로로 길게 뽑고 가장자리를
+     흐리게 두면 이어 붙였을 때 한 줄기로 보입니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+  <defs>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#26c6da" stop-opacity="0"/>
+      <stop offset="30%"  stop-color="#26c6da" stop-opacity=".55"/>
+      <stop offset="50%"  stop-color="#e0f7fa" stop-opacity=".95"/>
+      <stop offset="70%"  stop-color="#26c6da" stop-opacity=".55"/>
+      <stop offset="100%" stop-color="#26c6da" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#26c6da" stop-opacity=".55"/>
+      <stop offset="100%" stop-color="#26c6da" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="18" cy="18" r="18" fill="url(#halo)"/>
+  <rect x="4" y="0" width="28" height="36" fill="url(#edge)"/>
+  <path d="M18 0 q6 10 6 18 q0 8 -6 18 q-6 -10 -6 -18 q0 -8 6 -18 z"
+        fill="#80deea" stroke="#00707f" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M18 3 q3 8 3 15 q0 7 -3 15 q-3 -8 -3 -15 q0 -7 3 -15 z" fill="#ffffff" opacity=".9"/>
+</svg>

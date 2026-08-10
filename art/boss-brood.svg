@@ -1,0 +1,83 @@
+<!-- 알품은 것 320×240 · 졸개를 끊임없이 뱉습니다
+     내리꽂는 놈들과 달리, 이놈이 무서운 이유는 화면이 차오른다는 것입니다.
+     그 말을 그림으로 하려면 **알주머니**가 보여야 합니다 — 배 아래에 매달린
+     반투명 주머니 셋, 그 안에 웅크린 것이 비칩니다.
+
+     연두(#9ccc65)는 이놈에게만 씁니다. 배가 연두로 부풀어 있으면 곧 쏟아집니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240"
+     data-bake-scale="2">
+  <defs>
+    <linearGradient id="hull" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#4b32ad"/>
+      <stop offset="52%"  stop-color="#38209a"/>
+      <stop offset="100%" stop-color="#23126b"/>
+    </linearGradient>
+    <radialGradient id="sac" cx="42%" cy="34%" r="66%">
+      <stop offset="0%"   stop-color="#dcedc8" stop-opacity=".95"/>
+      <stop offset="45%"  stop-color="#9ccc65" stop-opacity=".85"/>
+      <stop offset="100%" stop-color="#558b2f" stop-opacity=".95"/>
+    </radialGradient>
+    <radialGradient id="eyeglow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#9ccc65" stop-opacity=".7"/>
+      <stop offset="100%" stop-color="#9ccc65" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <g stroke="#140a3d" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">
+
+    <!-- ── 뿔 — 여러 갈래로 갈라져 둥지처럼 ── -->
+    <path d="M70 66 L40 10 L98 48 z"   fill="#1a237e"/>
+    <path d="M250 66 L280 10 L222 48 z" fill="#1a237e"/>
+    <path d="M112 46 L100 8 L140 40 z" fill="#151c66"/>
+    <path d="M208 46 L220 8 L180 40 z" fill="#151c66"/>
+    <path d="M160 36 L160 4 L178 30 z" fill="#151c66"/>
+
+    <!-- ── 몸 — 위는 좁고 아래로 불룩. 배가 무거워 보여야 합니다 ── -->
+    <path d="M40 110 q0 -64 66 -72 q54 -6 108 0 q66 8 66 72 q0 74 -60 84
+             q-60 10 -120 0 q-60 -10 -60 -84 z" fill="url(#hull)"/>
+    <path d="M56 92 q0 -40 52 -48 q-38 14 -46 52 z" fill="#5e3fc4" stroke="none"/>
+    <path d="M44 106 q4 -56 60 -66" fill="none" stroke="#8c7ae6" stroke-opacity=".45" stroke-width="3"/>
+    <!-- 배의 마디 -->
+    <path d="M50 152 q110 24 220 0" fill="none" stroke="#2a1580" stroke-width="3"/>
+    <path d="M58 172 q102 20 204 0" fill="none" stroke="#2a1580" stroke-width="2.6"/>
+
+    <!-- ── 눈 — 여럿. 한 쌍이 아니라 무리라 벌레로 읽힙니다 ── -->
+    <circle cx="118" cy="104" r="26" fill="url(#eyeglow)" stroke="none"/>
+    <circle cx="202" cy="104" r="26" fill="url(#eyeglow)" stroke="none"/>
+    <circle cx="118" cy="104" r="15" fill="#9ccc65"/>
+    <circle cx="202" cy="104" r="15" fill="#9ccc65"/>
+    <circle cx="118" cy="104" r="6" fill="#f1f8e9" stroke="none"/>
+    <circle cx="202" cy="104" r="6" fill="#f1f8e9" stroke="none"/>
+    <circle cx="146" cy="86" r="8" fill="#7cb342" stroke-width="3"/>
+    <circle cx="174" cy="86" r="8" fill="#7cb342" stroke-width="3"/>
+    <circle cx="160" cy="112" r="7" fill="#7cb342" stroke-width="3"/>
+
+    <!-- ── 알주머니 — 이놈의 전부. 안에 웅크린 것이 비칩니다 ── -->
+    <g stroke-width="3.4">
+      <ellipse cx="96" cy="196" rx="30" ry="34" fill="url(#sac)"/>
+      <ellipse cx="160" cy="208" rx="34" ry="38" fill="url(#sac)"/>
+      <ellipse cx="224" cy="196" rx="30" ry="34" fill="url(#sac)"/>
+    </g>
+    <!-- 주머니 안의 것 — 흐릿하게, 형체만 -->
+    <g fill="#33691e" opacity=".6" stroke="none">
+      <ellipse cx="96" cy="200" rx="13" ry="15"/>
+      <ellipse cx="160" cy="212" rx="15" ry="17"/>
+      <ellipse cx="224" cy="200" rx="13" ry="15"/>
+    </g>
+    <g fill="#f1f8e9" opacity=".85" stroke="none">
+      <circle cx="91" cy="196" r="3.4"/><circle cx="102" cy="197" r="3.4"/>
+      <circle cx="154" cy="207" r="3.8"/><circle cx="167" cy="208" r="3.8"/>
+      <circle cx="219" cy="196" r="3.4"/><circle cx="230" cy="197" r="3.4"/>
+    </g>
+    <!-- 주머니의 빛나는 윗면 -->
+    <g fill="#ffffff" opacity=".35" stroke="none">
+      <ellipse cx="87" cy="180" rx="10" ry="6"/>
+      <ellipse cx="150" cy="190" rx="11" ry="7"/>
+      <ellipse cx="215" cy="180" rx="10" ry="6"/>
+    </g>
+
+    <!-- ── 큰턱 — 알을 내보내는 자리. 좌우로 벌어집니다 ── -->
+    <path d="M120 166 q-16 24 -6 44 q10 -18 22 -24 z" fill="#1a237e"/>
+    <path d="M200 166 q16 24 6 44 q-10 -18 -22 -24 z" fill="#1a237e"/>
+  </g>
+</svg>

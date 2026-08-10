@@ -1,0 +1,24 @@
+<!-- 집게가 떨어뜨리는 돌덩이 36×36 · 위에서 아래로
+     둥글면 다른 탄과 섞입니다. 모서리를 각지게 깨서 "떨어지는 돌"로 만들고,
+     금 사이에서 달군 주황이 새어 나오게 했습니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+  <defs>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ff7043" stop-opacity=".6"/>
+      <stop offset="100%" stop-color="#ff7043" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="18" cy="18" r="18" fill="url(#halo)"/>
+  <g stroke="#3e1206" stroke-width="1.8" stroke-linejoin="round">
+    <path d="M18 2 L31 9 L34 22 L24 33 L11 32 L3 21 L6 8 z" fill="#6d4c41"/>
+    <path d="M18 2 L31 9 L28 17 L14 13 z" fill="#8d6e63" stroke="none"/>
+    <path d="M11 32 L3 21 L9 17 L15 27 z" fill="#4e342e" stroke="none"/>
+  </g>
+  <g stroke="#ff7043" stroke-width="2" fill="none" stroke-linecap="round">
+    <path d="M14 13 L20 20 L16 27"/>
+    <path d="M20 20 L29 18"/>
+  </g>
+  <g stroke="#ffd180" stroke-width=".9" fill="none" stroke-linecap="round" opacity=".8">
+    <path d="M14.6 13.6 L19.4 19.6"/>
+  </g>
+</svg>

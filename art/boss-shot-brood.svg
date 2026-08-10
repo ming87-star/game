@@ -1,0 +1,23 @@
+<!-- 알품은 것이 뱉는 알 36×36 · 위에서 아래로
+     떨어져 깨지면 졸개가 나옵니다. 그래서 탄이 아니라 알로 보여야 합니다 —
+     아래가 무겁고 위가 좁은 달걀꼴, 안에 웅크린 것이 비칩니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+  <defs>
+    <radialGradient id="halo" cx="50%" cy="55%" r="50%">
+      <stop offset="0%" stop-color="#9ccc65" stop-opacity=".55"/>
+      <stop offset="100%" stop-color="#9ccc65" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="shell" cx="40%" cy="34%" r="66%">
+      <stop offset="0%"   stop-color="#f1f8e9"/>
+      <stop offset="45%"  stop-color="#aed581"/>
+      <stop offset="100%" stop-color="#558b2f"/>
+    </radialGradient>
+  </defs>
+  <circle cx="18" cy="19" r="18" fill="url(#halo)"/>
+  <path d="M18 2 q11 8 11 18 q0 13 -11 14 q-11 -1 -11 -14 q0 -10 11 -18 z"
+        fill="url(#shell)" stroke="#2b4a12" stroke-width="1.8" stroke-linejoin="round"/>
+  <ellipse cx="18" cy="22" rx="5.6" ry="6.4" fill="#33691e" opacity=".65"/>
+  <circle cx="15.6" cy="20.6" r="1.6" fill="#f1f8e9"/>
+  <circle cx="20.4" cy="21" r="1.6" fill="#f1f8e9"/>
+  <ellipse cx="14" cy="10" rx="3.4" ry="2.2" fill="#ffffff" opacity=".6"/>
+</svg>

@@ -1,0 +1,79 @@
+<!-- 외눈 320×240 · 한 줄을 오래 노려보다 굵은 빔을 내리긋습니다
+     수문장이 두 눈으로 "어느 줄"을 말한다면, 이놈은 눈이 하나뿐이라 그 하나가
+     통째로 조준기입니다. 그래서 눈을 몸 한가운데에 크게 두고, 눈 아래로
+     빛줄기가 새어 나오게 했습니다 — 빔이 어디서 나올지 미리 보이는 자리입니다.
+
+     색으로도 갈립니다. 다섯 중 이놈만 청록(#26c6da)입니다. 붉은 눈이 보이면
+     내리꽂는 놈, 청록 눈이 보이면 빔 — 그 하나로 판단이 서야 합니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240"
+     data-bake-scale="2">
+  <defs>
+    <linearGradient id="hull" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#46309f"/>
+      <stop offset="52%"  stop-color="#331c8c"/>
+      <stop offset="100%" stop-color="#20115f"/>
+    </linearGradient>
+    <radialGradient id="iris" cx="50%" cy="42%" r="58%">
+      <stop offset="0%"   stop-color="#b2ebf2"/>
+      <stop offset="42%"  stop-color="#26c6da"/>
+      <stop offset="100%" stop-color="#00707f"/>
+    </radialGradient>
+    <radialGradient id="eyeglow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#26c6da" stop-opacity=".7"/>
+      <stop offset="100%" stop-color="#26c6da" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <g stroke="#0d0a35" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">
+
+    <!-- ── 뿔 — 뒤로 젖혀 눈을 가리지 않게. 수문장보다 낮고 넓습니다 ── -->
+    <path d="M56 74 L18 22 L86 52 z"   fill="#182073"/>
+    <path d="M264 74 L302 22 L234 52 z" fill="#182073"/>
+    <path d="M100 50 L74 14 L124 42 z" fill="#141a5e"/>
+    <path d="M220 50 L246 14 L196 42 z" fill="#141a5e"/>
+
+    <!-- ── 몸 — 눈을 감싼 고리. 가운데를 비워 눈이 앉을 자리를 만듭니다 ── -->
+    <path d="M16 120 q0 -70 74 -78 q70 -8 140 0 q74 8 74 78 q0 62 -68 72
+             q-76 10 -152 0 q-68 -10 -68 -72 z" fill="url(#hull)"/>
+    <path d="M20 116 q2 -60 66 -70" fill="none" stroke="#8c7ae6" stroke-opacity=".45" stroke-width="3"/>
+
+    <!-- 눈꺼풀 고리 — 두툼한 테. 눈이 박혀 있는 것으로 보이게 -->
+    <circle cx="160" cy="112" r="74" fill="#2a1580"/>
+    <circle cx="160" cy="112" r="74" fill="none" stroke="#4527a0" stroke-width="3"/>
+    <path d="M100 76 q26 -30 62 -32 q-40 14 -56 40 z" fill="#4b32ad" stroke="none"/>
+
+    <!-- ── 외눈 — 이놈의 전부 ── -->
+    <circle cx="160" cy="112" r="88" fill="url(#eyeglow)" stroke="none"/>
+    <circle cx="160" cy="112" r="58" fill="#e0f7fa"/>
+    <circle cx="160" cy="112" r="42" fill="url(#iris)" stroke="none"/>
+    <circle cx="160" cy="112" r="42" fill="none" stroke="#0d0a35" stroke-width="3"/>
+    <!-- 홍채의 결 — 조리개처럼 -->
+    <g stroke="#0097a7" stroke-width="2.4" opacity=".65" fill="none">
+      <path d="M160 74 L160 88"/><path d="M160 136 L160 150"/>
+      <path d="M122 112 L136 112"/><path d="M184 112 L198 112"/>
+      <path d="M133 85 L143 95"/><path d="M177 129 L187 139"/>
+      <path d="M187 85 L177 95"/><path d="M143 129 L133 139"/>
+    </g>
+    <circle cx="160" cy="112" r="17" fill="#04222b" stroke="none"/>
+    <ellipse cx="148" cy="98" rx="9" ry="6" fill="#ffffff" opacity=".75" stroke="none"/>
+
+    <!-- ── 아래턱 — 좁고 뾰족하게. 수문장의 넓적한 턱과 갈립니다 ── -->
+    <path d="M116 176 q44 -10 88 0 q-4 30 -20 40 q-24 8 -48 0 q-16 -10 -20 -40 z"
+          fill="#182073"/>
+    <g fill="#b2ebf2" stroke-width="2.6">
+      <path d="M132 182 L150 182 L141 208 z"/>
+      <path d="M156 184 L174 184 L165 212 z"/>
+      <path d="M180 182 L198 182 L189 208 z"/>
+    </g>
+  </g>
+
+  <!-- ── 빔이 나올 자리 — 턱 아래로 새는 빛 ──
+       이게 유일한 예고이므로 무엇보다 위에 그립니다. 턱 뒤에 두었더니 통째로
+       가려져서, 빔을 쏘는 놈인지 알 수가 없었습니다. -->
+  <g stroke="none">
+    <path d="M126 206 L194 206 L216 240 L104 240 z" fill="#26c6da" opacity=".18"/>
+    <path d="M142 208 L178 208 L192 240 L128 240 z" fill="#80deea" opacity=".26"/>
+    <path d="M152 210 L168 210 L176 240 L144 240 z" fill="#e0f7fa" opacity=".38"/>
+    <ellipse cx="160" cy="210" rx="30" ry="9" fill="#e0f7fa" opacity=".35"/>
+  </g>
+</svg>

@@ -1,0 +1,87 @@
+<!-- 집게 320×240 · 바깥 두 줄을 먼저 내리찍고 가운데를 덮칩니다
+     이놈은 눈이 아니라 **팔**이 예고입니다. 그래서 머리를 작게 줄이고 좌우로
+     거대한 집게를 뻗었습니다. 실루엣의 양 끝이 무거워야 "양옆이 위험하다"가
+     그림만 보고 읽힙니다.
+
+     달군 쇠의 주황(#ff7043)은 집게 날에만 씁니다. 다섯 중 이 색이 보이면
+     내리찍기입니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240"
+     data-bake-scale="2">
+  <defs>
+    <linearGradient id="hull" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#4b32ad"/>
+      <stop offset="52%"  stop-color="#371f96"/>
+      <stop offset="100%" stop-color="#22126a"/>
+    </linearGradient>
+    <linearGradient id="hot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#ffd180"/>
+      <stop offset="45%"  stop-color="#ff7043"/>
+      <stop offset="100%" stop-color="#bf360c"/>
+    </linearGradient>
+    <radialGradient id="eyeglow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#ff7043" stop-opacity=".7"/>
+      <stop offset="100%" stop-color="#ff7043" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <g stroke="#140a3d" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">
+
+    <!-- ── 왼쪽 집게 — 벌린 채로 ──
+         납작한 판에 주황 줄만 그으면 날개로 읽힙니다. 두 갈래를 서로 마주 보게
+         벌리고 그 사이를 비워야 "무는 것"이 됩니다. 달군 날은 맞물리는 안쪽
+         면에만 넣습니다 — 바깥에 넣으면 무늬가 되고 안쪽에 넣어야 날이 됩니다. -->
+    <!-- 팔 — 두껍게. 가늘면 집게가 나뭇가지 끝에 달린 것처럼 보입니다 -->
+    <path d="M112 100 q-32 -8 -54 -2 q-14 4 -14 22 q0 18 16 22 q24 4 52 -8 z" fill="#3f2aa0"/>
+    <path d="M106 104 q-28 -6 -46 -2" fill="none" stroke="#8c7ae6" stroke-opacity=".4" stroke-width="3"/>
+    <path d="M60 104 q-4 18 0 36" fill="none" stroke="#2a1580" stroke-width="3"/>
+    <!-- 위쪽 갈래 -->
+    <path d="M64 104 q-24 -26 -54 -30 q-10 0 -8 12 q2 10 16 14 q22 6 42 20 z" fill="#3949ab"/>
+    <path d="M64 104 q-22 -22 -48 -26" fill="none" stroke="#5c6bc0" stroke-width="3"/>
+    <!-- 아래쪽 갈래 -->
+    <path d="M62 136 q-26 22 -56 30 q-10 2 -8 -12 q2 -10 16 -14 q24 -8 44 -18 z" fill="#2a327f"/>
+    <!-- 맞물리는 안쪽 면 — 달군 쇠 -->
+    <path d="M62 108 q-22 -18 -46 -22 l-2 9 q22 4 44 20 z" fill="url(#hot)" stroke-width="2.6"/>
+    <path d="M60 132 q-24 18 -50 25 l3 9 q26 -8 49 -25 z" fill="url(#hot)" stroke-width="2.6"/>
+
+    <!-- ── 오른쪽 집게 ── -->
+    <path d="M208 100 q32 -8 54 -2 q14 4 14 22 q0 18 -16 22 q-24 4 -52 -8 z" fill="#35228c"/>
+    <path d="M260 104 q4 18 0 36" fill="none" stroke="#241470" stroke-width="3"/>
+    <path d="M256 104 q24 -26 54 -30 q10 0 8 12 q-2 10 -16 14 q-22 6 -42 20 z" fill="#2f3a8f"/>
+    <path d="M258 136 q26 22 56 30 q10 2 8 -12 q-2 -10 -16 -14 q-24 -8 -44 -18 z" fill="#242c72"/>
+    <path d="M258 108 q22 -18 46 -22 l2 9 q-22 4 -44 20 z" fill="url(#hot)" stroke-width="2.6"/>
+    <path d="M260 132 q24 18 50 25 l-3 9 q-26 -8 -49 -25 z" fill="url(#hot)" stroke-width="2.6"/>
+
+    <!-- ── 몸 — 작게. 팔에 자리를 내줘야 팔이 커 보입니다 ── -->
+    <path d="M104 122 q0 -62 56 -66 q56 4 56 66 q0 52 -56 58 q-56 -6 -56 -58 z"
+          fill="url(#hull)"/>
+    <path d="M116 96 q0 -34 44 -38 q-32 12 -38 44 z" fill="#5e3fc4" stroke="none"/>
+    <path d="M108 116 q4 -54 50 -60" fill="none" stroke="#8c7ae6" stroke-opacity=".45" stroke-width="3"/>
+
+    <!-- 어깨에 박은 못 -->
+    <circle cx="112" cy="104" r="5" fill="#546e7a"/>
+    <circle cx="208" cy="104" r="5" fill="#546e7a"/>
+
+    <!-- ── 뿔 — 낮게. 팔보다 높으면 실루엣의 무게가 가운데로 옵니다 ── -->
+    <path d="M126 62 L112 26 L152 52 z" fill="#1a237e"/>
+    <path d="M194 62 L208 26 L168 52 z" fill="#1a237e"/>
+
+    <!-- ── 눈 — 작고 몰려 있습니다. 노려보는 놈이 아니라 내려찍는 놈이라 ── -->
+    <circle cx="140" cy="112" r="22" fill="url(#eyeglow)" stroke="none"/>
+    <circle cx="180" cy="112" r="22" fill="url(#eyeglow)" stroke="none"/>
+    <circle cx="140" cy="112" r="12" fill="#ff7043"/>
+    <circle cx="180" cy="112" r="12" fill="#ff7043"/>
+    <circle cx="140" cy="112" r="5" fill="#fff3e0" stroke="none"/>
+    <circle cx="180" cy="112" r="5" fill="#fff3e0" stroke="none"/>
+    <path d="M122 98 q18 -10 36 -2 l-4 9 q-14 -6 -29 2 z" fill="#1a237e"/>
+    <path d="M198 98 q-18 -10 -36 -2 l4 9 q14 -6 29 2 z" fill="#1a237e"/>
+
+    <!-- ── 아래턱 — 짧고 두껍게 ── -->
+    <path d="M118 178 q42 -10 84 0 q4 30 -12 40 q-30 8 -60 0 q-16 -10 -12 -40 z"
+          fill="#1a237e"/>
+    <g fill="#ffffff" stroke-width="2.6">
+      <path d="M132 184 L150 184 L141 208 z"/>
+      <path d="M156 186 L174 186 L165 212 z"/>
+      <path d="M180 184 L198 184 L189 208 z"/>
+    </g>
+  </g>
+</svg>

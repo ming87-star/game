@@ -166,7 +166,58 @@ const isScenery = (w, h) => w >= 120 || h >= 120;
     await stage.close();
   }
 
+  // ── 보스 미리보기 ─────────────────────────────────────
+  // 보스는 카드로 보면 크기 감각이 안 옵니다. 투기장 발판 위에 띄우고 그 아래
+  // 사람을 세워야, 이 덩치가 화면에서 무엇을 덮는지가 보입니다.
+  const bosses = made.filter((m) => /^boss-(?!shot)/.test(m.name));
+  if (bosses.length && has('wall.png')) {
+    const CW = 540, CH = 360;                  // 한 칸 = 게임 화면 폭
+    const cols = 2;
+    const rows = Math.ceil(bosses.length / cols);
+    const hero = made.find((m) => m.name === 'player-warrior.png');
+    const arena = made.find((m) => m.name === 'plat-boss.png');
+
+    const cells = bosses.map((b) => {
+      const shotName = b.name === 'boss-warden.png'
+        ? 'boss-shot.png'
+        : b.name.replace('boss-', 'boss-shot-');
+      const shot = made.find((m) => m.name === shotName);
+      return `
+      <div class="cell">
+        <img class="boss" src="${src(b.name)}"
+             style="left:${(CW - b.w) / 2}px;top:16px;width:${b.w}px;height:${b.h}px">
+        ${shot ? `<img src="${src(shot.name)}" style="left:${CW / 2 - 100}px;top:266px;
+             width:${shot.w}px;height:${shot.h}px">
+          <img src="${src(shot.name)}" style="left:${CW / 2 + 68}px;top:284px;
+             width:${shot.w}px;height:${shot.h}px">` : ''}
+        ${arena ? `<img src="${src(arena.name)}"
+             style="left:${(CW - arena.w) / 2}px;top:320px;width:${arena.w}px;height:${arena.h}px">` : ''}
+        ${hero ? `<img src="${src(hero.name)}"
+             style="left:${CW / 2 - 19}px;top:${320 - hero.h}px;width:${hero.w}px;height:${hero.h}px">` : ''}
+        <div class="tag">${b.name.replace('.png', '')} · ${b.w}×${b.h}</div>
+      </div>`;
+    }).join('');
+
+    const sheet = await browser.newPage({
+      viewport: { width: CW * cols, height: CH * rows }, deviceScaleFactor: 1,
+    });
+    await sheet.setContent(`<style>
+        html,body{margin:0;background:${OUTSIDE};font-family:sans-serif}
+        .grid{display:flex;flex-wrap:wrap;width:${CW * cols}px}
+        .cell{position:relative;width:${CW}px;height:${CH}px;overflow:hidden;
+              background-image:url(${src('wall.png')});background-size:500px 960px;
+              background-position:20px -120px;box-shadow:inset 0 0 0 1px #232b4d}
+        .cell img{position:absolute}
+        .tag{position:absolute;left:10px;bottom:8px;font-size:13px;color:#8794b5;
+             background:rgba(13,17,32,.75);padding:3px 8px;border-radius:4px}
+      </style><div class="grid">${cells}</div>`);
+    await sheet.waitForTimeout(300);
+    await sheet.screenshot({ path: path.join(ROOT, 'shots/art-boss.png') });
+    await sheet.close();
+  }
+
   await browser.close();
   console.log(`\n${made.length}장 · shots/art-preview.png` +
-    (has('wall.png') ? ' · shots/art-scene.png 에 배경까지' : ' 에 미리보기'));
+    (has('wall.png') ? ' · shots/art-scene.png' : '') +
+    (bosses.length ? ' · shots/art-boss.png' : ''));
 })();
