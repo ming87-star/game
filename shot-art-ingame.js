@@ -16,8 +16,12 @@ const server = http.createServer((req, res) => {
 // 그림의 원래 크기. 4배로 구워져 있으므로 게임에서는 이 크기로 줄여 씁니다.
 const SIZES = {
   'player-warrior': [38, 48],
+  'player-archer': [42, 48],
+  'player-rogue': [40, 48],
   'e-crawler': [32, 32],
+  'e-hopper': [34, 32],
   'e-flyer': [36, 32],
+  'e-brute': [32, 34],
 };
 const CLIP = { x: 40, y: 560, width: 460, height: 190 };
 
@@ -64,7 +68,8 @@ const CLIP = { x: 40, y: 560, width: 460, height: 190 };
     s.enemies.getChildren().slice().forEach((e) => e.destroy());
 
     const made = [];
-    [[-150, 'crawler', -22], [-80, 'crawler', -22], [75, 'flyer', -70], [145, 'flyer', -100]]
+    [[-165, 'crawler', -22], [-100, 'hopper', -22], [-30, 'brute', -24],
+     [70, 'flyer', -70], [145, 'flyer', -100]]
       .forEach(([dx, kind, dy]) => {
         const e = spawnEnemy(s, slot.x + dx, slot.y + dy, 120, kind);
         if (e) { e.body.setAllowGravity(false); e.body.velocity.set(0, 0); e.hp = 1e9; made.push(e); }

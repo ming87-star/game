@@ -1,33 +1,62 @@
 <!-- 날것 36×32 · 오른쪽을 봅니다
-     날개는 뾰족뾰족한 박쥐 날개로. 둥근 잎사귀 모양이면 토끼처럼 보입니다. -->
+     날개는 뾰족뾰족한 박쥐 날개로. 둥근 잎사귀 모양이면 토끼처럼 보입니다.
+     뒤 날개가 크고 앞 날개가 작아야 나아가는 쪽이 보입니다.
+
+     칠하는 법은 서른 장이 같습니다 — 덩어리마다 값을 세 단으로 끊고,
+     왼쪽 위 모서리에만 흰 림라이트를 얇게 얹고, 눈에는 빛무리를 답니다. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="36" height="32" viewBox="0 0 36 32">
+  <defs>
+    <radialGradient id="eyeglow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ede7f6" stop-opacity=".55"/>
+      <stop offset="100%" stop-color="#ede7f6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
   <g stroke="#2a1a4a" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">
 
     <!-- 뒤쪽 날개 (큼) -->
     <path d="M15 13 L3 3 L4 10 L1 9 L3 16 L1 17 L6 21 L9 18 L13 20 z" fill="#7e57c2"/>
-    <!-- 앞쪽 날개 (작음) — 뒤가 크고 앞이 작아야 나아가는 쪽이 보입니다 -->
+    <!-- 날개 뿌리는 어둡게 — 몸에 붙은 곳이 깊어 보입니다 -->
+    <path d="M15 13 L8 8 L9 17 L13 20 z" fill="#5e35b1" stroke="none"/>
+    <!-- 앞쪽 날개 (작음) -->
     <path d="M21 13 L32 4 L31 10 L34 10 L32 16 L34 18 L29 21 L26 18 L22 20 z" fill="#b39ddb"/>
+    <path d="M21 13 L27 8 L27 18 L22 20 z" fill="#9575cd" stroke="none"/>
     <!-- 날개 힘줄 -->
     <path d="M14 14 L5 7 M14 16 L4 14 M14 18 L7 19" fill="none" stroke-width="0.9"/>
     <path d="M22 14 L30 7 M22 16 L31 14 M22 18 L29 19" fill="none" stroke-width="0.9"/>
+    <!-- 뒤 날개 위 모서리 림라이트 -->
+    <path d="M4.4 4.6 L14.4 12.6" fill="none" stroke="#ffffff" stroke-opacity=".3" stroke-width="1"/>
 
     <!-- 더듬이 -->
     <path d="M15 8 q-2 -4 -4 -5" fill="none" stroke-width="1.2"/>
     <path d="M21 8 q2 -4 4 -5" fill="none" stroke-width="1.2"/>
+    <circle cx="10.6" cy="2.6" r="2.2" fill="url(#eyeglow)" stroke="none"/>
+    <circle cx="25.4" cy="2.6" r="2.2" fill="url(#eyeglow)" stroke="none"/>
     <circle cx="10.6" cy="2.6" r="1.2" fill="#ede7f6" stroke-width="1"/>
     <circle cx="25.4" cy="2.6" r="1.2" fill="#ede7f6" stroke-width="1"/>
 
     <!-- 몸 — 위가 굵고 아래로 뾰족한 벌 몸통 -->
     <path d="M18 6 q7 1 7 9 q0 8 -7 14 q-7 -6 -7 -14 q0 -8 7 -9 z" fill="#9575cd"/>
+    <!-- 어두운 면 — 오른쪽 -->
+    <path d="M20 6.6 q5 1.6 5 8.4 q0 7.6 -6.6 13.6 q4 -8 3.4 -14.4 q-0.4 -5.6 -1.8 -7.6 z"
+          fill="#6a4bab" stroke="none"/>
+    <!-- 밝은 면 — 왼쪽 위 -->
     <path d="M13 11 q5 -4 10 0 q-5 -2 -10 0 z" fill="#d1c4e9" stroke="none"/>
     <!-- 배의 마디 -->
     <path d="M13 21 q5 2 10 0" fill="none" stroke-width="1.1"/>
     <path d="M14.5 24.5 q3.5 1.5 7 0" fill="none" stroke-width="1.1"/>
+    <!-- 꼬리 침 — 아래 끝을 뾰족하게 -->
+    <path d="M17 28.4 q1 2.6 1 3.2 q0.6 -1 1 -3.2 z" fill="#4527a0" stroke-width="1.1"/>
+    <path d="M12.6 9 q1.6 -3 5 -3.4" fill="none" stroke="#ffffff" stroke-opacity=".3" stroke-width="1"/>
 
     <!-- 눈 — 크고 창백하게. 이 게임에서 눈은 "살아 있다"의 유일한 신호입니다 -->
+    <ellipse cx="15.2" cy="14" rx="3.8" ry="4.2" fill="url(#eyeglow)" stroke="none"/>
+    <ellipse cx="21.4" cy="14" rx="3.8" ry="4.2" fill="url(#eyeglow)" stroke="none"/>
     <ellipse cx="15.2" cy="14" rx="3" ry="3.4" fill="#ede7f6"/>
     <ellipse cx="21.4" cy="14" rx="3" ry="3.4" fill="#ede7f6"/>
     <circle cx="16.2" cy="14.6" r="1.4" fill="#2a1a4a" stroke="none"/>
     <circle cx="22.4" cy="14.6" r="1.4" fill="#2a1a4a" stroke="none"/>
+    <circle cx="14.4" cy="12.8" r="0.6" fill="#ffffff" stroke="none"/>
+    <circle cx="20.6" cy="12.8" r="0.6" fill="#ffffff" stroke="none"/>
   </g>
 </svg>
