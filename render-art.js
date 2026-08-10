@@ -83,7 +83,7 @@ const isScenery = (w, h) => w >= 120 || h >= 120;
 
   // ── 미리보기 한 장 ────────────────────────────────────
   // 실제 게임 크기와 크게 키운 것을 나란히, 진짜 배경색 위에 얹습니다.
-  const cast = made.filter((m) => !isScenery(m.w, m.h));
+  const cast = made.filter((m) => !isScenery(m.w, m.h) && !/^item-/.test(m.name));
   const cell = 150;
   const page = await browser.newPage({
     viewport: { width: Math.max(560, cast.length * cell + 40), height: 360 },
@@ -164,6 +164,69 @@ const isScenery = (w, h) => w >= 120 || h >= 120;
     await stage.waitForTimeout(300);
     await stage.screenshot({ path: path.join(ROOT, 'shots/art-scene.png') });
     await stage.close();
+  }
+
+  // ── 아이템 미리보기 ───────────────────────────────────
+  // 동그라미 배지가 없어졌으므로 아이템은 **어두운 벽 위에 맨몸으로** 놓입니다.
+  // 흰 종이에서 멀쩡하던 것이 여기서 묻히는지를 봐야 합니다.
+  //
+  // 그리고 진짜와 가짜를 **위아래로 붙여** 놓습니다. 가짜는 실루엣이 같고
+  // 안쪽만 망가진 것이라, 따로 보면 둘 다 멀쩡해 보입니다. 나란히 놓고
+  // 36px 에서 갈리는지가 이 그림의 전부입니다.
+  const PAIRS = [
+    ['item-plus.png',           'item-fake-plus.png',   '공격력'],
+    ['item-haste.png',          'item-fake-haste.png',  '공격 속도'],
+    ['item-armor-warrior.png',  'item-fake-armor.png',  '방어구 (전사)'],
+    ['item-armor-archer.png',   'item-fake-armor.png',  '방어구 (궁수)'],
+    ['item-dodge.png',          'item-fake-dodge.png',  '회피'],
+    ['item-heal.png',           'item-fake-heal.png',   '회복'],
+  ];
+  const SOLO = [
+    ['item-double.png', '×2 속도'], ['item-medal.png', '메달'],
+    ['item-relic.png', '유물'],     ['item-bomb.png', '폭탄 (함정)'],
+  ];
+  const PARTS = [['item-plus-anvil.png', '모루만'], ['item-plus-hammer.png', '망치만']];
+
+  if (has('item-plus.png')) {
+    const shot = (n, s) => {
+      const m = made.find((k) => k.name === n);
+      return m ? `<img src="${src(n)}" style="width:${m.w * s}px;height:${m.h * s}px">` : '';
+    };
+    const col = (real, fake, ko) => `
+      <div class="col">
+        <div class="row">${shot(real, 2.4)}${fake ? shot(fake, 2.4) : ''}</div>
+        <div class="row small">${shot(real, 1)}${fake ? shot(fake, 1) : ''}</div>
+        <div class="cap">${ko}</div>
+      </div>`;
+
+    const page3 = await browser.newPage({
+      viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2,
+    });
+    await page3.setContent(`<style>
+        html,body{margin:0;background:${OUTSIDE};font-family:sans-serif;color:#8794b5}
+        .wall{background-image:url(${src('wall.png')});background-size:500px 960px;
+              padding:16px 18px}
+        .strip{display:flex;flex-wrap:wrap;gap:10px}
+        .col{text-align:center}
+        .row{display:flex;gap:8px;align-items:flex-end;justify-content:center;
+             min-height:92px}
+        .small{min-height:44px;margin-top:2px}
+        .cap{font-size:11px;color:#b9c4e0;margin-top:2px}
+        h4{font:600 12px sans-serif;color:#cfd8dc;margin:14px 0 6px}
+        .note{font-size:12px;padding:10px 18px;color:#8794b5}
+      </style>
+      <div class="wall">
+        <h4>진짜 ↔ 가짜 — 실루엣은 같고 안쪽만 망가졌습니다</h4>
+        <div class="strip">${PAIRS.map(([a, b, k]) => col(a, b, k)).join('')}</div>
+        <h4>흉내 낼 수 없는 것들</h4>
+        <div class="strip">${SOLO.map(([a, k]) => col(a, null, k)).join('')}</div>
+        <h4>모션용 조각 — 망치가 따로 내리쳐집니다</h4>
+        <div class="strip">${PARTS.map(([a, k]) => col(a, null, k)).join('')}</div>
+      </div>
+      <div class="note">각 칸 위 = 2.4배 · 아래 = 게임에서 실제로 보이는 36px</div>`);
+    await page3.waitForTimeout(300);
+    await page3.screenshot({ path: path.join(ROOT, 'shots/art-items.png') });
+    await page3.close();
   }
 
   // ── 보스 미리보기 ─────────────────────────────────────

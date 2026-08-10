@@ -1,0 +1,32 @@
+<!-- ×2 속도 36×36 · 같은 깃털인데 둘, 그리고 더 밝게 (ART.md 7.5)
+     가장 귀한 것입니다. 속(#4FC3F7)과 배경 없이 나란히 놓이므로 색만으로는
+     못 가릅니다 — **둘이라는 것이 36px 에서 세어져야** 합니다. 그래서 두 깃대를
+     V 로 벌리고 사이에 배경이 지나가게 두었습니다. 겹치면 한 덩어리가 됩니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#84ffff" stop-opacity=".55"/>
+      <stop offset="100%" stop-color="#00e5ff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="18" cy="19" r="17" fill="url(#glow)"/>
+  <g stroke="#00363a" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round">
+    <!-- 뒤 깃털 (왼쪽으로 눕힘) -->
+    <path d="M13 5 L4 32" fill="none" stroke-width="1.9"/>
+    <path d="M12.4 6.4 q-8 3 -9.4 12 q-0.6 4.4 1 8 q2.6 -5.6 6.4 -8.6 z" fill="#0097a7"/>
+    <path d="M13.8 6.4 q3.6 5 2.2 10.6 q-1.4 4.6 -5.6 7 q1 -6.6 -1.4 -12 z" fill="#00838f"/>
+    <!-- 앞 깃털 (오른쪽으로 눕힘) — 사이에 배경이 보이게 벌립니다 -->
+    <path d="M31 5 L21 32" fill="none" stroke-width="2.1"/>
+    <path d="M30.2 6.4 q-8.6 3.2 -10 12.6 q-0.6 4.6 1.2 8.4 q2.8 -6 6.8 -9.2 z" fill="#00e5ff"/>
+    <path d="M31.6 6.4 q3.8 5.2 2.4 11 q-1.6 4.8 -6 7.4 q1 -7 -1.6 -12.6 z" fill="#00b8d4"/>
+    <path d="M29.4 8.6 q-6.6 2.6 -8.6 8.6 q4 -4.6 7.6 -6.2 z" fill="#b2ebf2" stroke="none"/>
+    <g stroke="#006064" stroke-width=".9" fill="none">
+      <path d="M27 11 L21.6 14.6"/><path d="M25 15.6 L20 19.6"/>
+      <path d="M28.8 11.4 L31 15.4"/>
+    </g>
+  </g>
+  <g fill="#84ffff" stroke="#00363a" stroke-width=".9">
+    <path d="M8.6 3.4 l1 2 l2 1 l-2 1 l-1 2 l-1 -2 l-2 -1 l2 -1 z"/>
+    <path d="M33 24 l.9 1.8 l1.8 .9 l-1.8 .9 l-.9 1.8 l-.9 -1.8 l-1.8 -.9 l1.8 -.9 z"/>
+  </g>
+</svg>

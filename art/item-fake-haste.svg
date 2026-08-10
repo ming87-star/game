@@ -1,0 +1,28 @@
+<!-- 가짜 속도 36×36 · 깃털이 꺾이고 끝이 탔습니다 (ART.md 7.5)
+     진짜와 실루엣이 같아야 하므로 깃대의 시작과 끝은 그대로 둡니다.
+     달라진 것은 가운데가 **꺾였다는 것**과 끝이 **숯이 되었다는 것**뿐입니다.
+     날아가던 깃가지도 재로 바뀌어 아래로 떨어집니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+  <g stroke="#12242a" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">
+    <!-- 꺾인 깃대 — 가운데서 한 번 접힙니다 -->
+    <path d="M28 4 L19 16 L11 31" fill="none" stroke-width="2.2"/>
+    <path d="M27 5.6 q-9 1.4 -12 9.6 q6 -4.6 10.6 -5.6 z" fill="#4a7c8c"/>
+    <path d="M28.6 5.6 q4.4 5 2.6 11 q-4.4 -4 -9.6 -4.6 z" fill="#3b6675"/>
+    <!-- 꺾인 아래쪽 — 여기부터 타 있습니다 -->
+    <path d="M18.4 17 q-8 2.6 -10 13 q4.6 -6 9 -8.4 z" fill="#37474f"/>
+    <path d="M19.6 17.2 q3 5.4 0.6 10.6 q-2.4 -4.6 -5.6 -6.4 z" fill="#263238"/>
+    <path d="M17 21.6 q-5.4 3 -7 8.4 q4.6 -5 7.6 -6.4 z" fill="#1c1c1c" stroke="none"/>
+    <g stroke="#12242a" stroke-width=".9" fill="none">
+      <path d="M23.6 9.6 L17.6 12.6"/>
+      <path d="M16.4 20.6 L11 25"/>
+    </g>
+  </g>
+  <!-- 떨어지는 재 -->
+  <g fill="#2b2b2b" stroke="#12242a" stroke-width=".9">
+    <path d="M7 12 q3.4 -1.2 4.8 0.8 q-3 1.2 -4.8 -0.8 z"/>
+    <path d="M5 20.6 q2.8 -1 4 0.6 q-2.4 1 -4 -0.6 z"/>
+    <circle cx="9.6" cy="27.6" r="1.4"/>
+  </g>
+  <path d="M20.6 15 q1.6 -2.6 0.6 -4.6" fill="none" stroke="#ff7043" stroke-width="1.2"
+        stroke-linecap="round" opacity=".8"/>
+</svg>

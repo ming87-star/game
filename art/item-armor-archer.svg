@@ -1,0 +1,27 @@
+<!-- 방어구 (궁수) 36×36 · 같은 방패, 가죽 초록 #81C784 + 갈색 끈
+     전사 것과 경로가 같습니다. 채우는 색과, 금테 자리에 들어가는
+     가죽 테두리·꿰맨 자국만 바뀝니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+  <g stroke="#14301a" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M18 2 q9 3.4 15 3.4 q1 16 -5 24 q-4.4 5.6 -10 6.4 q-5.6 -0.8 -10 -6.4
+             q-6 -8 -5 -24 q6 0 15 -3.4 z" fill="#4c8c2a"/>
+    <path d="M18 4.6 q7.4 2.8 12.4 3 q0.8 14 -4.2 21 q-3.4 4.6 -8.2 5.4 z"
+          fill="#66bb6a" stroke="none"/>
+    <path d="M18 4.6 q-7.4 2.8 -12.4 3 q-0.8 14 4.2 21 q3.4 4.6 8.2 5.4 z"
+          fill="#81c784" stroke="none"/>
+    <path d="M7.6 8.6 q4.6 -0.6 9 -2.4" fill="none"
+          stroke="#c8e6c9" stroke-opacity=".85" stroke-width="1.6"/>
+    <!-- 가죽 테두리 -->
+    <path d="M18 2 q9 3.4 15 3.4 q1 16 -5 24 q-4.4 5.6 -10 6.4 q-5.6 -0.8 -10 -6.4
+             q-6 -8 -5 -24 q6 0 15 -3.4 z" fill="none" stroke="#6d4c41" stroke-width="1.5"/>
+    <!-- 꿰맨 자국 -->
+    <g stroke="#8d6e63" stroke-width="1" fill="none">
+      <path d="M9 9.6 L10.4 11.4"/><path d="M27 9.6 L25.6 11.4"/>
+      <path d="M8.6 18 L10.4 19"/><path d="M27.4 18 L25.6 19"/>
+      <path d="M12.6 27.4 L14 26"/><path d="M23.4 27.4 L22 26"/>
+    </g>
+    <circle cx="18" cy="16.4" r="4.6" fill="#6d4c41"/>
+    <circle cx="18" cy="16.4" r="1.8" fill="#3e2723" stroke="none"/>
+    <path d="M18 21 L18 30" fill="none" stroke="#33691e" stroke-width="1.4"/>
+  </g>
+</svg>

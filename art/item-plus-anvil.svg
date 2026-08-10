@@ -1,0 +1,13 @@
+<!-- 모루만 36×28 · 먹었을 때 망치가 내리쳐지는 모션을 위해 따로 뺀 조각
+     한 장으로 주면 통째로 흔드는 정도밖에 못 합니다 (ART.md 7.5). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="28" viewBox="0 0 36 28">
+  <g stroke="#1b2a33" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M2 8 L11 4 L30 4 q4 0 4 3.4 L34 11 L23 11 L22 17 L28 19.6
+             q3 1.2 3 4.4 L31 27 L5 27 L5 24 q0 -3.2 3 -4.4 L14 17 L13 11 L2 11 z"
+          fill="#90a4ae"/>
+    <path d="M11 4 L30 4 q4 0 4 3.4 L34 8.6 L11 8.6 z" fill="#cfd8dc" stroke="none"/>
+    <path d="M2 8 L13 8.6 L13 11 L2 11 z" fill="#78909c" stroke="none"/>
+    <path d="M22 17 L28 19.6 q3 1.2 3 4.4 L31 27 L22 27 z" fill="#607d8b" stroke="none"/>
+    <path d="M11.6 5.4 L29.6 5.4" fill="none" stroke="#eceff1" stroke-opacity=".8" stroke-width="1.2"/>
+  </g>
+</svg>
