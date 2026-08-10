@@ -6,9 +6,29 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = __dirname;
-const SCRIPTS = ['vendor/phaser.min.js', 'js/rng.js', 'js/config.js', 'js/save.js', 'js/classes.js', 'js/relics.js', 'js/tower.js', 'js/weapon.js', 'js/textures.js', 'js/enemies.js', 'js/hud.js', 'js/shop.js', 'js/medals.js', 'js/scene-select.js', 'js/scene-medal.js', 'js/scene-relicbook.js', 'js/scene-game.js', 'js/main.js'];
 
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+
+// 무엇을 합칠지는 **index.html 에서 읽습니다.**
+//
+// 예전에는 여기 목록을 손으로 적어 두었습니다. 그러다 js/artdata.js 와
+// js/artset.js 를 index.html 에만 넣고 여기를 안 고쳤더니, 개발용으로 열면
+// 멀쩡한데 합친 파일에서만 "loadArt is not defined" 로 게임 장면이 안 뜨고,
+// 메달 상점에서 「탑에 오르기」를 눌러도 아무 일이 없었습니다. 화면에는
+// 오류가 안 보이므로 눌러 본 사람은 그냥 "버튼이 안 먹는다"고 느낍니다.
+//
+// 목록이 두 군데 있으면 언젠가 반드시 어긋납니다. 한 군데만 둡니다.
+function scriptsFromIndex() {
+  const html = read('index.html');
+  const found = [...html.matchAll(/<script\s+src="([^"]+)"\s*>/g)].map((m) => m[1]);
+  if (!found.length) throw new Error('index.html 에서 <script src> 를 못 찾았습니다');
+  found.forEach((f) => {
+    if (!fs.existsSync(path.join(ROOT, f))) throw new Error(f + ' 가 없습니다');
+  });
+  return found;
+}
+
+const SCRIPTS = scriptsFromIndex();
 
 // 인라인 <script> 안에 </script> 문자열이 들어가면 태그가 거기서 끊깁니다.
 const safe = (js) => js.replace(/<\/script>/gi, '<\\/script>');
