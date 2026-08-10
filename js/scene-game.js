@@ -41,6 +41,7 @@ class GameScene extends Phaser.Scene {
     this.totalCoins = 0;
     this.kills = 0;
     this.medals = 0; // 이번 판에 번 메달. 죽을 때 받을지 말지 고릅니다.
+    this.charm = false; // 수호 부적 — 상점에서만 삽니다. 쓰러질 때 한 번 버팁니다
 
     // 메달 상점에서 사 둔 것과 계승해 온 무기를 여기서 한 번에 바릅니다.
     // 꺼내면 사라집니다 — 전부 이번 판에만 붙는 것들입니다.
@@ -1501,7 +1502,33 @@ class GameScene extends Phaser.Scene {
     const thorns = this.weapon.relicSum('thorns');
     if (thorns > 0 && source && source.active) this.hitEnemy(source, Math.round(amount * thorns));
 
-    if (this.hp <= 0) this.gameOver();
+    if (this.hp <= 0) {
+      // 수호 부적 — 지도에는 없고 상점에서만 사는 것. 한 번만 버팁니다.
+      // 후반에 아이템을 포기하고 뛰기 시작하면, 이것이 코인을 쓸 이유가 됩니다.
+      if (this.charm) return this.breakCharm();
+      this.gameOver();
+    }
+  }
+
+  // 부적이 깨지며 대신 맞아 줍니다. 잠깐 무적을 주지 않으면 다음 한 대에
+  // 그대로 다시 쓰러져서, 산 보람 없이 사라집니다.
+  breakCharm() {
+    this.charm = false;
+    this.hp = Math.round(this.maxHp * CFG.shop.charmHeal);
+    this.lastHitAt = this.time.now + CFG.shop.charmGraceMs;
+
+    this.cameras.main.shake(260, 0.012);
+    this.popup('부적이 깨졌다', '#4dd0e1');
+    const ring = this.add.circle(this.player.x, this.player.y, 20, 0x000000, 0)
+      .setStrokeStyle(4, 0x4dd0e1, 0.95).setDepth(12);
+    this.tweens.add({
+      targets: ring, scale: 5, alpha: 0, duration: 460,
+      ease: 'Cubic.out', onComplete: () => ring.destroy(),
+    });
+    this.tweens.add({
+      targets: this.player, alpha: 0.35, duration: 110, yoyo: true, repeat: 6,
+      onComplete: () => this.player.setAlpha(1),
+    });
   }
 
   // ── 코인 ──────────────────────────────────────────────

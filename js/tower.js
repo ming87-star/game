@@ -120,9 +120,22 @@ function healChance(need) {
   return c.healFull + (c.healHurt - c.healFull) * need;
 }
 
+// 층이 오를수록 좋은 것이 드물어집니다.
+//
+// 아래층은 "무엇을 주우러 갈까"의 게임이고, 위층은 "무엇을 포기할까"의 게임입니다.
+// 같은 조작인데 묻는 것이 달라지는 것 — 그게 이 한 줄이 하는 일입니다.
+// 회복과 함정은 여기 안 걸립니다. 회복까지 마르면 위층이 그냥 벽이 되고,
+// 함정은 원래 좋은 것이 아니라 값입니다.
+function itemFadeAt(index) {
+  const f = CFG.slotChance.itemFade;
+  if (!f || index <= f.from) return 1;
+  return Math.max(f.min, Math.pow(0.5, (index - f.from) / f.halfLife));
+}
+
 function pickKind(index, need, usesArmor = true) {
   const c = CFG.slotChance;
   const enemyChance = Math.min(c.enemyMax, c.enemyBase + index * c.enemyPerFloor);
+  const fade = itemFadeAt(index);
 
   const r = Math.random();
   if (r < enemyChance) return SLOT.ENEMY;
@@ -131,12 +144,12 @@ function pickKind(index, need, usesArmor = true) {
   // 메달을 가장 먼저 봅니다. 확률이 워낙 작아 순서는 사실 상관없지만,
   // 뒤에 두면 앞의 확률을 만질 때마다 같이 흔들려서 눈에 띄게 해 둡니다.
   if (r < (acc += c.medal)) return SLOT.MEDAL;
-  if (r < (acc += c.plus)) return SLOT.PLUS;
-  if (r < (acc += c.haste)) return SLOT.HASTE;
+  if (r < (acc += c.plus * fade)) return SLOT.PLUS;
+  if (r < (acc += c.haste * fade)) return SLOT.HASTE;
   if (r < (acc += healChance(need))) return SLOT.HEAL;
   // 방어 칸. 갑옷을 입는 직업에게는 방어구가, 아닌 직업에게는 회피가 나옵니다.
-  if (r < (acc += c.armor)) return usesArmor ? SLOT.ARMOR : SLOT.DODGE;
-  if (r < (acc += c.double)) return SLOT.DOUBLE;
+  if (r < (acc += c.armor * fade)) return usesArmor ? SLOT.ARMOR : SLOT.DODGE;
+  if (r < (acc += c.double * fade)) return SLOT.DOUBLE;
   if (r < (acc += c.bomb)) return SLOT.BOMB;
   if (r < (acc += c.mimic)) return SLOT.MIMIC;
   return SLOT.EMPTY;

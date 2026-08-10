@@ -4,24 +4,40 @@
 // 패널 위쪽부터의 세로 좌표. 상품 칸은 높이 96이라 rowY - 48 부터 자리를 씁니다.
 const SHOP_LAYOUT = {
   width: 470,
-  height: 620,
+  height: 760,
   titleY: 26,
   coinY: 74,
-  rowY: 148,
-  rowGap: 112,
-  buttonY: 532,
+  rowY: 140,
+  rowGap: 100,
+  buttonY: 676,
   bonusY: 70,      // 큰 상점의 도착 보상 한 줄
   bonusRoom: 34,   // 그 줄이 들어갈 만큼 패널을 키웁니다
 };
 
+// ── 지도와 무엇이 다른가 ────────────────────────────────
+// 지도의 아이템을 대폭 줄이고 나니, 상점이 성장의 주된 통로가 됐습니다.
+// 그러면 상점이 "지도에서 못 주운 것을 돈으로 메우는 곳"에 그쳐서는 안 됩니다.
+// 세 가지로 갈라 둡니다.
+//
+//   1. 덩이가 큽니다   지도의 +1 은 하나, 여기 「날붙이 갈기」는 한 번에 셋.
+//                     줍는 것은 부스러기, 사는 것은 한 걸음입니다
+//   2. 여기에만 있는 것 최대 체력 · 무기 단계 · 방어 한계 · 부적.
+//                     지도에는 절대 안 나옵니다 — 돈을 벌 이유가 여기서 생깁니다
+//   3. 고르게 합니다   다섯을 펼치고 살 수 있는 것은 둘셋뿐입니다.
+//                     무엇을 사느냐가 아니라 무엇을 포기하느냐가 내용입니다
 const SHOP_ITEMS = {
-  plus:    { title: '공격력 +1',    desc: '지금 무기의 공격력을 올립니다' },
-  haste:   { title: '공격 속도 +',  desc: '휘두르는 속도가 조금 빨라집니다' },
-  upgrade: { title: '다음 무기',     desc: '강화는 초기화됩니다' },
-  heal:    { title: '체력 회복',     desc: '체력을 가득 채웁니다' },
-  maxhp:   { title: '최대 체력 +' + CFG.shop.maxhpGain, desc: '최대치가 늘고 그만큼 회복합니다' },
-  armor:   { title: '방어구 +' + CFG.armor.shopGain + '%', desc: '받는 피해가 그만큼 줄어듭니다' },
-  dodge:   { title: '회피 +' + Math.round(CFG.dodge.shopGain * 100) + '%', desc: '그만큼 더 흘려 넘깁니다' },
+  plus:    { title: '날붙이 갈기', desc: '공격력 +' + CFG.shop.bundle.plus + ' (지도에서는 하나씩)' },
+  haste:   { title: '가벼운 손',   desc: '공격 속도 +' + CFG.shop.bundle.haste + ' (지도에서는 하나씩)' },
+  upgrade: { title: '다음 무기',   desc: '강화는 초기화됩니다' },
+  heal:    { title: '응급 처치',   desc: '체력을 가득 채웁니다' },
+  maxhp:   { title: '단단한 몸',   desc: '최대 체력 +' + CFG.shop.maxhpGain + ' · 그만큼 회복' },
+  armor:   { title: '두꺼운 갑옷', desc: '방어구 +' + CFG.armor.shopGain + '% (한계까지)' },
+  dodge:   { title: '가벼운 발',   desc: '회피 +' + Math.round(CFG.dodge.shopGain * 100) + '%' },
+  // ── 여기에만 있는 것 둘 ────────────────────────────
+  // 지도에는 한계를 올려 주는 것도, 죽음을 한 번 무르는 것도 없습니다.
+  // 후반에 아이템을 포기하고 뛰기 시작하면 이 둘이 살 이유가 됩니다.
+  cap:     { title: '여벌 갑옷',   desc: '방어·회피의 **한계**를 올립니다' },
+  charm:   { title: '수호 부적',   desc: '쓰러질 때 한 번만 버팁니다' },
 };
 
 class Shop {
@@ -44,10 +60,12 @@ class Shop {
     const picked = [];
     if (!this.scene.weapon.atMaxTier) picked.push('upgrade');
 
-    // 갑옷을 안 입는 직업에게는 방어구를 팔지 않습니다.
+    // 갑옷을 안 입는 직업에게는 방어구 대신 회피를 팝니다.
     // ×2는 상점에서 팔지 않습니다. 지도에서 아주 드물게만 나오는 물건으로 남깁니다.
-    const rest = ['plus', 'haste', 'heal', 'maxhp'];
-    if (this.scene.job.usesArmor) rest.push('armor');
+    const rest = ['plus', 'haste', 'heal', 'maxhp', 'cap'];
+    rest.push(this.scene.job.usesArmor ? 'armor' : 'dodge');
+    // 부적은 이미 하나 지니고 있으면 팔지 않습니다. 쌓이면 죽음이 값을 잃습니다.
+    if (!this.scene.charm) rest.push('charm');
     while (picked.length < CFG.shop.offers && rest.length) {
       picked.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
     }
@@ -137,8 +155,9 @@ class Shop {
     offer.sold = true;
 
     switch (offer.key) {
-      case 'plus': s.weapon.addPlus(); break;
-      case 'haste': s.weapon.addHaste(); break;
+      // 지도에서는 하나씩, 여기서는 뭉치로. 그것이 상점의 값어치입니다.
+      case 'plus': for (let i = 0; i < CFG.shop.bundle.plus; i++) s.weapon.addPlus(); break;
+      case 'haste': for (let i = 0; i < CFG.shop.bundle.haste; i++) s.weapon.addHaste(); break;
       case 'upgrade': if (s.weapon.upgrade()) s.noteWeapon(); break;
       case 'heal': s.hp = s.maxHp; break;
       case 'maxhp':
@@ -150,6 +169,20 @@ class Shop {
         break;
       case 'dodge':
         s.dodge = Math.min(s.dodgeMax, s.dodge + CFG.dodge.shopGain);
+        break;
+      // 한계를 올립니다. 지도에는 이런 것이 없습니다 — 지도의 방어구는
+      // 한계 안을 채울 뿐이고, 그 한계를 미는 것은 여기서만 삽니다.
+      case 'cap':
+        if (s.job.usesArmor) {
+          s.armorMax += CFG.shop.capGain.armor;
+          s.armor = Math.min(s.armorMax, s.armor + CFG.shop.capGain.armor);
+        } else {
+          s.dodgeMax += CFG.shop.capGain.dodge;
+          s.dodge = Math.min(s.dodgeMax, s.dodge + CFG.shop.capGain.dodge);
+        }
+        break;
+      case 'charm':
+        s.charm = true;
         break;
     }
     this.refresh();
