@@ -769,30 +769,65 @@ class GameScene extends Phaser.Scene {
     if (now - this.lastSwingAt < w.rate) return;
 
     const hit = this.enemies.getChildren().filter((e) => this.targetable(e) && this.meleeDist(e) <= w.reach);
-
-    // 파동검을 들었으면 사거리 밖도 노립니다. 그 한 마리를 향해 파동이 날아갑니다.
-    const wave = w.relicSum('wave');
-    const far = wave > 0 ? this.nearestWithin(CFG.waveRange) : null;
-    if (!hit.length && !far) return; // 허공에 휘두르지는 않습니다
+    if (!hit.length) return; // 허공에 휘두르지는 않습니다
 
     this.lastSwingAt = now;
+    this.swings = (this.swings || 0) + 1;
 
-    const nearest = hit.length
-      ? hit.reduce((a, b) => (this.meleeDist(a) < this.meleeDist(b) ? a : b)) : far;
-    this.showSlash(Phaser.Math.Angle.Between(
-      this.player.x, this.player.y - 6, nearest.x, nearest.y), w);
+    const nearest = hit.reduce((a, b) => (this.meleeDist(a) < this.meleeDist(b) ? a : b));
+    const angle = Phaser.Math.Angle.Between(
+      this.player.x, this.player.y - 6, nearest.x, nearest.y);
+    this.showSlash(angle, w);
 
-    if (wave > 0 && nearest) this.fireWave(nearest, Math.round(w.dmg * wave));
+    // 파동검 — 벤 자리에서 **휘두른 방향으로** 나갑니다. 표적을 고르지 않습니다.
+    //
+    // 예전에는 사거리 밖의 적 하나를 골라 그쪽으로 쐈습니다. 그러니 근접 무기가
+    // 아니라 궁수의 화살처럼 보였고, 사거리 안에 아무도 없어도 허공을 향해
+    // 칼을 휘두르게 됐습니다. 칼을 휘둘러서 나가는 것이니 나가는 곳도 칼이 간
+    // 쪽이어야 합니다 — 맞는 것은 그 선 위에 있던 놈들입니다.
+    const wave = w.relicSum('wave');
+    if (wave > 0 && this.swings % CFG.waveEvery === 0) {
+      this.fireWave(angle, Math.round(w.dmg * wave));
+    }
 
     hit.forEach((e) => {
       // 도적은 때리면서 주머니를 텁니다. 잡지 않아도 코인이 나옵니다.
       // 코인은 이제 확률로 나오므로 훔치는 것도 같은 확률을 탑니다.
-      if (w.stealChance > 0 && Math.random() < w.stealChance &&
+      //
+      // 보스는 털 수 없습니다. 몸이 커서 늘 사거리 안에 있는 데다 오래 때리는
+      // 상대라, 훔치기가 되면 보스 층이 통째로 도적의 금광이 됩니다.
+      if (!e.isBoss && w.stealChance > 0 && Math.random() < w.stealChance &&
           Math.random() < CFG.coin.dropChance) {
+        this.stealFx(e.x, e.y - 10);
         this.dropCoin(e.x, e.y - 10, Math.round(w.stealAmount * CFG.coin.dropBonus));
       }
       this.hitEnemy(e, w.dmg);
     });
+  }
+
+  // 훔친 순간. 코인만 튀어나오면 잡아서 나온 것인지 훔쳐서 나온 것인지
+  // 구분이 안 됩니다. 고리가 **오므라들고** 조각이 주인공 쪽으로 빨려 와야
+  // "저놈에게서 빼내 왔다"로 읽힙니다 — 죽을 때의 퍼지는 고리와 반대입니다.
+  stealFx(x, y) {
+    const ring = this.add.circle(x, y, 22, 0x000000, 0)
+      .setStrokeStyle(2.5, 0xce93d8, 0.9).setDepth(12);
+    this.tweens.add({
+      targets: ring, scale: 0.2, alpha: 0, duration: 220,
+      ease: 'Quad.in', onComplete: () => ring.destroy(),
+    });
+
+    for (let i = 0; i < 3; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const bit = this.add.sprite(x + Math.cos(a) * 16, y + Math.sin(a) * 16, 'spark')
+        .setDepth(12).setScale(0.5).setTint(0xffd54f);
+      this.tweens.add({
+        targets: bit,
+        x: this.player.x, y: this.player.y - 6,
+        alpha: 0, scale: 0.15,
+        duration: 220 + i * 40, ease: 'Quad.in',
+        onComplete: () => bit.destroy(),
+      });
+    }
   }
 
   // 사거리 안에 드는지는 몸 표면까지의 거리로 봅니다.
@@ -822,8 +857,9 @@ class GameScene extends Phaser.Scene {
     return pool.reduce((a, b) => (this.meleeDist(a) < this.meleeDist(b) ? a : b));
   }
 
-  // 파동 — 벤 자리에서 날아가 여럿을 꿰뚫습니다.
-  fireWave(target, dmg) {
+  // 파동 — 벤 자리에서 **휘두른 방향으로** 날아가 여럿을 꿰뚫습니다.
+  // 표적이 아니라 각도를 받습니다. 무엇을 맞힐지는 나간 뒤에 정해집니다.
+  fireWave(angle, dmg) {
     const b = this.bullets.create(this.player.x, this.player.y - 6, 'wave');
     b.body.setAllowGravity(false);
     b.isArrow = false;
@@ -834,7 +870,6 @@ class GameScene extends Phaser.Scene {
     b.hitSet = new Set();
     b.from = null;     // 파동은 표적을 쫓지 않습니다. 직선으로 나갑니다
     b.bornAt = this.time.now;
-    const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y - 6, target.x, target.y);
     b.setRotation(angle);
     this.physics.velocityFromRotation(angle, CFG.waveSpeed, b.body.velocity);
   }
@@ -870,7 +905,15 @@ class GameScene extends Phaser.Scene {
     const w = this.weapon;
     if (now - this.lastSubAt < w.rate) return;
 
-    const inRange = (e) => this.targetable(e) && this.meleeDist(e) <= w.range;
+    // 위쪽만 노립니다. 탑은 올라가는 곳이라 아래를 쏘는 것은 이미 지나온 층에
+    // 시간을 쓰는 일입니다 — 게다가 아래층 적은 쫓아오지도 못하니, 쏘는 동안
+    // 위층의 적에게는 한 발도 안 나갑니다.
+    //
+    // 같은 발판에 선 적은 발이 땅에 붙어 있어 중심이 주인공보다 조금 아래입니다.
+    // 그 몫(CFG.aimBelow)까지는 "위"로 칩니다. 아니면 제 발밑의 적을 못 쏩니다.
+    const inRange = (e) => this.targetable(e) &&
+      e.y <= this.player.y + CFG.aimBelow &&
+      this.meleeDist(e) <= w.range;
     const pool = this.enemies.getChildren().filter(inRange)
       .sort((a, b) => this.meleeDist(a) - this.meleeDist(b));
     if (!pool.length) { this.subTarget = null; return; }
@@ -1314,14 +1357,18 @@ class GameScene extends Phaser.Scene {
       return;
     }
 
+    const fromBoss = !!bullet.fromBoss;
     bullet.destroy();
     if (this.dead || this.time.now - this.lastHitAt < CFG.player.invulnMs) return;
-    this.hurt(bullet.dmg || CFG.enemyShot.damage);
+    this.hurt(bullet.dmg || CFG.enemyShot.damage, null, fromBoss);
   }
 
-  hurt(amount, source) {
+  hurt(amount, source, fromBoss) {
     // 도적은 일정 확률로 통째로 흘려 넘깁니다.
-    if (this.dodge > 0 && Math.random() < this.dodge) {
+    // 다만 보스가 내리꽂는 것에는 덜 통합니다 — 안 그러면 피하지 않아도
+    // 절반 넘게 흘러가서, 줄을 고르는 그 싸움을 도적만 안 하게 됩니다.
+    const dodge = fromBoss ? this.dodge * CFG.boss.dodgeScale : this.dodge;
+    if (dodge > 0 && Math.random() < dodge) {
       this.lastHitAt = this.time.now;
       this.popup('회피', '#ce93d8');
       return;

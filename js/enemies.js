@@ -390,6 +390,9 @@ function bossDrop(scene, boss, lane, delay) {
       b.setDepth(9);
       b.bornAt = scene.time.now;
       b.dmg = Math.round(CFG.boss.shotDamage * (1 + boss.floor * CFG.enemy.dmgPerFloor));
+      // 보스가 내리꽂은 것이라는 표. 도적의 회피가 여기에는 덜 통합니다
+      // (scene-game.js 의 hurt).
+      b.fromBoss = true;
       b.body.velocity.set(0, 620);
     });
   });
