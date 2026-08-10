@@ -90,7 +90,12 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
     if (!s) return null;
     const next = s.floors.get(s.floorIndex + 1);
     const kinds = {};
-    LANES.forEach((l) => { kinds[l] = next && next.slots[l] ? next.slots[l].kind : null; });
+    // 가짜 함정은 겉모습만 보입니다. 여기서 진짜 정체를 넘겨주면 harness만
+    // 함정을 다 피하는 초능력자가 되어, 함정이 밸런스에 미치는 영향이 안 잡힙니다.
+    LANES.forEach((l) => {
+      const slot = next && next.slots[l];
+      kinds[l] = slot ? (slot.kind === 'mimic' ? slot.disguise : slot.kind) : null;
+    });
     return {
       floor: s.floorIndex, hp: Math.round(s.hp), maxHp: s.maxHp,
       kills: s.kills, coins: s.coins, totalCoins: s.totalCoins,
@@ -144,6 +149,8 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
     if (kind === 'upgrade') return s.upWorth ? 4 : 1;
     if (kind === 'armor') return s.armor < 40 ? 4 : 2;
     if (kind === 'medal') return 9; // 판을 넘어 남는 유일한 것. 무조건 집습니다
+    // 폭탄은 대놓고 보입니다. 빈 칸보다도 나쁘지만, 다른 길이 다 막혔으면 밟습니다.
+    if (kind === 'bomb') return 0.2;
     if (kind === 'plus') return 3;
     if (kind === 'empty') return 2;
     // 적 발판은 코인이 궁할 때 골라 갑니다. 땅에 붙은 적은 피하면 그만이라,

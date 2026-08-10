@@ -160,7 +160,9 @@ class GameScene extends Phaser.Scene {
     }
 
     // 최고 단계에서는 UP이 회복으로 대신 쓰이므로, 표시도 회복처럼 보여야 합니다.
-    const kind = slot.kind === SLOT.UPGRADE && this.weapon.atMaxTier ? SLOT.HEAL : slot.kind;
+    // 가짜는 흉내 내는 것의 표를 그대로 씁니다 — 겉으로는 구분이 안 됩니다.
+    let kind = slot.kind === SLOT.UPGRADE && this.weapon.atMaxTier ? SLOT.HEAL : slot.kind;
+    if (kind === SLOT.MIMIC) kind = slot.disguise;
     const mark = SLOT_MARK[kind];
     if (!mark) return null;
 
@@ -171,7 +173,17 @@ class GameScene extends Phaser.Scene {
       }).setOrigin(0.5),
     ]).setDepth(5);
 
-    this.tweens.add({ targets: badge, y: badge.y - 12, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    // 흔들리는 폭과 주기가 유일한 표입니다. 겉모습을 똑같이 두면 아이템을 집는
+    // 일이 그냥 도박이 되고, 아예 다르게 두면 함정이 뜻을 잃습니다.
+    // 알아채려면 눈여겨봐야 하지만, 알고 나면 보입니다.
+    const fake = slot.kind === SLOT.MIMIC;
+    const t = CFG.trap;
+    this.tweens.add({
+      targets: badge,
+      y: badge.y - 12 * (fake ? t.bobScale : 1),
+      duration: 900 * (fake ? t.bobSlower : 1),
+      yoyo: true, repeat: -1, ease: 'Sine.inOut',
+    });
     return badge;
   }
 
@@ -476,6 +488,12 @@ class GameScene extends Phaser.Scene {
         case SLOT.HEAL:
           this.hp = Math.min(this.maxHp, this.hp + CFG.heal);
           this.popup('+' + CFG.heal, '#a5d6a7');
+          break;
+        case SLOT.BOMB:
+          this.springTrap(CFG.trap.bombDamage, '폭탄!');
+          break;
+        case SLOT.MIMIC:
+          this.springMimic(slot);
           break;
         case SLOT.MEDAL:
           // 스무 판에 한 번 볼까 말까 한 물건입니다. 그냥 지나가면 아까우니
@@ -881,6 +899,47 @@ class GameScene extends Phaser.Scene {
       this.tweens.add({ targets: t, alpha: 1, duration: 300, yoyo: true, hold: 1700,
         onComplete: () => t.destroy() });
     });
+  }
+
+  // ── 함정 ──────────────────────────────────────────────
+  // 밟는 순간 터집니다. 무적 시간과 상관없이 언제나 아픕니다 —
+  // 방금 맞았다는 이유로 함정이 공짜가 되면 밟는 것이 전략이 됩니다.
+  springTrap(base, label) {
+    const dmg = Math.round(base * (1 + this.floorIndex * CFG.enemy.dmgPerFloor));
+    this.popup(label, '#ff5252');
+    this.lastHitAt = -9999;
+    this.hurt(dmg);
+
+    const flash = this.add.circle(this.player.x, this.player.y, 14, 0xff7043, 0.6).setDepth(11);
+    this.tweens.add({
+      targets: flash, radius: 90, alpha: 0, duration: 300,
+      onUpdate: () => flash.setRadius(flash.radius),
+      onComplete: () => flash.destroy(),
+    });
+  }
+
+  // 좋은 것인 척했던 것. 흉내 낸 것과 정반대로 갚아 줍니다 —
+  // 무엇인 척했는지가 무엇을 잃는지로 이어져야 배운 것이 남습니다.
+  springMimic(slot) {
+    const t = CFG.trap;
+    switch (slot.disguise) {
+      case SLOT.PLUS:
+        this.weapon.losePlus(t.mimicPlus);
+        this.popup('가짜! 공격력 -' + t.mimicPlus, '#ff5252');
+        break;
+      case SLOT.HASTE:
+        this.weapon.loseHaste(t.mimicHaste);
+        this.popup('가짜! 속도 ×' + this.weapon.speedMult.toFixed(2), '#ff5252');
+        break;
+      case SLOT.ARMOR:
+        this.armor = Math.max(0, this.armor - t.mimicArmor);
+        this.popup('가짜! 방어 ' + Math.round(this.armor) + '%', '#ff5252');
+        break;
+      default:
+        this.springTrap(t.mimicHeal, '가짜!');
+        return;
+    }
+    this.cameras.main.shake(120, 0.006);
   }
 
   // 지도에 떨어진 메달. 상점에서 받는 것과 값은 같지만 만나는 일이 거의 없어서,

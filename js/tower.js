@@ -13,12 +13,14 @@ const SLOT = {
   UPGRADE: 'upgrade', // UP  다음 단계 무기 (강화는 초기화)
   RELIC: 'relic',     // ★  직업 유물. 한 판에 하나뿐
   MEDAL: 'medal',     // 🏅 판을 넘어 남는 화폐. 지도에서는 아주 드물게만
+  BOMB: 'bomb',       // 폭 밟으면 체력을 잃습니다. 대놓고 보입니다
+  MIMIC: 'mimic',     // 좋은 것인 척하는 함정. 겉모습은 slot.disguise 를 따릅니다
   SHOP: 'shop',
   BOSS: 'boss',       // 보스 투기장. 발판도 상점도 없습니다
 };
 
 // 시간이 지나면 사라지는 것들. 상점과 적은 해당하지 않습니다.
-const ITEM_KINDS = new Set([SLOT.PLUS, SLOT.HASTE, SLOT.DOUBLE, SLOT.UPGRADE, SLOT.HEAL, SLOT.ARMOR, SLOT.RELIC, SLOT.MEDAL]);
+const ITEM_KINDS = new Set([SLOT.PLUS, SLOT.HASTE, SLOT.DOUBLE, SLOT.UPGRADE, SLOT.HEAL, SLOT.ARMOR, SLOT.RELIC, SLOT.MEDAL, SLOT.BOMB, SLOT.MIMIC]);
 
 // 발판 위에 띄울 표시. 나중에 아이템 그림이 나오면 여기만 바꾸면 됩니다.
 const SLOT_MARK = {
@@ -30,7 +32,12 @@ const SLOT_MARK = {
   [SLOT.ARMOR]:   { label: '방', color: 0x90a4ae, text: '#263238' },
   [SLOT.RELIC]:   { label: '★', color: 0xffd54f, text: '#3e2723' },
   [SLOT.MEDAL]:   { label: '메', color: 0xffca28, text: '#4e342e' },
+  [SLOT.BOMB]:    { label: '폭', color: 0x8e0000, text: '#ffcdd2' },
 };
+
+// 가짜가 흉내 낼 수 있는 것들. 메달과 ×2는 뺐습니다 —
+// 워낙 귀해서 가짜였을 때의 배신감이 재미를 넘어섭니다.
+const MIMIC_DISGUISES = [SLOT.PLUS, SLOT.HASTE, SLOT.ARMOR, SLOT.HEAL];
 
 function floorY(index) {
   return CFG.groundY - index * CFG.floorHeight;
@@ -119,6 +126,8 @@ function pickKind(index, need, usesArmor = true) {
   if (r < (acc += healChance(need))) return SLOT.HEAL;
   if (usesArmor && r < (acc += c.armor)) return SLOT.ARMOR;
   if (r < (acc += c.double)) return SLOT.DOUBLE;
+  if (r < (acc += c.bomb)) return SLOT.BOMB;
+  if (r < (acc += c.mimic)) return SLOT.MIMIC;
   return SLOT.EMPTY;
 }
 
@@ -177,13 +186,21 @@ function blankSlot(index, lane, kind) {
     lane, kind,
     x: CFG.laneX[lane],
     y: floorY(index),
-    enemyCount: 0, enemyTypes: [], taken: false, spawned: false,
+    enemyCount: 0, enemyTypes: [], disguise: null, taken: false, spawned: false,
     armed: false, armedAt: 0, expired: false,
   };
 }
 
 function makeSlot(index, lane, need, usesArmor) {
   const slot = blankSlot(index, lane, pickKind(index, need, usesArmor));
+
+  // 가짜는 무엇인 척할지 정합니다. 갑옷을 안 입는 직업에게 갑옷인 척해 봐야
+  // 진짜도 안 나오는 것이라 들통납니다.
+  if (slot.kind === SLOT.MIMIC) {
+    const pool = MIMIC_DISGUISES.filter((k) => usesArmor || k !== SLOT.ARMOR);
+    slot.disguise = pool[Math.floor(Math.random() * pool.length)];
+  }
+
   if (slot.kind === SLOT.ENEMY) {
     slot.enemyCount = enemyCountFor(index);
     for (let i = 0; i < slot.enemyCount; i++) slot.enemyTypes.push(pickEnemyType(index));

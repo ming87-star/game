@@ -65,6 +65,10 @@ class Weapon {
 
   addHaste() { this.haste++; }
 
+  // 가짜 함정에 당했을 때. 0 아래로는 내려가지 않습니다.
+  losePlus(n) { this.plus = Math.max(0, this.plus - n); }
+  loseHaste(n) { this.haste = Math.max(0, this.haste - n); }
+
   // ×2는 겹치지 않습니다. 한 번으로 이미 한계까지 밀어 올리기 때문입니다.
   addDouble() { this.mult = Math.min(CFG.maxMult, this.mult * 2); }
 
