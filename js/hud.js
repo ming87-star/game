@@ -29,6 +29,16 @@ class Hud {
     this.multText = fixed(scene.add.text(0, 68, '', font(22, '#4fc3f7')));
     this.relicText = fixed(scene.add.text(CFG.width - 24, 96, '', font(17, '#ffd54f')).setOrigin(1, 0));
 
+    // ── 보스 체력 ──────────────────────────────────────
+    // 보스와 싸우는 동안만 보입니다. 얼마나 남았는지 안 보이면
+    // 끝이 안 나는 싸움처럼 느껴집니다.
+    this.bossBox = fixed(scene.add.rectangle(CFG.width / 2, 132, 448, 30, 0x000000, 0.55));
+    this.bossBar = fixed(scene.add.rectangle(CFG.width / 2 - 220, 132, 440, 22, 0xef5350)
+      .setOrigin(0, 0.5)).setDepth(101);
+    this.bossName = fixed(scene.add.text(CFG.width / 2, 132, '', font(18, '#ffffff')).setOrigin(0.5))
+      .setDepth(102);
+    this.setBoss(null);
+
     this.hint = fixed(scene.add.text(CFG.width / 2, CFG.height - 70,
       '왼쪽 · 위 · 오른쪽 — 한 칸씩만 옮겨 갑니다', font(22, '#ffffff')).setOrigin(0.5)).setAlpha(0.85);
 
@@ -41,6 +51,18 @@ class Hud {
       return { step, ring, glyph };
     });
     this.setArrows([true, true, true]);
+  }
+
+  // 보스가 있으면 띠를 켜고, 없으면 통째로 숨깁니다.
+  setBoss(boss) {
+    const on = !!(boss && boss.active);
+    [this.bossBox, this.bossBar, this.bossName].forEach((o) => o.setVisible(on));
+    if (!on) return;
+    const left = Math.max(0, boss.hp / boss.maxHp);
+    this.bossBar.width = 440 * left;
+    // 체력이 닳을수록 보스가 몰아치므로, 띠 색도 같이 달아오릅니다.
+    this.bossBar.fillColor = left > 0.5 ? 0xef5350 : left > 0.25 ? 0xff7043 : 0xffca28;
+    this.bossName.setText('탑의 수문장   ' + Math.ceil(left * 100) + '%');
   }
 
   // 그 방향에 실제로 발판이 있는지에 따라 밝기를 달리합니다.
@@ -77,14 +99,17 @@ class Hud {
     if (s.job.usesArmor) {
       // 방어력은 막을 때마다 조금씩 닳습니다. 띠가 눈에 띄게 줄어들어야
       // "채워 넣어야 하는 것"으로 읽힙니다.
-      this.armorBar.width = 234 * Math.min(1, s.armor / CFG.armor.max);
+      this.armorBar.width = 234 * Math.min(1, s.armor / s.armorMax);
       this.armorBar.fillColor = s.armor > 25 ? 0xb0bec5 : 0xff8a65;
       this.armorText.setText('방어 ' + Math.round(s.armor) + '%');
     } else {
-      this.armorBar.width = 234 * s.job.dodge;
+      // 회피도 판 안에서 자랍니다 ('회' 아이템). 갑옷 띠 자리를 그대로 씁니다.
+      this.armorBar.width = 234 * Math.min(1, s.dodge / (s.dodgeMax || 1));
       this.armorBar.fillColor = 0xce93d8;
-      this.armorText.setText('회피 ' + Math.round(s.job.dodge * 100) + '%');
+      this.armorText.setText('회피 ' + Math.round(s.dodge * 100) + '%');
     }
+
+    this.setBoss(s.boss);
 
     this.floorText.setText(s.floorIndex + '층');
     this.coinText.setText('◎ ' + s.coins);

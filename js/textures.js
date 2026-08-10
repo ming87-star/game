@@ -300,13 +300,56 @@ function buildTextures(scene) {
   g.fillPath();
   g.generateTexture('wave', 44, 44);
 
-  // 검을 휘두른 자국 — 반달 모양. 실제 사거리에 맞춰 늘려 씁니다.
+  // 검을 휘두른 자국 — 눈썹 모양. 실제 사거리에 맞춰 늘려 씁니다.
+  //
+  // 예전에는 굵기가 일정한 호였습니다. 그러니 칼을 휘두른 자국이 아니라
+  // 파동을 쏜 것처럼 보였습니다. 가운데가 두껍고 양 끝이 뾰족해야
+  // "칼이 지나간 자리"로 읽힙니다.
+  //
+  // 바깥 호를 한 바퀴 그린 뒤, 안쪽 호를 거꾸로 되짚어 와서 그 사이를 채웁니다.
+  // 안쪽 반지름을 양 끝에서 바깥에 붙여 두면 그 자리가 저절로 뾰족해집니다.
   g.clear();
-  g.lineStyle(15, 0xffffff, 1);
-  g.beginPath();
-  g.arc(70, 70, 56, Phaser.Math.DegToRad(-54), Phaser.Math.DegToRad(54), false);
-  g.strokePath();
+  g.fillStyle(0xffffff, 1);
+  {
+    const cx = 70, cy = 70, outer = 62, inner = 42;
+    const from = Phaser.Math.DegToRad(-52), to = Phaser.Math.DegToRad(52);
+    const steps = 28;
+    const angleAt = (i) => from + (to - from) * (i / steps);
+    // 가운데(sin이 1)에서 가장 두껍고 양 끝(sin이 0)에서 두께가 0이 됩니다.
+    const innerAt = (i) => outer - (outer - inner) * Math.sin(Math.PI * (i / steps));
+
+    g.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const a = angleAt(i);
+      const x = cx + Math.cos(a) * outer, y = cy + Math.sin(a) * outer;
+      if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+    }
+    for (let i = steps; i >= 0; i--) {
+      const a = angleAt(i), r = innerAt(i);
+      g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+    }
+    g.closePath();
+    g.fillPath();
+  }
   g.generateTexture('slash', 140, 140);
+
+  // 화살 — 촉·대·깃. 날아가는 방향으로 돌려 씁니다.
+  // 예전에는 그냥 흰 공이라 "공을 쏘는" 것처럼 보였습니다.
+  g.clear();
+  g.fillStyle(0xd7ccc8, 1);
+  g.fillRect(6, 6, 22, 3);              // 대
+  g.fillStyle(0xeceff1, 1);
+  g.fillTriangle(28, 1, 28, 12, 38, 6.5); // 촉
+  g.fillStyle(0xffffff, 1);
+  g.fillTriangle(0, 0, 8, 6.5, 0, 13);   // 깃
+  g.fillTriangle(5, 0, 12, 6.5, 5, 13);
+  g.generateTexture('arrow', 38, 13);
+
+  // 화살이 지나간 자리에 남는 흐릿한 선
+  g.clear();
+  g.fillStyle(0xffffff, 1);
+  g.fillRect(0, 0, 18, 3);
+  g.generateTexture('arrow-trail', 18, 3);
 
   // ── 그 밖 ─────────────────────────────────────────────
   g.clear();

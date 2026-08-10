@@ -21,6 +21,7 @@ const SHOP_ITEMS = {
   heal:    { title: '체력 회복',     desc: '체력을 가득 채웁니다' },
   maxhp:   { title: '최대 체력 +' + CFG.shop.maxhpGain, desc: '최대치가 늘고 그만큼 회복합니다' },
   armor:   { title: '방어구 +' + CFG.armor.shopGain + '%', desc: '받는 피해가 그만큼 줄어듭니다' },
+  dodge:   { title: '회피 +' + Math.round(CFG.dodge.shopGain * 100) + '%', desc: '그만큼 더 흘려 넘깁니다' },
 };
 
 class Shop {
@@ -128,14 +129,17 @@ class Shop {
     switch (offer.key) {
       case 'plus': s.weapon.addPlus(); break;
       case 'haste': s.weapon.addHaste(); break;
-      case 'upgrade': s.weapon.upgrade(); break;
+      case 'upgrade': if (s.weapon.upgrade()) s.noteWeapon(); break;
       case 'heal': s.hp = s.maxHp; break;
       case 'maxhp':
         s.maxHp += CFG.shop.maxhpGain;
         s.hp = Math.min(s.maxHp, s.hp + CFG.shop.maxhpGain);
         break;
       case 'armor':
-        s.armor = Math.min(CFG.armor.max, s.armor + CFG.armor.shopGain);
+        s.armor = Math.min(s.armorMax, s.armor + CFG.armor.shopGain);
+        break;
+      case 'dodge':
+        s.dodge = Math.min(s.dodgeMax, s.dodge + CFG.dodge.shopGain);
         break;
     }
     this.refresh();

@@ -10,6 +10,7 @@ const SLOT = {
   HASTE: 'haste',     // 속  공격 속도 상승 (더하기)
   DOUBLE: 'double',   // ×2  공격 속도 두 배. 아주 귀합니다
   ARMOR: 'armor',     // 방  받는 피해 감소
+  DODGE: 'dodge',     // 회  피해를 통째로 흘릴 확률. 갑옷을 안 입는 직업용
   UPGRADE: 'upgrade', // UP  다음 단계 무기 (강화는 초기화)
   RELIC: 'relic',     // ★  직업 유물. 한 판에 하나뿐
   MEDAL: 'medal',     // 🏅 판을 넘어 남는 화폐. 지도에서는 아주 드물게만
@@ -20,7 +21,7 @@ const SLOT = {
 };
 
 // 시간이 지나면 사라지는 것들. 상점과 적은 해당하지 않습니다.
-const ITEM_KINDS = new Set([SLOT.PLUS, SLOT.HASTE, SLOT.DOUBLE, SLOT.UPGRADE, SLOT.HEAL, SLOT.ARMOR, SLOT.RELIC, SLOT.MEDAL, SLOT.BOMB, SLOT.MIMIC]);
+const ITEM_KINDS = new Set([SLOT.PLUS, SLOT.HASTE, SLOT.DOUBLE, SLOT.UPGRADE, SLOT.HEAL, SLOT.ARMOR, SLOT.DODGE, SLOT.RELIC, SLOT.MEDAL, SLOT.BOMB, SLOT.MIMIC]);
 
 // 발판 위에 띄울 표시. 나중에 아이템 그림이 나오면 여기만 바꾸면 됩니다.
 const SLOT_MARK = {
@@ -30,6 +31,7 @@ const SLOT_MARK = {
   [SLOT.UPGRADE]: { label: 'UP', color: 0xff8a65, text: '#3e2723' },
   [SLOT.HEAL]:    { label: '＋', color: 0x66bb6a, text: '#1b5e20' },
   [SLOT.ARMOR]:   { label: '방', color: 0x90a4ae, text: '#263238' },
+  [SLOT.DODGE]:   { label: '회', color: 0xce93d8, text: '#4a148c' },
   [SLOT.RELIC]:   { label: '★', color: 0xffd54f, text: '#3e2723' },
   [SLOT.MEDAL]:   { label: '메', color: 0xffca28, text: '#4e342e' },
   [SLOT.BOMB]:    { label: '폭', color: 0x8e0000, text: '#ffcdd2' },
@@ -37,7 +39,7 @@ const SLOT_MARK = {
 
 // 가짜가 흉내 낼 수 있는 것들. 메달과 ×2는 뺐습니다 —
 // 워낙 귀해서 가짜였을 때의 배신감이 재미를 넘어섭니다.
-const MIMIC_DISGUISES = [SLOT.PLUS, SLOT.HASTE, SLOT.ARMOR, SLOT.HEAL];
+const MIMIC_DISGUISES = [SLOT.PLUS, SLOT.HASTE, SLOT.ARMOR, SLOT.DODGE, SLOT.HEAL];
 
 function floorY(index) {
   return CFG.groundY - index * CFG.floorHeight;
@@ -124,7 +126,8 @@ function pickKind(index, need, usesArmor = true) {
   if (r < (acc += c.plus)) return SLOT.PLUS;
   if (r < (acc += c.haste)) return SLOT.HASTE;
   if (r < (acc += healChance(need))) return SLOT.HEAL;
-  if (usesArmor && r < (acc += c.armor)) return SLOT.ARMOR;
+  // 방어 칸. 갑옷을 입는 직업에게는 방어구가, 아닌 직업에게는 회피가 나옵니다.
+  if (r < (acc += c.armor)) return usesArmor ? SLOT.ARMOR : SLOT.DODGE;
   if (r < (acc += c.double)) return SLOT.DOUBLE;
   if (r < (acc += c.bomb)) return SLOT.BOMB;
   if (r < (acc += c.mimic)) return SLOT.MIMIC;
@@ -197,7 +200,8 @@ function makeSlot(index, lane, need, usesArmor) {
   // 가짜는 무엇인 척할지 정합니다. 갑옷을 안 입는 직업에게 갑옷인 척해 봐야
   // 진짜도 안 나오는 것이라 들통납니다.
   if (slot.kind === SLOT.MIMIC) {
-    const pool = MIMIC_DISGUISES.filter((k) => usesArmor || k !== SLOT.ARMOR);
+    const pool = MIMIC_DISGUISES.filter((k) =>
+      k !== (usesArmor ? SLOT.DODGE : SLOT.ARMOR));
     slot.disguise = pool[Math.floor(Math.random() * pool.length)];
   }
 

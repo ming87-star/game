@@ -23,6 +23,12 @@ class GameScene extends Phaser.Scene {
     this.hp = this.maxHp;
     this.weapon = new Weapon(this.job);
     this.armor = this.job.armor; // 받는 피해 감소 %
+    this.armorMax = this.job.armorMax || CFG.armor.max;
+    // 회피도 판 안에서 자랍니다 (갑옷을 안 입는 직업의 '회' 아이템).
+    this.dodge = this.job.dodge || 0;
+    this.dodgeMax = this.job.dodgeMax || this.dodge;
+    // 이번 판에서 손에 넣은 무기를 얻은 순서대로. 죽음 화면의 계승이 둘째를 씁니다.
+    this.gotWeapons = [];
     this.coins = 0;
     this.totalCoins = 0;
     this.kills = 0;
@@ -31,6 +37,7 @@ class GameScene extends Phaser.Scene {
     // 메달 상점에서 사 둔 것과 계승해 온 무기를 여기서 한 번에 바릅니다.
     // 꺼내면 사라집니다 — 전부 이번 판에만 붙는 것들입니다.
     this.boosts = applyBoosts(this, Save.takeBoosts());
+    this.noteWeapon(); // 들고 시작한 것이 첫 번째
 
     // 보스 투기장. 여기 있는 동안은 위로 오르지 못하고 좌우로만 움직입니다.
     this.bossFight = false;
@@ -470,8 +477,12 @@ class GameScene extends Phaser.Scene {
           this.openRelicChoice();
           break;
         case SLOT.ARMOR:
-          this.armor = Math.min(CFG.armor.max, this.armor + CFG.armor.perItem);
+          this.armor = Math.min(this.armorMax, this.armor + CFG.armor.perItem);
           this.popup('방어 ' + Math.round(this.armor) + '%', '#b0bec5');
+          break;
+        case SLOT.DODGE:
+          this.dodge = Math.min(this.dodgeMax, this.dodge + CFG.dodge.perItem);
+          this.popup('회피 ' + Math.round(this.dodge * 100) + '%', '#ce93d8');
           break;
         case SLOT.HASTE:
           this.weapon.addHaste();
@@ -482,7 +493,7 @@ class GameScene extends Phaser.Scene {
           this.popupSpeed();
           break;
         case SLOT.UPGRADE:
-          if (this.weapon.upgrade()) this.popup(this.weapon.name, '#ff8a65');
+          if (this.weapon.upgrade()) { this.noteWeapon(); this.popup(this.weapon.name, '#ff8a65'); }
           else { this.hp = Math.min(this.maxHp, this.hp + CFG.heal); this.popup('+' + CFG.heal, '#a5d6a7'); }
           break;
         case SLOT.HEAL:
@@ -719,6 +730,7 @@ class GameScene extends Phaser.Scene {
   fireWave(target, dmg) {
     const b = this.bullets.create(this.player.x, this.player.y - 6, 'wave');
     b.body.setAllowGravity(false);
+    b.isArrow = false;
     b.setTint(this.weapon.color).setDepth(9);
     b.dmg = dmg;
     b.bounce = 0;
@@ -731,15 +743,29 @@ class GameScene extends Phaser.Scene {
     this.physics.velocityFromRotation(angle, CFG.waveSpeed, b.body.velocity);
   }
 
+  // 칼을 휘두르는 그림. 커지는 것이 아니라 **쓸고 지나가야** 합니다 —
+  // 제자리에서 부풀리면 칼자국이 아니라 파동을 쏜 것처럼 보입니다.
+  // 크기는 처음부터 사거리에 맞춰 두고, 각도만 위에서 아래로 훑습니다.
   showSlash(angle, w) {
+    const sweep = Phaser.Math.DegToRad(62);
     const arc = this.add.sprite(this.player.x, this.player.y - 6, 'slash')
-      .setDepth(11).setTint(w.color).setRotation(angle);
+      .setDepth(11).setTint(w.color)
+      .setRotation(angle - sweep / 2)
+      .setScale(w.reach / 62); // 텍스처의 바깥 반지름이 62입니다
 
-    const full = w.reach / 56; // 텍스처의 반지름이 56입니다
-    arc.setScale(full * 0.65);
+    // 휘두르는 방향은 번갈아 바뀝니다. 늘 같은 쪽으로만 그으면 기계처럼 보입니다.
+    this.swingDown = !this.swingDown;
+    const dir = this.swingDown ? 1 : -1;
+    arc.setRotation(angle - dir * sweep / 2);
+    arc.setFlipY(dir < 0);
+
     this.tweens.add({
-      targets: arc, scale: full, alpha: 0, duration: 170,
-      ease: 'Quad.out', onComplete: () => arc.destroy(),
+      targets: arc,
+      rotation: angle + dir * sweep / 2,
+      alpha: 0,
+      duration: Math.min(200, Math.max(90, w.rate * 0.55)),
+      ease: 'Quad.out',
+      onComplete: () => arc.destroy(),
     });
   }
 
@@ -767,9 +793,11 @@ class GameScene extends Phaser.Scene {
   }
 
   fireArrow(x, y, target, dmg, bounce) {
-    const b = this.bullets.create(x, y, 'bullet');
+    const b = this.bullets.create(x, y, 'arrow');
     b.body.setAllowGravity(false);
+    b.body.setSize(14, 10);
     b.setTint(this.weapon.color).setDepth(9);
+    b.isArrow = true;
     b.dmg = dmg;
     b.bounce = bounce;
     b.from = target;
@@ -777,6 +805,19 @@ class GameScene extends Phaser.Scene {
     b.bornAt = this.time.now;
     this.physics.velocityFromRotation(
       Phaser.Math.Angle.Between(x, y, target.x, target.y), CFG.arrowSpeed, b.body.velocity);
+  }
+
+  // 화살이 지나간 자리에 흐릿한 선을 남깁니다. 궤적이 보여야 어디서 어디로
+  // 날아갔는지 읽히고, 원거리 전투가 "공이 날아다니는 것"으로 보이지 않습니다.
+  trailArrow(b, time) {
+    if (time - (b.lastTrailAt || 0) < 26) return;
+    b.lastTrailAt = time;
+    const t = this.add.sprite(b.x, b.y, 'arrow-trail')
+      .setDepth(8).setTint(b.tintTopLeft).setRotation(b.rotation).setAlpha(0.5);
+    this.tweens.add({
+      targets: t, alpha: 0, scaleX: 0.3, duration: 180,
+      onComplete: () => t.destroy(),
+    });
   }
 
   onBulletHit(bullet, enemy) {
@@ -935,11 +976,24 @@ class GameScene extends Phaser.Scene {
         this.armor = Math.max(0, this.armor - t.mimicArmor);
         this.popup('가짜! 방어 ' + Math.round(this.armor) + '%', '#ff5252');
         break;
+      case SLOT.DODGE:
+        this.dodge = Math.max(0, this.dodge - CFG.dodge.perItem * 2);
+        this.popup('가짜! 회피 ' + Math.round(this.dodge * 100) + '%', '#ff5252');
+        break;
       default:
         this.springTrap(t.mimicHeal, '가짜!');
         return;
     }
     this.cameras.main.shake(120, 0.006);
+  }
+
+  // 무기를 손에 넣을 때마다 부릅니다. 죽음 화면의 계승은 여기 둘째를 씁니다.
+  // 같은 단계를 두 번 세지 않도록, 단계가 실제로 바뀌었을 때만 적습니다.
+  noteWeapon() {
+    const w = this.weapon;
+    const last = this.gotWeapons[this.gotWeapons.length - 1];
+    if (last && last.tier === w.tier) return;
+    this.gotWeapons.push({ tier: w.tier, plus: w.plus });
   }
 
   // 지도에 떨어진 메달. 상점에서 받는 것과 값은 같지만 만나는 일이 거의 없어서,
@@ -1106,7 +1160,7 @@ class GameScene extends Phaser.Scene {
 
   hurt(amount, source) {
     // 도적은 일정 확률로 통째로 흘려 넘깁니다.
-    if (this.job.dodge > 0 && Math.random() < this.job.dodge) {
+    if (this.dodge > 0 && Math.random() < this.dodge) {
       this.lastHitAt = this.time.now;
       this.popup('회피', '#ce93d8');
       return;
@@ -1306,8 +1360,10 @@ class GameScene extends Phaser.Scene {
     const opened = classesUnlockedBy(this.floorIndex, this.totalCoins);
     opened.forEach((job) => Save.unlock(job.key));
     Save.finishRun(this.floorIndex, this.totalCoins);
-    // 죽을 때 들고 있던 무기도 도감에 남깁니다. 바로 아래에서 뽑을 후보가 됩니다.
+    // 죽을 때 들고 있던 무기도 도감에 남깁니다 (구경용).
     this.weapon.record();
+    // 그리고 이번 판에 손에 넣은 순서를 남깁니다 — 다음 판의 계승이 여기 둘째를 씁니다.
+    Save.setLastRun(this.job.key, this.gotWeapons);
     this.physics.pause();
     this.enemies.getChildren().forEach((e) => e.setTint(0x555555));
 
@@ -1361,10 +1417,11 @@ class GameScene extends Phaser.Scene {
   buildDeathChoices(add, font, cx) {
     const earned = this.medals;
     const cost = earned ? '이번 판 메달 ' + earned + '개를 버립니다' : '이번 판에 번 메달은 없습니다';
-    // 무엇이 뽑혔는지는 눌러 보기 전에 보여 줍니다. 좋은 것이 떴는지 보고
-    // 고르는 것이 이 선택의 전부입니다 — 가려 두면 그냥 도박이 됩니다.
-    const carry = Save.rollWeapon(this.job.key);
-    this.deathCarry = carry; // 자동 시험에서 "뽑힌 것"과 "들고 시작한 것"을 맞춰 보는 통로
+    // 계승할 무기는 이번 판에서 **두 번째로 손에 넣은 것**으로 고정입니다.
+    // 예전에는 도감에서 아무거나 뽑았는데, 운 좋게 좋은 것이 뜬 판은 시작부터
+    // 밸런스가 무너졌습니다. 둘째로 고정하면 값어치가 늘 같습니다.
+    const carry = Save.carryWeapon(this.job.key);
+    this.deathCarry = carry; // 자동 시험에서 "고른 것"과 "들고 시작한 것"을 맞춰 보는 통로
 
     add(this.add.text(cx, 386, '무엇을 가져갈까', font(24, '#ffffff')).setOrigin(0.5));
 
@@ -1392,7 +1449,7 @@ class GameScene extends Phaser.Scene {
       //     좋은 것이 뜨면 메달을 버릴 값어치가 있고, 아니면 1번이 낫습니다.
       choice(590, 0xff8a65,
         carry ? this.carryName(carry) + ' 들고 다시' : '계승할 무기 없음',
-        carry ? cost : '무기를 들어 본 적이 있어야 뜹니다', !!carry, () => {
+        carry ? cost : '이번 판에 무기를 두 번은 손에 넣어야 합니다', !!carry, () => {
           Save.setBoost('weapon', carry);
           this.scene.start('game', { jobKey: this.job.key });
         }),
@@ -1403,17 +1460,12 @@ class GameScene extends Phaser.Scene {
     ];
   }
 
-  // 도감에서 뽑힌 무기를 사람이 읽을 이름으로. 단계는 직업의 무기표에서 찾습니다.
-  // 속도는 속과 ×2가 섞인 결과를 하나로 합쳐 보여 줍니다 — 뽑기를 보고
-  // 고르는 것이므로, 쌓인 개수보다 "얼마나 빠른가"가 바로 읽혀야 합니다.
+  // 계승할 무기를 사람이 읽을 이름으로. 공격 속도는 넘어가지 않으므로 적지 않습니다 —
+  // 속도는 무기가 아니라 손에 붙는 것입니다.
   carryName(carry) {
     const table = this.job.weapons;
     const base = table[Math.min(table.length - 1, carry.tier)];
-    const speed = Math.min(CFG.speedCapBase,
-      (1 + (carry.haste || 0) * CFG.hasteStep) * carry.mult);
-    return base.name +
-      (carry.plus ? ' +' + carry.plus : '') +
-      (speed > 1.001 ? ' ×' + speed.toFixed(2) : '');
+    return base.name + (carry.plus ? ' +' + carry.plus : '');
   }
 
   // ── 매 프레임 ─────────────────────────────────────────
@@ -1440,6 +1492,12 @@ class GameScene extends Phaser.Scene {
     this.bullets.getChildren().forEach((b) => {
       if (!b.active) return;
       if (time - b.bornAt > 1600) { b.destroy(); return; }
+
+      // 화살은 날아가는 쪽을 향해야 합니다. 안 돌리면 옆으로 누워 날아갑니다.
+      if (b.isArrow) {
+        b.setRotation(Math.atan2(b.body.velocity.y, b.body.velocity.x));
+        this.trailArrow(b, time);
+      }
       if (b.hitSet) return; // 파동은 직선으로만 나갑니다
 
       // 화살은 표적을 조금 따라갑니다. 쏘는 순간의 자리로만 날리면

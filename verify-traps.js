@@ -50,6 +50,30 @@ const check = (ok, label, got) => {
   await page.mouse.click(...at(start.x, start.y));
   await page.waitForTimeout(900);
 
+  // ── 설정이 빠지지 않았나 ───────────────────────────────
+  // CFG 에 칸 하나가 없으면 그것을 읽는 파일이 통째로 죽습니다. 실제로
+  // CFG.dodge 를 빠뜨렸더니 shop.js 가 불러오다 터져서 상점이 아예 없는 채로
+  // 판이 돌았고, 밸런스를 두 번이나 헛 쟀습니다. 화면에는 아무 표시도 없습니다.
+  const cfgOk = await page.evaluate(() => {
+    const need = [
+      ['dodge.perItem', CFG.dodge && CFG.dodge.perItem],
+      ['dodge.shopGain', CFG.dodge && CFG.dodge.shopGain],
+      ['trap.bombDamage', CFG.trap && CFG.trap.bombDamage],
+      ['shop.prices.dodge', CFG.shop.prices && CFG.shop.prices.dodge],
+      ['shop.priceGrowth', CFG.shop.priceGrowth],
+      ['enemyCount.capMax', CFG.enemyCount && CFG.enemyCount.capMax],
+      ['relic.maxHeld', CFG.relic && CFG.relic.maxHeld],
+      ['boss.hpMult', CFG.boss && CFG.boss.hpMult],
+      ['bats.graceMs', CFG.bats && CFG.bats.graceMs],
+    ];
+    return need.filter(([, v]) => v === undefined || v === null).map(([k]) => k);
+  });
+  check(cfgOk.length === 0, 'CFG 에 빠진 칸이 없음', cfgOk.join(', ') || '전부 있음');
+
+  // 페이지가 조용히 죽지 않았는지도 봅니다.
+  const alive = await page.evaluate(() => !!(window.__scene && window.__scene.shop));
+  check(alive, '상점 객체가 실제로 만들어짐');
+
   // ── 얼마나 나오나 ──────────────────────────────────────
   const odds = await page.evaluate(() => {
     resetTowerRun();

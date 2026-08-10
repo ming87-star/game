@@ -16,8 +16,8 @@ const MEDAL_ITEMS = [
     title: '노잣돈', desc: '코인 120을 들고 시작합니다',
   },
   {
-    key: 'armor', price: 1, needsArmor: true,
-    title: '덧댄 갑옷', desc: '방어력 +12%로 시작합니다',
+    key: 'armor', price: 1,
+    title: '덧댄 갑옷', desc: '방어력 +12%로 시작합니다 (도적은 회피 +5%)',
   },
   {
     key: 'plus', price: 2,
@@ -61,9 +61,16 @@ function applyBoosts(scene, boosts) {
     scene.totalCoins = 120;
     applied.push('코인 120');
   }
-  if (boosts.armor && scene.job.usesArmor) {
-    scene.armor = Math.min(CFG.armor.max, scene.armor + 12);
-    applied.push('방어 +12%');
+  // 갑옷을 안 입는 직업에게는 같은 값을 회피로 줍니다 — 진열에서 빼면
+  // 도적만 살 것이 하나 적어지고, 그건 값을 매기는 문제와 상관없는 손해입니다.
+  if (boosts.armor) {
+    if (scene.job.usesArmor) {
+      scene.armor = Math.min(scene.armorMax, scene.armor + 12);
+      applied.push('방어 +12%');
+    } else {
+      scene.dodge = Math.min(scene.dodgeMax, scene.dodge + CFG.dodge.shopGain);
+      applied.push('회피 +' + Math.round(CFG.dodge.shopGain * 100) + '%');
+    }
   }
 
   // 속도 한계부터 올립니다. 아래에서 붙이는 속도 강화가 옛 한계에 잘리지 않도록.
@@ -75,11 +82,11 @@ function applyBoosts(scene, boosts) {
   // 무기 계승이 그다음입니다. 단계를 갈아 끼운 뒤에 강화를 얹어야
   // 얹은 강화가 초기화되지 않습니다 (UP은 +1과 속도를 지웁니다).
   if (boosts.weapon) {
+    // 단계와 공격력 강화만 넘어옵니다. 공격 속도는 무기가 아니라 손에 붙는 것이라
+    // 판이 끝나면 사라져야 합니다 — 넘겨 주면 매 판 한계에서 시작하게 됩니다.
     const w = boosts.weapon;
     scene.weapon.tier = Math.min(scene.weapon.table.length - 1, w.tier);
-    scene.weapon.plus = w.plus;
-    scene.weapon.mult = w.mult;
-    scene.weapon.haste = w.haste || 0;
+    scene.weapon.plus = w.plus || 0;
     applied.push('계승  ' + scene.weapon.name);
   } else if (boosts.tier) {
     scene.weapon.upgrade();

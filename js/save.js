@@ -13,8 +13,10 @@ function blankSave() {
     unlocked: {},
     medals: 0,
     // 직업별 무기 도감. { warrior: { 2: { plus: 6, mult: 2 } } }
-    // 단계마다 "가장 좋았던 상태"만 남깁니다. 죽을 때 여기서 하나를 뽑아 줍니다.
+    // 단계마다 "가장 좋았던 상태"만 남깁니다. 유물 도감처럼 구경하는 용도입니다.
     weapons: {},
+    // 직전 판에서 손에 넣은 무기들 (얻은 순서). 죽음 화면의 계승이 여기 둘째를 씁니다.
+    lastRun: { job: '', got: [] },
     // 메달 상점에서 사 둔 것. 다음 판 시작 때 쓰이고 비워집니다.
     boosts: {},
     // 유물 도감. 한 번이라도 가져간 것은 여기 남습니다.
@@ -96,14 +98,24 @@ const Save = {
     }
   },
 
-  // 그 직업으로 들었던 무기 중 하나를 무작위로. 없으면 null.
-  rollWeapon(jobKey) {
-    const book = this.data.weapons[jobKey];
-    const tiers = book ? Object.keys(book) : [];
-    if (!tiers.length) return null;
-    const tier = tiers[Math.floor(Math.random() * tiers.length)];
-    const w = book[tier];
-    return { tier: Number(tier), plus: w.plus, mult: w.mult, haste: w.haste || 0 };
+  // 방금 끝난 판에서 손에 넣은 무기들을 얻은 순서대로 적어 둡니다.
+  setLastRun(jobKey, got) {
+    this.data.lastRun = { job: jobKey, got: got.slice() };
+    this.flush();
+  },
+
+  // 계승할 무기 — 직전 판에서 "두 번째로 얻은" 것.
+  //
+  // 예전에는 도감에서 아무거나 뽑았습니다. 그러면 운 좋게 좋은 무기가 뜬 판은
+  // 시작부터 밸런스가 무너졌습니다. 둘째로 고정하면 계승의 값어치가 늘 같습니다 —
+  // 직전 판에서 얼마나 빨리 무기를 갈아탔는지가 그대로 다음 판의 밑천이 됩니다.
+  //
+  // 공격 속도는 넘기지 않습니다. 속도는 무기가 아니라 손에 붙는 것이니까요.
+  carryWeapon(jobKey) {
+    const run = this.data.lastRun;
+    if (!run || run.job !== jobKey || !run.got || run.got.length < 2) return null;
+    const w = run.got[1];
+    return { tier: w.tier, plus: w.plus };
   },
 
   // ── 다음 판에 들고 갈 것 ──────────────────────────────

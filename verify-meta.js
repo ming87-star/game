@@ -120,19 +120,35 @@ const check = (ok, label, got) => {
     (await page.evaluate(() => window.__medal.startAt)).y));
   await page.waitForTimeout(900);
 
+  // 계승은 이제 무작위가 아니라 "이번 판에서 두 번째로 얻은 무기"로 고정입니다.
+  // 그러려면 이 판에서 무기를 두 번은 손에 넣어야 합니다.
+  await page.evaluate(() => {
+    const s = window.__scene;
+    s.weapon.upgrade(); s.noteWeapon();   // 둘째 무기
+    s.weapon.addPlus(); s.weapon.addPlus();
+    s.weapon.upgrade(); s.noteWeapon();   // 셋째 — 계승 대상이 아니어야 합니다
+    s.weapon.haste = 9;                   // 속도는 넘어가면 안 됩니다
+  });
   const choices2 = await die(2);
-  // 뽑기는 무작위입니다. "무엇이 나왔든 그것을 그대로 들고 시작하는가"를 봅니다.
   const rolled = await page.evaluate(() => window.__scene.deathCarry);
+  const got = await page.evaluate(() => window.__save.data.lastRun.got);
+  check(rolled && rolled.tier === got[1].tier,
+    '계승은 이번 판의 두 번째 무기로 고정',
+    `얻은 순서 ${got.map((w) => w.tier).join('→')} · 계승 ${rolled && rolled.tier}단계`);
   await page.mouse.click(...at(choices2[1].x, choices2[1].y)); // 2. 무기 계승
   await page.waitForTimeout(1000);
   const carried = await page.evaluate(() => {
     const w = window.__scene.weapon;
-    return { tier: w.tier, plus: w.plus, mult: w.mult, name: w.name };
+    return { tier: w.tier, plus: w.plus, mult: w.mult, haste: w.haste, name: w.name };
   });
   check(await scene() === 'game' && carried.tier === rolled.tier &&
-    carried.plus === rolled.plus && carried.mult === rolled.mult,
-    '뽑힌 무기를 그대로 들고 새 판이 시작됨',
-    `뽑기 ${JSON.stringify(rolled)} → ${carried.name} +${carried.plus} ×${carried.mult}`);
+    carried.plus === rolled.plus,
+    '고른 무기를 그대로 들고 새 판이 시작됨',
+    `계승 ${JSON.stringify(rolled)} → ${carried.name} +${carried.plus}`);
+  // 공격 속도는 무기가 아니라 손에 붙는 것이라 판이 끝나면 사라져야 합니다.
+  check(carried.haste === 0 && carried.mult === 1,
+    '공격 속도는 계승되지 않음 (무기에 붙는 것이 아님)',
+    `속 ${carried.haste} · ×${carried.mult}`);
   check((await save()).medals === 0, '계승을 고르면 그 판의 메달은 버려짐', (await save()).medals);
 
   // ── 5. 직업 바꾸기 ────────────────────────────────────

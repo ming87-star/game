@@ -31,7 +31,10 @@ class Weapon {
 
   // ── 공격 속도 ─────────────────────────────────────────
   // 속은 더하기, ×2는 곱하기. 둘을 합친 값이 한계에서 잘립니다.
-  get speedCap() { return CFG.speedCapBase + this.capBonus + this.relicSum('capBonus'); }
+  // 한계는 직업마다 다릅니다 — 전사는 낮고 도적은 높습니다.
+  get speedCap() {
+    return (this.job.speedCap || CFG.speedCapBase) + this.capBonus + this.relicSum('capBonus');
+  }
   get rawSpeed() { return (1 + this.haste * CFG.hasteStep) * this.mult; }
   get speedMult() { return Math.min(this.speedCap, this.rawSpeed); }
   // 한계에 닿았으면 그 뒤로 줍는 속은 헛것입니다. 화면에 그렇다고 적어 줘야 합니다.
