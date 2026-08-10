@@ -1,0 +1,37 @@
+<!-- 보통 발판 140×20 · 딛고 오르는 자리
+     20px 밖에 안 되므로 넣을 수 있는 것은 셋뿐입니다 — 밝은 윗면, 몸통, 밑그늘.
+     지금 코드가 그리는 것(몸통 #5c6bc0 + 윗면 #9fa8da 6px)과 같은 값을 씁니다.
+     발판은 밟는 자리라 **윗면이 가장 밝아야** 합니다. 어디를 딛는지가 곧 규칙입니다.
+
+     가로로 늘려 쓸 때를 대비해 양 끝 18px 안에만 마감을 넣었습니다
+     (9-slice 로 자를 때 left/right = 18, 가운데는 늘려도 표가 안 납니다). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="140" height="20" viewBox="0 0 140 20">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#5c6bc0"/>
+      <stop offset="55%"  stop-color="#515fb0"/>
+      <stop offset="100%" stop-color="#3f4a8f"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 몸통 -->
+  <rect x="0" y="4" width="140" height="16" rx="3" fill="url(#body)"/>
+  <!-- 밟는 윗면 — 가장 밝게 -->
+  <rect x="0" y="2" width="140" height="6" rx="3" fill="#9fa8da"/>
+  <rect x="0" y="2" width="140" height="2" rx="1" fill="#c5cae9"/>
+  <!-- 윗면과 몸통 사이 그늘 — 이 한 줄이 두께를 만듭니다 -->
+  <rect x="0" y="8" width="140" height="1.6" fill="#39428a" opacity=".75"/>
+  <!-- 돌 이음매 — 양 끝 18px 은 비워 둡니다 (늘려 쓸 때 잘리는 자리) -->
+  <g fill="#414c99" opacity=".85">
+    <rect x="34" y="10" width="1.6" height="10"/>
+    <rect x="70" y="10" width="1.6" height="10"/>
+    <rect x="106" y="10" width="1.6" height="10"/>
+  </g>
+  <!-- 밑그늘 -->
+  <rect x="0" y="17" width="140" height="3" rx="1.5" fill="#2f3873"/>
+  <!-- 양 끝 마감 — 모서리를 깎아 돌덩이로 보이게 -->
+  <path d="M0 5 q0 -3 4 -3 l6 0 l-4 18 l-6 0 z" fill="#4a56a5"/>
+  <path d="M140 5 q0 -3 -4 -3 l-6 0 l4 18 l6 0 z" fill="#39428a"/>
+  <!-- 왼쪽 위 모서리 림라이트 — 서른 장이 같은 규칙 -->
+  <rect x="2" y="2" width="66" height="1" fill="#ffffff" opacity=".28"/>
+</svg>

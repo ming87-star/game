@@ -1,0 +1,44 @@
+<!-- 상점 발판 460×20 · 층을 가로지르는 넓은 자리
+     보통 발판과 **색으로 갈려야 합니다.** 멀리서 노란 띠가 보이면 "저기 상점"이고,
+     그것 하나로 좌우 선택이 판단이 됩니다. 그래서 값은 지금 코드와 같게 두되
+     (몸통 #ffb74d · 윗면 #ffe0b2) 나뭇결과 놋쇠 못을 얹어 가게 좌판처럼 만듭니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="460" height="20" viewBox="0 0 460 20">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#ffb74d"/>
+      <stop offset="55%"  stop-color="#f0a13a"/>
+      <stop offset="100%" stop-color="#c87f28"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="4" width="460" height="16" rx="3" fill="url(#body)"/>
+  <rect x="0" y="2" width="460" height="6" rx="3" fill="#ffe0b2"/>
+  <rect x="0" y="2" width="460" height="2" rx="1" fill="#fff3e0"/>
+  <rect x="0" y="8" width="460" height="1.6" fill="#b9711f" opacity=".7"/>
+
+  <!-- 나뭇결 — 짧게 끊어 그어야 결로 보입니다 -->
+  <g fill="#d99436" opacity=".55">
+    <rect x="40"  y="12" width="52" height="1.4" rx=".7"/>
+    <rect x="150" y="14" width="70" height="1.4" rx=".7"/>
+    <rect x="270" y="11.6" width="46" height="1.4" rx=".7"/>
+    <rect x="352" y="14.4" width="60" height="1.4" rx=".7"/>
+  </g>
+  <!-- 판자 이음매 -->
+  <g fill="#b9711f" opacity=".8">
+    <rect x="115" y="10" width="1.8" height="10"/>
+    <rect x="230" y="10" width="1.8" height="10"/>
+    <rect x="345" y="10" width="1.8" height="10"/>
+  </g>
+  <!-- 놋쇠 못 — 이음매마다 한 쌍 -->
+  <g fill="#8d5a1a">
+    <circle cx="110" cy="13" r="1.6"/><circle cx="122" cy="13" r="1.6"/>
+    <circle cx="225" cy="13" r="1.6"/><circle cx="237" cy="13" r="1.6"/>
+    <circle cx="340" cy="13" r="1.6"/><circle cx="352" cy="13" r="1.6"/>
+  </g>
+
+  <rect x="0" y="17" width="460" height="3" rx="1.5" fill="#a9660f"/>
+  <!-- 양 끝 마감 -->
+  <path d="M0 5 q0 -3 4 -3 l6 0 l-4 18 l-6 0 z" fill="#ffc978"/>
+  <path d="M460 5 q0 -3 -4 -3 l-6 0 l4 18 l6 0 z" fill="#c87f28"/>
+  <rect x="2" y="2" width="200" height="1" fill="#ffffff" opacity=".3"/>
+</svg>

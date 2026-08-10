@@ -33,6 +33,17 @@ function sizeOf(svg) {
   return { w, h };
 }
 
+// 그림마다 배율을 따로 정할 수 있습니다 — svg 뿌리에 data-bake-scale="2".
+// 32px 짜리는 4배가 알맞지만 벽(500×960)은 4배면 2000×3840 이 되어 무겁습니다.
+// 배경은 늘려서 깔리므로 2배면 충분합니다.
+function scaleOf(svg) {
+  const m = svg.match(/data-bake-scale\s*=\s*"([\d.]+)"/);
+  return m ? Number(m[1]) : SCALE;
+}
+
+// 사람·적은 카드로 나란히 보고, 벽·발판은 실제 장면으로 봐야 판단이 됩니다.
+const isScenery = (w, h) => w >= 120 || h >= 120;
+
 (async () => {
   if (!fs.existsSync(ART)) { console.log('art/ 폴더가 없습니다'); return; }
   const files = fs.readdirSync(ART).filter((f) => f.endsWith('.svg')).sort();
@@ -49,8 +60,9 @@ function sizeOf(svg) {
   for (const file of files) {
     const svg = fs.readFileSync(path.join(ART, file), 'utf8');
     const { w, h } = sizeOf(svg);
+    const scale = scaleOf(svg);
     const page = await browser.newPage({
-      viewport: { width: Math.round(w * SCALE), height: Math.round(h * SCALE) },
+      viewport: { width: Math.round(w * scale), height: Math.round(h * scale) },
       deviceScaleFactor: 1,
     });
     // SVG 를 뷰포트에 딱 맞춰 늘립니다. 벡터라 아무리 키워도 계단이 안 집니다.
@@ -60,19 +72,24 @@ function sizeOf(svg) {
     const name = file.replace(/\.svg$/, '.png');
     await page.screenshot({ path: path.join(OUT, name), omitBackground: true });
     await page.close();
-    made.push({ name, w, h });
-    console.log(`${name}  ${w}×${h} → ${Math.round(w * SCALE)}×${Math.round(h * SCALE)}`);
+    made.push({ name, w, h, scale });
+    console.log(`${name}  ${w}×${h} ×${scale} → ${Math.round(w * scale)}×${Math.round(h * scale)}`);
   }
+
+  // 그림은 data URI 로 박아 넣습니다. setContent 로 띄운 쪽은 file:// 을 못 읽습니다.
+  const src = (name) => 'data:image/png;base64,' +
+    fs.readFileSync(path.join(OUT, name)).toString('base64');
+  const has = (name) => made.some((m) => m.name === name);
 
   // ── 미리보기 한 장 ────────────────────────────────────
   // 실제 게임 크기와 크게 키운 것을 나란히, 진짜 배경색 위에 얹습니다.
+  const cast = made.filter((m) => !isScenery(m.w, m.h));
   const cell = 150;
   const page = await browser.newPage({
-    viewport: { width: Math.max(560, made.length * cell + 40), height: 360 },
+    viewport: { width: Math.max(560, cast.length * cell + 40), height: 360 },
     deviceScaleFactor: 2,
   });
-  // 그림은 data URI 로 박아 넣습니다. setContent 로 띄운 쪽은 file:// 을 못 읽습니다.
-  const cards = made.map((m) => {
+  const cards = cast.map((m) => {
     const src = 'data:image/png;base64,' +
       fs.readFileSync(path.join(OUT, m.name)).toString('base64');
     return `
@@ -99,6 +116,57 @@ function sizeOf(svg) {
   await page.screenshot({ path: path.join(ROOT, 'shots/art-preview.png') });
   await page.close();
 
+  // ── 배경 미리보기 ─────────────────────────────────────
+  // 벽과 발판은 카드로 보면 아무것도 알 수 없습니다. 실제 폭(500)으로 깔고,
+  // 그 위에 사람과 적을 세워 놓고, **이음매가 화면 한가운데 오게** 밀어서
+  // 띄웁니다. 이음매가 보이면 위로 오를 때마다 그 자리에 선이 그어집니다.
+  if (has('wall.png')) {
+    const SEAM = 480;                       // 벽 한 장(960)의 절반만큼 밀어 둡니다
+    const on = (plat, x, y, who, dx) => {   // 발판 위에 세우기
+      const m = made.find((k) => k.name === who);
+      if (!m) return '';
+      return `<img src="${src(who)}" style="left:${x + dx}px;top:${y - m.h}px;
+              width:${m.w}px;height:${m.h}px">`;
+    };
+    const plat = (name, x, y) => {
+      const m = made.find((k) => k.name === name);
+      if (!m) return '';
+      return `<img src="${src(name)}" style="left:${x}px;top:${y}px;
+              width:${m.w}px;height:${m.h}px">`;
+    };
+
+    const stage = await browser.newPage({
+      viewport: { width: 540, height: 1000 }, deviceScaleFactor: 2,
+    });
+    await stage.setContent(`<style>
+        html,body{margin:0;background:${OUTSIDE};font-family:sans-serif}
+        .stage{position:absolute;left:20px;top:0;width:500px;height:1000px;
+               background-image:url(${src('wall.png')});background-repeat:repeat-y;
+               background-size:500px 960px;background-position:0 -${SEAM}px}
+        .stage img{position:absolute;image-rendering:auto}
+        .seam{position:absolute;left:0;top:${960 - SEAM}px;width:500px;height:0;
+              border-top:1px dashed rgba(255,120,120,.55)}
+        .seam span{position:absolute;right:4px;top:-16px;font-size:11px;color:#e57373}
+      </style>
+      <div class="stage">
+        ${plat('plat-boss.png', 20, 300)}
+        ${on('plat-boss.png', 20, 300, 'player-archer.png', 190)}
+        ${plat('plat-shop.png', 20, 560)}
+        ${on('plat-shop.png', 20, 560, 'e-brute.png', 300)}
+        ${on('plat-shop.png', 20, 560, 'e-crawler.png', 120)}
+        ${plat('plat.png', 40, 780)}
+        ${on('plat.png', 40, 780, 'player-warrior.png', 50)}
+        ${plat('plat.png', 300, 720)}
+        ${on('plat.png', 300, 720, 'e-hopper.png', 50)}
+        <img src="${src('e-flyer.png')}" style="left:250px;top:640px;width:36px;height:32px">
+        <div class="seam"><span>벽 이음매 — 여기 선이 보이면 안 됩니다</span></div>
+      </div>`);
+    await stage.waitForTimeout(300);
+    await stage.screenshot({ path: path.join(ROOT, 'shots/art-scene.png') });
+    await stage.close();
+  }
+
   await browser.close();
-  console.log(`\n${made.length}장 · shots/art-preview.png 에 미리보기`);
+  console.log(`\n${made.length}장 · shots/art-preview.png` +
+    (has('wall.png') ? ' · shots/art-scene.png 에 배경까지' : ' 에 미리보기'));
 })();
