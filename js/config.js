@@ -89,7 +89,8 @@ const CFG = {
   //
   // 지금은 200층부터 100층 구간마다 하나씩 놓이고, 밟으면 게임이 멈추면서
   // 세 장 중 하나를 고릅니다. 종류는 js/relics.js 에 있습니다.
-  relic: { from: 200, every: 100 },
+  // maxHeld — 겹쳐 들 수 있는 수. 꽉 찬 채로 또 만나면 무엇을 버릴지 고릅니다.
+  relic: { from: 200, every: 100, maxHeld: 2 },
 
   // ── 보스 ────────────────────────────────────────────────
   // 보스 층은 발판이 없습니다. 위로 오르는 대신 좌우로만 움직이며
@@ -99,11 +100,13 @@ const CFG = {
   // 몸이 투기장 폭을 거의 다 덮으므로 어느 자리에서든 근접이 닿습니다.
   // 원거리도 물론 닿습니다 — 세 직업이 같은 조건에서 때립니다.
   boss: {
-    hpMult: 80,        // 그 층 보통 적 체력의 배수
+    hpMult: 240,       // 그 층 보통 적 체력의 배수
     shotDamage: 26,    // 떨어지는 것 한 방
     telegraphMs: 850,  // 어느 줄에 떨어질지 미리 보여 주는 시간
     volleyMs: 1700,    // 공격 간격
     minVolleyMs: 820,  // 체력이 닳을수록 여기까지 빨라집니다
+    sweepGapMs: 320,   // 훑기 — 줄에서 줄로 넘어가는 간격
+    slamGapMs: 520,    // 내리찍기 — 바깥 두 줄 뒤에 가운데가 오는 간격
     addEvery: 6500,    // 이 간격으로 졸개를 부릅니다
     maxAdds: 4,
     coin: 260,
@@ -226,19 +229,56 @@ const CFG = {
   //         쫓을 때는 낭떠러지를 개의치 않으므로 그대로 떨어집니다.
   //         날개 달린 것만 false입니다. (보스를 넣는다면 그것도 false로)
   // move    chase 주인공 쪽으로 · wave 좌우로 흔들며 (공중 전용) · ranged 거리 두고 사격
-  // 한 발판에 몇 마리가 진을 치고 있나. 100층부터는 상한을 올립니다 —
-  // 그 위로는 무기가 다 갖춰져서 마릿수가 아니면 압박이 생기지 않습니다.
-  enemyCount: { per: 13, cap: 4, deepFloor: 100, deepCap: 6 },
+  // ── 한 발판에 몇 마리 ───────────────────────────────────
+  // 새 종류가 50층에 하나씩만 풀리므로, 그 사이의 난이도는 마릿수가 맡습니다.
+  // 상한이 상점 구간마다 하나씩 오릅니다.
+  //
+  //   상한 = capBase + floor(층 / shopEvery) × capPerShop     (capMax 에서 멈춤)
+  //
+  // 예전에는 100층에서 6으로 굳었습니다. 그러면 그 위로는 종류도 마릿수도
+  // 안 늘어서 400층이나 150층이나 똑같아 보입니다.
+  enemyCount: { per: 18, capBase: 3, capPerShop: 1, capMax: 9 },
 
-  enemyWave: { rampFloors: 12, fadeHalfLife: 26, minWeight: 0.06 },
+  // 비중이 파도처럼 움직이는 폭. 종류가 50층마다 풀리므로 예전(12·26)보다
+  // 훨씬 길게 잡아야 합니다. 짧게 두면 새 종류가 나오자마자 옛 종류가 사라져서,
+  // 어느 층에서든 사실상 한두 종류만 상대하게 됩니다.
+  enemyWave: { rampFloors: 22, fadeHalfLife: 110, minWeight: 0.12 },
+  // from 은 전부 shopEvery(50)의 배수입니다 — 상점을 하나 지날 때마다 한 종류씩
+  // 새로 풀립니다. 예전에는 72층이면 여섯 종류가 다 나와서 그 위로는 아무리
+  // 올라가도 처음 보는 것이 없었습니다. 지금은 550층까지 계속 하나씩 늘어납니다.
+  //
+  // 그 전까지의 난이도는 마릿수가 맡습니다 (enemyCount).
+  //
+  // move  chase   주인공 쪽으로 곧장
+  //       wave    좌우로 흔들며 (공중)
+  //       ranged  거리를 두고 쏨
+  //       hop     뛰어서 다가옴 (땅)
+  //       charge  멈춰 노려보다가 가로로 돌진 (땅)
+  //       dive    머리 위로 올라갔다가 내리꽂음 (공중)
+  //       phase   나타났다 사라졌다 — 사라진 동안은 때릴 수 없음 (공중)
+  // onDeath  explode 죽으면서 터짐 · split 죽으면서 둘로 쪼개짐
   enemyTypes: [
-    { key: 'crawler', name: '기는 것',   from: 0,  hp: 0.8, speed: 0.55, dmg: 8,  coin: 2,  scale: 0.85, ground: true,  move: 'chase',  w0: 4.0 },
-    { key: 'brute',   name: '단단한 놈', from: 12, hp: 2.4, speed: 0.70, dmg: 13, coin: 7,  scale: 1.15, ground: true,  move: 'chase',  w0: 2.2 },
-    { key: 'flyer',   name: '날것',     from: 25, hp: 1.0, speed: 1.20, dmg: 10, coin: 5,  scale: 0.95, ground: false, move: 'wave',   w0: 2.0 },
-    { key: 'dasher',  name: '빠른 놈',   from: 40, hp: 0.7, speed: 2.20, dmg: 10, coin: 6,  scale: 0.9,  ground: true,  move: 'chase',  w0: 1.8 },
-    { key: 'giant',   name: '거인',     from: 55, hp: 3.5, speed: 0.50, dmg: 19, coin: 18, scale: 1.9,  ground: true,  move: 'chase',  w0: 1.6 },
-    { key: 'shooter', name: '사수',     from: 72, hp: 1.2, speed: 0.75, dmg: 8,  coin: 9,  scale: 1.0,  ground: true,  move: 'ranged', w0: 1.6 },
+    { key: 'crawler',  name: '기는 것',   from: 0,   hp: 0.8, speed: 0.55, dmg: 8,  coin: 2,  scale: 0.85, ground: true,  move: 'chase',  w0: 4.0 },
+    { key: 'hopper',   name: '뛰는 것',   from: 50,  hp: 1.0, speed: 0.90, dmg: 10, coin: 4,  scale: 0.9,  ground: true,  move: 'hop',    w0: 2.6 },
+    { key: 'flyer',    name: '날것',     from: 100, hp: 1.0, speed: 1.20, dmg: 10, coin: 5,  scale: 0.95, ground: false, move: 'wave',   w0: 2.2 },
+    { key: 'brute',    name: '단단한 놈', from: 150, hp: 2.4, speed: 0.70, dmg: 13, coin: 7,  scale: 1.15, ground: true,  move: 'chase',  w0: 2.2 },
+    { key: 'charger',  name: '돌진병',   from: 200, hp: 1.6, speed: 1.00, dmg: 16, coin: 9,  scale: 1.05, ground: true,  move: 'charge', w0: 2.0 },
+    { key: 'dasher',   name: '빠른 놈',   from: 250, hp: 0.7, speed: 2.20, dmg: 10, coin: 6,  scale: 0.9,  ground: true,  move: 'chase',  w0: 1.8 },
+    { key: 'bomber',   name: '폭탄충',   from: 300, hp: 0.9, speed: 1.05, dmg: 9,  coin: 8,  scale: 1.0,  ground: false, move: 'chase',  w0: 1.7, onDeath: 'explode' },
+    { key: 'giant',    name: '거인',     from: 350, hp: 3.5, speed: 0.50, dmg: 19, coin: 18, scale: 1.9,  ground: true,  move: 'chase',  w0: 1.6 },
+    { key: 'splitter', name: '쪼개지는 것', from: 400, hp: 1.8, speed: 0.80, dmg: 12, coin: 10, scale: 1.2, ground: true, move: 'chase',  w0: 1.7, onDeath: 'split' },
+    { key: 'shooter',  name: '사수',     from: 450, hp: 1.2, speed: 0.75, dmg: 8,  coin: 9,  scale: 1.0,  ground: true,  move: 'ranged', w0: 1.6 },
+    { key: 'diver',    name: '급강하',   from: 500, hp: 1.1, speed: 1.40, dmg: 17, coin: 12, scale: 1.0,  ground: false, move: 'dive',   w0: 1.6 },
+    { key: 'ghost',    name: '유령',     from: 550, hp: 1.4, speed: 1.00, dmg: 15, coin: 14, scale: 1.05, ground: false, move: 'phase',  w0: 1.5 },
   ],
+
+  // 종류별 움직임에 쓰는 값
+  hop:    { interval: 1100, up: 520, forward: 190 },
+  charge: { windupMs: 700, dashMs: 620, speed: 520, restMs: 900 },
+  dive:   { riseY: 210, holdMs: 520, dropSpeed: 780, riseSpeed: 260 },
+  phase:  { onMs: 2200, offMs: 1300 },
+  explode: { radius: 130, damage: 22 },
+  split:   { count: 2, hpScale: 0.4, scale: 0.7 },
 
   // 땅을 딛는 적이 걸을 때 쓰는 값
   ground: {

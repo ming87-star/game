@@ -643,7 +643,7 @@ class GameScene extends Phaser.Scene {
     const w = this.weapon;
     if (now - this.lastSwingAt < w.rate) return;
 
-    const hit = this.enemies.getChildren().filter((e) => e.active && this.meleeDist(e) <= w.reach);
+    const hit = this.enemies.getChildren().filter((e) => this.targetable(e) && this.meleeDist(e) <= w.reach);
 
     // 파동검을 들었으면 사거리 밖도 노립니다. 그 한 마리를 향해 파동이 날아갑니다.
     const wave = w.relicSum('wave');
@@ -685,8 +685,14 @@ class GameScene extends Phaser.Scene {
     return Math.max(0, this.distTo(e) - (e.hitRadius || 0));
   }
 
+  // 유령은 사라져 있는 동안 때릴 수 없습니다. 노리는 곳마다 이걸 거쳐야
+  // 화살이 허공을 쫓거나 근접이 헛도는 일이 없습니다.
+  targetable(e) {
+    return e.active && !e.phased;
+  }
+
   nearestWithin(range) {
-    const pool = this.enemies.getChildren().filter((e) => e.active && this.meleeDist(e) <= range);
+    const pool = this.enemies.getChildren().filter((e) => this.targetable(e) && this.meleeDist(e) <= range);
     if (!pool.length) return null;
     return pool.reduce((a, b) => (this.meleeDist(a) < this.meleeDist(b) ? a : b));
   }
@@ -724,7 +730,7 @@ class GameScene extends Phaser.Scene {
     const w = this.weapon;
     if (now - this.lastSubAt < w.rate) return;
 
-    const inRange = (e) => e.active && this.meleeDist(e) <= w.range;
+    const inRange = (e) => this.targetable(e) && this.meleeDist(e) <= w.range;
     const pool = this.enemies.getChildren().filter(inRange)
       .sort((a, b) => this.meleeDist(a) - this.meleeDist(b));
     if (!pool.length) { this.subTarget = null; return; }
@@ -756,7 +762,7 @@ class GameScene extends Phaser.Scene {
   }
 
   onBulletHit(bullet, enemy) {
-    if (!bullet.active || !enemy.active) return;
+    if (!bullet.active || !this.targetable(enemy)) return;
 
     // 파동은 여럿을 꿰뚫습니다. 같은 적을 두 번 세지 않도록 맞은 것을 기억합니다.
     if (bullet.hitSet) {
@@ -819,8 +825,41 @@ class GameScene extends Phaser.Scene {
     if (enemy.coin > 0 && Math.random() < CFG.coin.dropChance) {
       this.dropCoin(enemy.x, enemy.y, Math.round(enemy.coin * CFG.coin.dropBonus));
     }
+
+    // 죽는 방식이 따로 있는 것들. 자리를 먼저 챙겨 두고 없앱니다.
+    const at = { x: enemy.x, y: enemy.y, floor: enemy.floor, def: enemy.def };
     enemy.destroy();
     this.kills++;
+    if (at.def.onDeath === 'explode') this.explodeAt(at);
+    else if (at.def.onDeath === 'split') this.splitAt(at);
+  }
+
+  // 폭탄충 — 죽으면서 터집니다. 가까이 붙어 있으면 같이 맞습니다.
+  // 근접에게만 불리하지 않도록 반경을 좁게 두고, 예고 삼아 터지는 그림을 크게 냅니다.
+  explodeAt(at) {
+    const e = CFG.explode;
+    const ring = this.add.circle(at.x, at.y, 12, 0xff7043, 0.5).setDepth(11);
+    this.tweens.add({
+      targets: ring, radius: e.radius, alpha: 0, duration: 260,
+      onUpdate: () => ring.setRadius(ring.radius),
+      onComplete: () => ring.destroy(),
+    });
+
+    if (Phaser.Math.Distance.Between(at.x, at.y, this.player.x, this.player.y) > e.radius) return;
+    if (this.time.now - this.lastHitAt < CFG.player.invulnMs) return;
+    this.hurt(Math.round(e.damage * (1 + at.floor * CFG.enemy.dmgPerFloor)));
+  }
+
+  // 쪼개지는 것 — 죽으면 작은 둘이 됩니다. 그 둘은 다시 쪼개지지 않습니다.
+  splitAt(at) {
+    const c = CFG.split;
+    for (let i = 0; i < c.count; i++) {
+      const child = spawnEnemy(this, at.x + (i ? 26 : -26), at.y - 8, at.floor, 'crawler');
+      if (!child) return;
+      child.maxHp = Math.round(child.maxHp * c.hpScale);
+      child.hp = child.maxHp;
+      child.setScale((child.def.scale || 1) * c.scale);
+    }
   }
 
   // 메달로 사 둔 것과 계승해 온 무기가 실제로 붙었다는 것을 판 첫머리에 보여 줍니다.
@@ -894,10 +933,9 @@ class GameScene extends Phaser.Scene {
       box.on('pointerdown', () => {
         parts.forEach((o) => o.destroy());
         rows.length = 0;
-        this.choosing = false;
-        this.physics.resume();
-        // 카드를 누른 그 탭이 판이 다시 흐른 뒤 점프로 한 번 더 먹히는 것을 막습니다.
-        this.tapBlockedUntil = this.time.now + 300;
+        // 자리가 꽉 찼으면 무엇을 버릴지 한 번 더 고릅니다. 그때까지는 판이 멈춘 채입니다.
+        if (this.weapon.relics.length >= CFG.relic.maxHeld) return this.openRelicSwap(relic);
+        this.closeChoice();
         this.takeRelic(relic);
       });
       rows.push({ relic, x: cx, y });
@@ -905,6 +943,64 @@ class GameScene extends Phaser.Scene {
 
     // 자동 시험에서 카드 자리를 읽어 가기 위한 통로
     this.relicChoices = rows;
+  }
+
+  // 유물은 CFG.relic.maxHeld 개까지만 듭니다. 꽉 찬 채로 새것을 고르면
+  // 들고 있던 것 중 하나를 내놓아야 합니다. 그냥 지나갈 수도 있어야 하고요 —
+  // 지금 든 둘이 더 좋을 수도 있으니까요.
+  openRelicSwap(incoming) {
+    const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
+    const cx = CFG.width / 2;
+    const parts = [];
+    const add = (o) => { parts.push(o.setScrollFactor(0).setDepth(300)); return o; };
+
+    add(this.add.rectangle(cx, CFG.height / 2, CFG.width, CFG.height, 0x000000, 0.9));
+    add(this.add.text(cx, 150, '유물은 ' + CFG.relic.maxHeld + '개까지', font(22, '#8794b5')).setOrigin(0.5));
+    add(this.add.text(cx, 196, '무엇을 버릴까', font(34, '#ffd54f')).setOrigin(0.5));
+    add(this.add.text(cx, 244, '새로 얻는 것 — ' + incoming.icon + ' ' + incoming.name,
+      font(20, '#a5d6a7')).setOrigin(0.5));
+
+    const rows = [];
+    const held = this.weapon.relics.slice();
+    held.forEach((relic, i) => {
+      const y = 340 + i * 130;
+      const box = add(this.add.rectangle(cx, y, 460, 110, 0x2a1a1a)
+        .setStrokeStyle(2, 0xff8a80).setInteractive({ useHandCursor: true }));
+      add(this.add.text(cx - 200, y - 28, relic.icon + '  ' + relic.name, font(26, '#ff8a80')));
+      add(this.add.text(cx - 200, y + 8, relic.detail, font(17, '#8794b5')));
+      add(this.add.text(cx + 200, y - 28, '버리기', font(18, '#ff8a80')).setOrigin(1, 0));
+
+      box.on('pointerdown', () => {
+        parts.forEach((o) => o.destroy());
+        this.weapon.relics.splice(this.weapon.relics.indexOf(relic), 1);
+        this.closeChoice();
+        this.takeRelic(incoming);
+      });
+      rows.push({ relic, x: cx, y });
+    });
+
+    // 새것을 포기하는 길도 열어 둡니다.
+    const keepY = 340 + held.length * 130;
+    const keep = add(this.add.rectangle(cx, keepY, 460, 82, 0x1b2138)
+      .setStrokeStyle(2, 0x3f4a78).setInteractive({ useHandCursor: true }));
+    add(this.add.text(cx, keepY - 12, '그냥 두기', font(26, '#ffffff')).setOrigin(0.5));
+    add(this.add.text(cx, keepY + 20, incoming.name + '을(를) 포기합니다',
+      font(17, '#8794b5')).setOrigin(0.5));
+    keep.on('pointerdown', () => {
+      parts.forEach((o) => o.destroy());
+      this.closeChoice();
+      this.popup('그냥 두기', '#8794b5');
+    });
+
+    this.relicSwaps = rows.concat([{ relic: null, x: cx, y: keepY }]);
+  }
+
+  // 고르기가 끝나 판이 다시 흐릅니다.
+  closeChoice() {
+    this.choosing = false;
+    this.physics.resume();
+    // 카드를 누른 그 탭이 판이 다시 흐른 뒤 점프로 한 번 더 먹히는 것을 막습니다.
+    this.tapBlockedUntil = this.time.now + 300;
   }
 
   takeRelic(relic) {

@@ -133,6 +133,83 @@ function buildTextures(scene) {
   g.fillCircle(16, 14, 3);
   g.generateTexture('e-shooter', 34, 34);
 
+  // 뛰는 것 — 뒷다리가 굵은 개구리꼴
+  g.clear();
+  g.fillStyle(0x8bc34a, 1);
+  g.fillEllipse(17, 16, 30, 22);
+  g.fillStyle(0x558b2f, 1);
+  g.fillEllipse(6, 24, 12, 12);   // 뒷다리
+  g.fillEllipse(28, 24, 12, 12);
+  g.fillStyle(0xf1f8e9, 1);
+  g.fillCircle(12, 12, 4);
+  g.fillCircle(22, 12, 4);
+  g.fillStyle(0x33691e, 1);
+  g.fillCircle(12, 12, 2);
+  g.fillCircle(22, 12, 2);
+  g.generateTexture('e-hopper', 34, 32);
+
+  // 돌진병 — 앞으로 내민 방패
+  g.clear();
+  g.fillStyle(0x795548, 1);
+  g.fillRoundedRect(8, 6, 24, 26, 6);
+  g.fillStyle(0xa1887f, 1);
+  g.fillRoundedRect(0, 2, 10, 34, 3); // 방패
+  g.fillStyle(0xffe082, 1);
+  g.fillCircle(5, 19, 3);
+  g.fillStyle(0xff8a80, 1);
+  g.fillCircle(20, 16, 4);
+  g.fillCircle(28, 16, 4);
+  g.generateTexture('e-charger', 36, 38);
+
+  // 폭탄충 — 도화선이 달린 둥근 몸
+  g.clear();
+  g.fillStyle(0x546e7a, 1);
+  g.fillCircle(17, 20, 14);
+  g.fillStyle(0x263238, 1);
+  g.fillRect(15, 2, 4, 8); // 심지
+  g.fillStyle(0xffa726, 1);
+  g.fillCircle(17, 2, 4);  // 불꽃
+  g.fillStyle(0xff5252, 1);
+  g.fillCircle(12, 19, 3);
+  g.fillCircle(22, 19, 3);
+  g.generateTexture('e-bomber', 34, 36);
+
+  // 쪼개지는 것 — 가운데 금이 간 덩어리
+  g.clear();
+  g.fillStyle(0x00897b, 1);
+  g.fillRoundedRect(2, 4, 32, 28, 10);
+  g.fillStyle(0x004d40, 1);
+  g.fillRect(16, 4, 4, 28); // 갈라질 자리
+  g.fillStyle(0xb2dfdb, 1);
+  g.fillCircle(10, 16, 4);
+  g.fillCircle(26, 16, 4);
+  g.generateTexture('e-splitter', 36, 36);
+
+  // 급강하 — 접은 날개에 뾰족한 부리
+  g.clear();
+  g.fillStyle(0x5c6bc0, 1);
+  g.fillTriangle(2, 2, 18, 14, 2, 20);
+  g.fillTriangle(34, 2, 18, 14, 34, 20);
+  g.fillStyle(0x283593, 1);
+  g.fillEllipse(18, 16, 16, 22);
+  g.fillStyle(0xffca28, 1);
+  g.fillTriangle(13, 26, 23, 26, 18, 36); // 부리
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(14, 13, 3);
+  g.fillCircle(22, 13, 3);
+  g.generateTexture('e-diver', 36, 38);
+
+  // 유령 — 아래가 너울거리는 반투명한 것
+  g.clear();
+  g.fillStyle(0xb39ddb, 0.85);
+  g.fillCircle(17, 15, 14);
+  g.fillTriangle(3, 15, 10, 34, 17, 20);
+  g.fillTriangle(17, 20, 24, 34, 31, 15);
+  g.fillStyle(0x311b92, 1);
+  g.fillCircle(12, 13, 3.5);
+  g.fillCircle(22, 13, 3.5);
+  g.generateTexture('e-ghost', 34, 36);
+
   // ── 박쥐 ──────────────────────────────────────────────
   // 도둑 — 자루를 든 보라색 박쥐
   g.clear();

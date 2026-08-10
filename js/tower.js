@@ -136,8 +136,9 @@ function healNeedFrom(hp, maxHp) {
 function enemyCountFor(index) {
   const c = CFG.enemyCount;
   const base = 1 + Math.floor(index / c.per);
-  const cap = index >= c.deepFloor ? c.deepCap : c.cap;
-  return Math.min(cap, base + (Math.random() < 0.3 ? 1 : 0));
+  const cap = Math.min(c.capMax,
+    Math.floor(c.capBase + Math.floor(index / CFG.shopEvery) * c.capPerShop));
+  return Math.max(1, Math.min(cap, base + (Math.random() < 0.3 ? 1 : 0)));
 }
 
 // 한 종류의 등장 비중. 나온 뒤 서서히 흔해지고, 다음 종류가 풀리면 물러납니다.

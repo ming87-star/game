@@ -52,6 +52,9 @@ function spawnEnemy(scene, x, y, floor, typeKey) {
   e.coin = def.coin;
   e.phase = Math.random() * Math.PI * 2;
   e.nextShotAt = scene.time.now + CFG.enemyShot.interval * (0.5 + Math.random());
+  e.nextHopAt = scene.time.now + Math.random() * CFG.hop.interval;
+  e.phaseUntil = scene.time.now + CFG.phase.onMs;
+  e.phased = false;
 
   // 거인은 무겁게, 빠른 놈은 팔딱거리게 — 움직임만 봐도 구분되게 합니다.
   const beat = def.key === 'giant' ? 900 : def.key === 'dasher' ? 220 : 420;
@@ -108,6 +111,61 @@ function groundStep(scene, e, player, time) {
     e.dir *= -1; // 발판 끝이니 돌아섭니다
   }
 
+  // 뛰는 것 — 땅을 딛고 있을 때만 튀어오릅니다. 공중에서는 그대로 날아갑니다.
+  if (e.def.move === 'hop') {
+    if (e.body.blocked.down) {
+      if (time > e.nextHopAt) {
+        e.nextHopAt = time + CFG.hop.interval * (0.7 + Math.random() * 0.6);
+        e.body.velocity.y = -CFG.hop.up;
+        e.body.velocity.x = e.dir * CFG.hop.forward;
+      } else {
+        e.body.velocity.x = 0; // 착지해서 다음 도약을 준비합니다
+      }
+    }
+    e.setFlipX(e.dir < 0);
+    return;
+  }
+
+  // 돌진병 — 노려보다가 가로로 내닫습니다. 예고가 있어야 피할 수 있습니다.
+  if (e.def.move === 'charge') return chargeStep(scene, e, player, time, near, dx);
+
+  e.body.velocity.x = e.dir * e.speed;
+  e.setFlipX(e.dir < 0);
+}
+
+// 노려보기 → 돌진 → 숨 고르기. 세 마디를 돕니다.
+function chargeStep(scene, e, player, time, near, dx) {
+  const c = CFG.charge;
+  if (!e.chargePhase) { e.chargePhase = 'walk'; e.phaseUntil = 0; }
+
+  if (time > e.phaseUntil) {
+    if (e.chargePhase === 'walk' && near) {
+      e.chargePhase = 'windup';
+      e.phaseUntil = time + c.windupMs;
+      e.chargeDir = Math.sign(dx) || e.dir;
+      e.setTint(0xff8a80); // 예고 — 이제 내닫습니다
+    } else if (e.chargePhase === 'windup') {
+      e.chargePhase = 'dash';
+      e.phaseUntil = time + c.dashMs;
+      e.clearTint();
+    } else if (e.chargePhase === 'dash') {
+      e.chargePhase = 'rest';
+      e.phaseUntil = time + c.restMs;
+    } else {
+      e.chargePhase = 'walk';
+      e.phaseUntil = time + 200;
+    }
+  }
+
+  if (e.chargePhase === 'windup' || e.chargePhase === 'rest') {
+    e.body.velocity.x = 0;
+    return;
+  }
+  if (e.chargePhase === 'dash') {
+    e.body.velocity.x = e.chargeDir * c.speed;
+    e.setFlipX(e.chargeDir < 0);
+    return;
+  }
   e.body.velocity.x = e.dir * e.speed;
   e.setFlipX(e.dir < 0);
 }
@@ -148,7 +206,50 @@ function airStep(scene, e, player, time) {
     return;
   }
 
+  // 급강하 — 머리 위로 올라가 잠깐 멎었다가 곧장 내리꽂습니다.
+  if (e.def.move === 'dive') return diveStep(scene, e, player, time);
+
+  // 유령 — 나타났다 사라졌다 합니다. 사라진 동안은 때릴 수 없습니다.
+  if (e.def.move === 'phase') {
+    if (time > e.phaseUntil) {
+      e.phased = !e.phased;
+      e.phaseUntil = time + (e.phased ? CFG.phase.offMs : CFG.phase.onMs);
+      e.setAlpha(e.phased ? 0.25 : 1);
+    }
+    scene.physics.velocityFromRotation(angle, e.speed * (e.phased ? 1.4 : 1), e.body.velocity);
+    return;
+  }
+
   scene.physics.velocityFromRotation(angle, e.speed, e.body.velocity);
+}
+
+// 올라가기 → 겨누기 → 내리꽂기 → 다시 올라가기.
+function diveStep(scene, e, player, time) {
+  const d = CFG.dive;
+  if (!e.divePhase) { e.divePhase = 'rise'; e.phaseUntil = 0; }
+
+  if (e.divePhase === 'rise') {
+    // 주인공 머리 위 자리를 잡습니다.
+    const wantY = player.y - d.riseY;
+    e.body.velocity.y = e.y > wantY ? -d.riseSpeed : d.riseSpeed * 0.4;
+    e.body.velocity.x = Phaser.Math.Clamp((player.x - e.x) * 2.4, -e.speed, e.speed);
+    if (Math.abs(e.y - wantY) < 26 && Math.abs(e.x - player.x) < 40) {
+      e.divePhase = 'aim';
+      e.phaseUntil = time + d.holdMs;
+      e.setTint(0xffab91);
+    }
+    return;
+  }
+
+  if (e.divePhase === 'aim') {
+    e.body.velocity.set(0, 0);
+    if (time > e.phaseUntil) { e.divePhase = 'drop'; e.clearTint(); }
+    return;
+  }
+
+  // 내리꽂는 중. 주인공보다 한참 아래로 내려가면 다시 올라갑니다.
+  e.body.velocity.set(0, d.dropSpeed);
+  if (e.y > player.y + 160) e.divePhase = 'rise';
 }
 
 function fireEnemyShot(scene, enemy, angle) {
@@ -223,29 +324,67 @@ function bossStep(scene, e, player, time) {
   }
 }
 
-// 세 줄 중 한둘을 골라 예고한 뒤 내리꽂습니다.
-// 셋 다 덮으면 피할 수가 없으므로 최소 한 줄은 반드시 비웁니다.
+// ── 보스의 공격 ───────────────────────────────────────────
+// 어느 패턴이든 규칙은 하나입니다: 한 번에 세 줄을 다 덮지 않습니다.
+// 다 덮으면 피하는 것이 아니라 그냥 맞는 것이고, 그건 실력이 낄 자리가 없습니다.
+const BOSS_PATTERNS = ['volley', 'sweep', 'slam', 'spray'];
+
 function bossVolley(scene, boss, player) {
-  const lanes = LANES.slice();
-  const count = Math.random() < 0.45 ? 2 : 1;
-  const targets = [];
-  while (targets.length < count) {
-    targets.push(lanes.splice(Math.floor(Math.random() * lanes.length), 1)[0]);
+  // 체력이 절반 아래로 내려가면 어려운 패턴도 섞습니다.
+  const pool = boss.hp / boss.maxHp > 0.5 ? BOSS_PATTERNS.slice(0, 3) : BOSS_PATTERNS;
+  const pattern = pool[Math.floor(Math.random() * pool.length)];
+  boss.lastPattern = pattern;
+
+  if (pattern === 'sweep') {
+    // 훑기 — 한쪽 끝에서 반대쪽으로 차례차례. 계속 같은 방향으로 도망쳐야 합니다.
+    const order = Math.random() < 0.5 ? LANES.slice() : LANES.slice().reverse();
+    order.forEach((lane, i) => bossDrop(scene, boss, lane, i * CFG.boss.sweepGapMs));
+    return;
   }
 
-  const top = boss.y + boss.displayHeight * 0.35;
-  const bottom = scene.arenaY;
+  if (pattern === 'slam') {
+    // 내리찍기 — 바깥 두 줄이 먼저, 잠시 뒤 가운데.
+    // 가운데로 피했다가 다시 바깥으로 나와야 합니다.
+    bossDrop(scene, boss, 'left', 0);
+    bossDrop(scene, boss, 'right', 0);
+    bossDrop(scene, boss, 'mid', CFG.boss.slamGapMs);
+    return;
+  }
 
-  targets.forEach((lane) => {
+  if (pattern === 'spray') {
+    // 흩뿌리기 — 한 줄에 세 발이 시차를 두고. 그 줄만 오래 위험합니다.
+    const lane = LANES[Math.floor(Math.random() * LANES.length)];
+    for (let i = 0; i < 3; i++) bossDrop(scene, boss, lane, i * 220);
+    // 그동안 다른 한 줄에도 한 발.
+    const other = LANES.filter((l) => l !== lane);
+    bossDrop(scene, boss, other[Math.floor(Math.random() * other.length)], 480);
+    return;
+  }
+
+  // 기본 — 한둘을 골라 동시에.
+  const lanes = LANES.slice();
+  const count = Math.random() < 0.45 ? 2 : 1;
+  for (let i = 0; i < count; i++) {
+    bossDrop(scene, boss, lanes.splice(Math.floor(Math.random() * lanes.length), 1)[0], 0);
+  }
+}
+
+// 한 줄에 하나. 예고를 띄우고 telegraphMs 뒤에 떨어뜨립니다.
+// 어디로 떨어지는지 보여 주지 않으면 피하는 것이 아니라 운입니다.
+function bossDrop(scene, boss, lane, delay) {
+  scene.time.delayedCall(delay, () => {
+    if (!boss.active || scene.dead || !scene.bossFight) return;
+
     const x = CFG.laneX[lane];
-    // 예고. 어디로 떨어지는지 보여 주지 않으면 피하는 것이 아니라 운입니다.
+    const top = boss.y + boss.displayHeight * 0.35;
+    const bottom = scene.arenaY;
     const warn = scene.add.rectangle(x, (top + bottom) / 2, 96, bottom - top, 0xff5252, 0.16)
       .setDepth(6);
     scene.tweens.add({ targets: warn, alpha: 0.42, duration: 180, yoyo: true, repeat: -1 });
 
     scene.time.delayedCall(CFG.boss.telegraphMs, () => {
       warn.destroy();
-      if (!boss.active || scene.dead) return;
+      if (!boss.active || scene.dead || !scene.bossFight) return;
       const b = scene.enemyBullets.create(x, top, 'boss-shot');
       b.body.setAllowGravity(false);
       b.setDepth(9);

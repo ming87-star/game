@@ -150,8 +150,9 @@ const check = (ok, label, got) => {
       shots: s.enemyBullets.countActive() + s.enemies.getChildren().filter((e) => !e.isBoss).length,
     };
   });
-  check(fought.hp < 0.97, '자동 공격이 보스를 깎음',
-    '남은 체력 ' + (fought.hp * 100).toFixed(1) + '%');
+  // 체력을 3배로 올렸으므로 몇 초로는 조금밖에 못 깎습니다. 깎이기만 하면 됩니다.
+  check(fought.hp < 0.999 && fought.hp > 0, '자동 공격이 보스를 깎음',
+    '남은 체력 ' + (fought.hp * 100).toFixed(2) + '%');
   check(fought.shots > 0, '보스가 투사체나 졸개를 내보냄', fought.shots + '개');
 
   // 보스를 죽여 보고 길이 다시 열리는지 확인합니다.
@@ -208,6 +209,54 @@ const check = (ok, label, got) => {
   await page.waitForTimeout(400);
   const stacked = await page.evaluate(() => window.__scene.weapon.relics.length);
   check(stacked === 2, '유물을 겹쳐 들 수 있음', stacked + '개');
+
+  // ── 유물은 두 개까지 ───────────────────────────────────
+  // 꽉 찬 채로 또 만나면 무엇을 버릴지 한 번 더 고르게 해야 합니다.
+  const before2 = await page.evaluate(() => window.__scene.weapon.relics.map((r) => r.key));
+  await page.evaluate(() => window.__scene.openRelicChoice());
+  const third = await page.evaluate(() => window.__scene.relicChoices[0]);
+  await page.mouse.click(...at(third.x, third.y));
+  await page.waitForTimeout(400);
+  const swap = await page.evaluate(() => ({
+    choosing: window.__scene.choosing,
+    rows: window.__scene.relicSwaps.length,
+    held: window.__scene.weapon.relics.length,
+    spots: window.__scene.relicSwaps.map((r) => ({ x: r.x, y: r.y, key: r.relic && r.relic.key })),
+  }));
+  check(swap.choosing && swap.held === 2 && swap.rows === 3,
+    '꽉 찼으면 버릴 것을 고르게 함 (버리기 2 + 그냥 두기 1)',
+    swap.rows + '갈래 · 아직 ' + swap.held + '개');
+  await shot(page, 'v-relic-swap.png');
+
+  // 첫 번째 것을 버리고 새것을 받습니다.
+  await page.mouse.click(...at(swap.spots[0].x, swap.spots[0].y));
+  await page.waitForTimeout(400);
+  const swapped = await page.evaluate(() => ({
+    choosing: window.__scene.choosing,
+    held: window.__scene.weapon.relics.map((r) => r.key),
+  }));
+  check(!swapped.choosing && swapped.held.length === 2 &&
+    !swapped.held.includes(before2[0]),
+    '버린 것은 빠지고 새것이 들어옴 — 언제나 2개',
+    before2.join(',') + ' → ' + swapped.held.join(','));
+
+  // 그냥 두는 길도 있어야 합니다.
+  await page.evaluate(() => window.__scene.openRelicChoice());
+  const fourth = await page.evaluate(() => window.__scene.relicChoices[0]);
+  await page.mouse.click(...at(fourth.x, fourth.y));
+  await page.waitForTimeout(300);
+  const keepSpot = await page.evaluate(() => {
+    const rows = window.__scene.relicSwaps;
+    return rows[rows.length - 1];
+  });
+  await page.mouse.click(...at(keepSpot.x, keepSpot.y));
+  await page.waitForTimeout(400);
+  const kept = await page.evaluate(() => ({
+    choosing: window.__scene.choosing,
+    held: window.__scene.weapon.relics.map((r) => r.key),
+  }));
+  check(!kept.choosing && kept.held.join(',') === swapped.held.join(','),
+    '"그냥 두기"를 고르면 들고 있던 것이 그대로', kept.held.join(','));
 
   // ── 박쥐 ───────────────────────────────────────────────
   const bats = await page.evaluate(async () => {
