@@ -124,6 +124,58 @@ const check = (ok, label, got) => {
     '가짜는 진짜 아이템의 표를 그대로 씁니다',
     Object.entries(look.disguises).map(([k, n]) => k + ' ' + n).join(' · '));
 
+  // ── 가까이 가면 정체가 드러나야 합니다 ─────────────────
+  // 이게 없으면 플레이어는 "왜 당했는지" 모른 채 기분만 나빠집니다.
+  const reveal = await page.evaluate(() => {
+    const s = window.__scene;
+    s.floorIndex = 20;
+    // 위층 셋에 가짜를 하나씩 심습니다: 바로 위 · 두 층 위 · 세 층 위.
+    const made = {};
+    [1, 2, 3].forEach((d) => {
+      const f = s.floorIndex + d;
+      s.removeFloor(f);
+      s.addFloor(f);
+      const floor = s.floors.get(f);
+      const slot = floor.slots.mid;
+      if (slot.view) { slot.view.destroy(); slot.view = null; }
+      slot.kind = SLOT.MIMIC;
+      slot.disguise = SLOT.PLUS;
+      slot.taken = false; slot.expired = false; slot.revealed = false;
+      const mark = s.makeMark(slot);
+      slot.view = mark;
+      floor.views.push(mark);
+      made[d] = slot;
+    });
+
+    // 겉모습이 진짜 +1 과 같은지 먼저 봅니다 (드러나기 전).
+    const before = [1, 2, 3].map((d) => made[d].revealed);
+
+    s.updateItems(s.time.now);
+    return {
+      before,
+      after: [1, 2, 3].map((d) => made[d].revealed),
+      alphaTweens: [1, 2, 3].map((d) =>
+        s.tweens.getTweensOf(made[d].view).length),
+    };
+  });
+  check(reveal.before.every((v) => v === false), '심어 둔 가짜는 처음엔 안 드러남');
+  check(reveal.after[0] === true && reveal.after[1] === true && reveal.after[2] === false,
+    '2층 안의 가짜만 정체를 드러냄 (세 층 위는 그대로)',
+    `1층위 ${reveal.after[0]} · 2층위 ${reveal.after[1]} · 3층위 ${reveal.after[2]}`);
+  check(reveal.alphaTweens[0] >= 2 && reveal.alphaTweens[2] <= 1,
+    '드러난 것에만 깜빡임이 걸림',
+    `트윈 ${reveal.alphaTweens.join(' / ')}`);
+
+  // 두 번 불러도 트윈이 쌓이지 않아야 합니다 — 쌓이면 깜빡임이 뭉개집니다.
+  const twice = await page.evaluate(() => {
+    const s = window.__scene;
+    const slot = s.floors.get(s.floorIndex + 1).slots.mid;
+    s.updateItems(s.time.now);
+    s.updateItems(s.time.now);
+    return s.tweens.getTweensOf(slot.view).length;
+  });
+  check(twice <= 3, '여러 번 불려도 깜빡임 트윈이 쌓이지 않음', twice + '개');
+
   // ── 밟았을 때 ──────────────────────────────────────────
   const bomb = await page.evaluate(() => {
     const s = window.__scene;

@@ -189,7 +189,7 @@ function blankSlot(index, lane, kind) {
     lane, kind,
     x: CFG.laneX[lane],
     y: floorY(index),
-    enemyCount: 0, enemyTypes: [], disguise: null, taken: false, spawned: false,
+    enemyCount: 0, enemyTypes: [], disguise: null, revealed: false, taken: false, spawned: false,
     armed: false, armedAt: 0, expired: false,
   };
 }

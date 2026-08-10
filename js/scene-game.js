@@ -180,17 +180,15 @@ class GameScene extends Phaser.Scene {
       }).setOrigin(0.5),
     ]).setDepth(5);
 
-    // 흔들리는 폭과 주기가 유일한 표입니다. 겉모습을 똑같이 두면 아이템을 집는
-    // 일이 그냥 도박이 되고, 아예 다르게 두면 함정이 뜻을 잃습니다.
-    // 알아채려면 눈여겨봐야 하지만, 알고 나면 보입니다.
-    const fake = slot.kind === SLOT.MIMIC;
-    const t = CFG.trap;
+    // 멀리서는 진짜와 완전히 같이 흔들립니다. 가짜가 드러나는 것은
+    // 주인공이 가까이 왔을 때뿐입니다 (updateItems 의 revealMimic).
     this.tweens.add({
-      targets: badge,
-      y: badge.y - 12 * (fake ? t.bobScale : 1),
-      duration: 900 * (fake ? t.bobSlower : 1),
-      yoyo: true, repeat: -1, ease: 'Sine.inOut',
+      targets: badge, y: badge.y - 12,
+      duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut',
     });
+
+    // 가짜는 나중에 깜빡이게 해야 하므로 조각을 붙들어 둡니다.
+    if (slot.kind === SLOT.MIMIC) slot.badgeParts = { circle: badge.list[0], label: badge.list[1] };
     return badge;
   }
 
@@ -580,7 +578,43 @@ class GameScene extends Phaser.Scene {
     }
   }
 
+  // 가짜의 정체를 드러냅니다. 홀로그램처럼 깜빡이고 빛깔이 식습니다.
+  //
+  // 한 번만 걸어 두고 slot.revealed 로 표시합니다 — 매 프레임 새 트윈을 걸면
+  // 트윈이 쌓여서 깜빡임이 아니라 그냥 반투명한 덩어리가 됩니다.
+  revealMimic(slot) {
+    if (slot.revealed || !slot.view || !slot.badgeParts) return;
+    slot.revealed = true;
+
+    const t = CFG.trap;
+    const { circle, label } = slot.badgeParts;
+
+    // 빛깔이 식어 가짜티가 납니다.
+    circle.setFillStyle(0x4dd0e1, 0.55);
+    label.setColor('#e0f7fa');
+
+    // 어긋난 주사선 — 홀로그램이 깨질 때처럼 가로로 흔들립니다.
+    this.tweens.add({
+      targets: slot.view, alpha: t.flickerAlpha,
+      duration: t.flickerMs, yoyo: true, repeat: -1, ease: 'Steps',
+    });
+    this.tweens.add({
+      targets: slot.view, scaleX: 1.18,
+      duration: t.flickerMs * 1.7, yoyo: true, repeat: -1, ease: 'Sine.inOut',
+    });
+  }
+
   updateItems(now) {
+    // 가까이 온 가짜부터 정체를 드러냅니다.
+    for (let i = 0; i <= CFG.trap.revealWithin; i++) {
+      const floor = this.floors.get(this.floorIndex + i);
+      if (!floor) continue;
+      for (const lane of LANES) {
+        const slot = floor.slots[lane];
+        if (slot && slot.kind === SLOT.MIMIC && !slot.taken && !slot.expired) this.revealMimic(slot);
+      }
+    }
+
     this.floors.forEach((floor) => {
       for (const lane of LANES) {
         const slot = floor.slots[lane];
@@ -594,7 +628,9 @@ class GameScene extends Phaser.Scene {
           slot.view = null;
           continue;
         }
-        if (age >= CFG.item.blinkAt) {
+        // 정체가 드러난 가짜는 이미 제 깜빡임을 갖고 있습니다. 여기서 alpha 를
+        // 또 건드리면 두 깜빡임이 서로 덮어써서 둘 다 안 보입니다.
+        if (age >= CFG.item.blinkAt && !slot.revealed) {
           // 사라질 때가 가까울수록 빠르게 깜빡입니다.
           const period = CFG.item.life - age < 1400 ? 80 : 170;
           // 0.2까지 낮추면 글자가 안 보여 정체불명의 덩어리처럼 보입니다.
