@@ -204,6 +204,24 @@ red and steel gray armor,
 
 ---
 
+## 8.5 코드 쪽에서 그리는 길 — `art/*.svg`
+
+AI로 그리는 것과 별개로, **SVG로 그려서 굽는 길**이 열려 있습니다.
+
+```
+art/e-crawler.svg      ← 그림 원본 (viewBox 가 곧 게임 안 크기)
+node render-art.js     ← assets/e-crawler.png 로 4배 크기로 구움
+node shot-art-ingame.js ← 실제 게임에 끼워 넣고 지금 것과 나란히 찍음
+```
+
+이 환경에는 ImageMagick 도 rsvg 도 없지만, Playwright 로 깔려 있는 Chromium 이
+SVG 를 제대로 그립니다. `omitBackground` 로 찍으면 알파가 살아 있는 PNG 가
+그대로 나옵니다.
+
+**작은 것에는 이쪽이 유리합니다.** 크기가 정확하고, 32px로 줄여도 선이 살아
+있고, 서른 장의 선 굵기와 팔레트를 코드가 강제해 줍니다. **큰 것(보스·배경·
+주인공)에는 AI 그림이 유리합니다** — 그려 넣은 질감이 그대로 값어치가 됩니다.
+
 ## 9. 다 그린 뒤
 
 `assets/` 폴더를 만들어 위 이름 그대로 넣어 주세요.

@@ -1,0 +1,33 @@
+<!-- 날것 36×32 · 오른쪽을 봅니다
+     날개는 뾰족뾰족한 박쥐 날개로. 둥근 잎사귀 모양이면 토끼처럼 보입니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="32" viewBox="0 0 36 32">
+  <g stroke="#2a1a4a" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">
+
+    <!-- 뒤쪽 날개 (큼) -->
+    <path d="M15 13 L3 3 L4 10 L1 9 L3 16 L1 17 L6 21 L9 18 L13 20 z" fill="#7e57c2"/>
+    <!-- 앞쪽 날개 (작음) — 뒤가 크고 앞이 작아야 나아가는 쪽이 보입니다 -->
+    <path d="M21 13 L32 4 L31 10 L34 10 L32 16 L34 18 L29 21 L26 18 L22 20 z" fill="#b39ddb"/>
+    <!-- 날개 힘줄 -->
+    <path d="M14 14 L5 7 M14 16 L4 14 M14 18 L7 19" fill="none" stroke-width="0.9"/>
+    <path d="M22 14 L30 7 M22 16 L31 14 M22 18 L29 19" fill="none" stroke-width="0.9"/>
+
+    <!-- 더듬이 -->
+    <path d="M15 8 q-2 -4 -4 -5" fill="none" stroke-width="1.2"/>
+    <path d="M21 8 q2 -4 4 -5" fill="none" stroke-width="1.2"/>
+    <circle cx="10.6" cy="2.6" r="1.2" fill="#ede7f6" stroke-width="1"/>
+    <circle cx="25.4" cy="2.6" r="1.2" fill="#ede7f6" stroke-width="1"/>
+
+    <!-- 몸 — 위가 굵고 아래로 뾰족한 벌 몸통 -->
+    <path d="M18 6 q7 1 7 9 q0 8 -7 14 q-7 -6 -7 -14 q0 -8 7 -9 z" fill="#9575cd"/>
+    <path d="M13 11 q5 -4 10 0 q-5 -2 -10 0 z" fill="#d1c4e9" stroke="none"/>
+    <!-- 배의 마디 -->
+    <path d="M13 21 q5 2 10 0" fill="none" stroke-width="1.1"/>
+    <path d="M14.5 24.5 q3.5 1.5 7 0" fill="none" stroke-width="1.1"/>
+
+    <!-- 눈 — 크고 창백하게. 이 게임에서 눈은 "살아 있다"의 유일한 신호입니다 -->
+    <ellipse cx="15.2" cy="14" rx="3" ry="3.4" fill="#ede7f6"/>
+    <ellipse cx="21.4" cy="14" rx="3" ry="3.4" fill="#ede7f6"/>
+    <circle cx="16.2" cy="14.6" r="1.4" fill="#2a1a4a" stroke="none"/>
+    <circle cx="22.4" cy="14.6" r="1.4" fill="#2a1a4a" stroke="none"/>
+  </g>
+</svg>

@@ -1,0 +1,33 @@
+<!-- 기는 것 32×32 · 오른쪽을 봅니다
+     껍질과 머리를 두 덩어리로 나눕니다. 하나짜리 타원은 32px에서 그냥 알로 보입니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <g stroke="#4a1010" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">
+
+    <!-- 다리 — 굵게. 얇으면 줄였을 때 사라져서 굴러가는 알이 됩니다 -->
+    <path d="M7 21 L4 28" fill="none" stroke-width="2"/>
+    <path d="M12 23 L10 29" fill="none" stroke-width="2"/>
+    <path d="M17 23 L18 29" fill="none" stroke-width="2"/>
+    <path d="M23 22 L25 28" fill="none" stroke-width="2"/>
+
+    <!-- 등껍질 -->
+    <ellipse cx="12" cy="16" rx="10.5" ry="8" fill="#d63a3a"/>
+    <path d="M4 13 q8 -5 16 -1 q-8 -2 -16 1 z" fill="#ff8a80" stroke="none"/>
+    <!-- 껍질 마디 -->
+    <path d="M10 8.5 L9 24" fill="none" stroke-width="1.2"/>
+    <path d="M16 10 L15 23" fill="none" stroke-width="1.2"/>
+
+    <!-- 머리 — 껍질 앞에 따로. 여기에 눈이 붙어야 "앞"이 생깁니다 -->
+    <circle cx="24" cy="17" r="6.5" fill="#ef5350"/>
+    <path d="M19 14 q5 -3 9 0 q-5 -1 -9 0 z" fill="#ff8a80" stroke="none"/>
+
+    <!-- 눈 — 크고 흽니다. 줄이면 이것만 남습니다 -->
+    <circle cx="22.5" cy="15.5" r="3" fill="#ffffff"/>
+    <circle cx="28" cy="17" r="2.6" fill="#ffffff"/>
+    <circle cx="23.5" cy="15.8" r="1.4" fill="#3b0d0d" stroke="none"/>
+    <circle cx="28.8" cy="17.2" r="1.2" fill="#3b0d0d" stroke="none"/>
+
+    <!-- 집게턱 — 앞으로 벌어집니다. 위험한 쪽이 어느 쪽인지 -->
+    <path d="M27 21 q4 0 5 -2" fill="none" stroke-width="1.8"/>
+    <path d="M26 23 q4 1 6 -1" fill="none" stroke-width="1.8"/>
+  </g>
+</svg>
