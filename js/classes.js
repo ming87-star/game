@@ -32,21 +32,39 @@ const CLASSES = [
     steal: 0,
 
     // 근접: 사거리 안을 한 번에 벱니다. 사거리가 길어 여럿이 함께 맞습니다.
+    //
+    // icon 은 그림을 짓는 값입니다 (js/textures.js). 흰 외곽선으로 굽습니다.
+    //   art    sword 검 · dagger 짧은 검 · spear 창 · bow 활 · crossbow 석궁
+    //   hw     날의 반너비 · len 날 길이 (가장 긴 날 0.76에 견줘서) · curve 휘어진 정도
+    //   guard  none · bar 가로대 · cross 십자 · wing 젖힌 뿔 · ring 고리 (gw 는 그 너비)
+    //   twin   두 자루 · notch 이 빠진 날 · gem 밑동의 보석
     weapons: [
-      { name: '녹슨 장검', dmg: 24,  rate: 205, reach: 100, color: 0xcfd8dc },
-      { name: '강철 검',   dmg: 43,  rate: 195, reach: 108, color: 0x90caf9 },
-      { name: '쌍날 검',   dmg: 69,  rate: 175, reach: 116, color: 0xa5d6a7 },
-      { name: '은빛 창',   dmg: 118, rate: 165, reach: 124, color: 0xb0bec5 },
-      { name: '마력 검',   dmg: 199, rate: 155, reach: 130, color: 0xce93d8 },
-      { name: '화염도',    dmg: 322, rate: 140, reach: 135, color: 0xff8a65 },
-      { name: '뇌전검',    dmg: 515, rate: 125, reach: 139, color: 0x81d4fa },
-      { name: '용살검',    dmg: 772, rate: 105, reach: 143, color: 0xffb74d },
+      { name: '녹슨 장검', dmg: 24,  rate: 205, reach: 100, color: 0xcfd8dc,
+        icon: { art: 'sword', hw: 4.0, len: 0.60, guard: 'bar', gw: 12, notch: true } },
+      { name: '강철 검',   dmg: 43,  rate: 195, reach: 108, color: 0x90caf9,
+        icon: { art: 'sword', hw: 4.6, len: 0.63, guard: 'bar', gw: 15 } },
+      { name: '쌍날 검',   dmg: 69,  rate: 175, reach: 116, color: 0xa5d6a7,
+        icon: { art: 'sword', twin: true, hw: 5.0, len: 0.62, guard: 'bar', gw: 16 } },
+      { name: '은빛 창',   dmg: 118, rate: 165, reach: 124, color: 0xb0bec5,
+        icon: { art: 'spear' } },
+      { name: '마력 검',   dmg: 199, rate: 155, reach: 130, color: 0xce93d8,
+        icon: { art: 'sword', hw: 4.8, len: 0.66, guard: 'ring', gw: 14, gem: true } },
+      { name: '화염도',    dmg: 322, rate: 140, reach: 135, color: 0xff8a65,
+        icon: { art: 'sword', hw: 5.4, len: 0.66, curve: 1.1, guard: 'bar', gw: 12 } },
+      { name: '뇌전검',    dmg: 515, rate: 125, reach: 139, color: 0x81d4fa,
+        icon: { art: 'sword', hw: 4.6, len: 0.68, guard: 'wing', gw: 15, gem: true } },
+      { name: '용살검',    dmg: 772, rate: 105, reach: 143, color: 0xffb74d,
+        icon: { art: 'sword', hw: 6.6, len: 0.70, guard: 'cross', gw: 19 } },
       // 여기서부터는 275층 언저리에서야 손에 들어옵니다. 한 판에 다 보기는 어렵고,
       // 메달과 무기 계승으로 판을 거듭해야 닿는 구간입니다.
-      { name: '파천검',    dmg: 1310, rate: 100, reach: 147, color: 0xf48fb1 },
-      { name: '성흔검',    dmg: 2230, rate: 95,  reach: 151, color: 0xfff59d },
-      { name: '혼돈의 대검', dmg: 3780, rate: 90, reach: 155, color: 0x9575cd },
-      { name: '천공검',    dmg: 6370, rate: 85,  reach: 159, color: 0x80cbc4 },
+      { name: '파천검',    dmg: 1310, rate: 100, reach: 147, color: 0xf48fb1,
+        icon: { art: 'sword', hw: 7.0, len: 0.70, curve: 0.6, guard: 'cross', gw: 20, notch: true } },
+      { name: '성흔검',    dmg: 2230, rate: 95,  reach: 151, color: 0xfff59d,
+        icon: { art: 'sword', hw: 5.6, len: 0.73, guard: 'ring', gw: 17, gem: true } },
+      { name: '혼돈의 대검', dmg: 3780, rate: 90, reach: 155, color: 0x9575cd,
+        icon: { art: 'sword', hw: 8.0, len: 0.72, guard: 'wing', gw: 21, gem: true } },
+      { name: '천공검',    dmg: 6370, rate: 85,  reach: 159, color: 0x80cbc4,
+        icon: { art: 'sword', hw: 6.4, len: 0.76, curve: 0.5, guard: 'wing', gw: 19, gem: true, notch: true } },
     ],
 
   },
@@ -79,22 +97,36 @@ const CLASSES = [
     // 원거리: 한 발이 적 하나를 칩니다. shots 만큼 서로 다른 적을 동시에 노립니다.
     // 주기가 짧은 이유: 궁수는 멈추지 않고 지나가며 잡아야 합니다.
     // 한 발이 근접보다 약한 대신 훨씬 자주 나갑니다.
+    // icon 값의 뜻은 전사 쪽 주석을 보세요. 활은 recurve(각궁처럼 끝이 젖힌 것)와
+    // big(큰 활), arrows(메긴 화살 수)로 갈립니다.
     weapons: [
-      { name: '낡은 단궁',   dmg: 35,  rate: 160, range: 300, shots: 1, color: 0xd7ccc8 },
-      { name: '사냥꾼의 활', dmg: 60,  rate: 152, range: 315, shots: 1, color: 0xbcaaa4 },
-      { name: '각궁',       dmg: 50,  rate: 140, range: 330, shots: 2, color: 0xa5d6a7 },
-      { name: '강철 석궁',   dmg: 86,  rate: 132, range: 345, shots: 2, color: 0xb0bec5 },
-      { name: '바람의 활',   dmg: 99,  rate: 124, range: 360, shots: 3, color: 0x80deea },
-      { name: '불꽃 장궁',   dmg: 160, rate: 113, range: 375, shots: 3, color: 0xff8a65 },
-      { name: '뇌명궁',     dmg: 191, rate: 102, range: 390, shots: 4, color: 0x81d4fa },
+      { name: '낡은 단궁',   dmg: 35,  rate: 160, range: 300, shots: 1, color: 0xd7ccc8,
+        icon: { art: 'bow', arrows: 1 } },
+      { name: '사냥꾼의 활', dmg: 60,  rate: 152, range: 315, shots: 1, color: 0xbcaaa4,
+        icon: { art: 'bow', big: true, arrows: 1 } },
+      { name: '각궁',       dmg: 50,  rate: 140, range: 330, shots: 2, color: 0xa5d6a7,
+        icon: { art: 'bow', recurve: true, arrows: 1 } },
+      { name: '강철 석궁',   dmg: 86,  rate: 132, range: 345, shots: 2, color: 0xb0bec5,
+        icon: { art: 'crossbow' } },
+      { name: '바람의 활',   dmg: 99,  rate: 124, range: 360, shots: 3, color: 0x80deea,
+        icon: { art: 'bow', recurve: true, arrows: 2 } },
+      { name: '불꽃 장궁',   dmg: 160, rate: 113, range: 375, shots: 3, color: 0xff8a65,
+        icon: { art: 'bow', big: true, arrows: 2 } },
+      { name: '뇌명궁',     dmg: 191, rate: 102, range: 390, shots: 4, color: 0x81d4fa,
+        icon: { art: 'bow', recurve: true, big: true, arrows: 2 } },
       // 특수 무기 — 화살이 표적을 끝까지 쫓습니다. 아주 긴 판에서만 손에 들어옵니다.
-      { name: '용뼈 대궁',   dmg: 288, rate: 89,  range: 410, shots: 4, homing: true, color: 0xffb74d },
+      { name: '용뼈 대궁',   dmg: 288, rate: 89,  range: 410, shots: 4, homing: true, color: 0xffb74d,
+        icon: { art: 'crossbow', big: true } },
       // 여기서부터는 유도가 기본입니다. 275층 언저리의 구간이라,
       // 메달과 무기 계승으로 판을 거듭해야 닿습니다.
-      { name: '질풍 대궁',   dmg: 478,  rate: 82, range: 425, shots: 4, homing: true, color: 0xf48fb1 },
-      { name: '성좌궁',     dmg: 635,  rate: 76, range: 440, shots: 5, homing: true, color: 0xfff59d },
-      { name: '심연 장궁',   dmg: 1055,  rate: 70, range: 455, shots: 5, homing: true, color: 0x9575cd },
-      { name: '천뢰궁',     dmg: 1446, rate: 64, range: 470, shots: 6, homing: true, color: 0x80cbc4 },
+      { name: '질풍 대궁',   dmg: 478,  rate: 82, range: 425, shots: 4, homing: true, color: 0xf48fb1,
+        icon: { art: 'bow', big: true, arrows: 3 } },
+      { name: '성좌궁',     dmg: 635,  rate: 76, range: 440, shots: 5, homing: true, color: 0xfff59d,
+        icon: { art: 'bow', recurve: true, big: true, arrows: 3 } },
+      { name: '심연 장궁',   dmg: 1055,  rate: 70, range: 455, shots: 5, homing: true, color: 0x9575cd,
+        icon: { art: 'crossbow', big: true, gem: true } },
+      { name: '천뢰궁',     dmg: 1446, rate: 64, range: 470, shots: 6, homing: true, color: 0x80cbc4,
+        icon: { art: 'bow', recurve: true, big: true, arrows: 3, gem: true } },
     ],
 
   },
@@ -139,20 +171,34 @@ const CLASSES = [
     // 근접이지만 사거리가 짧고 대신 훨씬 빠릅니다.
     // 한 대의 공격력은 셋 중 가장 큽니다 — 사거리가 짧아 한 번에 닿는 수가
     // 전사의 절반쯤이라, 그만큼 한 대가 무거워야 총합이 맞습니다.
+    // icon 값의 뜻은 전사 쪽 주석을 보세요. 도적은 날이 짧아 art 가 dagger 입니다 —
+    // 자루가 짧고 코등이가 작아, 같은 검이라도 전사 것과 실루엣이 갈립니다.
     weapons: [
-      { name: '이 빠진 단도', dmg: 22,  rate: 115, reach: 78, color: 0xcfd8dc },
-      { name: '사냥칼',      dmg: 41,  rate: 110, reach: 82, color: 0x90caf9 },
-      { name: '쌍단도',      dmg: 64,  rate: 98,  reach: 86, color: 0xa5d6a7 },
-      { name: '독니',        dmg: 109,  rate: 92,  reach: 91, color: 0x9ccc65 },
-      { name: '그림자 단검',  dmg: 183, rate: 87,  reach: 95, color: 0xce93d8 },
-      { name: '월아도',      dmg: 297, rate: 78,  reach: 98, color: 0xff8a65 },
-      { name: '뇌전 비수',    dmg: 474, rate: 70,  reach: 101, color: 0x81d4fa },
-      { name: '용아 단검',    dmg: 710, rate: 60,  reach: 104, color: 0xffb74d },
+      { name: '이 빠진 단도', dmg: 22,  rate: 115, reach: 78, color: 0xcfd8dc,
+        icon: { art: 'dagger', hw: 3.6, len: 0.40, guard: 'none', notch: true } },
+      { name: '사냥칼',      dmg: 41,  rate: 110, reach: 82, color: 0x90caf9,
+        icon: { art: 'dagger', hw: 4.0, len: 0.44, guard: 'bar', gw: 9 } },
+      { name: '쌍단도',      dmg: 64,  rate: 98,  reach: 86, color: 0xa5d6a7,
+        icon: { art: 'dagger', twin: true, hw: 4.4, len: 0.44, guard: 'bar', gw: 11 } },
+      { name: '독니',        dmg: 109,  rate: 92,  reach: 91, color: 0x9ccc65,
+        icon: { art: 'dagger', hw: 4.0, len: 0.45, curve: 1.3, guard: 'none' } },
+      { name: '그림자 단검',  dmg: 183, rate: 87,  reach: 95, color: 0xce93d8,
+        icon: { art: 'dagger', hw: 4.0, len: 0.48, guard: 'bar', gw: 10, gem: true } },
+      { name: '월아도',      dmg: 297, rate: 78,  reach: 98, color: 0xff8a65,
+        icon: { art: 'dagger', hw: 5.0, len: 0.50, curve: 1.8, guard: 'bar', gw: 10 } },
+      { name: '뇌전 비수',    dmg: 474, rate: 70,  reach: 101, color: 0x81d4fa,
+        icon: { art: 'dagger', hw: 4.0, len: 0.50, guard: 'wing', gw: 11, gem: true } },
+      { name: '용아 단검',    dmg: 710, rate: 60,  reach: 104, color: 0xffb74d,
+        icon: { art: 'dagger', hw: 4.8, len: 0.52, curve: 1.1, guard: 'cross', gw: 12 } },
       // 275층 언저리 구간.
-      { name: '그믐 비수',    dmg: 1188,  rate: 56, reach: 107,  color: 0xf48fb1 },
-      { name: '사혼도',      dmg: 1968, rate: 52, reach: 110, color: 0xfff59d },
-      { name: '심연의 이빨',  dmg: 3255, rate: 48, reach: 113, color: 0x9575cd },
-      { name: '천살 단검',    dmg: 5334, rate: 44, reach: 116, color: 0x80cbc4 },
+      { name: '그믐 비수',    dmg: 1188,  rate: 56, reach: 107,  color: 0xf48fb1,
+        icon: { art: 'dagger', hw: 4.2, len: 0.53, curve: 1.6, guard: 'bar', gw: 10, gem: true } },
+      { name: '사혼도',      dmg: 1968, rate: 52, reach: 110, color: 0xfff59d,
+        icon: { art: 'dagger', hw: 5.2, len: 0.55, curve: 1.2, guard: 'ring', gw: 12 } },
+      { name: '심연의 이빨',  dmg: 3255, rate: 48, reach: 113, color: 0x9575cd,
+        icon: { art: 'dagger', twin: true, hw: 5.0, len: 0.54, guard: 'wing', gw: 13, gem: true } },
+      { name: '천살 단검',    dmg: 5334, rate: 44, reach: 116, color: 0x80cbc4,
+        icon: { art: 'dagger', hw: 5.0, len: 0.58, guard: 'ring', gw: 13, gem: true, notch: true } },
     ],
 
   },

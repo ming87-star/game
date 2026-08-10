@@ -23,6 +23,14 @@ const SLOT = {
 // 시간이 지나면 사라지는 것들. 상점과 적은 해당하지 않습니다.
 const ITEM_KINDS = new Set([SLOT.PLUS, SLOT.HASTE, SLOT.DOUBLE, SLOT.UPGRADE, SLOT.HEAL, SLOT.ARMOR, SLOT.DODGE, SLOT.RELIC, SLOT.MEDAL, SLOT.BOMB, SLOT.MIMIC]);
 
+// 함정. 좋은 것과 수명이 다릅니다 — 훨씬 빨리 삭습니다.
+const TRAP_KINDS = new Set([SLOT.BOMB, SLOT.MIMIC]);
+
+// 그 칸의 시계가 얼마나 빨리 가는가. armWithin·blinkAt·life 세 값을 씁니다.
+function slotTiming(kind) {
+  return TRAP_KINDS.has(kind) ? CFG.trap : CFG.item;
+}
+
 // 발판 위에 띄울 표시. 나중에 아이템 그림이 나오면 여기만 바꾸면 됩니다.
 const SLOT_MARK = {
   [SLOT.PLUS]:    { label: '+1', color: 0xffd54f, text: '#3e2723' },
@@ -190,7 +198,7 @@ function blankSlot(index, lane, kind) {
     x: CFG.laneX[lane],
     y: floorY(index),
     enemyCount: 0, enemyTypes: [], disguise: null, revealed: false, taken: false, spawned: false,
-    armed: false, armedAt: 0, expired: false,
+    armed: false, armedAt: 0, expired: false, blinking: false,
   };
 }
 

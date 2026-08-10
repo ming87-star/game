@@ -254,13 +254,13 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
       const s = window.__scene;
       return {
         buttons: s.deathChoices ? s.deathChoices.length : 0,
-        carry: window.__save.rollWeapon(s.job.key),
+        carry: window.__save.carryWeapon(s.job.key),
         book: window.__save.data.weapons[s.job.key] || {},
       };
     });
     console.log('죽음 화면: 선택지', choices.buttons + '개',
       '· 도감', Object.keys(choices.book).length + '단계',
-      '· 뽑기 예:', JSON.stringify(choices.carry));
+      '· 계승할 무기:', JSON.stringify(choices.carry));
   }
 
   console.log(log.join('\n'));

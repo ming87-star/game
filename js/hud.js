@@ -24,7 +24,13 @@ class Hud {
     // 아직 하나도 없는 첫 판에 설명 없는 기호가 떠 있으면 그냥 노이즈입니다.
     this.medalText = fixed(scene.add.text(0, 55, '', font(20, '#ffca28')).setOrigin(1, 0));
 
-    this.weaponText = fixed(scene.add.text(24, 66, '', font(24, '#ffffff')));
+    // 들고 있는 무기. 이름만 적어 두면 열두 자루가 전부 같은 글자 덩어리로 보여서,
+    // 방금 UP을 밟아 무엇이 바뀌었는지가 눈에 안 들어옵니다. 그림이 있어야
+    // 발판 위의 다음 무기 그림과 짝이 맞습니다 — 저것을 밟으면 이게 저것이 됩니다.
+    fixed(scene.add.circle(40, 81, 19, 0x232b47).setStrokeStyle(2, 0x3f4a78));
+    this.weaponIcon = fixed(scene.add.image(40, 81, weaponIconKey('warrior', 0)))
+      .setDisplaySize(34, 34).setDepth(101);
+    this.weaponText = fixed(scene.add.text(60, 66, '', font(24, '#ffffff')));
     this.plusText = fixed(scene.add.text(0, 68, '', font(22, '#ffd54f')));
     this.multText = fixed(scene.add.text(0, 68, '', font(22, '#4fc3f7')));
     this.relicText = fixed(scene.add.text(CFG.width - 24, 96, '', font(17, '#ffd54f')).setOrigin(1, 0));
@@ -117,6 +123,10 @@ class Hud {
       .setX(this.coinText.x - this.coinText.width - 16);
 
     // 무기 이름 뒤에 강화 현황을 붙입니다. 없으면 표시하지 않습니다.
+    const icon = weaponIconKey(s.job.key, w.tier);
+    if (this.weaponIcon.texture.key !== icon) {
+      this.weaponIcon.setTexture(icon).setDisplaySize(34, 34);
+    }
     this.weaponText.setText(w.name);
     let x = this.weaponText.x + this.weaponText.width + 10;
 

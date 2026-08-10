@@ -367,4 +367,240 @@ function buildTextures(scene) {
   g.generateTexture('spark', 10, 10);
 
   g.destroy();
+
+  buildWeaponIcons(scene);
+}
+
+// ── 무기 그림 ───────────────────────────────────────────
+// 무기는 직업마다 열두 자루, 모두 서른여섯 자루입니다. 서른여섯 장을 손으로
+// 그리는 대신 몇 가지 값으로 모양을 지어냅니다 (classes.js 의 icon).
+//
+// 지금은 전부 흰 외곽선입니다. 나중에 같은 무기라도 희귀도를 색으로 나눌 텐데,
+// 그때는 ICON.stroke 를 희귀도만큼 돌려 가며 여러 벌 구우면 됩니다 —
+// 모양을 짓는 코드는 그대로 두고 키에 희귀도만 붙이면 됩니다.
+const ICON = {
+  size: 48,
+  stroke: 0xffffff,
+  fill: 0x0f1626,
+  fillAlpha: 0.8,
+  weight: 2.4,
+};
+
+function weaponIconKey(jobKey, tier) {
+  return 'w-' + jobKey + '-' + tier;
+}
+
+function iconPoly(g, pts) {
+  g.beginPath();
+  pts.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])));
+  g.closePath();
+  g.fillPath();
+  g.strokePath();
+}
+
+function iconDot(g, x, y, r) {
+  g.fillCircle(x, y, r);
+  g.strokeCircle(x, y, r);
+}
+
+// 날. 아래(baseY)에서 위(tipY)로 올라가며 끝에서 뾰족해집니다.
+// curve 를 주면 한쪽으로 휘어 도(刀)가 됩니다.
+function bladePoints(cx, baseY, tipY, hw, curve) {
+  const steps = 10;
+  const left = [], right = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const y = baseY + (tipY - baseY) * t;
+    // 끝 4분의 1에서만 좁아집니다. 처음부터 좁히면 날이 아니라 송곳이 됩니다.
+    const w = hw * Math.min(1, (1 - t) / 0.24);
+    const bend = (curve || 0) * Math.sin(Math.PI * t) * 4.5;
+    left.push([cx + bend - w, y]);
+    right.push([cx + bend + w, y]);
+  }
+  return left.concat(right.reverse());
+}
+
+function iconGuard(g, cx, y, spec) {
+  const gw = (spec.gw || 14) / 2; // spec 의 gw 는 코등이 전체 너비입니다
+  switch (spec.guard) {
+    case 'bar':
+      iconPoly(g, [[cx - gw, y - 2.6], [cx + gw, y - 2.6], [cx + gw, y + 2.6], [cx - gw, y + 2.6]]);
+      break;
+    case 'cross': // 양 끝이 아래로 벌어진 십자
+      iconPoly(g, [[cx - gw, y + 4], [cx - gw + 5, y - 3], [cx + gw - 5, y - 3], [cx + gw, y + 4]]);
+      break;
+    case 'wing': // 위로 젖혀 올린 뿔 한 쌍
+      iconPoly(g, [[cx - 2, y + 3], [cx - gw, y - 9], [cx - gw * 0.5, y + 3]]);
+      iconPoly(g, [[cx + 2, y + 3], [cx + gw, y - 9], [cx + gw * 0.5, y + 3]]);
+      iconPoly(g, [[cx - 6, y - 1], [cx + 6, y - 1], [cx + 6, y + 3], [cx - 6, y + 3]]);
+      break;
+    case 'ring': // 가로대 양 끝에 고리
+      iconPoly(g, [[cx - gw + 4, y - 2.2], [cx + gw - 4, y - 2.2], [cx + gw - 4, y + 2.2], [cx - gw + 4, y + 2.2]]);
+      iconDot(g, cx - gw + 2, y, 3.4);
+      iconDot(g, cx + gw - 2, y, 3.4);
+      break;
+    default:
+      break;
+  }
+}
+
+// 이가 빠진 자국. 날 옆에 작은 삼각형을 얹어 톱니처럼 보이게 합니다.
+function iconNotches(g, cx, baseY, tipY, hw) {
+  for (let i = 0; i < 3; i++) {
+    const y = baseY - (baseY - tipY) * (0.3 + i * 0.18);
+    iconPoly(g, [[cx + hw - 1, y], [cx + hw + 3.4, y - 2.4], [cx + hw - 1, y - 5]]);
+  }
+}
+
+function drawSword(g, spec) {
+  const cx = ICON.size / 2;
+  const gripLen = spec.art === 'dagger' ? 8 : 10;
+  // 아래에서부터 자루 끝 구슬 · 자루 · 코등이 순으로 자리를 떼어 주고,
+  // 남는 위쪽이 전부 날입니다. 날이 아이콘의 절반은 넘어야 검으로 읽힙니다.
+  const guardY = ICON.size - 3.4 - gripLen - 3.4;
+  const span = guardY - 3;
+  // len 은 "가장 긴 날(0.76)에 견준 길이"입니다. 도적의 짧은 날이 0.4 언저리입니다.
+  const tipY = guardY - span * Phaser.Math.Clamp(spec.len / 0.76, 0.4, 1);
+
+  if (spec.twin) {
+    // 두 자루. 살짝 벌려 세워 한 자루와 실루엣이 갈리게 합니다.
+    iconPoly(g, bladePoints(cx - 5, guardY, tipY + 3, spec.hw * 0.62, -0.35));
+    iconPoly(g, bladePoints(cx + 5, guardY, tipY + 3, spec.hw * 0.62, 0.35));
+  } else {
+    iconPoly(g, bladePoints(cx, guardY, tipY, spec.hw, spec.curve));
+    if (spec.notch) iconNotches(g, cx, guardY, tipY, spec.hw);
+  }
+
+  iconGuard(g, cx, guardY, spec);
+
+  // 자루와 자루 끝
+  iconPoly(g, [[cx - 3, guardY], [cx + 3, guardY],
+    [cx + 3, guardY + gripLen], [cx - 3, guardY + gripLen]]);
+  iconDot(g, cx, guardY + gripLen + 3.2, 3.4);
+
+  // 날 밑동의 보석 — 이름에 힘이 붙은 무기임을 한 점으로 알립니다.
+  if (spec.gem) {
+    const y = guardY - 9;
+    iconPoly(g, [[cx, y - 4.5], [cx + 3.6, y], [cx, y + 4.5], [cx - 3.6, y]]);
+  }
+}
+
+function drawSpear(g) {
+  const cx = ICON.size / 2;
+  // 자루 — 아래에서 위까지 곧게. 검과 갈리는 것은 이 긴 대입니다.
+  iconPoly(g, [[cx - 1.7, 18], [cx + 1.7, 18], [cx + 1.7, ICON.size - 5], [cx - 1.7, ICON.size - 5]]);
+  // 촉 — 좁고 긴 잎사귀
+  iconPoly(g, bladePoints(cx, 25, 3, 3.8, 0));
+  // 촉 아래 가로대
+  iconPoly(g, [[cx - 8, 22.5], [cx + 8, 22.5], [cx + 8, 25.5], [cx - 8, 25.5]]);
+  iconDot(g, cx, ICON.size - 4, 2.8);
+}
+
+// 활 — 오른쪽으로 배가 불룩하고, 시위가 그 왼쪽에 곧게 섭니다.
+// 화살은 시위에 메겨 오른쪽을 향합니다. shots 가 많은 활일수록 여러 대입니다.
+function drawBow(g, spec) {
+  const cx = ICON.size / 2, cy = ICON.size / 2;
+  const r = spec.big ? 20 : 17;
+  const ox = cx - 7;
+  const span = Phaser.Math.DegToRad(spec.recurve ? 62 : 74);
+
+  g.lineStyle(ICON.weight + 0.8, ICON.stroke, 1);
+  g.beginPath();
+  g.arc(ox, cy, r, -span, span, false);
+  g.strokePath();
+
+  const tipX = ox + Math.cos(span) * r, tipY = Math.sin(span) * r;
+
+  // 각궁 — 끝이 반대로 젖혀집니다. 굽은 방향이 뒤집히는 것이 각궁의 표입니다.
+  if (spec.recurve) {
+    [-1, 1].forEach((s) => {
+      g.beginPath();
+      g.arc(tipX - 5, cy + s * (tipY + 4), 6,
+        Phaser.Math.DegToRad(s > 0 ? -95 : 5), Phaser.Math.DegToRad(s > 0 ? -5 : 95), false);
+      g.strokePath();
+    });
+  }
+
+  // 시위
+  g.lineStyle(1.6, ICON.stroke, 0.85);
+  g.lineBetween(tipX, cy - tipY, tipX, cy + tipY);
+
+  // 메긴 화살. 세 대까지입니다 — 그 위로는 빗살무늬가 되어 활이 안 보입니다.
+  g.lineStyle(ICON.weight, ICON.stroke, 1);
+  g.fillStyle(ICON.stroke, 1);
+  const rows = Math.min(3, spec.arrows || 1);
+  for (let i = 0; i < rows; i++) {
+    const y = cy + (i - (rows - 1) / 2) * (rows > 2 ? 8 : 9);
+    g.lineBetween(tipX - 12, y, tipX + 13, y);
+    iconPoly(g, [[tipX + 18, y], [tipX + 11, y - 3.6], [tipX + 11, y + 3.6]]);
+  }
+  g.fillStyle(ICON.fill, ICON.fillAlpha);
+
+  if (spec.gem) {
+    iconPoly(g, [[ox + r - 2, cy - 5], [ox + r + 3, cy], [ox + r - 2, cy + 5], [ox + r - 7, cy]]);
+  }
+}
+
+// 석궁 — 활을 가로로 눕혀 개머리에 얹은 것.
+//
+// 처음에는 활대를 호(arc)로 그렸는데, 젖힌 끝이 날개처럼 보여서 새인지 활인지
+// 알 수가 없었습니다. 얕은 초승달 하나로 눕히고 개머리를 곧게 세우니
+// "T자 위에 활을 얹은 것"이라는 실루엣이 한눈에 잡힙니다.
+function drawCrossbow(g, spec) {
+  const cx = ICON.size / 2, cy = ICON.size / 2 + 2;
+  const half = spec.big ? 19 : 16;
+  const rise = spec.big ? 9 : 7;
+
+  // 개머리 — 세로로 곧게. 아래는 어깨에 닿는 자리라 살짝 넓힙니다.
+  iconPoly(g, [[cx - 3.4, cy - 10], [cx + 3.4, cy - 10],
+    [cx + 3.4, cy + 12], [cx + 6, cy + 19], [cx - 6, cy + 19], [cx - 3.4, cy + 12]]);
+  // 방아쇠
+  iconPoly(g, [[cx + 3.4, cy + 7], [cx + 8.5, cy + 12], [cx + 3.4, cy + 12]]);
+
+  // 활대 — 위로 얕게 휜 초승달
+  iconPoly(g, [
+    [cx - half, cy - 1], [cx - half * 0.5, cy - rise * 0.8], [cx, cy - rise],
+    [cx + half * 0.5, cy - rise * 0.8], [cx + half, cy - 1],
+    [cx + half, cy + 2.6], [cx + half * 0.5, cy - rise * 0.8 + 3.4], [cx, cy - rise + 3.6],
+    [cx - half * 0.5, cy - rise * 0.8 + 3.4], [cx - half, cy + 2.6],
+  ]);
+
+  // 시위 — 활대 두 끝을 곧게 잇습니다
+  g.lineStyle(1.6, ICON.stroke, 0.9);
+  g.lineBetween(cx - half + 1, cy + 1, cx + half - 1, cy + 1);
+
+  // 메긴 볼트 — 개머리를 따라 앞을 향합니다
+  g.lineStyle(ICON.weight, ICON.stroke, 1);
+  g.fillStyle(ICON.stroke, 1);
+  g.lineBetween(cx, cy + 1, cx, cy - 14);
+  iconPoly(g, [[cx, cy - 20], [cx - 3.4, cy - 13], [cx + 3.4, cy - 13]]);
+  g.fillStyle(ICON.fill, ICON.fillAlpha);
+  g.lineStyle(ICON.weight, ICON.stroke, 1);
+
+  if (spec.gem) iconPoly(g, [[cx, cy + 4], [cx + 3.6, cy + 8.5], [cx, cy + 13], [cx - 3.6, cy + 8.5]]);
+}
+
+function buildWeaponIcons(scene) {
+  const g = scene.make.graphics({ add: false });
+
+  CLASSES.forEach((job) => {
+    job.weapons.forEach((w, tier) => {
+      const key = weaponIconKey(job.key, tier);
+      if (scene.textures.exists(key)) return;
+
+      g.clear();
+      g.fillStyle(ICON.fill, ICON.fillAlpha);
+      g.lineStyle(ICON.weight, ICON.stroke, 1);
+
+      const spec = w.icon || { art: 'sword', hw: 4.5, len: 0.6, guard: 'bar', gw: 14 };
+      if (spec.art === 'bow') drawBow(g, spec);
+      else if (spec.art === 'crossbow') drawCrossbow(g, spec);
+      else if (spec.art === 'spear') drawSpear(g);
+      else drawSword(g, spec);
+
+      g.generateTexture(key, ICON.size, ICON.size);
+    });
+  });
+
+  g.destroy();
 }

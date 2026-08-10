@@ -240,6 +240,111 @@ const check = (ok, label, got) => {
     '잃을 것이 없으면 0에서 멈춤 (음수 없음)',
     JSON.stringify(floorZero));
 
+  // ── 함정의 수명 ────────────────────────────────────────
+  // 세 칸이 다 막혔을 때 기다렸다 지나갈 수 있어야 합니다. 그러려면
+  // 함정이 보통 아이템보다 훨씬 빨리 삭아야 하고, 코앞에서야 시계가 켜져야
+  // 합니다 (멀리서 켜지면 도착 전에 다 없어져서 함정이 없는 것과 같습니다).
+  const life = await page.evaluate(() => ({
+    trapLife: CFG.trap.life, itemLife: CFG.item.life,
+    trapArm: CFG.trap.armWithin, itemArm: CFG.item.armWithin,
+  }));
+  check(life.trapLife < life.itemLife * 0.6, '함정은 보통 아이템보다 훨씬 빨리 삭음',
+    `함정 ${life.trapLife}ms vs 아이템 ${life.itemLife}ms`);
+  check(life.trapArm < life.itemArm, '함정의 시계는 코앞에서야 켜짐',
+    `함정 ${life.trapArm}층 vs 아이템 ${life.itemArm}층`);
+
+  const timer = await page.evaluate(() => {
+    const s = window.__scene;
+    s.floorIndex = 30;
+    // 위층에 함정과 진짜 아이템을 나란히 심습니다.
+    // 한 층에 둘을 심으므로 층은 한 번만 새로 짓습니다 — 두 번 지으면 먼저 심은
+    // 칸이 새 층에서 떨어져 나가 시계가 안 켜집니다 (실제로 여기서 헛 쟀습니다).
+    [1, 2, 4].forEach((d) => { s.removeFloor(s.floorIndex + d); s.addFloor(s.floorIndex + d); });
+    const put = (d, lane, kind) => {
+      const f = s.floorIndex + d;
+      const floor = s.floors.get(f);
+      let slot = floor.slots[lane];
+      if (!slot) { slot = blankSlot(f, lane, kind); floor.slots[lane] = slot; }
+      if (slot.view) { slot.view.destroy(); slot.view = null; }
+      slot.kind = kind;
+      slot.taken = false; slot.expired = false; slot.revealed = false;
+      slot.armed = false; slot.armedAt = 0; slot.blinking = false;
+      slot.view = s.makeMark(slot);
+      if (slot.view) floor.views.push(slot.view);
+      return slot;
+    };
+
+    const nearBomb = put(1, 'left', SLOT.BOMB);
+    const nearPlus = put(1, 'right', SLOT.PLUS);
+    const farBomb = put(4, 'left', SLOT.BOMB);
+    const farPlus = put(4, 'right', SLOT.PLUS);
+    // 두 층 위 — 아이템은 켜지지만 함정은 아직입니다 (한 층 아래에 서야 켜집니다).
+    const midBomb = put(2, 'left', SLOT.BOMB);
+
+    s.armItems();
+    const armed = {
+      nearBomb: nearBomb.armed, nearPlus: nearPlus.armed,
+      midBomb: midBomb.armed, farBomb: farBomb.armed, farPlus: farPlus.armed,
+    };
+
+    // 함정 수명만큼 시간이 흐른 셈 치고 한 번 돌립니다.
+    const now = s.time.now;
+    nearBomb.armedAt = now - (CFG.trap.life + 50);
+    nearPlus.armedAt = now - (CFG.trap.life + 50);
+    s.updateItems(now);
+
+    // 사라진 칸을 밟으면 아무 일도 없어야 합니다 — 그게 "지나갈 수 있다"는 뜻입니다.
+    s.hp = s.maxHp;
+    const hpBefore = s.hp;
+    s.land(nearBomb);
+    return {
+      armed,
+      bombGone: nearBomb.expired, plusAlive: !nearPlus.expired,
+      hpBefore, hpAfter: s.hp,
+    };
+  });
+  check(timer.armed.nearBomb && timer.armed.nearPlus,
+    '눈앞의 함정과 아이템은 둘 다 시계가 켜짐');
+  check(!timer.armed.farBomb && !timer.armed.midBomb && timer.armed.farPlus,
+    '멀리 있는 함정은 아직 안 켜짐 (아이템은 켜짐)',
+    `두 층 위 ${timer.armed.midBomb} · 네 층 위 ${timer.armed.farBomb} · 아이템 ${timer.armed.farPlus}`);
+  check(timer.bombGone && timer.plusAlive,
+    '함정 수명이 지나면 함정만 사라짐 (같은 나이의 아이템은 남음)',
+    `함정 사라짐 ${timer.bombGone} · 아이템 남음 ${timer.plusAlive}`);
+  check(Math.round(timer.hpAfter) === Math.round(timer.hpBefore),
+    '사라진 함정 자리는 밟아도 안 아픔 — 기다렸다 지나갈 수 있음',
+    `${Math.round(timer.hpBefore)} → ${Math.round(timer.hpAfter)}`);
+
+  // 드러난 가짜도 사라질 때가 되면 깜빡여야 합니다. 홀로그램 트윈이 alpha 를
+  // 붙들고 있으면 "언제 사라질지 모르는 함정"이 되어 기다릴 수가 없습니다.
+  const blink = await page.evaluate(() => {
+    const s = window.__scene;
+    const f = s.floorIndex + 1;
+    s.removeFloor(f); s.addFloor(f);
+    const floor = s.floors.get(f);
+    const slot = floor.slots.mid;
+    if (slot.view) { slot.view.destroy(); slot.view = null; }
+    slot.kind = SLOT.MIMIC; slot.disguise = SLOT.PLUS;
+    slot.taken = false; slot.expired = false; slot.revealed = false;
+    slot.blinking = false; slot.armed = false;
+    slot.view = s.makeMark(slot);
+    floor.views.push(slot.view);
+
+    s.armItems();
+    s.updateItems(s.time.now);            // 가까우니 정체가 드러납니다
+    const revealed = slot.revealed;
+    const before = s.tweens.getTweensOf(slot.view).length;
+
+    slot.armedAt = s.time.now - (CFG.trap.blinkAt + 60); // 사라질 때가 됐습니다
+    s.updateItems(s.time.now);
+    return { revealed, before, after: s.tweens.getTweensOf(slot.view).length, blinking: slot.blinking };
+  });
+  check(blink.revealed && blink.before >= 2, '가짜가 먼저 정체를 드러냄',
+    '트윈 ' + blink.before + '개');
+  check(blink.blinking && blink.after < blink.before,
+    '사라질 때가 되면 홀로그램을 걷고 수명 깜빡임으로 넘어감',
+    `트윈 ${blink.before} → ${blink.after}`);
+
   console.log(bad ? `\n${bad}건 어긋남` : '\n함정 모두 맞음');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
   await browser.close();

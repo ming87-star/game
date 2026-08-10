@@ -111,8 +111,18 @@ class Shop {
 
     const box = add(s.add.rectangle(cx, y, 420, 96, 0x232b47)
       .setStrokeStyle(2, 0x3f4a78).setInteractive({ useHandCursor: true }));
-    const name = add(s.add.text(cx - 190, y - 26, title, font(26, '#ffffff')));
-    const desc = add(s.add.text(cx - 190, y + 8, info.desc, font(18, '#8794b5')));
+
+    // 다음 무기만은 그림을 같이 답니다. 값을 치르고 사는 것이 무엇인지
+    // 이름만으로는 안 보입니다 — 발판 위 UP과 같은 그림이라 짝이 맞습니다.
+    let left = cx - 190;
+    if (offer.key === 'upgrade' && !s.weapon.atMaxTier) {
+      add(s.add.image(left + 20, y - 8, weaponIconKey(s.job.key, s.nextTier()))
+        .setDisplaySize(40, 40));
+      left += 48;
+    }
+
+    const name = add(s.add.text(left, y - 26, title, font(26, '#ffffff')));
+    const desc = add(s.add.text(left, y + 8, info.desc, font(18, '#8794b5')));
     const price = add(s.add.text(cx + 190, y, '◎ ' + offer.price, font(24, '#ffd54f')).setOrigin(1, 0.5));
 
     box.on('pointerdown', () => this.buy(offer));

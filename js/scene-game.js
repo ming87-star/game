@@ -173,12 +173,20 @@ class GameScene extends Phaser.Scene {
     const mark = SLOT_MARK[kind];
     if (!mark) return null;
 
+    // UP은 글자 대신 **다음 무기의 그림**을 답니다. 'UP' 두 글자는 무엇이 오는지
+    // 알려주지 않아서, 밟기 전까지는 좋은 것인지 판단할 수가 없었습니다.
+    // 그림이면 저 위에 무엇이 놓였는지 보고 그쪽으로 붙을지 정할 수 있습니다.
+    const face = kind === SLOT.UPGRADE
+      ? this.add.image(0, 0, weaponIconKey(this.job.key, this.nextTier())).setDisplaySize(30, 30)
+      : this.add.text(0, 0, mark.label, {
+        fontFamily: 'sans-serif', fontSize: '20px', color: mark.text,
+      }).setOrigin(0.5);
+
     const badge = this.add.container(slot.x, slot.y - 38, [
       this.add.circle(0, 0, 18, mark.color),
-      this.add.text(0, 0, mark.label, {
-        fontFamily: 'sans-serif', fontSize: '20px', color: mark.text,
-      }).setOrigin(0.5),
+      face,
     ]).setDepth(5);
+    if (kind === SLOT.UPGRADE) slot.upIcon = face;
 
     // 멀리서는 진짜와 완전히 같이 흔들립니다. 가짜가 드러나는 것은
     // 주인공이 가까이 왔을 때뿐입니다 (updateItems 의 revealMimic).
@@ -190,6 +198,38 @@ class GameScene extends Phaser.Scene {
     // 가짜는 나중에 깜빡이게 해야 하므로 조각을 붙들어 둡니다.
     if (slot.kind === SLOT.MIMIC) slot.badgeParts = { circle: badge.list[0], label: badge.list[1] };
     return badge;
+  }
+
+  // UP을 밟으면 손에 들어올 무기의 단계. 마지막 무기를 들었으면 그대로입니다.
+  nextTier() {
+    return Math.min(this.weapon.tier + 1, this.job.weapons.length - 1);
+  }
+
+  // 발판은 주인공보다 예닐곱 층 앞서 지어집니다. 그 사이에 상점에서 UP을 사거나
+  // 다른 UP을 밟으면, 이미 지어 둔 발판의 그림이 한 단계 뒤진 채로 남습니다.
+  // 단계가 바뀌었을 때만 훑어서 고쳐 답니다.
+  syncUpgradeMarks() {
+    if (this.markedTier === this.weapon.tier) return;
+    this.markedTier = this.weapon.tier;
+
+    const key = weaponIconKey(this.job.key, this.nextTier());
+    this.floors.forEach((floor) => {
+      for (const lane of LANES) {
+        const slot = floor.slots[lane];
+        if (!slot || !slot.upIcon || !slot.view || slot.taken || slot.expired) continue;
+
+        // 마지막 무기를 들면 UP은 회복으로 쓰입니다. 표시도 회복이어야 합니다 —
+        // 무기 그림을 달아 둔 채로 밟으면 안 나오는 것을 기대하게 만듭니다.
+        if (this.weapon.atMaxTier) {
+          slot.view.destroy();
+          slot.upIcon = null;
+          slot.view = this.makeMark(slot);
+          if (slot.view) floor.views.push(slot.view);
+          continue;
+        }
+        if (slot.upIcon.texture.key !== key) slot.upIcon.setTexture(key).setDisplaySize(30, 30);
+      }
+    });
   }
 
   removeFloor(index) {
@@ -566,12 +606,15 @@ class GameScene extends Phaser.Scene {
   // 미리 녹아 없어지면 곤란하니, 사정권에 든 것만 시계를 켭니다.
   armItems() {
     const now = this.time.now;
-    for (let i = 1; i <= CFG.item.armWithin; i++) {
+    for (let i = 1; i <= Math.max(CFG.item.armWithin, CFG.trap.armWithin); i++) {
       const floor = this.floors.get(this.floorIndex + i);
       if (!floor) continue;
       for (const lane of LANES) {
         const slot = floor.slots[lane];
         if (!slot || slot.armed || !ITEM_KINDS.has(slot.kind)) continue;
+        // 함정은 코앞에 와서야 시계가 켜집니다. 멀리서 켜면 도착하기 전에
+        // 전부 삭아 없어져서 함정이 아예 없는 것과 같아집니다.
+        if (i > slotTiming(slot.kind).armWithin) continue;
         slot.armed = true;
         slot.armedAt = now;
       }
@@ -605,6 +648,9 @@ class GameScene extends Phaser.Scene {
   }
 
   updateItems(now) {
+    // 무기 단계가 바뀌었으면 위층 UP의 그림을 고쳐 답니다.
+    this.syncUpgradeMarks();
+
     // 가까이 온 가짜부터 정체를 드러냅니다.
     for (let i = 0; i <= CFG.trap.revealWithin; i++) {
       const floor = this.floors.get(this.floorIndex + i);
@@ -621,21 +667,35 @@ class GameScene extends Phaser.Scene {
         if (!slot || !slot.view || !slot.armed || slot.taken || slot.expired) continue;
         if (!ITEM_KINDS.has(slot.kind)) continue;
 
+        // 함정은 제 시계가 따로 갑니다 — 훨씬 짧습니다.
+        const timing = slotTiming(slot.kind);
         const age = now - slot.armedAt;
-        if (age >= CFG.item.life) {
+        if (age >= timing.life) {
           slot.expired = true;
+          this.tweens.killTweensOf(slot.view);
           slot.view.destroy();
           slot.view = null;
           continue;
         }
-        // 정체가 드러난 가짜는 이미 제 깜빡임을 갖고 있습니다. 여기서 alpha 를
-        // 또 건드리면 두 깜빡임이 서로 덮어써서 둘 다 안 보입니다.
-        if (age >= CFG.item.blinkAt && !slot.revealed) {
-          // 사라질 때가 가까울수록 빠르게 깜빡입니다.
-          const period = CFG.item.life - age < 1400 ? 80 : 170;
-          // 0.2까지 낮추면 글자가 안 보여 정체불명의 덩어리처럼 보입니다.
-          slot.view.setAlpha(Math.floor(age / period) % 2 ? 0.35 : 1);
+        if (age < timing.blinkAt) continue;
+
+        // 정체가 드러난 가짜는 홀로그램 깜빡임 트윈을 이미 달고 있습니다.
+        // 그 위에 수명 깜빡임을 겹치면 둘이 서로 덮어써서 아무것도 안 보입니다.
+        // 사라질 때가 됐으니 트윈을 걷고 수명 깜빡임에 자리를 넘깁니다 —
+        // 빛깔은 이미 식어 있어서 걷어 내도 가짜인 것은 그대로 보입니다.
+        //
+        // 이걸 안 하면 함정만 "언제 사라질지 알 수 없는 것"이 됩니다.
+        // 기다렸다 지나가라고 만든 장치인데 언제까지 기다릴지를 안 알려주는 셈입니다.
+        if (slot.revealed && !slot.blinking) {
+          slot.blinking = true;
+          this.tweens.killTweensOf(slot.view);
+          slot.view.setScale(1);
         }
+
+        // 사라질 때가 가까울수록 빠르게 깜빡입니다.
+        const period = timing.life - age < timing.life * 0.35 ? 80 : 170;
+        // 0.2까지 낮추면 글자가 안 보여 정체불명의 덩어리처럼 보입니다.
+        slot.view.setAlpha(Math.floor(age / period) % 2 ? 0.35 : 1);
       }
     });
   }
@@ -681,7 +741,7 @@ class GameScene extends Phaser.Scene {
     this.tapBlockedUntil = this.time.now + 300;
 
     // 상점에 머문 시간만큼 위층 아이템이 삭아 있으면 억울합니다. 시계를 다시 겁니다.
-    for (let i = 1; i <= CFG.item.armWithin; i++) {
+    for (let i = 1; i <= Math.max(CFG.item.armWithin, CFG.trap.armWithin); i++) {
       const floor = this.floors.get(this.floorIndex + i);
       if (!floor) continue;
       for (const lane of LANES) {
@@ -903,8 +963,11 @@ class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: spark, scale: 2.4, alpha: 0, duration: 160, onComplete: () => spark.destroy() });
 
     if (enemy.hp > 0) {
-      enemy.setTint(0xffffff);
-      this.time.delayedCall(60, () => enemy.active && enemy.clearTint());
+      // 맞은 표. 흰색을 그냥 물들이면 곱셈이라 아무 변화가 없습니다 —
+      // 통째로 채워야 한 프레임 하얗게 번쩍입니다.
+      enemy.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
+      this.time.delayedCall(60, () => enemy.active &&
+        enemy.clearTint().setTintMode(Phaser.TintModes.MULTIPLY));
       return;
     }
 
@@ -928,10 +991,72 @@ class GameScene extends Phaser.Scene {
 
     // 죽는 방식이 따로 있는 것들. 자리를 먼저 챙겨 두고 없앱니다.
     const at = { x: enemy.x, y: enemy.y, floor: enemy.floor, def: enemy.def };
+    this.deathBurst(enemy);
     enemy.destroy();
     this.kills++;
     if (at.def.onDeath === 'explode') this.explodeAt(at);
     else if (at.def.onDeath === 'split') this.splitAt(at);
+  }
+
+  // ── 죽는 그림 ─────────────────────────────────────────
+  // 마지막 한 대가 그 앞의 대들과 달라야 합니다. 그러려면 사라지는 것이 아니라
+  // 터져 나가야 합니다. 세 겹으로 만듭니다.
+  //
+  //   1. 흰 섬광  — 맞은 그 순간. 아주 짧게, 몸 모양 그대로
+  //   2. 부푸는 몸 — 제 빛깔 그대로 부풀며 흩어짐. 무엇을 잡았는지가 남습니다
+  //   3. 조각과 고리 — 튀어 나가는 파편, 퍼지는 테두리
+  //
+  // 몸 그림을 그대로 두 번 쓰는 것이 요령입니다. 적마다 조각 그림을 따로 만들면
+  // 열두 종류 × 조각 수만큼 그려야 하는데, 제 몸을 부풀리면 색도 실루엣도 공짜로
+  // 맞습니다 — 무엇이 터졌는지 알아볼 수 있는 것이 화려한 것보다 중요합니다.
+  deathBurst(enemy) {
+    const d = CFG.death;
+    const x = enemy.x, y = enemy.y;
+    const key = enemy.texture.key;
+    const scale = enemy.scaleX || 1;
+
+    // 1. 섬광 — 색을 곱하지 말고 통째로 채워야 흰 실루엣이 됩니다.
+    // (흰색을 곱하면 아무 일도 일어나지 않습니다. 눈에 보이는 것이 없습니다.)
+    const flash = this.add.sprite(x, y, key).setDepth(12).setScale(scale)
+      .setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
+    this.tweens.add({
+      targets: flash, scale: scale * 1.25, alpha: 0,
+      duration: d.ms * 0.4, ease: 'Quad.out', onComplete: () => flash.destroy(),
+    });
+
+    // 2. 부푸는 몸
+    const body = this.add.sprite(x, y, key).setDepth(11).setScale(scale);
+    this.tweens.add({
+      targets: body, scale: scale * d.burstScale, alpha: 0, angle: Phaser.Math.Between(-40, 40),
+      duration: d.ms, ease: 'Quad.out', onComplete: () => body.destroy(),
+    });
+
+    // 3. 고리와 조각
+    const ring = this.add.circle(x, y, 8, 0xffffff, 0)
+      .setStrokeStyle(3, 0xfff3c4, 0.9).setDepth(11);
+    this.tweens.add({
+      targets: ring, scale: d.ringRadius / 8, alpha: 0,
+      duration: d.ms * 0.75, ease: 'Cubic.out', onComplete: () => ring.destroy(),
+    });
+
+    const spin = Math.random() * Math.PI * 2;
+    for (let i = 0; i < d.shards; i++) {
+      const a = spin + (Math.PI * 2 * i) / d.shards;
+      const dist = d.shardDist * Phaser.Math.FloatBetween(0.6, 1.15);
+      const shard = this.add.sprite(x, y, 'spark').setDepth(12)
+        .setScale(Phaser.Math.FloatBetween(0.5, 0.95) * scale).setTint(0xffe082);
+      this.tweens.add({
+        targets: shard,
+        x: x + Math.cos(a) * dist,
+        y: y + Math.sin(a) * dist,
+        scale: 0, alpha: 0,
+        duration: d.ms * Phaser.Math.FloatBetween(0.7, 1),
+        ease: 'Quad.out', onComplete: () => shard.destroy(),
+      });
+    }
+
+    // 큰 놈은 넘어질 때 바닥이 울립니다. 작은 놈까지 흔들면 화면이 쉬지 못합니다.
+    if (scale >= d.bigScale) this.cameras.main.shake(d.shakeMs, d.shakeAmt);
   }
 
   // 폭탄충 — 죽으면서 터집니다. 가까이 붙어 있으면 같이 맞습니다.
@@ -1494,6 +1619,14 @@ class GameScene extends Phaser.Scene {
       choice(710, 0x5c6bc0, '직업 바꾸기', cost, true,
         () => this.scene.start('select')),
     ];
+
+    // 계승할 무기의 그림. 이름 옆에 붙여 두면 다음 판 HUD에 뜰 그림과 같아서,
+    // 무엇을 들고 시작하는지가 고르는 자리에서 이미 보입니다.
+    if (carry) {
+      const tier = Math.min(this.job.weapons.length - 1, carry.tier);
+      add(this.add.image(cx - 178, 590, weaponIconKey(this.job.key, tier))
+        .setDisplaySize(46, 46));
+    }
   }
 
   // 계승할 무기를 사람이 읽을 이름으로. 공격 속도는 넘어가지 않으므로 적지 않습니다 —
