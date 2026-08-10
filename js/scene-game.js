@@ -238,7 +238,7 @@ class GameScene extends Phaser.Scene {
   }
 
   // 올라가기 전에 무엇이 있는지 보이게 해서, 좌우 선택이 판단이 되게 합니다.
-  // 나중에 아이템 그림이 나오면 이 함수만 바꾸면 됩니다.
+  // 무엇을 놓을지는 SLOT_MARK 와 slotArtKey 가 정합니다 (js/tower.js).
   makeMark(slot) {
     if (slot.kind === SLOT.BOSS) {
       return this.add.text(slot.x, slot.y - 46, '보 스', {
@@ -265,19 +265,29 @@ class GameScene extends Phaser.Scene {
     const mark = SLOT_MARK[kind];
     if (!mark) return null;
 
-    // UP은 글자 대신 **다음 무기의 그림**을 답니다. 'UP' 두 글자는 무엇이 오는지
-    // 알려주지 않아서, 밟기 전까지는 좋은 것인지 판단할 수가 없었습니다.
-    // 그림이면 저 위에 무엇이 놓였는지 보고 그쪽으로 붙을지 정할 수 있습니다.
-    const face = kind === SLOT.UPGRADE
-      ? this.add.image(0, 0, weaponIconKey(this.job.key, this.nextTier())).setDisplaySize(30, 30)
-      : this.add.text(0, 0, mark.label, {
+    // 그림이 있으면 **물건 그 자체**를 놓습니다. 동그라미도 글자도 없습니다.
+    //
+    // 동그라미 안 글자(`+1` `속` `방`)는 무엇인지 읽어야 알 수 있었습니다.
+    // 아이템을 줄여 하나하나가 귀해졌으니, 저 위에 무엇이 놓였는지가
+    // **읽기 전에 보여야** 그쪽으로 붙을지 말지를 두 층 밖에서 정할 수 있습니다.
+    // UP은 원래부터 다음 무기의 그림을 답니다 — 같은 이유였습니다.
+    const artKey = slotArtKey(kind, this.job.key);
+    const parts = [];
+    let face;
+    if (kind === SLOT.UPGRADE) {
+      face = this.add.image(0, 0, weaponIconKey(this.job.key, this.nextTier())).setDisplaySize(30, 30);
+      parts.push(this.add.circle(0, 0, 18, mark.color), face);
+    } else if (artKey && this.textures.exists(artKey)) {
+      face = this.add.image(0, 0, artKey);
+      parts.push(face);
+    } else {
+      face = this.add.text(0, 0, mark.label, {
         fontFamily: 'sans-serif', fontSize: '20px', color: mark.text,
       }).setOrigin(0.5);
+      parts.push(this.add.circle(0, 0, 18, mark.color), face);
+    }
 
-    const badge = this.add.container(slot.x, slot.y - 38, [
-      this.add.circle(0, 0, 18, mark.color),
-      face,
-    ]).setDepth(5);
+    const badge = this.add.container(slot.x, slot.y - 38, parts).setDepth(5);
     if (kind === SLOT.UPGRADE) slot.upIcon = face;
 
     // 멀리서는 진짜와 완전히 같이 흔들립니다. 가짜가 드러나는 것은
@@ -287,8 +297,13 @@ class GameScene extends Phaser.Scene {
       duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut',
     });
 
-    // 가짜는 나중에 깜빡이게 해야 하므로 조각을 붙들어 둡니다.
-    if (slot.kind === SLOT.MIMIC) slot.badgeParts = { circle: badge.list[0], label: badge.list[1] };
+    // 가짜는 나중에 정체를 드러내야 하므로 조각을 붙들어 둡니다.
+    // 그림일 때는 갈아 끼울 한 장뿐이고, 글자일 때는 동그라미와 글자 둘입니다.
+    if (slot.kind === SLOT.MIMIC) {
+      slot.badgeParts = parts.length === 1
+        ? { image: face }
+        : { circle: parts[0], label: parts[1] };
+    }
     return badge;
   }
 
@@ -600,6 +615,7 @@ class GameScene extends Phaser.Scene {
       switch (slot.kind) {
         case SLOT.PLUS:
           this.weapon.addPlus();
+          this.forgeFx(slot.x, slot.y - 38);
           this.popup('공격력 +1', '#ffd54f');
           break;
         case SLOT.RELIC:
@@ -722,11 +738,19 @@ class GameScene extends Phaser.Scene {
     slot.revealed = true;
 
     const t = CFG.trap;
-    const { circle, label } = slot.badgeParts;
+    const { circle, label, image } = slot.badgeParts;
 
-    // 빛깔이 식어 가짜티가 납니다.
-    circle.setFillStyle(0x4dd0e1, 0.55);
-    label.setColor('#e0f7fa');
+    if (image) {
+      // **같은 물건의 망가진 모습**으로 갈아 끼웁니다. 모루에 금이 가고,
+      // 깃털이 꺾이고, 방패에 구멍이 납니다. 실루엣이 그대로라 "다른 것으로
+      // 바뀌었다"가 아니라 "이건 처음부터 망가진 것이었다"로 읽힙니다.
+      const broken = fakeArtKey(slot.disguise, this.job.key);
+      if (broken && this.textures.exists(broken)) image.setTexture(broken);
+    } else if (circle && label) {
+      // 그림이 없을 때의 옛 방식 — 빛깔이 식어 가짜티가 납니다.
+      circle.setFillStyle(0x4dd0e1, 0.55);
+      label.setColor('#e0f7fa');
+    }
 
     // 어긋난 주사선 — 홀로그램이 깨질 때처럼 가로로 흔들립니다.
     this.tweens.add({
@@ -903,6 +927,44 @@ class GameScene extends Phaser.Scene {
   // 훔친 순간. 코인만 튀어나오면 잡아서 나온 것인지 훔쳐서 나온 것인지
   // 구분이 안 됩니다. 고리가 **오므라들고** 조각이 주인공 쪽으로 빨려 와야
   // "저놈에게서 빼내 왔다"로 읽힙니다 — 죽을 때의 퍼지는 고리와 반대입니다.
+  // 공격력을 주우면 **망치가 한 번 내리쳐집니다.**
+  //
+  // 다른 아이템은 주우면 숫자가 오르고 끝인데, 공격력만은 "벼렸다"는 동작이
+  // 붙습니다. 무기를 손보는 것이 이 게임에서 가장 자주 하는 일이라, 그 순간에만
+  // 짧은 동작을 얹으면 같은 팝업이라도 무게가 달라집니다.
+  //
+  // 그림이 없으면 아무것도 안 합니다 — 도형으로 흉내 내면 그게 더 어설픕니다.
+  forgeFx(x, y) {
+    if (!this.textures.exists('item-plus-anvil') || !this.textures.exists('item-plus-hammer')) return;
+
+    const anvil = this.add.image(x, y + 4, 'item-plus-anvil').setDepth(12);
+    const hammer = this.add.image(x + 13, y - 13, 'item-plus-hammer')
+      .setDepth(13).setAngle(-52).setOrigin(0.28, 0.82);
+
+    this.tweens.add({
+      targets: hammer, angle: 8, duration: 130, ease: 'Quad.in',
+      onComplete: () => {
+        // 맞는 순간에만 불티가 튑니다. 내리치는 동안 튀면 무엇에 맞았는지가 흐려집니다.
+        for (let i = 0; i < 5; i++) {
+          const a = -Math.PI * (0.15 + Math.random() * 0.7);
+          const bit = this.add.sprite(x - 2, y - 4, 'spark')
+            .setDepth(14).setScale(0.45).setTint(0xffd54f);
+          this.tweens.add({
+            targets: bit,
+            x: bit.x + Math.cos(a) * (22 + Math.random() * 16),
+            y: bit.y + Math.sin(a) * (20 + Math.random() * 14),
+            alpha: 0, scale: 0.1, duration: 260 + Math.random() * 120,
+            ease: 'Quad.out', onComplete: () => bit.destroy(),
+          });
+        }
+        this.tweens.add({
+          targets: [anvil, hammer], alpha: 0, y: '-=10',
+          duration: 260, delay: 90, onComplete: () => { anvil.destroy(); hammer.destroy(); },
+        });
+      },
+    });
+  }
+
   stealFx(x, y) {
     const ring = this.add.circle(x, y, 22, 0x000000, 0)
       .setStrokeStyle(2.5, 0xce93d8, 0.9).setDepth(12);

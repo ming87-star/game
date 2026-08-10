@@ -31,19 +31,50 @@ function slotTiming(kind) {
   return TRAP_KINDS.has(kind) ? CFG.trap : CFG.item;
 }
 
-// 발판 위에 띄울 표시. 나중에 아이템 그림이 나오면 여기만 바꾸면 됩니다.
+// 발판 위에 띄울 표시.
+//
+// `art` 가 있고 그 그림이 실려 있으면 **그림만** 놓입니다 — 동그라미도 글자도
+// 없습니다. 그림이 없으면 여기 적힌 동그라미와 글자로 되돌아갑니다.
+// 그림 한 장을 지워도 그 칸만 글자로 돌아가고 게임은 그대로 돕니다.
 const SLOT_MARK = {
-  [SLOT.PLUS]:    { label: '+1', color: 0xffd54f, text: '#3e2723' },
-  [SLOT.HASTE]:   { label: '속', color: 0x4fc3f7, text: '#01579b' },
-  [SLOT.DOUBLE]:  { label: '×2', color: 0x00e5ff, text: '#006064' },
-  [SLOT.UPGRADE]: { label: 'UP', color: 0xff8a65, text: '#3e2723' },
-  [SLOT.HEAL]:    { label: '＋', color: 0x66bb6a, text: '#1b5e20' },
-  [SLOT.ARMOR]:   { label: '방', color: 0x90a4ae, text: '#263238' },
-  [SLOT.DODGE]:   { label: '회', color: 0xce93d8, text: '#4a148c' },
-  [SLOT.RELIC]:   { label: '★', color: 0xffd54f, text: '#3e2723' },
-  [SLOT.MEDAL]:   { label: '메', color: 0xffca28, text: '#4e342e' },
-  [SLOT.BOMB]:    { label: '폭', color: 0x8e0000, text: '#ffcdd2' },
+  [SLOT.PLUS]:    { label: '+1', color: 0xffd54f, text: '#3e2723', art: 'item-plus' },
+  [SLOT.HASTE]:   { label: '속', color: 0x4fc3f7, text: '#01579b', art: 'item-haste' },
+  [SLOT.DOUBLE]:  { label: '×2', color: 0x00e5ff, text: '#006064', art: 'item-double' },
+  [SLOT.UPGRADE]: { label: 'UP', color: 0xff8a65, text: '#3e2723' }, // 무기 그림을 따로 씁니다
+  [SLOT.HEAL]:    { label: '＋', color: 0x66bb6a, text: '#1b5e20', art: 'item-heal' },
+  [SLOT.ARMOR]:   { label: '방', color: 0x90a4ae, text: '#263238', art: 'item-armor-warrior' },
+  [SLOT.DODGE]:   { label: '회', color: 0xce93d8, text: '#4a148c', art: 'item-dodge' },
+  [SLOT.RELIC]:   { label: '★', color: 0xffd54f, text: '#3e2723', art: 'item-relic' },
+  [SLOT.MEDAL]:   { label: '메', color: 0xffca28, text: '#4e342e', art: 'item-medal' },
+  [SLOT.BOMB]:    { label: '폭', color: 0x8e0000, text: '#ffcdd2', art: 'item-bomb' },
 };
+
+// 방어구만 직업을 탑니다. 전사는 강철 방패, 궁수는 가죽 방패 — 경로는 같고
+// 칠만 다릅니다. 같은 「방」인데 그림까지 같으면 내 것이라는 느낌이 없고,
+// 모양이 다르면 같은 아이템으로 안 읽힙니다.
+function slotArtKey(kind, jobKey) {
+  const mark = SLOT_MARK[kind];
+  if (!mark || !mark.art) return null;
+  if (kind === SLOT.ARMOR && jobKey === 'archer') return 'item-armor-archer';
+  return mark.art;
+}
+
+// 가짜가 드러났을 때 갈아 끼울 그림. **같은 물건의 망가진 모습**입니다 —
+// 실루엣은 그대로 두고 안쪽만 부숩니다. 모루에 금이 가고, 깃털이 꺾이고,
+// 방패에 구멍이 나고, 약병이 깨집니다. 딴 물건으로 바뀌면 그건 배신이 아니라
+// 그냥 다른 칸입니다.
+function fakeArtKey(disguise, jobKey) {
+  if (disguise === SLOT.ARMOR) {
+    return jobKey === 'archer' ? 'item-fake-armor-archer' : 'item-fake-armor';
+  }
+  const map = {
+    [SLOT.PLUS]: 'item-fake-plus',
+    [SLOT.HASTE]: 'item-fake-haste',
+    [SLOT.DODGE]: 'item-fake-dodge',
+    [SLOT.HEAL]: 'item-fake-heal',
+  };
+  return map[disguise] || null;
+}
 
 // 가짜가 흉내 낼 수 있는 것들. 메달과 ×2는 뺐습니다 —
 // 워낙 귀해서 가짜였을 때의 배신감이 재미를 넘어섭니다.

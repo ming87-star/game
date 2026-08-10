@@ -153,6 +153,81 @@ const check = (ok, label, got) => {
     spawned[2].includes('boss-crusher') && spawned[1].includes('boss-shot-gazer'),
     '세운 보스의 그림·탄·이름이 그 놈의 것', spawned.join(' | '));
 
+  // ── 발판 위 아이템 ─────────────────────────────────────
+  // 그림이 안 붙으면 조용히 동그라미 글자로 돌아갑니다 — 오류가 안 납니다.
+  // 그래서 "그림이 놓였는가"를 배지 안에 무엇이 들었는지로 직접 봅니다.
+  const items = await page.evaluate(() => {
+    const s = window.__scene;
+    const kinds = [SLOT.PLUS, SLOT.HASTE, SLOT.DOUBLE, SLOT.HEAL,
+      SLOT.ARMOR, SLOT.DODGE, SLOT.RELIC, SLOT.MEDAL, SLOT.BOMB];
+    const out = [];
+    kinds.forEach((kind) => {
+      const slot = { kind, x: 270, y: 400, deck: [] };
+      const badge = s.makeMark(slot);
+      const face = badge.list[0];
+      out.push({
+        kind,
+        parts: badge.list.length,
+        key: face.texture ? face.texture.key : '(글자)',
+        w: Math.round(face.displayWidth || 0),
+      });
+      badge.destroy();
+    });
+    return out;
+  });
+  const asImage = items.filter((i) => i.parts === 1 && i.key.startsWith('item-'));
+  check(asImage.length === items.length, '아이템 아홉이 전부 물건 그림 (동그라미·글자 없음)',
+    items.filter((i) => i.parts !== 1).map((i) => i.kind + '=' + i.key).join(' · ') || '전부 그림');
+  check(items.every((i) => i.w === 36), '발판 위에서 36px 그대로',
+    items.map((i) => i.w).join(','));
+
+  // 방어구만 직업을 탑니다. 같은 「방」인데 그림이 같으면 내 것이라는 느낌이 없습니다.
+  const armorByJob = await page.evaluate(() =>
+    ['warrior', 'archer', 'rogue'].map((j) => j + '=' + slotArtKey(SLOT.ARMOR, j)));
+  check(armorByJob[0].endsWith('item-armor-warrior') && armorByJob[1].endsWith('item-armor-archer'),
+    '방어구는 직업 색을 따름', armorByJob.join(' · '));
+
+  // 가짜가 드러나면 **같은 물건의 망가진 모습**으로 갈아 끼워야 합니다.
+  // 딴 물건으로 바뀌면 배신이 아니라 그냥 다른 칸입니다.
+  const fakes = await page.evaluate(() => {
+    const s = window.__scene;
+    return MIMIC_DISGUISES.map((d) => {
+      const slot = { kind: SLOT.MIMIC, disguise: d, x: 270, y: 400, deck: [] };
+      slot.view = s.makeMark(slot);
+      const before = slot.badgeParts.image ? slot.badgeParts.image.texture.key : '(글자)';
+      s.revealMimic(slot);
+      const after = slot.badgeParts.image ? slot.badgeParts.image.texture.key : '(글자)';
+      slot.view.destroy();
+      return { d, before, after };
+    });
+  });
+  check(fakes.every((f) => f.before.startsWith('item-') && !f.before.includes('fake')),
+    '가짜는 드러나기 전까지 진짜와 똑같은 그림',
+    fakes.map((f) => f.before).join(' · '));
+  check(fakes.every((f) => f.after.includes('fake')),
+    '가까이 가면 망가진 모습으로 바뀜',
+    fakes.map((f) => f.d + '→' + f.after.replace('item-', '')).join(' · '));
+
+  // 궁수의 가짜 방패는 가죽이라야 합니다. 강철 한 벌로 두 직업을 덮으면
+  // 드러나는 순간 색까지 바뀌어서 "다른 물건이 됐다"로 읽힙니다.
+  const fakeArmor = await page.evaluate(() =>
+    ['warrior', 'archer'].map((j) => j + '=' + fakeArtKey(SLOT.ARMOR, j)));
+  check(fakeArmor[1].endsWith('item-fake-armor-archer'),
+    '궁수의 가짜 방어구도 가죽', fakeArmor.join(' · '));
+
+  // 공격력을 주우면 망치가 한 번 내리쳐집니다. 쌓이면 안 되므로 스스로 걷히는지도 봅니다.
+  const forge = await page.evaluate(async () => {
+    const s = window.__scene;
+    const count = () => s.children.list.filter((o) =>
+      o.texture && /item-plus-(anvil|hammer)/.test(o.texture.key)).length;
+    s.forgeFx(270, 400);
+    const during = count();
+    await new Promise((r) => setTimeout(r, 1000));
+    return { during, after: count() };
+  });
+  check(forge.during === 2 && forge.after === 0, '주우면 모루와 망치가 나왔다가 스스로 걷힘',
+    forge.during + '개 → ' + forge.after + '개');
+
   // ── 벽과 발판이 화면에 있는가 ──────────────────────────
   const scenery = await page.evaluate(() => {
     const s = window.__scene;
