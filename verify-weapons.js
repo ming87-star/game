@@ -144,9 +144,12 @@ const check = (ok, label, got) => {
     const slot = fl.slots.mid || fl.slots.left || fl.slots.right;
     const e = spawnEnemy(s, slot.x, slot.y - 120, s.floorIndex, 'flyer');
     e.hp = 1;
-    // 이펙트는 전부 깊이 11~12에 놓입니다. 코인처럼 오래 남는 것과 섞이지 않게
-    // 그 깊이만 세어야 "걷혔는가"를 제대로 볼 수 있습니다.
-    const fx = () => s.children.list.filter((o) => o.depth === 11 || o.depth === 12).length;
+    // 코인은 이펙트가 아니라 주울 것이라 오래 남습니다. 확률로 떨어지므로
+    // 세는 데 섞이면 판마다 결과가 달라집니다 — 아예 안 떨어지게 해 둡니다.
+    e.coin = 0;
+    // 이펙트는 전부 깊이 11~12에 놓입니다.
+    const fx = () => s.children.list.filter((o) =>
+      (o.depth === 11 || o.depth === 12) && !(o.texture && o.texture.key === 'coin')).length;
     const mid = fx();
     s.hitEnemy(e, 9999);
     return { before, mid, after: fx(), gone: !e.active };
@@ -158,7 +161,8 @@ const check = (ok, label, got) => {
   // 이펙트는 스스로 걷혀야 합니다. 안 걷히면 한 판에 수백 개가 쌓입니다.
   await page.waitForTimeout(700);
   const cleaned = await page.evaluate(() => window.__scene.children.list
-    .filter((o) => o.depth === 11 || o.depth === 12).length);
+    .filter((o) => (o.depth === 11 || o.depth === 12) &&
+      !(o.texture && o.texture.key === 'coin')).length);
   check(cleaned <= burst.mid, '이펙트가 스스로 걷힘 (쌓이지 않음)',
     burst.after + '개 → ' + cleaned + '개');
 

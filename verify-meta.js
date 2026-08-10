@@ -151,12 +151,88 @@ const check = (ok, label, got) => {
     `속 ${carried.haste} · ×${carried.mult}`);
   check((await save()).medals === 0, '계승을 고르면 그 판의 메달은 버려짐', (await save()).medals);
 
-  // ── 5. 직업 바꾸기 ────────────────────────────────────
-  const choices3 = await die(4);
-  await page.mouse.click(...at(choices3[2].x, choices3[2].y));
-  await page.waitForTimeout(800);
-  check(await scene() === 'select', '직업 바꾸기 → 시작 화면', await scene());
-  check((await save()).medals === 0, '직업을 바꾸면 그 판의 메달도 버려짐', (await save()).medals);
+  // ── 5. 이어서 진행하기 ────────────────────────────────
+  // 상점에 한 번도 안 닿았으면 고를 수 없어야 합니다.
+  const noShop = await page.evaluate(() => {
+    const s = window.__scene;
+    s.resumePoint = null;
+    s.medals = 2;
+    s.floorIndex = 30;
+    s.gameOver();
+    return s.deathChoices.length;
+  });
+  check(noShop === 3, '상점에 안 닿았어도 선택지는 셋 (세 번째는 잠김)', noShop);
+  const stuck = await page.evaluate(() => {
+    const c = window.__scene.deathChoices[2];
+    return { x: c.x, y: c.y };
+  });
+  await page.mouse.click(...at(stuck.x, stuck.y));
+  await page.waitForTimeout(600);
+  check(await scene() === 'game' && await page.evaluate(() => window.__scene.dead) === true,
+    '상점 없이 이어하기를 눌러도 아무 일이 없음', await scene());
+
+  // 이제 상점을 한 번 지난 판을 흉내 냅니다.
+  await page.evaluate(() => {
+    const s = window.__scene;
+    s.dead = false;
+    s.floorIndex = 100;
+    s.coins = 240; s.totalCoins = 700; s.armor = 55;
+    s.weapon.tier = 4; s.weapon.plus = 3; s.weapon.haste = 6;
+    s.weapon.relics = [RELICS.find((r) => r.key === 'bloodcloak')];
+    s.snapshotAtShop();       // 100층 상점을 나선 셈
+    s.floorIndex = 137;       // 그 뒤로 더 올라가다가
+    s.weapon.addPlus();       // 위층에서 주운 것들
+    s.coins = 999;
+    s.medals = 5;
+    s.gameOver();
+  });
+  const before = await page.evaluate(() => ({
+    medals: window.__save.medals, continues: window.__scene.continues,
+  }));
+  const c3 = await page.evaluate(() => {
+    const c = window.__scene.deathChoices[2];
+    return { x: c.x, y: c.y };
+  });
+  await page.mouse.click(...at(c3.x, c3.y));
+  await page.waitForTimeout(1100);
+  const resumed = await page.evaluate(() => {
+    const s = window.__scene;
+    return {
+      scene: 'game', floor: s.floorIndex, coins: s.coins, armor: s.armor,
+      medals: s.medals, continues: s.continues,
+      tier: s.weapon.tier, plus: s.weapon.plus, haste: s.weapon.haste,
+      relics: s.weapon.relics.map((r) => r.key),
+      onShop: !!(s.floors.get(s.floorIndex) && s.floors.get(s.floorIndex).shop),
+      shopOpen: s.shop.open,
+    };
+  });
+  check(resumed.floor === 100 && resumed.onShop,
+    '이어서 진행 → 마지막 상점 층에서 다시 시작', resumed.floor + '층 · 상점 발판 ' + resumed.onShop);
+  check(!resumed.shopOpen, '이미 쓴 상점이 다시 열리지는 않음');
+  check(resumed.tier === 4 && resumed.plus === 3 && resumed.haste === 6 &&
+    resumed.coins === 240 && resumed.armor === 55 && resumed.relics.length === 1,
+    '무기·강화·코인·방어·유물이 상점을 나서던 그대로',
+    `${resumed.tier}단계 +${resumed.plus} 속${resumed.haste} · 코인 ${resumed.coins} · 방어 ${resumed.armor} · ${resumed.relics.join(',')}`);
+  check(resumed.medals === 0 && (await save()).medals === before.medals,
+    '이번 판에 번 메달은 버려짐 (쌓아 둔 것은 그대로)',
+    `이번 판 ${resumed.medals} · 잔액 ${(await save()).medals}`);
+  check(resumed.continues === 1, '이어하기 횟수가 하나 올라감', resumed.continues);
+
+  // 두 번째까지는 되고, 세 번째는 잠겨야 합니다.
+  const limit = await page.evaluate(() => {
+    const s = window.__scene;
+    s.snapshotAtShop();
+    s.continues = CFG.continues.max;      // 이미 두 번 썼다고 치고
+    s.resumePoint.continues = s.continues;
+    s.medals = 3;
+    s.gameOver();
+    const box = s.deathChoices[2];
+    return { max: CFG.continues.max, x: box.x, y: box.y };
+  });
+  await page.mouse.click(...at(limit.x, limit.y));
+  await page.waitForTimeout(600);
+  check(await page.evaluate(() => window.__scene.dead) === true,
+    '두 번을 다 쓰면 더는 이어갈 수 없음', '최대 ' + limit.max + '번');
 
   console.log(bad ? `\n${bad}건 어긋남` : '\n메달·계승 흐름 모두 맞음');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
