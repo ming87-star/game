@@ -134,6 +134,27 @@ const CFG = {
     medals: 3,
     heal: 0.35,        // 잡으면 최대 체력의 이만큼 회복
     entryMs: 2400,
+    // ── 다섯 놈 ────────────────────────────────────────
+    // 보스 층마다 차례로 나옵니다 (200 수문장 · 400 외눈 · 600 집게 · 800 알주머니
+    // · 1000 가면 · 그 뒤로 되풀이). 무작위로 뽑지 않는 것은, 되풀이해 오르는
+    // 게임에서 "다음은 누구"가 계획의 재료이기 때문입니다.
+    //
+    // 몸은 한 핏줄이고 갈리는 것은 **무엇이 위험한가**입니다. 그림에서 색으로
+    // 갈라 둔 것을 여기서 패턴으로 갈라 줍니다 — 생김새와 하는 짓이 어긋나면
+    // 그림이 알려 주는 것이 거짓말이 됩니다.
+    //
+    //   favor    이 놈이 즐겨 쓰는 패턴 (열에 여섯쯤). 나머지는 골고루
+    //   addEvery 졸개를 부르는 간격. 없으면 boss.addEvery
+    kinds: [
+      { key: 'boss-warden', name: '탑의 수문장', shot: 'boss-shot', favor: 'volley' },
+      { key: 'boss-gazer', name: '외눈의 감시자', shot: 'boss-shot-gazer', favor: 'spray' },
+      { key: 'boss-crusher', name: '불집게', shot: 'boss-shot-crusher', favor: 'slam' },
+      { key: 'boss-brood', name: '알주머니', shot: 'boss-shot-brood', favor: 'volley',
+        addEvery: 3200, maxAdds: 6 },
+      { key: 'boss-phantom', name: '갈라진 가면', shot: 'boss-shot-phantom', favor: 'sweep' },
+    ],
+    favorOdds: 0.6, // 즐겨 쓰는 패턴이 나올 확률
+
     // 보스가 내리꽂는 것에는 도적의 회피가 이만큼만 통합니다.
     // 회피 62%면 보스 앞에서는 41%입니다.
     //

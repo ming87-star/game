@@ -268,13 +268,29 @@ function fireEnemyShot(scene, enemy, angle) {
 // 접촉 피해는 없습니다. 몸이 화면을 덮고 있어서 닿는 것을 피할 방법이 없고,
 // 그러면 붙어야 하는 근접 직업만 일방적으로 손해입니다.
 // 대신 줄을 골라 내리꽂습니다. 피하는 것은 좌우 이동으로만 합니다.
+// 이 층의 보스는 누구인가. 무작위가 아니라 차례입니다 —
+// 되풀이해 오르는 게임에서 "다음은 누구"가 계획의 재료가 됩니다.
+function bossKindFor(floor) {
+  const kinds = (CFG.boss.kinds && CFG.boss.kinds.length) ? CFG.boss.kinds : null;
+  if (!kinds) return { key: 'boss', name: '탑의 수문장', shot: 'boss-shot' };
+  const band = Math.max(0, Math.round(floor / CFG.bossEvery) - 1);
+  return kinds[band % kinds.length];
+}
+
 function spawnBoss(scene, floor, x, y) {
+  const kind = bossKindFor(floor);
+  // 그림이 없으면 도형으로 그려 둔 'boss' 로 물러납니다.
+  const skin = scene.textures.exists(kind.key) ? kind.key : 'boss';
+  const shot = scene.textures.exists(kind.shot) ? kind.shot : 'boss-shot';
+
   const def = {
-    key: 'boss', name: '탑의 수문장', hp: 0, speed: 0,
+    key: 'boss', name: kind.name, hp: 0, speed: 0,
     dmg: 0, coin: CFG.boss.coin, ground: false, move: 'boss',
   };
 
-  const e = scene.enemies.create(x, y, 'boss');
+  const e = scene.enemies.create(x, y, skin);
+  e.kind = kind;
+  e.shotKey = shot;
   e.setDepth(8);
   e.def = def;
   e.isBoss = true;
@@ -291,8 +307,10 @@ function spawnBoss(scene, floor, x, y) {
   // 원으로 잡으면 양옆 줄에서 안 닿아서 근접만 불리해집니다.
   e.hitW = e.displayWidth * 0.45;
   e.hitH = e.displayHeight * 0.42;
+  e.addEvery = kind.addEvery || CFG.boss.addEvery;
+  e.maxAdds = kind.maxAdds || CFG.boss.maxAdds;
   e.nextVolleyAt = scene.time.now + CFG.boss.entryMs;
-  e.nextAddAt = scene.time.now + CFG.boss.addEvery;
+  e.nextAddAt = scene.time.now + e.addEvery;
 
   scene.tweens.add({
     targets: e, scaleX: 1.04, scaleY: 0.96,
@@ -314,8 +332,8 @@ function bossStep(scene, e, player, time) {
     bossVolley(scene, e, player);
   }
 
-  if (time > e.nextAddAt && scene.enemies.countActive(true) < CFG.boss.maxAdds + 1) {
-    e.nextAddAt = time + CFG.boss.addEvery;
+  if (time > e.nextAddAt && scene.enemies.countActive(true) < (e.maxAdds || CFG.boss.maxAdds) + 1) {
+    e.nextAddAt = time + (e.addEvery || CFG.boss.addEvery);
     const type = pickEnemyType(e.floor);
     const add = spawnEnemy(scene, Phaser.Math.Between(90, CFG.width - 90),
       scene.cameras.main.scrollY - 30, e.floor, type);
@@ -332,7 +350,12 @@ const BOSS_PATTERNS = ['volley', 'sweep', 'slam', 'spray'];
 function bossVolley(scene, boss, player) {
   // 체력이 절반 아래로 내려가면 어려운 패턴도 섞습니다.
   const pool = boss.hp / boss.maxHp > 0.5 ? BOSS_PATTERNS.slice(0, 3) : BOSS_PATTERNS;
-  const pattern = pool[Math.floor(Math.random() * pool.length)];
+  // 놈마다 즐겨 쓰는 것이 있습니다. 생김새가 알려 주는 위험과 하는 짓이
+  // 맞아떨어져야 그림이 거짓말을 하지 않습니다.
+  const favor = boss.kind && boss.kind.favor;
+  const pattern = (favor && pool.indexOf(favor) >= 0 && Math.random() < CFG.boss.favorOdds)
+    ? favor
+    : pool[Math.floor(Math.random() * pool.length)];
   boss.lastPattern = pattern;
 
   if (pattern === 'sweep') {
@@ -385,7 +408,7 @@ function bossDrop(scene, boss, lane, delay) {
     scene.time.delayedCall(CFG.boss.telegraphMs, () => {
       warn.destroy();
       if (!boss.active || scene.dead || !scene.bossFight) return;
-      const b = scene.enemyBullets.create(x, top, 'boss-shot');
+      const b = scene.enemyBullets.create(x, top, boss.shotKey || 'boss-shot');
       b.body.setAllowGravity(false);
       b.setDepth(9);
       b.bornAt = scene.time.now;

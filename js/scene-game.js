@@ -12,6 +12,12 @@ class GameScene extends Phaser.Scene {
     this.resume = (data && data.resume) || null;
   }
 
+  // 그려 둔 그림을 먼저 굽습니다. create 의 buildTextures 는 이미 있는 키를
+  // 건너뛰므로, 그림이 있는 것은 그림이 · 없는 것은 도형이 쓰입니다.
+  preload() {
+    loadArt(this);
+  }
+
   create() {
     buildTextures(this);
 
@@ -165,9 +171,20 @@ class GameScene extends Phaser.Scene {
   // ── 배경 ──────────────────────────────────────────────
   drawBackground() {
     this.cameras.main.setBackgroundColor('#141a2e');
-    // 탑 안쪽 벽. 화면에 고정해서 아무리 올라가도 끊기지 않게 합니다.
-    this.add.rectangle(CFG.width / 2, CFG.height / 2, 500, CFG.height, 0x1d2542)
-      .setScrollFactor(0).setDepth(-5);
+
+    // 탑 안쪽 벽. 화면에 고정해 두고 **무늬만 흘려 보냅니다.**
+    //
+    // 벽을 세상 좌표에 두면 500×960 짜리를 몇 백 장 깔아야 하고, 그 이음매마다
+    // 선이 보입니다. 화면에 고정한 채 tilePositionY 를 카메라만큼 밀면, 한 장으로
+    // 끝없이 이어지고 오르는 느낌도 그대로 남습니다 (update 에서 밉니다).
+    if (hasArt('wall')) {
+      const a = artSize('wall');
+      this.wall = this.add.tileSprite(CFG.width / 2, CFG.height / 2, a.w, CFG.height, 'wall')
+        .setScrollFactor(0).setDepth(-5);
+    } else {
+      this.add.rectangle(CFG.width / 2, CFG.height / 2, 500, CFG.height, 0x1d2542)
+        .setScrollFactor(0).setDepth(-5);
+    }
   }
 
   // ── 층 만들기 / 지우기 ────────────────────────────────
@@ -189,10 +206,15 @@ class GameScene extends Phaser.Scene {
       const color = arena ? 0x6a1b9a : wide ? 0xffb74d : 0x5c6bc0;
       const lipColor = arena ? 0xce93d8 : wide ? 0xffe0b2 : 0x9fa8da;
 
-      slot.deck = [
-        this.add.rectangle(slot.x, slot.y, w, CFG.platformH, color),
-        this.add.rectangle(slot.x, slot.y - CFG.platformH / 2 + 3, w, 6, lipColor),
-      ];
+      // 발판 그림은 쓰이는 크기 그대로 그려져 있습니다 (140×20 · 460×20).
+      // 늘리거나 줄일 일이 없으므로 그냥 얹으면 됩니다.
+      const deckArt = arena ? 'plat-boss' : wide ? 'plat-shop' : 'plat';
+      slot.deck = hasArt(deckArt)
+        ? [this.add.image(slot.x, slot.y, deckArt)]
+        : [
+          this.add.rectangle(slot.x, slot.y, w, CFG.platformH, color),
+          this.add.rectangle(slot.x, slot.y - CFG.platformH / 2 + 3, w, 6, lipColor),
+        ];
       floor.views.push(...slot.deck);
 
       const solid = this.add.rectangle(slot.x, slot.y, w, CFG.platformH, 0x000000, 0);
@@ -515,7 +537,7 @@ class GameScene extends Phaser.Scene {
 
     const parts = [
       this.add.text(cx, 300, this.floorIndex + '층', font(22, '#ce93d8')).setOrigin(0.5),
-      this.add.text(cx, 348, '탑의 수문장', font(50, '#ffffff')).setOrigin(0.5),
+      this.add.text(cx, 348, bossKindFor(this.floorIndex).name, font(50, '#ffffff')).setOrigin(0.5),
       this.add.text(cx, 400, '좌우로만 움직일 수 있습니다', font(20, '#e1bee7')).setOrigin(0.5),
     ];
     parts.forEach((t, i) => {
@@ -1800,6 +1822,8 @@ class GameScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const want = this.player.y - CFG.height * 0.68;
     cam.scrollY += (want - cam.scrollY) * Math.min(1, delta / 130);
+    // 벽은 화면에 붙어 있고 무늬만 흘러갑니다. 한 장으로 끝없이 이어집니다.
+    if (this.wall) this.wall.tilePositionY = cam.scrollY;
 
     this.updatePickups(delta);
     this.hud.update();

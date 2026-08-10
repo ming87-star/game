@@ -4,6 +4,13 @@
 function buildTextures(scene) {
   const g = scene.make.graphics({ add: false });
 
+  // 그림(art/*.svg)이 이미 구워져 있는 키는 건너뜁니다. 도형은 그림이 없는
+  // 것들의 자리를 메우는 밑그림입니다 — 그림이 한 장 늘 때마다 하나씩 물러납니다.
+  const bake = (key, w, h) => {
+    if (scene.textures.exists(key)) return;
+    g.generateTexture(key, w, h);
+  };
+
   // ── 주인공 ────────────────────────────────────────────
   // 직업마다 실루엣을 다르게 둡니다. 어깨·후드·망토처럼 윤곽에서 갈리게 해야
   // 작게 줄여도 구분됩니다. 색만 바꾸면 멀리서 똑같아 보입니다.
@@ -22,7 +29,7 @@ function buildTextures(scene) {
   g.fillRect(11, 12, 16, 4);                   // 눈 구멍
   g.fillStyle(0xef5350, 1);
   g.fillTriangle(19, 0, 15, 6, 23, 6);         // 투구 깃
-  g.generateTexture('player-warrior', 38, 48);
+  bake('player-warrior', 38, 48);
 
   // 궁수 — 뾰족한 후드와 등에 멘 활. 몸이 가늡니다.
   g.clear();
@@ -41,7 +48,7 @@ function buildTextures(scene) {
   g.fillTriangle(8, 16, 19, 0, 30, 16);        // 뾰족한 후드
   g.fillStyle(0xffe0b2, 1);
   g.fillCircle(19, 15, 6);
-  g.generateTexture('player-archer', 42, 48);
+  bake('player-archer', 42, 48);
 
   // 도적 — 낮게 웅크린 자세, 펄럭이는 망토, 얼굴 가리개.
   g.clear();
@@ -59,7 +66,7 @@ function buildTextures(scene) {
   g.fillStyle(0xffee58, 1);
   g.fillCircle(18, 14, 2);                     // 눈
   g.fillCircle(25, 14, 2);
-  g.generateTexture('player-rogue', 40, 48);
+  bake('player-rogue', 40, 48);
 
   // ── 적 ────────────────────────────────────────────────
   // 종류마다 실루엣과 색을 다르게 해서 멀리서도 구분되게 합니다.
@@ -73,7 +80,7 @@ function buildTextures(scene) {
   g.fillStyle(0x3e2723, 1);
   g.fillCircle(11, 15, 3);
   g.fillCircle(21, 15, 3);
-  g.generateTexture('e-crawler', 32, 32);
+  bake('e-crawler', 32, 32);
 
   // 단단한 놈 — 각지고 두꺼운 갑옷
   g.clear();
@@ -85,7 +92,7 @@ function buildTextures(scene) {
   g.fillStyle(0xffab91, 1);
   g.fillCircle(10, 10, 3);
   g.fillCircle(22, 10, 3);
-  g.generateTexture('e-brute', 32, 34);
+  bake('e-brute', 32, 34);
 
   // 날것 — 날개 달린 보라색
   g.clear();
@@ -97,7 +104,7 @@ function buildTextures(scene) {
   g.fillStyle(0xede7f6, 1);
   g.fillCircle(15, 14, 3);
   g.fillCircle(22, 14, 3);
-  g.generateTexture('e-flyer', 36, 32);
+  bake('e-flyer', 36, 32);
 
   // 빠른 놈 — 앞으로 쏠린 화살 모양
   g.clear();
@@ -107,7 +114,7 @@ function buildTextures(scene) {
   g.fillTriangle(0, 10, 0, 20, 14, 15);
   g.fillStyle(0x3e2723, 1);
   g.fillCircle(18, 15, 3);
-  g.generateTexture('e-dasher', 32, 30);
+  bake('e-dasher', 32, 30);
 
   // 거인 — 크고 어둡고 뿔이 있음
   g.clear();
@@ -119,7 +126,7 @@ function buildTextures(scene) {
   g.fillStyle(0xff8a80, 1);
   g.fillCircle(12, 20, 4);
   g.fillCircle(24, 20, 4);
-  g.generateTexture('e-giant', 36, 38);
+  bake('e-giant', 36, 38);
 
   // 사수 — 눈 하나에 포신
   g.clear();
@@ -131,7 +138,7 @@ function buildTextures(scene) {
   g.fillCircle(16, 14, 6);
   g.fillStyle(0x004d40, 1);
   g.fillCircle(16, 14, 3);
-  g.generateTexture('e-shooter', 34, 34);
+  bake('e-shooter', 34, 34);
 
   // 뛰는 것 — 뒷다리가 굵은 개구리꼴
   g.clear();
@@ -146,7 +153,7 @@ function buildTextures(scene) {
   g.fillStyle(0x33691e, 1);
   g.fillCircle(12, 12, 2);
   g.fillCircle(22, 12, 2);
-  g.generateTexture('e-hopper', 34, 32);
+  bake('e-hopper', 34, 32);
 
   // 돌진병 — 앞으로 내민 방패
   g.clear();
@@ -159,7 +166,7 @@ function buildTextures(scene) {
   g.fillStyle(0xff8a80, 1);
   g.fillCircle(20, 16, 4);
   g.fillCircle(28, 16, 4);
-  g.generateTexture('e-charger', 36, 38);
+  bake('e-charger', 36, 38);
 
   // 폭탄충 — 도화선이 달린 둥근 몸
   g.clear();
@@ -172,7 +179,7 @@ function buildTextures(scene) {
   g.fillStyle(0xff5252, 1);
   g.fillCircle(12, 19, 3);
   g.fillCircle(22, 19, 3);
-  g.generateTexture('e-bomber', 34, 36);
+  bake('e-bomber', 34, 36);
 
   // 쪼개지는 것 — 가운데 금이 간 덩어리
   g.clear();
@@ -183,7 +190,7 @@ function buildTextures(scene) {
   g.fillStyle(0xb2dfdb, 1);
   g.fillCircle(10, 16, 4);
   g.fillCircle(26, 16, 4);
-  g.generateTexture('e-splitter', 36, 36);
+  bake('e-splitter', 36, 36);
 
   // 급강하 — 접은 날개에 뾰족한 부리
   g.clear();
@@ -197,7 +204,7 @@ function buildTextures(scene) {
   g.fillStyle(0xffffff, 1);
   g.fillCircle(14, 13, 3);
   g.fillCircle(22, 13, 3);
-  g.generateTexture('e-diver', 36, 38);
+  bake('e-diver', 36, 38);
 
   // 유령 — 아래가 너울거리는 반투명한 것
   g.clear();
@@ -208,7 +215,7 @@ function buildTextures(scene) {
   g.fillStyle(0x311b92, 1);
   g.fillCircle(12, 13, 3.5);
   g.fillCircle(22, 13, 3.5);
-  g.generateTexture('e-ghost', 34, 36);
+  bake('e-ghost', 34, 36);
 
   // ── 박쥐 ──────────────────────────────────────────────
   // 도둑 — 자루를 든 보라색 박쥐
@@ -225,7 +232,7 @@ function buildTextures(scene) {
   g.fillCircle(23, 13, 2.5);
   g.fillStyle(0xffca28, 1);
   g.fillCircle(20, 26, 5); // 훔친 것을 담는 자루
-  g.generateTexture('bat-thief', 40, 32);
+  bake('bat-thief', 40, 32);
 
   // 무는 놈 — 붉고 이빨이 보임
   g.clear();
@@ -242,7 +249,7 @@ function buildTextures(scene) {
   g.fillStyle(0xffffff, 1);
   g.fillTriangle(16, 20, 19, 20, 17.5, 26); // 송곳니
   g.fillTriangle(21, 20, 24, 20, 22.5, 26);
-  g.generateTexture('bat-biter', 40, 32);
+  bake('bat-biter', 40, 32);
 
   // ── 보스 ──────────────────────────────────────────────
   // 투기장 폭을 거의 다 덮는 덩치. 어느 줄에 서 있어도 근접이 닿아야 합니다.
@@ -267,7 +274,7 @@ function buildTextures(scene) {
   g.fillRoundedRect(80, 186, 160, 44, 16);
   g.fillStyle(0xffffff, 1);
   for (let i = 0; i < 5; i++) g.fillTriangle(96 + i * 32, 186, 116 + i * 32, 186, 106 + i * 32, 214);
-  g.generateTexture('boss', 320, 240);
+  bake('boss', 320, 240);
 
   // 보스가 내리꽂는 것 — 크고 무겁게
   g.clear();
@@ -275,20 +282,20 @@ function buildTextures(scene) {
   g.fillCircle(18, 18, 16);
   g.fillStyle(0xe1bee7, 1);
   g.fillCircle(18, 18, 8);
-  g.generateTexture('boss-shot', 36, 36);
+  bake('boss-shot', 36, 36);
 
   // ── 탄 ────────────────────────────────────────────────
   g.clear();
   g.fillStyle(0xffffff, 1);
   g.fillCircle(6, 6, 5);
-  g.generateTexture('bullet', 12, 12);
+  bake('bullet', 12, 12);
 
   g.clear();
   g.fillStyle(0xff5252, 1);
   g.fillCircle(8, 8, 7);
   g.fillStyle(0xffcdd2, 1);
   g.fillCircle(8, 8, 3);
-  g.generateTexture('enemy-bullet', 16, 16);
+  bake('enemy-bullet', 16, 16);
 
   // 파동 — 날아가는 초승달
   g.clear();
@@ -298,7 +305,7 @@ function buildTextures(scene) {
   g.arc(8, 22, 20, Phaser.Math.DegToRad(70), Phaser.Math.DegToRad(-70), true);
   g.closePath();
   g.fillPath();
-  g.generateTexture('wave', 44, 44);
+  bake('wave', 44, 44);
 
   // 검을 휘두른 자국 — 눈썹 모양. 실제 사거리에 맞춰 늘려 씁니다.
   //
@@ -331,7 +338,7 @@ function buildTextures(scene) {
     g.closePath();
     g.fillPath();
   }
-  g.generateTexture('slash', 140, 140);
+  bake('slash', 140, 140);
 
   // 화살 — 촉·대·깃. 날아가는 방향으로 돌려 씁니다.
   // 예전에는 그냥 흰 공이라 "공을 쏘는" 것처럼 보였습니다.
@@ -343,13 +350,13 @@ function buildTextures(scene) {
   g.fillStyle(0xffffff, 1);
   g.fillTriangle(0, 0, 8, 6.5, 0, 13);   // 깃
   g.fillTriangle(5, 0, 12, 6.5, 5, 13);
-  g.generateTexture('arrow', 38, 13);
+  bake('arrow', 38, 13);
 
   // 화살이 지나간 자리에 남는 흐릿한 선
   g.clear();
   g.fillStyle(0xffffff, 1);
   g.fillRect(0, 0, 18, 3);
-  g.generateTexture('arrow-trail', 18, 3);
+  bake('arrow-trail', 18, 3);
 
   // ── 그 밖 ─────────────────────────────────────────────
   g.clear();
@@ -359,12 +366,12 @@ function buildTextures(scene) {
   g.fillCircle(9, 9, 5);
   g.fillStyle(0xfff9c4, 1);
   g.fillCircle(6, 6, 2);
-  g.generateTexture('coin', 18, 18);
+  bake('coin', 18, 18);
 
   g.clear();
   g.fillStyle(0xffffff, 1);
   g.fillCircle(5, 5, 5);
-  g.generateTexture('spark', 10, 10);
+  bake('spark', 10, 10);
 
   g.destroy();
 

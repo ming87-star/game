@@ -68,7 +68,9 @@ class Hud {
     this.bossBar.width = 440 * left;
     // 체력이 닳을수록 보스가 몰아치므로, 띠 색도 같이 달아오릅니다.
     this.bossBar.fillColor = left > 0.5 ? 0xef5350 : left > 0.25 ? 0xff7043 : 0xffca28;
-    this.bossName.setText('탑의 수문장   ' + Math.ceil(left * 100) + '%');
+    // 이름은 놈마다 다릅니다 (CFG.boss.kinds).
+    const name = (boss.def && boss.def.name) || '탑의 수문장';
+    this.bossName.setText(name + '   ' + Math.ceil(left * 100) + '%');
   }
 
   // 그 방향에 실제로 발판이 있는지에 따라 밝기를 달리합니다.
