@@ -47,12 +47,20 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
   // 잠긴 직업도 시험해야 하므로 해금을 미리 채워 두고 새로고침합니다.
   // 메달은 MEDALS 로 넘겨서 "몇 번 죽은 뒤"의 상태도 재 볼 수 있습니다.
   const medals = Number(process.env.MEDALS) || 0;
+  // 씨앗을 주면 같은 탑이 다시 만들어집니다. 직업끼리 견줄 때는 반드시 주세요 —
+  // 탑이 매번 다르면 직업 차이가 운에 묻힙니다.
+  const seed = Number(process.env.SEED) || 0;
+  if (seed) await page.evaluate((v) => window.localStorage.setItem('tower-seed', String(v)), seed);
   await page.evaluate((m) => window.localStorage.setItem('tower-climb-v1',
     JSON.stringify({ bestFloor: 0, deaths: 0, runs: 0, bestCoins: 0, medals: m,
       weapons: {}, boosts: {}, unlocked: { archer: true, rogue: true } })), medals);
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1000);
   await shot(page, '00-select.png');
+  if (seed) {
+    const on = await page.evaluate(() => window.__seed || null);
+    if (!on) { console.error('씨앗이 걸리지 않았습니다'); process.exit(1); }
+  }
 
   // 시작 화면에서 직업 카드를 실제로 눌러서 들어갑니다.
   const cardIndex = ['warrior', 'archer', 'rogue'].indexOf(jobKey);
@@ -102,10 +110,17 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
       armor: Math.round(s.armor),
       lane: s.lane,
       // 사거리 안에 남아 있는 적 — 싸움을 끝내고 갈지 판단하는 데 씁니다.
-      // 근접이면 사거리 안, 원거리면 어차피 멈출 필요가 없으므로 0.
-      inReach: s.job.attack === 'ranged' ? 0 :
-        s.enemies.getChildren().filter((e) => e.active &&
-          Phaser.Math.Distance.Between(e.x, e.y, s.player.x, s.player.y) <= s.weapon.reach).length,
+      //
+      // 예전에는 원거리면 0으로 두었습니다 ("어차피 멈출 필요가 없으니까").
+      // 그런데 그러면 궁수만 한 번도 멈추지 않고 지나가는 플레이어가 되어
+      // 코인을 거의 못 법니다 — 직업끼리 견줄 때 궁수만 손해를 보는 셈입니다.
+      // 사람은 사정거리에 들어온 무리는 정리하고 갑니다.
+      inReach: (() => {
+        const w = s.weapon;
+        const near = s.job.attack === 'ranged' ? w.range * 0.6 : w.reach;
+        return s.enemies.getChildren().filter((e) => e.active &&
+          Phaser.Math.Distance.Between(e.x, e.y, s.player.x, s.player.y) <= near).length;
+      })(),
       enemies: s.enemies.countActive(), dead: s.dead, shopOpen: s.shop.open,
       score: s.score(),
       medals: s.medals, boosts: s.boosts,

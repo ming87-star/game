@@ -32,7 +32,8 @@ class Shop {
 
   priceOf(key, shopNo) {
     const p = CFG.shop.prices[key];
-    return p.base + p.perShop * (shopNo - 1);
+    const n = shopNo - 1;
+    return Math.round((p.base + p.perShop * n) * Math.pow(CFG.shop.priceGrowth, n));
   }
 
   rollOffers(shopNo) {

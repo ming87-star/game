@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = __dirname;
-const SCRIPTS = ['vendor/phaser.min.js', 'js/config.js', 'js/save.js', 'js/classes.js', 'js/relics.js', 'js/tower.js', 'js/weapon.js', 'js/textures.js', 'js/enemies.js', 'js/hud.js', 'js/shop.js', 'js/medals.js', 'js/scene-select.js', 'js/scene-medal.js', 'js/scene-relicbook.js', 'js/scene-game.js', 'js/main.js'];
+const SCRIPTS = ['vendor/phaser.min.js', 'js/rng.js', 'js/config.js', 'js/save.js', 'js/classes.js', 'js/relics.js', 'js/tower.js', 'js/weapon.js', 'js/textures.js', 'js/enemies.js', 'js/hud.js', 'js/shop.js', 'js/medals.js', 'js/scene-select.js', 'js/scene-medal.js', 'js/scene-relicbook.js', 'js/scene-game.js', 'js/main.js'];
 
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 

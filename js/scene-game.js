@@ -813,6 +813,11 @@ class GameScene extends Phaser.Scene {
       return;
     }
 
+    // 도적은 잡을 때마다 기운을 앗아옵니다. 갑옷이 없는 대신 버티는 수단입니다.
+    if (this.job.leechOnKill && this.hp < this.maxHp) {
+      this.hp = Math.min(this.maxHp, this.hp + this.maxHp * this.job.leechOnKill);
+    }
+
     // 보스는 죽는 방식이 다릅니다.
     if (enemy.isBoss) {
       enemy.destroy();
