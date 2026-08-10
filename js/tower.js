@@ -150,8 +150,12 @@ function pickKind(index, need, usesArmor = true) {
   // 방어 칸. 갑옷을 입는 직업에게는 방어구가, 아닌 직업에게는 회피가 나옵니다.
   if (r < (acc += c.armor * fade)) return usesArmor ? SLOT.ARMOR : SLOT.DODGE;
   if (r < (acc += c.double * fade)) return SLOT.DOUBLE;
-  if (r < (acc += c.bomb)) return SLOT.BOMB;
-  if (r < (acc += c.mimic)) return SLOT.MIMIC;
+  // 함정은 정해진 층부터 섞입니다. 그 전까지는 아예 놓이지 않습니다 —
+  // 규칙을 배우는 동안 속이면 배우는 대신 겁만 먹습니다.
+  if (index >= (CFG.trap.fromFloor || 0)) {
+    if (r < (acc += c.bomb)) return SLOT.BOMB;
+    if (r < (acc += c.mimic)) return SLOT.MIMIC;
+  }
   return SLOT.EMPTY;
 }
 

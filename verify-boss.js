@@ -258,48 +258,126 @@ const check = (ok, label, got) => {
   check(!kept.choosing && kept.held.join(',') === swapped.held.join(','),
     '"그냥 두기"를 고르면 들고 있던 것이 그대로', kept.held.join(','));
 
+  const CFG_LEAD = await page.evaluate(() => CFG.bats.warnLeadMs);
+
   // ── 박쥐 ───────────────────────────────────────────────
   // 첫 상점까지는 아무리 늑장을 부려도 안 옵니다. 규칙을 익히는 구간이니까요.
   const early = await page.evaluate(async () => {
     const s = window.__scene;
     s.bossFight = false;
     s.clearBats();
-    s.floorIndex = CFG.bats.fromFloor - 10;           // 40층 언저리
+    s.gatesShown = new Set();
+    s.floorIndex = CFG.bats.fromFloor - 11;           // 40층 언저리
+    s.checkFloorGates();
     s.lastShopAt = s.time.now - CFG.bats.graceMs * 4; // 아주 오래 늑장
-    s.batsWarned = false;
     for (let i = 0; i < 8; i++) s.updateBats(s.time.now + i * CFG.bats.spawnEvery);
-    return { floor: s.floorIndex, count: s.batCount(), warned: s.batsWarned };
+    return { floor: s.floorIndex, count: s.batCount(), gates: [...s.gatesShown] };
   });
-  check(early.count === 0 && !early.warned,
-    '첫 상점 아래에서는 늑장을 부려도 안 옴',
+  check(early.count === 0 && early.gates.length === 0,
+    '첫 상점 아래에서는 늑장을 부려도 안 오고 알림도 없음',
     early.floor + '층 · ' + early.count + '마리');
 
-  // 50층부터는 **먼저 알려 주고** 그 뒤에 옵니다.
-  const warn = await page.evaluate(async () => {
+  // 51층에 **올라서는 순간** 알림이 뜨고, 그 뒤에야 옵니다.
+  const gate = await page.evaluate(async () => {
     const s = window.__scene;
-    s.floorIndex = CFG.bats.fromFloor + 5;
-    s.lastShopAt = s.time.now - CFG.bats.graceMs - 1;
-    s.batsWarned = false;
+    s.lastShopAt = s.time.now - CFG.bats.graceMs - 1; // 이미 늦은 상태로 올라섭니다
+    s.floorIndex = CFG.bats.warnFloor;
+    s.checkFloorGates();                              // 층에 올라선 그 순간
     const t0 = s.time.now;
-    s.updateBats(t0);                       // 경고만 뜨는 순간
-    const justWarned = { warned: s.batsWarned, count: s.batCount() };
-    s.updateBats(t0 + CFG.bats.warnLeadMs - 200); // 아직 알림이 떠 있을 때
+    s.updateBats(t0);
+    const atGate = { shown: s.gatesShown.has('bats'), count: s.batCount() };
+    s.updateBats(t0 + CFG.bats.warnLeadMs - 200);     // 아직 글씨가 떠 있을 때
     const stillNone = s.batCount();
-    s.updateBats(t0 + CFG.bats.warnLeadMs + 50);  // 알림이 지난 뒤
-    return { justWarned, stillNone, after: s.batCount(), lead: CFG.bats.warnLeadMs };
+    s.updateBats(t0 + CFG.bats.warnLeadMs + 50);      // 그 뒤
+    return { atGate, stillNone, after: s.batCount(), floor: s.floorIndex };
   });
-  check(warn.justWarned.warned && warn.justWarned.count === 0 && warn.stillNone === 0,
-    '경고가 먼저 뜨고 그동안은 한 마리도 안 옴', warn.lead + 'ms 앞서');
-  check(warn.after > 0, '알린 뒤에 날아듦', warn.after + '마리');
+  check(gate.atGate.shown && gate.atGate.count === 0 && gate.stillNone === 0,
+    gate.floor + '층에 올라서면 알림이 먼저 뜨고 그동안은 안 옴',
+    CFG_LEAD + 'ms 앞서');
+  check(gate.after > 0, '알린 뒤에 날아듦', gate.after + '마리');
+
+  // 한 판에 한 번만 뜹니다. 상점을 지날 때마다 다시 뜨면 잡음입니다.
+  const twiceGate = await page.evaluate(() => {
+    const s = window.__scene;
+    const before = [...s.gatesShown];
+    s.floorIndex = CFG.bats.warnFloor + 30;
+    s.checkFloorGates();
+    return { before, after: [...s.gatesShown] };
+  });
+  check(twiceGate.before.join(',') === twiceGate.after.join(','),
+    '알림은 한 판에 한 번만', twiceGate.after.join(','));
+
+  // ── 함정 알림 ──────────────────────────────────────────
+  const trapGate = await page.evaluate(() => {
+    const s = window.__scene;
+    s.gatesShown = new Set(['bats']); // 박쥐 알림은 지나온 것으로 두고 함정만 봅니다
+    s.gateUntil = 0;
+    s.floorIndex = CFG.trap.warnFloor - 1;
+    s.checkFloorGates();
+    const before = s.gatesShown.has('trap');
+    s.floorIndex = CFG.trap.warnFloor;
+    s.checkFloorGates();
+    return { before, after: s.gatesShown.has('trap'), floor: CFG.trap.warnFloor };
+  });
+  check(!trapGate.before && trapGate.after,
+    trapGate.floor + '층에 올라서면 함정 알림이 뜸 (그 아래에서는 안 뜸)');
+
+  // 둘이 한꺼번에 조건을 채워도 글자가 포개지지 않습니다.
+  // 상점에서 이어서 시작하거나 층을 건너뛰면 실제로 이런 일이 생깁니다.
+  const gateQueue = await page.evaluate(() => {
+    const s = window.__scene;
+    s.gatesShown = new Set();
+    s.gateUntil = 0;
+    s.floorIndex = CFG.trap.warnFloor + 5; // 밀린 알림 둘이 동시에 조건을 채움
+    s.checkFloorGates();
+    const first = [...s.gatesShown];
+    s.checkFloorGates();                   // 다음 층 — 아직 앞 글자가 떠 있음
+    const stillFirst = [...s.gatesShown];
+    s.gateUntil = 0;                       // 글자가 걷힌 뒤
+    s.checkFloorGates();
+    return { first, stillFirst, then: [...s.gatesShown] };
+  });
+  check(gateQueue.first.length === 1 && gateQueue.stillFirst.length === 1
+    && gateQueue.then.length === 2,
+    '밀린 알림이 겹치지 않고 한 번에 하나씩',
+    gateQueue.first.join(',') + ' → ' + gateQueue.then.join(','));
+
+  // 그 아래로는 함정이 아예 안 놓입니다.
+  const trapFloors = await page.evaluate(() => {
+    resetTowerRun();
+    let below = 0, above = 0;
+    for (let f = 1; f < CFG.trap.fromFloor; f++) {
+      if (isShopFloor(f) || isBossFloor(f)) continue;
+      const fl = makeFloor(f, 0, true);
+      LANES.forEach((l) => {
+        const k = fl.slots[l] && fl.slots[l].kind;
+        if (k === SLOT.BOMB || k === SLOT.MIMIC) below++;
+      });
+    }
+    for (let f = CFG.trap.fromFloor; f < CFG.trap.fromFloor + 1500; f++) {
+      if (isShopFloor(f) || isBossFloor(f)) continue;
+      const fl = makeFloor(f, 0, true);
+      LANES.forEach((l) => {
+        const k = fl.slots[l] && fl.slots[l].kind;
+        if (k === SLOT.BOMB || k === SLOT.MIMIC) above++;
+      });
+    }
+    return { below, above, from: CFG.trap.fromFloor };
+  });
+  check(trapFloors.below === 0 && trapFloors.above > 0,
+    trapFloors.from + '층 아래에는 함정이 한 칸도 없음',
+    '아래 ' + trapFloors.below + '칸 · 위 ' + trapFloors.above + '칸');
 
   const bats = await page.evaluate(async () => {
     const s = window.__scene;
     s.coins = 200;
     s.floorIndex = CFG.bats.fromFloor + 20;
-    s.lastShopAt = s.time.now - CFG.bats.graceMs - 1;  // 시계를 늦춰 둡니다
-    s.batsWarned = false;
+    s.gatesShown = new Set(['trap']);
+    s.gateUntil = 0;
+    s.checkFloorGates();
+    s.lastShopAt = s.time.now - CFG.bats.graceMs - 1;
     for (let i = 0; i < 6; i++) {
-      s.updateBats(s.time.now + CFG.bats.warnLeadMs + i * CFG.bats.spawnEvery);
+      s.updateBats(s.time.now + CFG.bats.warnLeadMs + 100 + i * CFG.bats.spawnEvery);
     }
     return { count: s.batCount(), coins: s.coins };
   });

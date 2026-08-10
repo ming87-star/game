@@ -61,7 +61,10 @@ class GameScene extends Phaser.Scene {
     // 박쥐 — 상점을 떠난 뒤 흐른 시간으로 잽니다.
     this.lastShopAt = 0;
     this.nextBatAt = 0;
-    this.batsWarned = false;
+    // 층에 올라설 때 한 번씩 알려 주는 것들 (박쥐 51층 · 함정 101층).
+    // 판 하나에 한 번뿐이라 Set 으로 들고 다닙니다.
+    this.gatesShown = new Set();
+    this.batsFrom = 0; // 알린 뒤 이 시각부터 박쥐가 옵니다
 
     this.lastHitAt = -9999;
     this.lastSwingAt = 0;
@@ -135,6 +138,7 @@ class GameScene extends Phaser.Scene {
       continues: this.continues,
       gotWeapons: this.gotWeapons.map((g) => ({ tier: g.tier, plus: g.plus })),
       seenTypes: [...this.seenTypes],
+      gatesShown: [...this.gatesShown],
       weapon: {
         tier: w.tier, plus: w.plus, haste: w.haste, mult: w.mult, capBonus: w.capBonus,
         relics: w.relics.map((r) => r.key),
@@ -153,6 +157,9 @@ class GameScene extends Phaser.Scene {
     this.kills = r.kills;
     this.gotWeapons = r.gotWeapons.map((g) => ({ tier: g.tier, plus: g.plus }));
     this.seenTypes = new Set(r.seenTypes);
+    // 이미 본 알림은 다시 안 띄웁니다. 150층 상점에서 이어서 시작하는데
+    // "이제 함정이 섞입니다"가 또 뜨면 새 소식이 아니라 잡음입니다.
+    this.gatesShown = new Set(r.gatesShown || []);
     // 메달은 여기 없습니다. 그것이 이어서 진행하는 값입니다.
 
     const w = this.weapon;
@@ -469,6 +476,7 @@ class GameScene extends Phaser.Scene {
         // (그냥 두면 죽은 뒤에 회복 아이템을 먹어 체력이 되살아납니다)
         if (this.dead) return;
         this.floorIndex = next.index;
+        this.checkFloorGates();
         this.lane = slot.lane;
         this.land(slot);
       },
@@ -583,7 +591,6 @@ class GameScene extends Phaser.Scene {
     this.markReach();
     // 방금 싸움이 끝났으니 박쥐 시계도 다시 갑니다.
     this.lastShopAt = this.time.now;
-    this.batsWarned = false;
     this.cameras.main.shake(300, 0.01);
   }
 
@@ -789,7 +796,6 @@ class GameScene extends Phaser.Scene {
   enterShop() {
     // 상점에 닿았으니 박쥐 시계를 되돌립니다. 이게 서두를 이유입니다.
     this.lastShopAt = this.time.now;
-    this.batsWarned = false;
     this.clearBats();
 
     // 쫓아오던 적은 물러갑니다. 상점은 한숨 돌리는 자리입니다.
@@ -1584,18 +1590,13 @@ class GameScene extends Phaser.Scene {
     const b = CFG.bats;
     // 첫 상점까지는 아무리 늑장을 부려도 안 옵니다. 규칙을 익히는 구간에서
     // 뒤에서 쫓기면 배우는 대신 도망만 치게 됩니다.
+    // 알림은 51층에 올라서는 순간 한 번 뜹니다 (checkFloorGates).
     if (this.floorIndex < (b.fromFloor || 0)) return;
+    if (!this.gatesShown.has('bats')) return;
+    if (time < this.batsFrom) return; // 글씨를 읽을 틈은 주고 시작합니다
 
     const late = time - this.lastShopAt - b.graceMs;
     if (late < 0) return;
-
-    // 먼저 알려 주고, warnLeadMs 뒤에 날아듭니다. 글씨를 읽는 사이에 이미
-    // 물려 있으면 그건 경고가 아니라 통보입니다.
-    if (!this.batsWarned) {
-      this.batsWarned = true;
-      this.warnBats();
-      this.nextBatAt = time + (b.warnLeadMs || 600);
-    }
     if (time < this.nextBatAt) return;
 
     this.nextBatAt = time + b.spawnEvery;
@@ -1615,22 +1616,65 @@ class GameScene extends Phaser.Scene {
     this.enemies.getChildren().slice().forEach((e) => { if (e.isBat) e.destroy(); });
   }
 
-  warnBats() {
-    const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
-    const parts = [
-      this.add.text(CFG.width / 2, 296, '이제 서두르지 않으면',
-        font(26, '#b39ddb')).setOrigin(0.5),
-      this.add.text(CFG.width / 2, 332, '박쥐에게 아이템을 뺏깁니다',
-        font(26, '#b39ddb')).setOrigin(0.5),
-      this.add.text(CFG.width / 2, 372, '다음 상점에 닿으면 물러갑니다',
-        font(19, '#8794b5')).setOrigin(0.5),
+  // ── 층에 올라설 때 한 번 알려 주는 것들 ────────────────
+  //
+  // 규칙을 한 번에 다 얹지 않습니다. 첫 쉰 층은 길과 싸움, 그다음 쉰 층은
+  // 서두르는 법(박쥐), 그다음 쉰 층은 의심하는 법(함정). 새 규칙은 그것이
+  // 처음 적용되는 층에 **올라서는 순간** 알립니다.
+  //
+  // 예전에는 박쥐 알림이 "봐주는 시간이 끝나는 순간"에 떴습니다. 그건 이미
+  // 늦은 사람에게만 보이는 알림이라 "이런 게 있구나"가 아니라 "당했다"가 됩니다.
+  // 층에 걸어 두면 누구에게나 같은 자리에서, 아직 여유가 있을 때 보입니다.
+  floorGates() {
+    return [
+      {
+        key: 'bats',
+        floor: CFG.bats.warnFloor,
+        lines: ['이제 서두르지 않으면', '박쥐에게 아이템을 뺏깁니다',
+          '다음 상점에 닿으면 물러갑니다'],
+        color: '#b39ddb',
+        after: () => { this.batsFrom = this.time.now + (CFG.bats.warnLeadMs || 0); },
+      },
+      {
+        key: 'trap',
+        floor: CFG.trap.warnFloor,
+        lines: ['이제부터 함정이 섞입니다', '좋아 보이는 것이 가짜일 수 있습니다',
+          '두 층 안에 들면 정체가 드러납니다'],
+        color: '#ff8a80',
+      },
     ];
+  }
+
+  // 한 번에 한 가지만 알립니다.
+  //
+  // 두 알림이 겹칠 일이 있느냐 하면 있습니다. 상점에서 이어서 시작하거나
+  // 앞 층을 건너뛰면 밀린 알림이 한꺼번에 조건을 만족합니다. 그때 글자가
+  // 그대로 포개져서 아무것도 안 읽힙니다. 밀린 것은 다음 층으로 미룹니다 —
+  // 규칙은 어차피 알린 뒤에야 켜지므로, 한 층 늦는 것이 겹쳐 읽히는 것보다 낫습니다.
+  checkFloorGates() {
+    if (this.time.now < (this.gateUntil || 0)) return;
+    const gate = this.floorGates().find((g) =>
+      g.floor && this.floorIndex >= g.floor && !this.gatesShown.has(g.key));
+    if (!gate) return;
+    this.gatesShown.add(gate.key);
+    this.announceGate(gate);
+    if (gate.after) gate.after();
+  }
+
+  announceGate(gate) {
+    const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
+    this.gateUntil = this.time.now + 2400; // 글자가 다 사라질 때까지 다음 알림을 막습니다
+    const parts = gate.lines.map((line, i) =>
+      this.add.text(CFG.width / 2, 296 + i * 36,
+        line, font(i === gate.lines.length - 1 ? 19 : 26,
+          i === gate.lines.length - 1 ? '#8794b5' : gate.color)).setOrigin(0.5));
     parts.forEach((t) => {
       t.setScrollFactor(0).setDepth(150).setAlpha(0);
-      this.tweens.add({ targets: t, alpha: 1, duration: 300, yoyo: true, hold: 1500,
+      this.tweens.add({ targets: t, alpha: 1, duration: 300, yoyo: true, hold: 1800,
         onComplete: () => t.destroy() });
     });
   }
+
 
   // 코인을 채 갑니다. 물지는 않으므로 무적 시간을 쓰지 않습니다.
   batStealsCoins(bat) {
