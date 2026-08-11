@@ -55,6 +55,10 @@ const BG = [
 ].join(' ');
 
 const FORBID = [
+  // 아이템에서 자꾸 무생물에 눈을 그려 옵니다 — 폭탄 · 모루 · 망치 · 약병에
+  // 만화 눈이 달려 나왔습니다. 적과 주인공만 눈을 가집니다.
+  'If the subject is an object rather than a creature, it must NOT have a face:',
+  'no eyes, no eyeballs, no pupils, no mouth, no expression — it is an inanimate object.',
   'No text, no letters, no numbers, no logo, no watermark, no signature,',
   'no border, no frame, no panel, no grid, no sprite sheet, no multiple views,',
   'no turnaround, no character sheet — exactly one single subject in the image.',
@@ -254,8 +258,9 @@ const SUBJECTS = [
     what: 'The same shield shape, tarnished grey, with a ragged hole punched clean through its '
         + 'middle and cracks radiating from the hole. The hole is empty, showing through.' },
   { name: 'item-dodge', group: 'item', w: 36, h: 36,
-    what: 'A light swift boot with two motion afterimages trailing behind it, the trailing ones '
-        + 'fading to outlines. Purple #CE93D8.' },
+    what: 'ONE single light leather boot with a small wing on its heel, seen from the side, '
+        + 'tilted as if in mid-stride, with two faint speed streaks trailing behind it. '
+        + 'Purple leather #CE93D8. Just one boot — not a pair, not a stack, not a wall.' },
   { name: 'item-fake-dodge', group: 'item', w: 36, h: 36,
     what: 'The same boot, but ruined: the sole is torn open and flapping, the laces are snapped, '
         + 'and the trailing afterimages have gone grey and smoky.' },
@@ -330,38 +335,15 @@ const SUBJECTS = [
         + 'vertical crack, empty glowing eye slits. A bright pale outline keeps it visible against '
         + 'a dark background. Body #4527A0, mask pale #E1BEE7.' },
 
-  // ── 발판 셋과 벽 (ART.md 8절) ───────────────────────────
-  // 여기만 규칙이 다릅니다. 취향이 아니라 동작의 제약이라 못 굽힙니다.
+  // ── 발판 셋과 벽 — **AI 로 안 뽑습니다. SVG 로 둡니다** ──────
+  // 시도했고 실패했습니다.
+  //   벽   "돌벽만 그려라"고 했는데 모델이 그 위에 드워프 전사를 그려 넣었고,
+  //        거울 타일링 때문에 위쪽에 거꾸로 선 드워프까지 생겼습니다.
+  //        세로로 끊김 없이 이어져야 한다는 조건을 모델이 지킬 수 없습니다.
+  //   발판  460×20 은 23:1 입니다. 모델은 그런 띠를 안 그리고, 늘려 채우면
+  //        밋밋한 막대가 됩니다.
   //
-  // 발판은 460×20 이면 23:1 입니다. 이미지 모델은 그런 띠를 안 그려 주므로
-  // fit:'stretch' 로 가로로 늘려 채웁니다 — 결이 길이 방향으로 고른 돌·나무라
-  // 늘려도 표가 안 납니다. 대신 양 끝 마감은 포기합니다.
-  //
-  // 벽은 세로로 이음매 없이 이어져야 합니다. AI 는 그 조건을 못 지키므로
-  // tile:'mirror' 로 위 절반을 아래에 거울로 붙입니다. 그러면 타일의 맨 윗줄과
-  // 맨 아랫줄이 같은 줄이 되어 **반드시** 이어집니다 (가운데에 대칭선이
-  // 생기는 것은 감수합니다 — 돌벽이라 눈에 잘 안 띕니다).
-  { name: 'plat', group: 'scene', w: 140, h: 20, fit: 'stretch', bg: 'none',
-    what: 'A long narrow horizontal stone platform beam seen straight from the side, like a thin '
-        + 'ledge. Its TOP surface is the brightest part — a light lavender-blue lit edge — the body '
-        + 'below is mid indigo-blue and the underside is dark. Blue-violet #5C6BC0, lit top #9FA8DA. '
-        + 'The beam runs the full width of the image and is very flat and wide.' },
-  { name: 'plat-shop', group: 'scene', w: 460, h: 20, fit: 'stretch', bg: 'none',
-    what: 'A long narrow horizontal wooden shop counter beam seen straight from the side, warm '
-        + 'amber planks with brass studs, its TOP surface the brightest part — a pale cream lit '
-        + 'edge. Amber #FFB74D, lit top #FFE0B2. Very flat, very wide, spanning the whole image.' },
-  { name: 'plat-boss', group: 'scene', w: 460, h: 20, fit: 'stretch', bg: 'none',
-    what: 'A long narrow horizontal stone arena beam seen straight from the side, dark purple '
-        + 'stone with jagged cracks running through it, its TOP surface the brightest part — a pale '
-        + 'orchid lit edge. Purple #6A1B9A, lit top #CE93D8. Very flat, very wide.' },
-  { name: 'wall', group: 'scene', w: 500, h: 960, fit: 'stretch', tile: 'mirror', bg: 'opaque',
-    scale: 2,
-    what: 'The inside wall of a cold dark stone tower, seen flat straight on: courses of large '
-        + 'weathered dark blue-grey blocks with deep mortar lines, a tall vertical pilaster rib at '
-        + 'the far left edge and another at the far right edge. Very dark and low contrast, deep '
-        + 'navy #1D2542, nothing brighter than a dim grey — this is a background that must never '
-        + 'compete with the characters standing in front of it. No windows, no doors, no torches, '
-        + 'no props, no creatures, no floor, no ceiling — only wall.' },
+  // 이 넷은 art/*.svg 가 맡습니다. 게임도 그쪽을 읽으므로 손해가 없습니다.
 ];
 
 const GROUPS = ['player', 'enemy', 'bat', 'boss', 'bossshot', 'item', 'fx', 'weapon', 'scene'];
