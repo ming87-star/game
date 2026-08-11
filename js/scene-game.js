@@ -2046,6 +2046,10 @@ class GameScene extends Phaser.Scene {
     const wasBest = Save.bestFloor;
     const opened = classesUnlockedBy(this.floorIndex, this.totalCoins);
     opened.forEach((job) => Save.unlock(job.key));
+    // 이번에 열린 사람들은 **고르기가 끝난 뒤** 한 컷씩 만납니다
+    // (아래 leaveDeath). 여기서 바로 띄우면 방금 끝난 판의 결과를 읽던
+    // 사람을 끊어 놓습니다.
+    this.justOpened = opened.map((job) => job.key);
     Save.finishRun(this.floorIndex, this.totalCoins);
     // 죽을 때 들고 있던 무기도 도감에 남깁니다 (구경용).
     this.weapon.record();
@@ -2106,6 +2110,20 @@ class GameScene extends Phaser.Scene {
   // 세 번째는 원래 「직업 바꾸기」였습니다. 그런데 메달을 받고 메달 상점에 가면
   // 거기에 「직업 다시 고르기」가 있습니다 — 메달을 통째로 버려 가며 직업을
   // 바꿀 이유가 없었으니, 값을 치를 값어치가 있는 것으로 바꿨습니다.
+  // 죽음 화면을 떠나는 유일한 문. 이번 판에 누군가가 열렸으면 그 만남을
+  // 먼저 보여 주고, 끝나면 원래 가려던 곳으로 이어 줍니다 (js/scene-meet.js).
+  //
+  // 세 갈래가 저마다 scene.start 를 부르던 것을 여기 하나로 모았습니다 —
+  // 갈래마다 따로 챙기면 언젠가 한 곳을 빠뜨립니다.
+  leaveDeath(key, data) {
+    if (this.justOpened && this.justOpened.length) {
+      const jobs = this.justOpened;
+      this.justOpened = [];
+      return this.scene.start('meet', { jobs, next: { key, data } });
+    }
+    this.scene.start(key, data);
+  }
+
   buildDeathChoices(add, font, cx) {
     const earned = this.medals;
     const cost = earned ? '이번 판 메달 ' + earned + '개를 버립니다' : '이번 판에 번 메달은 없습니다';
@@ -2146,7 +2164,7 @@ class GameScene extends Phaser.Scene {
       choice(470, 0xffca28, '🏅 메달 ' + earned + '개 받기',
         '메달 상점으로 갑니다  (가진 메달 ' + Save.medals + ')', true, () => {
           Save.addMedals(earned);
-          this.scene.start('medal', { jobKey: this.job.key, earned });
+          this.leaveDeath('medal', { jobKey: this.job.key, earned });
         }),
 
       // 2 — 도감에서 무작위로 뽑힌 한 자루. 무엇이 나왔는지 보고 고릅니다.
@@ -2155,13 +2173,13 @@ class GameScene extends Phaser.Scene {
         carry ? this.carryName(carry) + ' 들고 다시' : '계승할 무기 없음',
         carry ? cost : '이번 판에 무기를 두 번은 손에 넣어야 합니다', !!carry, () => {
           Save.setBoost('weapon', carry);
-          this.scene.start('game', { jobKey: this.job.key });
+          this.leaveDeath('game', { jobKey: this.job.key });
         }),
 
       // 3 — 마지막으로 들른 상점을 나서던 자리로. 무기도 유물도 코인도 그대로입니다.
       //     값은 이번 판에 번 메달 전부, 그리고 판마다 두 번뿐이라는 것.
       choice(710, 0x4dd0e1, resumeTitle, resumeSub, canResume, () => {
-        this.scene.start('game', {
+        this.leaveDeath('game', {
           jobKey: this.job.key,
           resume: { ...this.resumePoint, continues: this.continues + 1 },
         });

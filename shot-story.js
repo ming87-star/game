@@ -43,15 +43,45 @@ const server = http.createServer((req, res) => {
   await page.screenshot({ path: path.join(ROOT, 'shots/story-select.png') });
   names.push('story-select.png');
 
+  // ── 탑에서 만나는 사람 ─────────────────────────────────
+  // 해금은 쓰러졌을 때 일어납니다. 한 판을 억지로 끝내고, 죽음 화면에서
+  // 고른 뒤에 컷이 나오는지 봅니다.
+  await page.mouse.click(270, 288);                       // 전사 카드 (y=278 중심)
+  await page.waitForTimeout(700);
+  const st = await page.evaluate(() => window.__medal.startAt);
+  await page.mouse.click(st.x, st.y);
+  await page.waitForTimeout(1000);
+  await page.evaluate(() => {
+    const s = window.__scene;
+    s.floorIndex = 700; s.totalCoins = 2000;
+    s.gameOver();
+  });
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: path.join(ROOT, 'shots/story-death.png') });
+  names.push('story-death.png');
+
+  const ch = await page.evaluate(() => window.__scene.deathChoices);
+  await page.mouse.click(ch[0].x, ch[0].y);
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: path.join(ROOT, 'shots/story-meet-1.png') });
+  names.push('story-meet-1.png');
+  await page.mouse.click(270, 400);
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: path.join(ROOT, 'shots/story-meet-2.png') });
+  names.push('story-meet-2.png');
+
   const b64 = (f) => 'data:image/png;base64,' + fs.readFileSync(path.join(ROOT, 'shots', f)).toString('base64');
-  const titles = ['1컷 (왼위)', '2컷 (오른위)', '3컷 (왼아래)', '4컷 (오른아래)', '시작 화면'];
-  const sheet = await browser.newPage({ viewport: { width: 1400, height: 560 } });
+  const titles = ['1컷 (왼위)', '2컷 (오른위)', '3컷 (왼아래)', '4컷 (오른아래)', '시작 화면',
+    '죽음 — 해금', '만남 · 궁수', '만남 · 도적'];
+  const sheet = await browser.newPage({ viewport: { width: 1140, height: 1030 } });
   await sheet.setContent(`<style>html,body{margin:0;background:#0d1120;font-family:sans-serif;color:#8794b5}
     .row{display:flex;gap:12px;padding:10px 12px}figure{margin:0}
     img{width:260px;border:1px solid #2a3252;border-radius:5px;display:block}
     figcaption{text-align:center;font-size:14px;padding-top:5px}</style>
-    <div class="row">${names.map((f, i) =>
-      `<figure><img src="${b64(f)}"><figcaption>${titles[i]}</figcaption></figure>`).join('')}</div>`);
+    <div class="row">${names.slice(0, 4).map((f, i) =>
+      `<figure><img src="${b64(f)}"><figcaption>${titles[i]}</figcaption></figure>`).join('')}</div>
+    <div class="row">${names.slice(4).map((f, i) =>
+      `<figure><img src="${b64(f)}"><figcaption>${titles[i + 4]}</figcaption></figure>`).join('')}</div>`);
   await sheet.waitForTimeout(300);
   await sheet.screenshot({ path: path.join(ROOT, 'shots/story-sheet.png') });
 

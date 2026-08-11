@@ -21,5 +21,5 @@ window.__game = new Phaser.Game({
   // 맨 앞이 오프닝인 것은 **처음 켠 사람**을 위해서입니다. 이미 본 사람은
   // StoryScene 이 첫 프레임에 곧장 select 로 넘깁니다 (Save.data.sawStory).
   // 일시정지는 탑 위에 겹쳐 띄웁니다 — 혼자 시작되는 화면이 아니라 맨 뒤에 둡니다.
-  scene: [StoryScene, SelectScene, MedalScene, RelicBookScene, GameScene, PauseScene],
+  scene: [StoryScene, SelectScene, MedalScene, RelicBookScene, MeetScene, GameScene, PauseScene],
 });

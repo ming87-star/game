@@ -73,8 +73,63 @@ const server = http.createServer((req, res) => {
       Object.keys(got).join(',') || '(없음)', ' | 시작화면:', start);
   }
 
-  console.log(bad ? `\n${bad}건 어긋남` : '\n해금 조건 모두 맞음');
+  // ── 만남 컷 ────────────────────────────────────────────
+  // 직업이 열리면 죽음 화면에서 고른 **다음에** 한 컷이 나오고, 끝나면
+  // 원래 가려던 곳으로 이어져야 합니다.
+  //
+  // 여기서 진짜로 무서운 것은 컷이 안 나오는 게 아니라 **컷이 목적지를
+  // 삼키는 것**입니다. 그러면 「메달 받기」를 눌렀는데 메달 상점 대신 시작
+  // 화면으로 떨어집니다 — 눌린 것은 맞으니 화면에는 아무 오류도 안 뜹니다.
+  const check = (ok, label, got) => {
+    if (!ok) bad++;
+    console.log(`${ok ? 'OK ' : '틀림'}  ${label}${got === undefined ? '' : '  → ' + got}`);
+  };
+  console.log('');
+
+  await fresh();
+  // 궁수와 도적이 한꺼번에 열리는 판으로 끝냅니다.
+  await runEnd(700, 2000);
+  await page.waitForTimeout(500);
+
+  const choices = await page.evaluate(() => window.__scene.deathChoices);
+  await page.mouse.click(choices[0].x * 0.75, choices[0].y * 0.75); // 「메달 받기」
+  await page.waitForTimeout(700);
+
+  const met = await page.evaluate(() => (window.__meet
+    ? { live: true, jobs: window.__meet.jobs.slice(), at: window.__meet.at }
+    : { live: false }));
+  check(met.live, '해금되면 고른 뒤에 만남 컷이 나옴');
+  check(met.live && met.jobs.join(',') === 'archer,rogue',
+    '열린 사람이 차례로 나옴', met.jobs && met.jobs.join(' → '));
+
+  if (met.live) {
+    await page.mouse.click(270 * 0.75, 400 * 0.75); // 다음 사람
+    await page.waitForTimeout(300);
+    const at = await page.evaluate(() => window.__meet.at);
+    check(at === 1, '탭하면 다음 사람으로', '두 번째 ' + at);
+
+    await page.mouse.click(270 * 0.75, 400 * 0.75); // 끝내기
+    await page.waitForTimeout(800);
+  }
+
+  // 「메달 받기」를 눌렀으니 메달 상점으로 가야 합니다 — 컷이 가로채면 안 됩니다.
+  const landed = await page.evaluate(() => ({
+    live: window.__game.scene.getScenes(true).map((s) => s.scene.key).join(','),
+    medal: !!window.__medal,
+  }));
+  check(landed.medal && landed.live.includes('medal'),
+    '컷이 끝나면 고른 곳(메달 상점)으로 이어짐', landed.live);
+
+  // 이미 열린 뒤에는 다시 안 나옵니다. 볼 때마다 나오면 그건 이야기가 아닙니다.
+  const again = await page.evaluate(() => {
+    const s = window.__scene;
+    return s ? (s.justOpened || []).length : -1;
+  });
+  check(again <= 0, '한 번 열린 사람은 다시 안 나옴', '남은 만남 ' + again);
+
+  console.log(bad ? `\n${bad}건 어긋남` : '\n해금 조건과 만남 컷 모두 맞음');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
   await browser.close();
   server.close();
+  process.exit(bad || errors.length ? 1 : 0);
 })();

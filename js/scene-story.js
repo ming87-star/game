@@ -12,6 +12,13 @@
 // 그림이 아직 없어도 돌아갑니다. 그때는 자리를 빈 네모로 그리고 몇 번째
 // 컷인지만 적습니다 — 글과 넘김은 그대로라, 그림이 붙기 전에도 흐름을
 // 확인할 수 있습니다.
+// 구워 둔 이야기 그림 하나를 장면에 답니다 (js/storydata.js).
+// 그림이 아직 없으면 아무 일도 하지 않습니다 — 부르는 쪽이 빈 자리를 그립니다.
+function loadStoryArt(scene, key) {
+  const uri = typeof STORY_ART !== 'undefined' && STORY_ART && STORY_ART[key];
+  if (uri && !scene.textures.exists(key)) scene.load.image(key, uri);
+}
+
 class StoryScene extends Phaser.Scene {
   constructor() {
     super('story');
@@ -23,9 +30,7 @@ class StoryScene extends Phaser.Scene {
 
   preload() {
     // 데이터 URI라 네트워크를 타지 않습니다. 이미 구웠으면 다시 굽지 않습니다.
-    if (typeof STORY_IMAGE === 'string' && STORY_IMAGE && !this.textures.exists('story')) {
-      this.load.image('story', STORY_IMAGE);
-    }
+    loadStoryArt(this, 'story');
   }
 
   create() {
