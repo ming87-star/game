@@ -159,7 +159,10 @@ class Hud {
       // 회피도 판 안에서 자랍니다 ('회' 아이템). 갑옷 띠 자리를 그대로 씁니다.
       this.armorBar.width = 234 * Math.min(1, s.dodge / (s.dodgeMax || 1));
       this.armorBar.fillColor = 0xce93d8;
-      this.armorText.setText('회피 ' + Math.round(s.dodge * 100) + '%');
+      // 도적의 가죽은 자라지도 닳지도 않지만, 안 보이면 없는 것과 같습니다 —
+      // 부적이 안 보여서 "안 든다"가 됐던 것과 같은 자리입니다.
+      this.armorText.setText('회피 ' + Math.round(s.dodge * 100) + '%' +
+        (s.armor > 0 ? '  가죽 ' + Math.round(s.armor) + '%' : ''));
     }
 
     this.setBoss(s.boss);

@@ -22,6 +22,10 @@ function blankSave() {
     // 유물 도감. 한 번이라도 가져간 것은 여기 남습니다.
     relics: {},
     lastJob: 'warrior',
+    // 오프닝을 이미 봤는지. 처음 켠 사람에게만 저절로 나오고, 그 뒤로는
+    // 시작 화면에서 직접 눌러야 다시 나옵니다 — 한 판 더 하려고 켰는데
+    // 매번 이야기부터 보게 하면 그건 이야기가 아니라 문턱입니다.
+    sawStory: false,
   };
 }
 
@@ -60,6 +64,12 @@ const Save = {
 
   unlock(key) {
     this.data.unlocked[key] = true;
+    this.flush();
+  },
+
+  markStorySeen() {
+    if (this.data.sawStory) return;
+    this.data.sawStory = true;
     this.flush();
   },
 

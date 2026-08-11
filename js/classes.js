@@ -136,18 +136,37 @@ const CLASSES = [
     name: '도적',
     unlockFloor: 700, unlockCoins: 2000,
     blurb: '빠르게 찌르고 훔친다',
-    detail: '사거리는 짧지만 매우 빠릅니다. 갑옷은 입지 않고 흘려 넘깁니다.\n적을 잡지 않아도 코인을 훔칩니다.',
+    detail: '사거리는 짧지만 셋 중 가장 빠릅니다. 얇은 가죽에 기대어 흘려 넘깁니다.\n적을 잡지 않아도 코인을 훔칩니다.',
     color: 0xce93d8,
 
     hp: 200,
-    // 도적은 갑옷을 입지 않습니다. 맞으면 그대로 맞고, 대신 흘려 넘깁니다.
-    // 방어구 아이템도 도적에게는 나오지 않습니다 (밟아도 아무 일 없으면 빈 칸이니까).
-    armor: 0,
+    // ── 가죽 갑옷 ──────────────────────────────────────
+    // 도적은 원래 방어가 0이었습니다. 회피만으로 버티라는 뜻이었는데,
+    // **회피는 아무것도 고르게 만들어 주지 않습니다.** 38%로 흘리고 62%로
+    // 온전히 맞으니, 평균은 멀쩡해도 운 나쁜 몇 대에 그냥 증발합니다.
+    // 전사는 매번 30~47%씩 덜 맞아 죽는 속도가 예측되는데 도적은 그렇지
+    // 않아서, 평균이 같아도 **체감이 훨씬 약합니다.**
+    //
+    // 그래서 얇은 가죽을 한 겹 깔았습니다. 회피의 도박은 그대로 두되
+    // 바닥을 받쳐 줍니다 — 최악의 연속이 와도 18%는 덜 맞습니다.
+    //
+    // usesArmor 는 false 그대로입니다. 그래야 필드에서 '회'를 줍고(방어구가
+    // 아니라), 상점에서 회피를 사고, 무엇보다 **가죽이 닳지 않습니다**
+    // (scene-game.js 의 wearArmor 가 usesArmor 를 보고 그냥 물러납니다).
+    // 갈아 낼 만큼 두껍지가 않아서 그냥 늘 그만큼 덜 맞는 것입니다.
+    armor: 18,
+    armorMax: 18, // 자라지 않습니다. 늘 가득이라는 뜻입니다
     usesArmor: false,
     // 갑옷을 안 입는 대신 회피를 주워 올립니다 (필드의 '회' 아이템).
-    dodgeMax: 0.62,
-    // 손이 셋 중 가장 빠릅니다.
-    speedCap: 2.5,
+    // 가죽을 깔면서 0.62에서 0.56으로 내렸습니다. 시작 회피(0.38)는 그대로라
+    // **아래층에서는 확실히 세지고**, 위층에서는 전사가 방어구를 82까지
+    // 쌓아 다시 앞섭니다 — 250층에서 실질 체력이 전사 595 대 도적 494입니다.
+    // 안 내렸으면 도적이 175층까지 셋 중 가장 단단했습니다. 그러면
+    // "전사는 두껍게 막는다"가 표에서부터 거짓말이 됩니다.
+    dodgeMax: 0.56,
+    // 손이 셋 중 가장 빠릅니다. 가죽과 함께 올렸습니다 — 도적의 값어치는
+    // "빠르다"인데 2.5는 궁수(2.05)와 그리 벌어져 보이지 않았습니다.
+    speedCap: 2.8,
     // +1 하나가 제값을 다 주지는 않습니다. 공격 속도가 워낙 빨라서
     // 공격력까지 온전히 붙으면 곱해진 값이 감당이 안 됩니다.
     plusScale: 1,
@@ -178,30 +197,30 @@ const CLASSES = [
     // icon 값의 뜻은 전사 쪽 주석을 보세요. 도적은 날이 짧아 art 가 dagger 입니다 —
     // 자루가 짧고 코등이가 작아, 같은 검이라도 전사 것과 실루엣이 갈립니다.
     weapons: [
-      { name: '이 빠진 단도', dmg: 44,  rate: 230, reach: 78, color: 0xcfd8dc,
+      { name: '이 빠진 단도', dmg: 44,  rate: 212, reach: 78, color: 0xcfd8dc,
         icon: { art: 'dagger', hw: 3.6, len: 0.40, guard: 'none', notch: true } },
-      { name: '사냥칼',      dmg: 82,  rate: 220, reach: 82, color: 0x90caf9,
+      { name: '사냥칼',      dmg: 82,  rate: 202, reach: 82, color: 0x90caf9,
         icon: { art: 'dagger', hw: 4.0, len: 0.44, guard: 'bar', gw: 9 } },
-      { name: '쌍단도',      dmg: 128,  rate: 196,  reach: 86, color: 0xa5d6a7,
+      { name: '쌍단도',      dmg: 128,  rate: 180,  reach: 86, color: 0xa5d6a7,
         icon: { art: 'dagger', twin: true, hw: 4.4, len: 0.44, guard: 'bar', gw: 11 } },
-      { name: '독니',        dmg: 218,  rate: 184,  reach: 91, color: 0x9ccc65,
+      { name: '독니',        dmg: 218,  rate: 169,  reach: 91, color: 0x9ccc65,
         icon: { art: 'dagger', hw: 4.0, len: 0.45, curve: 1.3, guard: 'none' } },
-      { name: '그림자 단검',  dmg: 366, rate: 174,  reach: 95, color: 0xce93d8,
+      { name: '그림자 단검',  dmg: 366, rate: 160,  reach: 95, color: 0xce93d8,
         icon: { art: 'dagger', hw: 4.0, len: 0.48, guard: 'bar', gw: 10, gem: true } },
-      { name: '월아도',      dmg: 594, rate: 156,  reach: 98, color: 0xff8a65,
+      { name: '월아도',      dmg: 594, rate: 144,  reach: 98, color: 0xff8a65,
         icon: { art: 'dagger', hw: 5.0, len: 0.50, curve: 1.8, guard: 'bar', gw: 10 } },
-      { name: '뇌전 비수',    dmg: 948, rate: 140,  reach: 101, color: 0x81d4fa,
+      { name: '뇌전 비수',    dmg: 948, rate: 129,  reach: 101, color: 0x81d4fa,
         icon: { art: 'dagger', hw: 4.0, len: 0.50, guard: 'wing', gw: 11, gem: true } },
-      { name: '용아 단검',    dmg: 1420, rate: 120,  reach: 104, color: 0xffb74d,
+      { name: '용아 단검',    dmg: 1420, rate: 110,  reach: 104, color: 0xffb74d,
         icon: { art: 'dagger', hw: 4.8, len: 0.52, curve: 1.1, guard: 'cross', gw: 12 } },
       // 275층 언저리 구간.
-      { name: '그믐 비수',    dmg: 2376,  rate: 112, reach: 107,  color: 0xf48fb1,
+      { name: '그믐 비수',    dmg: 2376,  rate: 103, reach: 107,  color: 0xf48fb1,
         icon: { art: 'dagger', hw: 4.2, len: 0.53, curve: 1.6, guard: 'bar', gw: 10, gem: true } },
-      { name: '사혼도',      dmg: 3936, rate: 104, reach: 110, color: 0xfff59d,
+      { name: '사혼도',      dmg: 3936, rate: 96, reach: 110, color: 0xfff59d,
         icon: { art: 'dagger', hw: 5.2, len: 0.55, curve: 1.2, guard: 'ring', gw: 12 } },
-      { name: '심연의 이빨',  dmg: 6510, rate: 96, reach: 113, color: 0x9575cd,
+      { name: '심연의 이빨',  dmg: 6510, rate: 88, reach: 113, color: 0x9575cd,
         icon: { art: 'dagger', twin: true, hw: 5.0, len: 0.54, guard: 'wing', gw: 13, gem: true } },
-      { name: '천살 단검',    dmg: 10668, rate: 88, reach: 116, color: 0x80cbc4,
+      { name: '천살 단검',    dmg: 10668, rate: 81, reach: 116, color: 0x80cbc4,
         icon: { art: 'dagger', hw: 5.0, len: 0.58, guard: 'ring', gw: 13, gem: true, notch: true } },
     ],
 

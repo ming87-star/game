@@ -53,7 +53,7 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
   if (seed) await page.evaluate((v) => window.localStorage.setItem('tower-seed', String(v)), seed);
   await page.evaluate((m) => window.localStorage.setItem('tower-climb-v1',
     JSON.stringify({ bestFloor: 0, deaths: 0, runs: 0, bestCoins: 0, medals: m,
-      weapons: {}, boosts: {}, unlocked: { archer: true, rogue: true } })), medals);
+      weapons: {}, boosts: {}, unlocked: { archer: true, rogue: true }, sawStory: true })), medals);
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1000);
   await shot(page, '00-select.png');

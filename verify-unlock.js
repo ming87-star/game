@@ -38,7 +38,10 @@ const server = http.createServer((req, res) => {
 
   const fresh = async () => {
     await page.goto('http://localhost:' + port + '/', { waitUntil: 'networkidle' });
-    await page.evaluate(() => window.localStorage.removeItem('tower-climb-v1'));
+    // 해금은 빈 기록에서 봐야 하지만, 오프닝만은 건너뜁니다 —
+    // 여기서 재는 것은 이야기가 아니라 해금 조건입니다.
+    await page.evaluate(() => window.localStorage.setItem('tower-climb-v1',
+      JSON.stringify({ sawStory: true })));
     await page.reload({ waitUntil: 'networkidle' });
     await page.waitForTimeout(700);
     const locked = await page.evaluate(() =>

@@ -14,7 +14,9 @@ const server = http.createServer((req, res) => {
   const page = await browser.newPage({ viewport: { width: 405, height: 720 } });
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('http://localhost:8190/', { waitUntil: 'networkidle' });
-  await page.evaluate(() => window.localStorage.removeItem('tower-climb-v1'));
+  // 오프닝은 처음 켠 사람에게만 나옵니다. 여기서 보려는 것은 이동이므로 건너뜁니다.
+  await page.evaluate(() => window.localStorage.setItem('tower-climb-v1',
+    JSON.stringify({ sawStory: true })));
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(700);
   await page.mouse.click(270 * .75, 278 * .75); await page.waitForTimeout(600);

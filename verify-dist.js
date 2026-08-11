@@ -52,6 +52,30 @@ const check = (ok, label, got) => {
   // 1. 시작 화면
   check(await page.evaluate(() => !!window.__game), '합친 파일이 켜짐');
 
+  // 1-2. 오프닝 — **처음 켠 사람이 실제로 보는 첫 화면입니다.**
+  //      다른 검사는 전부 sawStory 를 켜 놓고 건너뛰므로, 여기서 한 번은
+  //      진짜로 지나가 봐야 합니다. 여기가 막히면 새 사람은 게임을 못 켭니다.
+  const story = await page.evaluate(() => (window.__story
+    ? { panels: window.__story.panels.length, skip: window.__story.skipAt } : null));
+  check(!!story, '처음 켠 사람에게는 오프닝이 먼저 나옴',
+    story ? story.panels + '컷' : '안 나옴');
+
+  if (story) {
+    // 한 컷씩 넘겨 봅니다 — 넘김이 안 먹으면 건너뛰기 말고는 길이 없습니다.
+    for (let i = 1; i < story.panels; i++) {
+      await page.mouse.click(270, 400);
+      await page.waitForTimeout(220);
+    }
+    const last = await page.evaluate(() => (window.__story ? window.__story.at : -1));
+    check(last === story.panels - 1, '탭할 때마다 다음 컷으로', '마지막 컷 ' + last);
+
+    await page.mouse.click(story.skip.x, story.skip.y);
+    await page.waitForTimeout(900);
+  }
+  const onSelect = await page.evaluate(() =>
+    window.__game.scene.getScenes(true).some((s) => s.scene.key === 'select'));
+  check(onSelect, '오프닝을 지나면 직업 고르기로');
+
   // 2. 직업 고르기 → 메달 상점
   await page.mouse.click(270, 288);
   await page.waitForTimeout(900);

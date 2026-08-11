@@ -22,7 +22,7 @@ const server = http.createServer((req, res) => {
   await page.goto('http://localhost:9890/', { waitUntil: 'networkidle' });
   await page.evaluate(() => window.localStorage.setItem('tower-climb-v1', JSON.stringify({
     bestFloor: 0, deaths: 0, runs: 0, bestCoins: 0, medals: 0, weapons: {}, boosts: {},
-    relics: {}, unlocked: {}, lastJob: 'warrior' })));
+    relics: {}, unlocked: {}, lastJob: 'warrior', sawStory: true })));
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(800);
   await page.mouse.click(270, 288);

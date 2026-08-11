@@ -44,7 +44,7 @@ const check = (ok, label, got) => {
   };
   const base = () => ({
     bestFloor: 0, deaths: 0, runs: 0, bestCoins: 0, unlocked: {},
-    medals: 0, weapons: {}, boosts: {}, lastJob: 'warrior',
+    medals: 0, weapons: {}, boosts: {}, lastJob: 'warrior', sawStory: true,
   });
   // 지금 실제로 돌아가는 장면. window.__scene은 넘어간 뒤에도 직전 장면을
   // 가리킨 채 남으므로 그것으로 판단하면 안 됩니다.

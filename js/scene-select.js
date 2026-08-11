@@ -21,15 +21,25 @@ class SelectScene extends Phaser.Scene {
 
     CLASSES.forEach((job, i) => this.buildCard(job, cx, 278 + i * 200, best));
 
-    // 유물 도감 — 무엇을 모았고 무엇이 남았는지 보는 자리입니다.
+    // 아래 두 자리 — 유물 도감과 이야기. 둘 다 판을 **시작하지 않는** 곳이라
+    // 나란히 두고, 판을 시작하는 직업 카드와는 떨어뜨려 놓습니다.
     const bookY = CFG.height - 44;
     const owned = RELICS.filter((r) => Save.data.relics[r.key]).length;
-    const book = this.add.rectangle(cx, bookY, 380, 52, 0x1b2138)
+    const book = this.add.rectangle(cx - 98, bookY, 184, 52, 0x1b2138)
       .setStrokeStyle(2, 0x5c4a8a).setInteractive({ useHandCursor: true });
-    this.add.text(cx, bookY, '유물 도감  ' + owned + ' / ' + RELICS.length,
-      font(22, '#ffd54f')).setOrigin(0.5);
-    this.bookAt = { x: cx, y: bookY };
+    this.add.text(cx - 98, bookY, '유물 ' + owned + ' / ' + RELICS.length,
+      font(21, '#ffd54f')).setOrigin(0.5);
+    this.bookAt = { x: cx - 98, y: bookY };
     book.on('pointerdown', () => this.scene.start('relicbook'));
+
+    // 오프닝은 처음 켠 사람에게만 저절로 나옵니다. 다시 보고 싶은 사람을 위한
+    // 자리를 여기 둡니다 — 없으면 한 번 지나친 이야기는 영영 못 봅니다.
+    this.storyAt = { x: cx + 98, y: bookY };
+    const story = this.add.rectangle(this.storyAt.x, this.storyAt.y, 184, 52, 0x1b2138)
+      .setStrokeStyle(2, 0x3f4a78).setInteractive({ useHandCursor: true });
+    this.add.text(this.storyAt.x, this.storyAt.y, '이야기 다시 보기',
+      font(18, '#8794b5')).setOrigin(0.5);
+    story.on('pointerdown', () => this.scene.start('story', { replay: true }));
   }
 
   buildCard(job, cx, y, best) {

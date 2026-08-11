@@ -166,3 +166,49 @@ for (let f = 0; f <= 500; f += f < 300 ? 25 : 50) {
     `      보통 ${Math.ceil(normal / dmg)}대 · 단단 ${Math.ceil(brute / dmg)}대 · 거인 ${Math.ceil(giant / dmg)}대` +
     `   (보통 한 마리 ${(normal / dps).toFixed(1)}초)`);
 }
+
+// ── 직업 셋을 나란히 ────────────────────────────────────
+// 자동 플레이는 실시간이라 같은 씨앗을 줘도 판마다 갈라집니다 (기계가 바쁘면
+// 결과가 통째로 바뀝니다 — 손 안 댄 직업이 154층에서 118층으로 내려앉는 것을
+// 봤습니다). 20%짜리 손질은 그 잡음 안에 묻힙니다.
+//
+// 그래서 **셈으로 낼 수 있는 것은 셈으로 냅니다.** 화력과 맷집은 수식이라
+// 돌릴 때마다 같은 답이 나옵니다. 자동 플레이는 그 뒤에 "그래서 실제로도
+// 그런가"를 보는 데만 씁니다.
+//
+// 맷집을 재는 방법: 회피는 확률이라 평균으로 환산합니다. 한 대에 실제로
+// 들어오는 몫은 (1 - 회피) × (1 - 방어/100) 이므로, 실질 체력은 체력을
+// 그 몫으로 나눈 값입니다. 도적의 회피와 전사의 방어를 같은 자로 잽니다.
+console.log('\n\n직업 셋을 같은 자로 (UP을 매번 챙기고 강화를 같이 쌓은 경우)\n');
+// 근접의 초당 피해는 **한 놈에게 들어가는 몫**입니다. 전사는 사거리가 넓어
+// 한 번에 여럿이 함께 맞으므로, 발판에 몰려 있을 때의 실제 화력은 이 값의
+// 몇 배입니다. 표만 보고 "전사가 제일 약하다"로 읽으면 안 됩니다.
+console.log('  층    직업    무기            초당 피해   회피   방어   한 대에 들어오는 몫   실질 체력');
+
+for (const f of [0, 50, 100, 175, 250]) {
+  for (const job of CLASSES) {
+    const ws = job.weapons;
+    const w = ws[Math.min(ws.length - 1, Math.floor(f / perTier))];
+    const dmg = w.dmg * (1 + stacks * CFG.plusStep * (job.plusScale || 1)) * (w.shots || 1);
+
+    // 공격 속도는 층이 오를수록 쌓입니다. 한계(speedCap)에 걸리면 거기서 멈춥니다.
+    const speed = Math.min(job.speedCap, 1 + stacks * CFG.hasteStep);
+    const dps = dmg / (w.rate / speed) * 1000;
+
+    // 방어·회피도 판이 진행될수록 한계 쪽으로 자랍니다. 절반쯤 채운 것으로 봅니다.
+    const grow = Math.min(1, f / 250);
+    const dodge = job.dodge + (job.dodgeMax - job.dodge || 0) * grow * 0.7;
+    const armorCap = job.armorMax || job.armor;
+    const armor = job.usesArmor ? job.armor + (armorCap - job.armor) * grow * 0.7 : job.armor;
+
+    const taken = (1 - dodge) * (1 - armor / 100);
+    const ehp = job.hp / taken;
+
+    console.log(
+      `  ${String(f).padStart(3)}   ${job.name}    ${w.name.padEnd(12)}` +
+      ` ${String(Math.round(dps)).padStart(8)}` +
+      ` ${(dodge * 100).toFixed(0).padStart(5)}% ${armor.toFixed(0).padStart(5)}%` +
+      `           ${taken.toFixed(3)}   ${String(Math.round(ehp)).padStart(6)}`);
+  }
+  console.log('');
+}

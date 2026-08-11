@@ -38,7 +38,7 @@ async function boot(browser, port, jobIndex) {
   await page.evaluate(() => window.localStorage.setItem('tower-climb-v1', JSON.stringify({
     bestFloor: 0, deaths: 0, runs: 0, bestCoins: 0, medals: 0,
     weapons: {}, boosts: {}, relics: {},
-    unlocked: { archer: true, rogue: true }, lastJob: 'warrior',
+    unlocked: { archer: true, rogue: true }, lastJob: 'warrior', sawStory: true,
   })));
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(700);
@@ -445,6 +445,48 @@ async function boot(browser, port, jobIndex) {
   check(Math.abs(bossDodge.boss - 0.6 * bossDodge.scale) < 0.04,
     '보스가 내리꽂는 것에는 3분의 2만 통함',
     pc(bossDodge.boss) + ' (기대 ' + pc(0.6 * bossDodge.scale) + ')');
+
+  // ── 도적의 가죽 갑옷 ───────────────────────────────────
+  // 회피만으로 버티게 했더니 운 나쁜 몇 대에 증발했습니다. 얇은 가죽을 한 겹
+  // 깔아 바닥을 받칩니다. 위험한 곳은 셋입니다 —
+  //   1. 가죽이 닳으면 몇 대 맞고 나서 도로 0이 됩니다 (닳지 않아야 합니다)
+  //   2. usesArmor 를 켜 버리면 필드에서 '회' 대신 방어구가 나와 정체성이 바뀝니다
+  //   3. 회피가 터진 대에는 가죽까지 겹쳐 세면 안 됩니다 (0을 또 깎을 수는 없으니)
+  const leather = await rogue.evaluate(() => {
+    const s = window.__scene;
+    s.dodge = 0;                 // 가죽만 따로 재려고 회피를 끕니다
+    s.hp = s.maxHp = 1e9;
+    const before = s.armor;
+
+    let taken = 0;
+    for (let i = 0; i < 200; i++) {
+      const hp = s.hp;
+      s.lastHitAt = -1e9;
+      s.hurt(100);
+      taken += hp - s.hp;
+    }
+
+    // 필드의 「방어 칸」이 도적에게 무엇으로 나오는지.
+    const kinds = new Set();
+    for (let i = 0; i < 400; i++) kinds.add(pickKind(150, 0, s.job.usesArmor));
+
+    return {
+      before, after: s.armor,
+      perHit: taken / 200,
+      usesArmor: s.job.usesArmor,
+      hasDodgeSlot: kinds.has(SLOT.DODGE),
+      hasArmorSlot: kinds.has(SLOT.ARMOR),
+    };
+  });
+  check(leather.before > 0, '도적도 가죽을 두르고 시작함', leather.before + '%');
+  check(leather.after === leather.before, '가죽은 닳지 않음 (갈아 낼 만큼 두껍지 않으니)',
+    `${leather.before}% → ${leather.after}%`);
+  check(Math.abs(leather.perHit - 100 * (1 - leather.before / 100)) < 1,
+    '가죽만큼 덜 맞음', `100 중 ${leather.perHit.toFixed(0)}`);
+  check(!leather.usesArmor && leather.hasDodgeSlot && !leather.hasArmorSlot,
+    '가죽을 둘러도 필드에서는 여전히 회피가 나옴 (방어구가 아니라)',
+    leather.hasDodgeSlot ? '회피 나옴 · 방어구 안 나옴' : '회피가 안 나옵니다');
+
   await rogue.close();
 
   console.log(bad ? `\n${bad}건 어긋남` : '\n공격 성격 모두 맞음');
