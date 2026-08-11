@@ -1,0 +1,570 @@
+// 스프라이트를 Gemini 로 그립니다 — 컷씬(gen-story.js)과는 문제가 다릅니다.
+//
+//   GEMINI_API_KEY=... node gen-sprite.js boss          보스 다섯 + 탄
+//   GEMINI_API_KEY=... node gen-sprite.js player enemy  주인공 셋 + 적 열둘
+//   GEMINI_API_KEY=... node gen-sprite.js e-crawler     한 장만
+//
+// ── 왜 그냥 못 쓰는가 ─────────────────────────────────────
+// 컷씬은 배경이 그림의 일부라 받은 그대로 씁니다. 스프라이트는 다릅니다.
+// ART.md 0절이 요구하는 것 — 배경 투명 · 오른쪽을 봄 · 그림자 없음 ·
+// 정확한 크기 · 32px 로 줄여도 읽힘.
+//
+// 그런데 **Gemini 는 알파 채널을 안 내놓습니다.** 그래서 이렇게 뚫습니다.
+//   1. 순수 마젠타(#FF00FF) 바탕에 그리게 시킵니다. 이 게임 팔레트에 없는
+//      색이라 몸 색과 겹칠 일이 없습니다 (초록·청록을 쓰면 궁수·사수가 먹힙니다)
+//   2. 받은 그림에서 마젠타를 걷어냅니다
+//   3. 남은 것의 실제 경계를 재서 잘라 냅니다 (모델이 여백을 제멋대로 둡니다)
+//   4. 목표 크기의 4배 상자에 맞춰 넣습니다. 사람은 발이 바닥에 닿아야 하므로
+//      아래로 붙이고, 나머지는 가운데에 둡니다
+//
+// 잘 안 되면 어디서 깨졌는지 보이게 중간 산물을 shots/sprite-raw/ 에 남깁니다.
+const fs = require('fs');
+const path = require('path');
+const { chromium } = require('playwright');
+
+const ROOT = __dirname;
+const RAW = path.join(ROOT, 'shots', 'sprite-raw');   // shots/ 는 .gitignore 에 있습니다
+const OUT = path.join(ROOT, 'assets');
+
+const KEY = process.env.GEMINI_API_KEY;
+const MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image';
+const BAKE_SCALE = 4;          // ART.md 0절 — 표의 4배로 받습니다
+const CHROMA = [255, 0, 255];  // 마젠타
+const TOLERANCE = 78;          // 이 거리 안이면 배경으로 봅니다
+
+// ── 서른 장에 글자 하나 안 바꾸고 붙는 문장 ────────────────
+// ART.md 1절의 스타일 문장과 같은 말을 씁니다. 여기서 그림마다 조금씩 고치면
+// 세계가 아니라 그림 모음이 됩니다.
+const STYLE = [
+  '2D game sprite, side view, facing right, chunky readable silhouette,',
+  'bold clean dark outlines, flat cel shading with two tone shadows,',
+  'light source from upper left, saturated colours, dark fantasy but friendly,',
+  'mobile game art, centered single subject, full body visible.',
+  'The subject must read clearly even when shrunk to 32 pixels:',
+  'big simple shapes, large bright eyes, no fine detail that disappears when small.',
+].join(' ');
+
+// 배경 규칙. 이게 이 스크립트의 전부입니다 — 여기가 흔들리면 알파가 지저분해집니다.
+const BG = [
+  'The background must be a completely flat, uniform, pure magenta #FF00FF —',
+  'a solid chroma key screen, absolutely nothing else: no gradient, no texture,',
+  'no vignette, no scenery, no ground, no floor, no platform, no shadow of any kind,',
+  'no drop shadow, no contact shadow, no reflection.',
+  'The subject must not be tinted magenta and must not touch the edges of the frame:',
+  'leave a small clean margin all around.',
+].join(' ');
+
+const FORBID = [
+  'No text, no letters, no numbers, no logo, no watermark, no signature,',
+  'no border, no frame, no panel, no grid, no sprite sheet, no multiple views,',
+  'no turnaround, no character sheet — exactly one single subject in the image.',
+].join(' ');
+
+// ── 무엇을 그리는가 ────────────────────────────────────────
+// 크기는 ART.md 2·3·4·5절의 표 그대로입니다. 여기를 고치면 게임 안 충돌
+// 범위와 어긋나므로 표를 먼저 고쳐야 합니다.
+const SUBJECTS = [
+  // 주인공 셋 — 발이 그림 맨 아래에 닿아야 합니다
+  { name: 'player-warrior', group: 'player', w: 38, h: 48, anchor: 'bottom',
+    what: 'A warrior hero for a tower climbing game: broad angular pauldrons, a horned helmet '
+        + 'with a red crest, sturdy wide stance, red and steel-grey armour, a sword held small '
+        + 'at his side. Broadest of the three heroes. Red accent #EF9A9A.' },
+  { name: 'player-archer', group: 'player', w: 42, h: 48, anchor: 'bottom',
+    what: 'An archer hero: a sharply pointed hood, a bow slung across the back, a slim tall body, '
+        + 'light leather gear. Narrower and taller-looking than the warrior. Green accent #A5D6A7.' },
+  { name: 'player-rogue', group: 'player', w: 40, h: 48, anchor: 'bottom',
+    what: 'A rogue hero: crouched low, a cloak streaming back, hood and a face covering, '
+        + 'two short daggers. Lowest and widest stance of the three. Purple accent #CE93D8.' },
+
+  // 적 열둘 — 무엇이 위험한지가 실루엣에 보여야 합니다 (ART.md 3절)
+  //
+  // anchor: 땅을 딛는 놈은 'bottom'. 모델이 그려 주는 비율이 표의 비율과 안 맞아
+  // 상자 안에 여백이 남는데, 가운데에 두면 기는 놈이 공중에 떠 보입니다.
+  // 나는 놈(flyer · bomber · diver · ghost)과 박쥐·보스는 떠 있어야 하므로 그대로 둡니다.
+  { name: 'e-crawler', group: 'enemy', anchor: 'bottom', w: 32, h: 32,
+    what: 'A small red armoured crawling bug monster low to the ground, thick stubby legs, '
+        + 'a segmented shell, big white eyes, pincer jaws forward. Red #EF5350.' },
+  { name: 'e-hopper', group: 'enemy', anchor: 'bottom', w: 34, h: 32,
+    what: 'A green frog-like hopping monster, huge folded coiled hind legs like a spring, '
+        + 'bulging eyes on top of the head, wide mouth. Yellow-green #8BC34A.' },
+  { name: 'e-flyer', group: 'enemy', w: 36, h: 32,
+    what: 'A purple flying insect monster with jagged bat-like wings spread, a tapered striped '
+        + 'body, large pale eyes, small antennae. Purple #7E57C2.' },
+  { name: 'e-brute', group: 'enemy', anchor: 'bottom', w: 32, h: 34,
+    what: 'A heavy brown armoured brute, hunched and thick, stone pauldrons, tiny sunken head '
+        + 'between the shoulders, heavy fists hanging low, stubby legs. Brown #8D6E63.' },
+  { name: 'e-charger', group: 'enemy', anchor: 'bottom', w: 36, h: 38,
+    what: 'A brown charging soldier monster holding a big shield thrust forward — the shield is '
+        + 'the danger and must dominate the silhouette. Braced stance. Brown #795548.' },
+  { name: 'e-dasher', group: 'enemy', anchor: 'bottom', w: 32, h: 30,
+    what: 'A yellow very fast monster, body swept sharply forward, low and streamlined, '
+        + 'thin trailing wisps behind it. Yellow #FFCA28.' },
+  { name: 'e-bomber', group: 'enemy', w: 34, h: 36,
+    what: 'A blue-grey flying bomb monster carrying a round explosive with a lit burning fuse — '
+        + 'the fuse and its spark must be obvious. Slate #546E7A.' },
+  { name: 'e-giant', group: 'enemy', anchor: 'bottom', w: 36, h: 38,
+    what: 'A large slow crimson-purple giant monster, massive upper body, small head, '
+        + 'heavy arms. Reads as huge and slow. Deep pink-purple #AD1457.' },
+  { name: 'e-splitter', group: 'enemy', anchor: 'bottom', w: 36, h: 36,
+    what: 'A teal blob monster with a clear vertical seam splitting its body down the middle — '
+        + 'it looks like it is about to come apart in two. Teal #00897B.' },
+  { name: 'e-shooter', group: 'enemy', anchor: 'bottom', w: 34, h: 34,
+    what: 'A teal turret monster with one single large eye and a barrel aimed to the right. '
+        + 'Teal #26A69A.' },
+  { name: 'e-diver', group: 'enemy', w: 36, h: 38,
+    what: 'An indigo diving bird monster with a sharp pointed yellow beak and swept-back wings, '
+        + 'poised to plunge downward. Indigo #5C6BC0, beak yellow.' },
+  { name: 'e-ghost', group: 'enemy', w: 34, h: 36,
+    what: 'A pale translucent lavender ghost monster with a bright glowing outline so it stays '
+        + 'visible against a dark navy background, wispy dissolving lower body. Lavender #B39DDB.' },
+
+  // 박쥐 둘 — 한눈에 갈려야 합니다 (ART.md 4절)
+  { name: 'bat-thief', group: 'bat', w: 40, h: 32,
+    what: 'A purple bat monster clutching a bulging loot sack in its feet — the sack must be '
+        + 'obvious in the silhouette. Purple #7E57C2.' },
+  { name: 'bat-biter', group: 'bat', w: 40, h: 32,
+    what: 'A red bat monster with large bared fangs, mouth open — the fangs must be obvious '
+        + 'in the silhouette. Red #C62828.' },
+
+  // ── 무기 서른여섯 (ART.md 7절) ──────────────────────────
+  // 이름과 순서는 js/classes.js 의 weapons 표에서 뽑았습니다. 색도 거기 값입니다.
+  // 칼끝은 위를 보고 활은 오른쪽을 봅니다.
+  //
+  // 단계가 오를수록 커지고 화려해져야 합니다 — 열두 번째가 첫 번째와 한눈에
+  // 갈리지 않으면 UP 을 밟는 보람이 없습니다. 그래서 등급을 넷으로 끊어
+  // (수수함 → 견실함 → 마법 → 전설) 문장에 박았습니다.
+  { name: 'w-warrior-0', group: 'weapon', w: 48, h: 48,
+    what: 'A single sword weapon icon for a fantasy game, called "녹슨 장검". The blade points UPWARD, hilt at the bottom. It is a plain, worn, humble starting weapon — simple and unadorned. Its dominant colour is #cfd8dc. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-warrior-1', group: 'weapon', w: 48, h: 48,
+    what: 'A single sword weapon icon for a fantasy game, called "강철 검". The blade points UPWARD, hilt at the bottom. It is a plain, worn, humble starting weapon — simple and unadorned. Its dominant colour is #90caf9. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-warrior-2', group: 'weapon', w: 48, h: 48,
+    what: 'A single sword weapon icon for a fantasy game, called "쌍날 검". The blade points UPWARD, hilt at the bottom. It is a plain, worn, humble starting weapon — simple and unadorned. Its dominant colour is #a5d6a7. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-warrior-3', group: 'weapon', w: 48, h: 48,
+    what: 'A single sword weapon icon for a fantasy game, called "은빛 창". The blade points UPWARD, hilt at the bottom. It is a solid well-made weapon with a little ornament. Its dominant colour is #b0bec5. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-warrior-4', group: 'weapon', w: 48, h: 48,
+    what: 'A single sword weapon icon for a fantasy game, called "마력 검". The blade points UPWARD, hilt at the bottom. It is a solid well-made weapon with a little ornament. Its dominant colour is #ce93d8. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-warrior-5', group: 'weapon', w: 48, h: 48,
+    what: 'A single sword weapon icon for a fantasy game, called "화염도". The blade points UPWARD, hilt at the bottom. It is a solid well-made weapon with a little ornament. Its dominant colour is #ff8a65. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-warrior-6', group: 'weapon', w: 48, h: 48,
+    what: 'A single sword weapon icon for a fantasy game, called "뇌전검". The blade points UPWARD, hilt at the bottom. It is an ornate enchanted weapon with glowing details and a faint aura. Its dominant colour is #81d4fa. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-warrior-7', group: 'weapon', w: 48, h: 48,
+    what: 'A single sword weapon icon for a fantasy game, called "용살검". The blade points UPWARD, hilt at the bottom. It is an ornate enchanted weapon with glowing details and a faint aura. Its dominant colour is #ffb74d. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-warrior-8', group: 'weapon', w: 48, h: 48,
+    what: 'A single sword weapon icon for a fantasy game, called "파천검". The blade points UPWARD, hilt at the bottom. It is an ornate enchanted weapon with glowing details and a faint aura. Its dominant colour is #f48fb1. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-warrior-9', group: 'weapon', w: 48, h: 48,
+    what: 'A single sword weapon icon for a fantasy game, called "성흔검". The blade points UPWARD, hilt at the bottom. It is a legendary weapon, large and elaborate, wreathed in glowing energy. Its dominant colour is #fff59d. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-warrior-10', group: 'weapon', w: 48, h: 48,
+    what: 'A single sword weapon icon for a fantasy game, called "혼돈의 대검". The blade points UPWARD, hilt at the bottom. It is a legendary weapon, large and elaborate, wreathed in glowing energy. Its dominant colour is #9575cd. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-warrior-11', group: 'weapon', w: 48, h: 48,
+    what: 'A single sword weapon icon for a fantasy game, called "천공검". The blade points UPWARD, hilt at the bottom. It is a legendary weapon, large and elaborate, wreathed in glowing energy. Its dominant colour is #80cbc4. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-archer-0', group: 'weapon', w: 48, h: 48,
+    what: 'A single bow weapon icon for a fantasy game, called "낡은 단궁". The bow faces RIGHT, its string on the right side. It is a plain, worn, humble starting weapon — simple and unadorned. Its dominant colour is #d7ccc8. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-archer-1', group: 'weapon', w: 48, h: 48,
+    what: 'A single bow weapon icon for a fantasy game, called "사냥꾼의 활". The bow faces RIGHT, its string on the right side. It is a plain, worn, humble starting weapon — simple and unadorned. Its dominant colour is #bcaaa4. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-archer-2', group: 'weapon', w: 48, h: 48,
+    what: 'A single bow weapon icon for a fantasy game, called "각궁". The bow faces RIGHT, its string on the right side. It is a plain, worn, humble starting weapon — simple and unadorned. Its dominant colour is #a5d6a7. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-archer-3', group: 'weapon', w: 48, h: 48,
+    what: 'A single bow weapon icon for a fantasy game, called "강철 석궁". The bow faces RIGHT, its string on the right side. It is a solid well-made weapon with a little ornament. Its dominant colour is #b0bec5. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-archer-4', group: 'weapon', w: 48, h: 48,
+    what: 'A single bow weapon icon for a fantasy game, called "바람의 활". The bow faces RIGHT, its string on the right side. It is a solid well-made weapon with a little ornament. Its dominant colour is #80deea. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-archer-5', group: 'weapon', w: 48, h: 48,
+    what: 'A single bow weapon icon for a fantasy game, called "불꽃 장궁". The bow faces RIGHT, its string on the right side. It is a solid well-made weapon with a little ornament. Its dominant colour is #ff8a65. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-archer-6', group: 'weapon', w: 48, h: 48,
+    what: 'A single bow weapon icon for a fantasy game, called "뇌명궁". The bow faces RIGHT, its string on the right side. It is an ornate enchanted weapon with glowing details and a faint aura. Its dominant colour is #81d4fa. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-archer-7', group: 'weapon', w: 48, h: 48,
+    what: 'A single bow weapon icon for a fantasy game, called "용뼈 대궁". The bow faces RIGHT, its string on the right side. It is an ornate enchanted weapon with glowing details and a faint aura. Its dominant colour is #ffb74d. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-archer-8', group: 'weapon', w: 48, h: 48,
+    what: 'A single bow weapon icon for a fantasy game, called "질풍 대궁". The bow faces RIGHT, its string on the right side. It is an ornate enchanted weapon with glowing details and a faint aura. Its dominant colour is #f48fb1. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-archer-9', group: 'weapon', w: 48, h: 48,
+    what: 'A single bow weapon icon for a fantasy game, called "성좌궁". The bow faces RIGHT, its string on the right side. It is a legendary weapon, large and elaborate, wreathed in glowing energy. Its dominant colour is #fff59d. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-archer-10', group: 'weapon', w: 48, h: 48,
+    what: 'A single bow weapon icon for a fantasy game, called "심연 장궁". The bow faces RIGHT, its string on the right side. It is a legendary weapon, large and elaborate, wreathed in glowing energy. Its dominant colour is #9575cd. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-archer-11', group: 'weapon', w: 48, h: 48,
+    what: 'A single bow weapon icon for a fantasy game, called "천뢰궁". The bow faces RIGHT, its string on the right side. It is a legendary weapon, large and elaborate, wreathed in glowing energy. Its dominant colour is #80cbc4. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-rogue-0', group: 'weapon', w: 48, h: 48,
+    what: 'A single dagger weapon icon for a fantasy game, called "이 빠진 단도". The blade points UPWARD, hilt at the bottom. It is a plain, worn, humble starting weapon — simple and unadorned. Its dominant colour is #cfd8dc. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-rogue-1', group: 'weapon', w: 48, h: 48,
+    what: 'A single dagger weapon icon for a fantasy game, called "사냥칼". The blade points UPWARD, hilt at the bottom. It is a plain, worn, humble starting weapon — simple and unadorned. Its dominant colour is #90caf9. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-rogue-2', group: 'weapon', w: 48, h: 48,
+    what: 'A single dagger weapon icon for a fantasy game, called "쌍단도". The blade points UPWARD, hilt at the bottom. It is a plain, worn, humble starting weapon — simple and unadorned. Its dominant colour is #a5d6a7. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-rogue-3', group: 'weapon', w: 48, h: 48,
+    what: 'A single dagger weapon icon for a fantasy game, called "독니". The blade points UPWARD, hilt at the bottom. It is a solid well-made weapon with a little ornament. Its dominant colour is #9ccc65. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-rogue-4', group: 'weapon', w: 48, h: 48,
+    what: 'A single dagger weapon icon for a fantasy game, called "그림자 단검". The blade points UPWARD, hilt at the bottom. It is a solid well-made weapon with a little ornament. Its dominant colour is #ce93d8. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-rogue-5', group: 'weapon', w: 48, h: 48,
+    what: 'A single dagger weapon icon for a fantasy game, called "월아도". The blade points UPWARD, hilt at the bottom. It is a solid well-made weapon with a little ornament. Its dominant colour is #ff8a65. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-rogue-6', group: 'weapon', w: 48, h: 48,
+    what: 'A single dagger weapon icon for a fantasy game, called "뇌전 비수". The blade points UPWARD, hilt at the bottom. It is an ornate enchanted weapon with glowing details and a faint aura. Its dominant colour is #81d4fa. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-rogue-7', group: 'weapon', w: 48, h: 48,
+    what: 'A single dagger weapon icon for a fantasy game, called "용아 단검". The blade points UPWARD, hilt at the bottom. It is an ornate enchanted weapon with glowing details and a faint aura. Its dominant colour is #ffb74d. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-rogue-8', group: 'weapon', w: 48, h: 48,
+    what: 'A single dagger weapon icon for a fantasy game, called "그믐 비수". The blade points UPWARD, hilt at the bottom. It is an ornate enchanted weapon with glowing details and a faint aura. Its dominant colour is #f48fb1. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-rogue-9', group: 'weapon', w: 48, h: 48,
+    what: 'A single dagger weapon icon for a fantasy game, called "사혼도". The blade points UPWARD, hilt at the bottom. It is a legendary weapon, large and elaborate, wreathed in glowing energy. Its dominant colour is #fff59d. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-rogue-10', group: 'weapon', w: 48, h: 48,
+    what: 'A single dagger weapon icon for a fantasy game, called "심연의 이빨". The blade points UPWARD, hilt at the bottom. It is a legendary weapon, large and elaborate, wreathed in glowing energy. Its dominant colour is #9575cd. It must look clearly more powerful and more elaborate than the previous tier.' },
+  { name: 'w-rogue-11', group: 'weapon', w: 48, h: 48,
+    what: 'A single dagger weapon icon for a fantasy game, called "천살 단검". The blade points UPWARD, hilt at the bottom. It is a legendary weapon, large and elaborate, wreathed in glowing energy. Its dominant colour is #80cbc4. It must look clearly more powerful and more elaborate than the previous tier.' },
+
+  // ── 보스가 내리꽂는 것 다섯 (ART.md 5절) ────────────────
+  // 옆을 보는 다른 그림과 달리 **위아래 방향**입니다. 떨어지는 쪽이 뾰족해야
+  // 어디로 오는지가 읽힙니다.
+  { name: 'boss-shot', group: 'bossshot', w: 36, h: 36,
+    what: 'A falling magic projectile seen from the side, oriented vertically: a violet orb of '
+        + 'energy with a bright pale core, tapering to a point at the BOTTOM, a short trail above '
+        + 'it. Violet #7C4DFF, core pale #E1BEE7.' },
+  { name: 'boss-shot-gazer', group: 'bossshot', w: 36, h: 36,
+    what: 'A falling segment of a cyan energy beam, oriented vertically, narrow and lance-like, '
+        + 'brightest white-cyan at its centre, tapering to a point at the BOTTOM. Cyan #26C6DA.' },
+  { name: 'boss-shot-crusher', group: 'bossshot', w: 36, h: 36,
+    what: 'A falling jagged chunk of dark rock with glowing molten orange cracks running through '
+        + 'it, angular and heavy, oriented so it drops downward. Rock brown-grey, cracks #FF7043.' },
+  { name: 'boss-shot-brood', group: 'bossshot', w: 36, h: 36,
+    what: 'A falling green egg, heavier and rounder at the BOTTOM and narrower at the top, its '
+        + 'translucent shell showing a small curled shape inside. Green #9CCC65.' },
+  { name: 'boss-shot-phantom', group: 'bossshot', w: 36, h: 36,
+    what: 'A falling pale wisp of ghost fire, oriented vertically with a long tail trailing UPWARD '
+        + 'and a bright white core at the bottom. Pale violet #B39DDB, core white.' },
+
+  // ── 발판 위 아이템 (ART.md 7.5) ─────────────────────────
+  // 동그라미 배지 없이 그림 자체가 실루엣입니다. 어두운 벽 위에 맨몸으로
+  // 놓이므로 밝고 또렷해야 합니다. 가짜는 진짜와 실루엣이 같고 안쪽만 망가집니다.
+  { name: 'item-plus', group: 'item', w: 36, h: 36,
+    what: 'A glowing blacksmith anvil with a forging hammer floating just above it, bright golden '
+        + 'sparks flying where they meet. Gold #FFD54F.' },
+  { name: 'item-fake-plus', group: 'item', w: 36, h: 36,
+    what: 'The same anvil and hammer, but broken: the anvil is cracked through, the hammer head is '
+        + 'split, and instead of sparks there is black smoke. Dull, tarnished, lifeless.' },
+  { name: 'item-haste', group: 'item', w: 36, h: 36,
+    what: 'A single light blue feather, its tip fraying into a few loose barbs blown off by the '
+        + 'wind. Sky blue #4FC3F7.' },
+  { name: 'item-fake-haste', group: 'item', w: 36, h: 36,
+    what: 'The same feather, but snapped and bent in the middle with its tip burnt to black char, '
+        + 'ash falling from it. Dull and colourless.' },
+  { name: 'item-double', group: 'item', w: 36, h: 36,
+    what: 'TWO bright cyan feathers side by side with a clear gap between them so they can be '
+        + 'counted, glowing, the rarest item. Cyan #00E5FF.' },
+  { name: 'item-armor-warrior', group: 'item', w: 36, h: 36,
+    what: 'A steel shield, wide at the top and tapering to a point at the bottom, with a gold rim '
+        + 'and a gold boss at its centre. Steel #A8BCCD, gold #FFC94D.' },
+  { name: 'item-armor-archer', group: 'item', w: 36, h: 36,
+    what: 'The same shield shape but made of green leather with brown stitched edging and a brown '
+        + 'centre stud. Leather green #81C784, brown #6D4C41.' },
+  { name: 'item-fake-armor', group: 'item', w: 36, h: 36,
+    what: 'The same shield shape, tarnished grey, with a ragged hole punched clean through its '
+        + 'middle and cracks radiating from the hole. The hole is empty, showing through.' },
+  { name: 'item-dodge', group: 'item', w: 36, h: 36,
+    what: 'A light swift boot with two motion afterimages trailing behind it, the trailing ones '
+        + 'fading to outlines. Purple #CE93D8.' },
+  { name: 'item-fake-dodge', group: 'item', w: 36, h: 36,
+    what: 'The same boot, but ruined: the sole is torn open and flapping, the laces are snapped, '
+        + 'and the trailing afterimages have gone grey and smoky.' },
+  { name: 'item-heal', group: 'item', w: 36, h: 36,
+    what: 'A round-bottomed glass flask of red healing potion with a cork stopper, surrounded by a '
+        + 'soft green healing glow. Potion red #EF5350, glow green #66BB6A.' },
+  { name: 'item-fake-heal', group: 'item', w: 36, h: 36,
+    what: 'The same flask, but cracked and chipped, its contents black and sludgy, the glow gone '
+        + 'and replaced by a faint dark vapour.' },
+  { name: 'item-medal', group: 'item', w: 36, h: 36,
+    what: 'A gold medal on a short red ribbon, a star struck into its face. Gold #FFCA28.' },
+  { name: 'item-relic', group: 'item', w: 36, h: 36,
+    what: 'A precious golden faceted gem held upright in a clawed golden setting, glowing, with '
+        + 'small sparkles around it — a rare relic. Gold #FFD54F.' },
+  { name: 'item-bomb', group: 'item', w: 36, h: 36,
+    what: 'A classic black iron bomb, a round heavy sphere with a short fuse burning at the top '
+        + 'and a bright spark. It is openly dangerous, not disguised.' },
+  { name: 'item-plus-anvil', group: 'item', w: 36, h: 28,
+    what: 'A blacksmith anvil alone, seen from the side, nothing above it, no hammer, no sparks.' },
+  { name: 'item-plus-hammer', group: 'item', w: 28, h: 28,
+    what: 'A forging hammer alone, its head at the upper left and its handle pointing down to the '
+        + 'lower right, nothing else.' },
+
+  // ── 날아가는 것과 이펙트 (ART.md 6절) ────────────────────
+  // 코드가 회전시켜 쓰므로 전부 오른쪽을 향합니다.
+  //
+  // slash · wave · spark · bullet 은 **흰색이어야 합니다** — 코드가 무기 색을
+  // 입혀서 씁니다. 색이 들어 있으면 그 색과 섞여 탁해집니다. 이건 취향이
+  // 아니라 동작의 문제라 색을 못 바꿉니다.
+  { name: 'arrow', group: 'fx', w: 38, h: 13,
+    what: 'A single arrow lying horizontally, its sharp head at the RIGHT end and its fletching at '
+        + 'the LEFT end, wooden shaft.' },
+  { name: 'arrow-trail', group: 'fx', w: 18, h: 3,
+    what: 'A short soft horizontal streak of pale light, faded at both ends — a motion trail.' },
+  { name: 'wave', group: 'fx', w: 44, h: 44,
+    what: 'A crescent-shaped energy wave bulging to the RIGHT, pure WHITE with no colour at all, '
+        + 'thick in the middle and tapering to points at both tips.' },
+  { name: 'slash', group: 'fx', w: 140, h: 140,
+    what: 'A sword slash arc shaped like an eyebrow, pure WHITE with no colour at all, thick in '
+        + 'the middle and tapering to sharp points at both ends, bulging to the RIGHT.' },
+  { name: 'bullet', group: 'fx', w: 12, h: 12,
+    what: 'A small round glowing bolt, pure WHITE with no colour at all, brightest at its centre.' },
+  { name: 'enemy-bullet', group: 'fx', w: 16, h: 16,
+    what: 'A small round glowing bolt in angry RED with a hot bright core — it must read as the '
+        + 'enemy\'s shot, clearly different from a white one. Red #FF5252.' },
+  { name: 'spark', group: 'fx', w: 10, h: 10,
+    what: 'One tiny four-pointed spark, pure WHITE with no colour at all.' },
+  { name: 'coin', group: 'fx', w: 18, h: 18,
+    what: 'A gold coin seen from the side, slightly narrowed as if turning, with a bright rim. '
+        + 'Gold #FFC107.' },
+
+  // 보스 다섯 — 가로로 넓적하게, 아래턱이 아래로 (ART.md 5절)
+  { name: 'boss-warden', group: 'boss', w: 320, h: 240,
+    what: 'A huge wide floating boss demon, the gatekeeper of the tower: broad and horizontally '
+        + 'wide, a crown of horns spreading upward, two enormous glowing red eyes, a heavy toothed '
+        + 'lower jaw hanging down. Dark indigo body #311B92 and #4527A0, eyes red #FF5252.' },
+  { name: 'boss-gazer', group: 'boss', w: 320, h: 240,
+    what: 'A huge wide floating boss demon with ONE single enormous glowing cyan eye filling the '
+        + 'centre of its body, horns swept back, a narrow toothed maw below, faint cyan light '
+        + 'leaking downward from the maw. Dark indigo body #311B92, eye cyan #26C6DA.' },
+  { name: 'boss-crusher', group: 'boss', w: 320, h: 240,
+    what: 'A huge wide floating boss demon with two massive pincer claws spread wide to the left '
+        + 'and right — the claws dominate the silhouette and are held open, their inner biting '
+        + 'edges glowing hot orange. Small head, small eyes. Body #311B92, hot edges #FF7043.' },
+  { name: 'boss-brood', group: 'boss', w: 320, h: 240,
+    what: 'A huge wide floating boss demon with translucent green egg sacs hanging beneath its '
+        + 'swollen abdomen, small curled shapes visible inside them, a cluster of many small eyes. '
+        + 'Body dark indigo #311B92, egg sacs green #9CCC65.' },
+  { name: 'boss-phantom', group: 'boss', w: 320, h: 240,
+    what: 'A huge wide floating boss demon that is semi-transparent and ghostly, its body '
+        + 'dissolving into wisps at the bottom, wearing a pale cracked porcelain mask split by a '
+        + 'vertical crack, empty glowing eye slits. A bright pale outline keeps it visible against '
+        + 'a dark background. Body #4527A0, mask pale #E1BEE7.' },
+
+  // ── 발판 셋과 벽 (ART.md 8절) ───────────────────────────
+  // 여기만 규칙이 다릅니다. 취향이 아니라 동작의 제약이라 못 굽힙니다.
+  //
+  // 발판은 460×20 이면 23:1 입니다. 이미지 모델은 그런 띠를 안 그려 주므로
+  // fit:'stretch' 로 가로로 늘려 채웁니다 — 결이 길이 방향으로 고른 돌·나무라
+  // 늘려도 표가 안 납니다. 대신 양 끝 마감은 포기합니다.
+  //
+  // 벽은 세로로 이음매 없이 이어져야 합니다. AI 는 그 조건을 못 지키므로
+  // tile:'mirror' 로 위 절반을 아래에 거울로 붙입니다. 그러면 타일의 맨 윗줄과
+  // 맨 아랫줄이 같은 줄이 되어 **반드시** 이어집니다 (가운데에 대칭선이
+  // 생기는 것은 감수합니다 — 돌벽이라 눈에 잘 안 띕니다).
+  { name: 'plat', group: 'scene', w: 140, h: 20, fit: 'stretch', bg: 'none',
+    what: 'A long narrow horizontal stone platform beam seen straight from the side, like a thin '
+        + 'ledge. Its TOP surface is the brightest part — a light lavender-blue lit edge — the body '
+        + 'below is mid indigo-blue and the underside is dark. Blue-violet #5C6BC0, lit top #9FA8DA. '
+        + 'The beam runs the full width of the image and is very flat and wide.' },
+  { name: 'plat-shop', group: 'scene', w: 460, h: 20, fit: 'stretch', bg: 'none',
+    what: 'A long narrow horizontal wooden shop counter beam seen straight from the side, warm '
+        + 'amber planks with brass studs, its TOP surface the brightest part — a pale cream lit '
+        + 'edge. Amber #FFB74D, lit top #FFE0B2. Very flat, very wide, spanning the whole image.' },
+  { name: 'plat-boss', group: 'scene', w: 460, h: 20, fit: 'stretch', bg: 'none',
+    what: 'A long narrow horizontal stone arena beam seen straight from the side, dark purple '
+        + 'stone with jagged cracks running through it, its TOP surface the brightest part — a pale '
+        + 'orchid lit edge. Purple #6A1B9A, lit top #CE93D8. Very flat, very wide.' },
+  { name: 'wall', group: 'scene', w: 500, h: 960, fit: 'stretch', tile: 'mirror', bg: 'opaque',
+    scale: 2,
+    what: 'The inside wall of a cold dark stone tower, seen flat straight on: courses of large '
+        + 'weathered dark blue-grey blocks with deep mortar lines, a tall vertical pilaster rib at '
+        + 'the far left edge and another at the far right edge. Very dark and low contrast, deep '
+        + 'navy #1D2542, nothing brighter than a dim grey — this is a background that must never '
+        + 'compete with the characters standing in front of it. No windows, no doors, no torches, '
+        + 'no props, no creatures, no floor, no ceiling — only wall.' },
+];
+
+const GROUPS = ['player', 'enemy', 'bat', 'boss', 'bossshot', 'item', 'fx', 'weapon', 'scene'];
+
+// 보스에만 붙는 규칙. 첫 판에서 다섯 다 여기서 어긋났습니다 —
+// 세로로 길어지고, 아래턱이 사라지고, 수문장이 귀여워졌습니다.
+const BOSS_RULES = [
+  'COMPOSITION: the boss must be clearly WIDER THAN TALL — a broad, horizontally spread,',
+  'looming shape that fills the frame from left edge to right edge, roughly 4:3.',
+  'Do NOT draw it tall, vertical, upright or narrow.',
+  'It floats in the air; it has no legs and does not stand on anything.',
+  'A heavy LOWER JAW lined with teeth hangs down from the bottom of the body —',
+  'this is the part the player reaches with a sword, so it must be thick and obvious.',
+  'A CROWN of horns spreads upward and outward so the silhouette reads like a crown.',
+  'TONE: menacing, heavy and imposing — an ancient thing that guards the tower.',
+  'Not cute, not chibi, not a mascot. The eyes must have dark pupils and a hard stare.',
+].join(' ');
+
+// 벽과 발판은 배경을 안 지웁니다 — 그림 자체가 배경이거나 화면을 꽉 채웁니다.
+// 거기에 마젠타를 시키면 오히려 가장자리에 분홍이 낍니다.
+const BG_OPAQUE = [
+  'This is a background/tileable surface, not a character: it must fill the entire frame',
+  'edge to edge with no margin, no border, no vignette and no background behind it.',
+].join(' ');
+
+function promptFor(s) {
+  const parts = [s.what];
+  if (s.group === 'boss') parts.push(BOSS_RULES);
+  parts.push(STYLE);
+  parts.push(s.bg === 'none' || s.bg === 'opaque' ? BG_OPAQUE : BG);
+  parts.push(FORBID);
+  return parts.join('\n\n');
+}
+
+// ── 부르기 ─────────────────────────────────────────────────
+function pickImage(json) {
+  const out = [];
+  (function walk(node, depth) {
+    if (!node || depth > 12 || typeof node !== 'object') return;
+    if (Array.isArray(node)) return node.forEach((n) => walk(n, depth + 1));
+    const inline = node.inlineData || node.inline_data;
+    if (inline && typeof inline.data === 'string') out.push(inline.data);
+    Object.keys(node).forEach((k) => walk(node[k], depth + 1));
+  })(json, 0);
+  return out[0] || null;
+}
+
+async function generate(subject) {
+  // 보스는 가로로 넓적하고 나머지는 거의 정사각형입니다. 비율을 맞춰 달라고
+  // 해야 모델이 여백을 덜 만듭니다.
+  const ratio = subject.w / subject.h > 1.2 ? '4:3' : '1:1';
+  const res = await fetch(
+    'https://generativelanguage.googleapis.com/v1beta/models/' +
+      encodeURIComponent(MODEL) + ':generateContent',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: promptFor(subject) }] }],
+        generationConfig: { imageConfig: { aspectRatio: ratio } },
+      }),
+    });
+  const text = await res.text();
+  if (!res.ok) throw new Error('HTTP ' + res.status + ' · ' + text.slice(0, 300));
+  const b64 = pickImage(JSON.parse(text));
+  if (!b64) throw new Error('응답에 그림이 없습니다');
+  return Buffer.from(b64, 'base64');
+}
+
+// ── 마젠타를 걷어내고, 재서 자르고, 상자에 맞춰 넣기 ────────
+// 이 셋을 브라우저 canvas 안에서 한 번에 합니다.
+async function keyOut(oven, png, subject) {
+  return oven.evaluate(async ({ b64, w, h, scale, chroma, tol, anchor, fit, keep, tile }) => {
+    const img = new Image();
+    await new Promise((res, rej) => {
+      img.onload = res; img.onerror = () => rej(new Error('못 읽었습니다'));
+      img.src = 'data:image/png;base64,' + b64;
+    });
+    const c = document.createElement('canvas');
+    c.width = img.width; c.height = img.height;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0);
+    const d = ctx.getImageData(0, 0, c.width, c.height);
+    const p = d.data;
+    if (keep) {
+      // 배경을 안 지웁니다. 통째로 상자에 늘려 넣고, 필요하면 거울로 이어 붙입니다.
+      const bw = w * scale, bh = h * scale;
+      const out = document.createElement('canvas');
+      out.width = bw; out.height = bh;
+      const octx = out.getContext('2d');
+      octx.imageSmoothingQuality = 'high';
+      if (tile === 'mirror') {
+        // 위 절반을 그리고, 그 아래에 세로로 뒤집어 붙입니다. 그러면 타일의
+        // 맨 윗줄과 맨 아랫줄이 같은 줄이 되어 세로로 반드시 이어집니다.
+        octx.drawImage(c, 0, 0, c.width, c.height, 0, 0, bw, bh / 2);
+        octx.save();
+        octx.translate(0, bh);
+        octx.scale(1, -1);
+        octx.drawImage(c, 0, 0, c.width, c.height, 0, 0, bw, bh / 2);
+        octx.restore();
+      } else {
+        octx.drawImage(c, 0, 0, c.width, c.height, 0, 0, bw, bh);
+      }
+      return { url: out.toDataURL('image/png'), src: { w: img.width, h: img.height },
+               trimmed: { w: img.width, h: img.height }, fill: 100 };
+    }
+
+    // 1. 배경 걷어내기. 거리에 따라 가장자리를 부드럽게 깎아야 마젠타 테가
+    //    남지 않습니다 — 딱 잘라 지우면 반투명 경계에 분홍 실이 생깁니다.
+    let kept = 0;
+    for (let i = 0; i < p.length; i += 4) {
+      const dr = p[i] - chroma[0], dg = p[i + 1] - chroma[1], db = p[i + 2] - chroma[2];
+      const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+      if (dist < tol) { p[i + 3] = 0; }
+      else if (dist < tol * 1.7) {
+        p[i + 3] = Math.round(255 * ((dist - tol) / (tol * 0.7)));
+        // 남은 마젠타 기운을 뺍니다 (초록을 올려 회색 쪽으로)
+        p[i + 1] = Math.max(p[i + 1], Math.min(p[i], p[i + 2]));
+        kept++;
+      } else kept++;
+    }
+    ctx.putImageData(d, 0, 0);
+    if (!kept) return { error: '전부 배경으로 지워졌습니다' };
+
+    // 2. 남은 것의 실제 경계 재기
+    let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
+    for (let y = 0; y < c.height; y++) {
+      for (let x = 0; x < c.width; x++) {
+        if (p[(y * c.width + x) * 4 + 3] > 24) {
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+      }
+    }
+    if (x1 < 0) return { error: '남은 것이 없습니다' };
+    const sw = x1 - x0 + 1, sh = y1 - y0 + 1;
+
+    // 3. 목표 상자에 맞춰 넣기. 비율은 유지합니다 — 늘리면 사람이 뚱뚱해집니다.
+    const bw = w * scale, bh = h * scale;
+    // fit:'stretch' 는 비율을 버리고 상자를 꽉 채웁니다. 결이 길이 방향으로
+    // 고른 띠(발판)에만 씁니다 — 사람에게 쓰면 뚱뚱해집니다.
+    const k = fit === 'stretch' ? null : Math.min(bw / sw, bh / sh);
+    const dw = k === null ? bw : Math.round(sw * k);
+    const dh = k === null ? bh : Math.round(sh * k);
+    const dx = Math.round((bw - dw) / 2);
+    // 사람은 발이 바닥에 닿아야 합니다 (ART.md 2절)
+    const dy = anchor === 'bottom' ? bh - dh : Math.round((bh - dh) / 2);
+
+    const out = document.createElement('canvas');
+    out.width = bw; out.height = bh;
+    const octx = out.getContext('2d');
+    octx.imageSmoothingQuality = 'high';
+    octx.drawImage(c, x0, y0, sw, sh, dx, dy, dw, dh);
+    return {
+      url: out.toDataURL('image/png'),
+      src: { w: img.width, h: img.height }, trimmed: { w: sw, h: sh },
+      fill: Math.round((dw * dh) / (bw * bh) * 100),
+    };
+  }, { b64: png.toString('base64'), w: subject.w, h: subject.h,
+       scale: subject.scale || BAKE_SCALE, chroma: CHROMA, tol: TOLERANCE,
+       anchor: subject.anchor || 'center',
+       fit: subject.fit || 'contain', keep: subject.bg === 'none' || subject.bg === 'opaque',
+       tile: subject.tile || 'none' });
+}
+
+(async () => {
+  if (!KEY) { console.error('GEMINI_API_KEY 가 없습니다'); process.exit(1); }
+  fs.mkdirSync(RAW, { recursive: true });
+  fs.mkdirSync(OUT, { recursive: true });
+
+  const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+  const todo = !args.length ? SUBJECTS
+    : SUBJECTS.filter((s) => args.includes(s.name) || args.includes(s.group));
+  if (!todo.length) {
+    console.error('그런 것이 없습니다. 이름이나 무리를 주세요 — ' + GROUPS.join(' · '));
+    process.exit(1);
+  }
+
+  const browser = await chromium.launch({
+    executablePath: process.env.CHROME_PATH,
+    args: ['--no-sandbox', '--use-gl=swiftshader'],
+  });
+  const oven = await browser.newPage();
+  await oven.setContent('<html></html>');
+
+  for (const s of todo) {
+    process.stdout.write(`${s.name}  ${s.w}×${s.h} … `);
+    try {
+      const png = await generate(s);
+      fs.writeFileSync(path.join(RAW, s.name + '.png'), png);   // 원본을 남깁니다
+      const cut = await keyOut(oven, png, s);
+      if (cut.error) { console.log('배경 제거 실패 — ' + cut.error); continue; }
+      const body = cut.url.slice(cut.url.indexOf(',') + 1);
+      fs.writeFileSync(path.join(OUT, s.name + '.png'), Buffer.from(body, 'base64'));
+      const thin = cut.fill < 55 ? `  ← 상자를 ${cut.fill}% 밖에 못 채웠습니다` : '';
+      console.log(`받음 ${cut.src.w}×${cut.src.h} → 잘라서 ${cut.trimmed.w}×${cut.trimmed.h} ` +
+                  `→ ${s.w * BAKE_SCALE}×${s.h * BAKE_SCALE}${thin}`);
+    } catch (e) {
+      console.log('실패 — ' + e.message);
+    }
+  }
+
+  await browser.close();
+  console.log('\n원본은 shots/sprite-raw/ 에 남겨 뒀습니다 (배경이 깨끗한지 볼 때 씁니다).');
+  console.log('나란히 보려면: CHROME_PATH=... node render-art.js  (미리보기만 다시 그립니다)');
+})();
