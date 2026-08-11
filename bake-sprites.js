@@ -55,6 +55,10 @@ const WANT = [
   'item-armor-warrior', 'item-armor-archer', 'item-fake-armor', 'item-fake-armor-archer',
   'item-dodge', 'item-fake-dodge', 'item-heal', 'item-fake-heal',
   'item-treasure', 'item-fake-treasure', 'item-medal', 'item-relic', 'item-bomb',
+  // 보스 다섯과 그놈들의 탄 다섯. 보스는 320×240 이라 여기서 제일 무겁습니다 —
+  // 다섯을 합쳐 200KB 남짓 붙습니다. 순간의 무게가 가장 큰 그림이라 값을 합니다.
+  'boss-warden', 'boss-gazer', 'boss-crusher', 'boss-brood', 'boss-phantom',
+  'boss-shot', 'boss-shot-gazer', 'boss-shot-crusher', 'boss-shot-brood', 'boss-shot-phantom',
 ];
 
 (async () => {
