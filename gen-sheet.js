@@ -134,6 +134,28 @@ function refFor(job, weapon) {
   return fs.existsSync(f) ? fs.readFileSync(f).toString('base64') : null;
 }
 
+// 그 직업의 **기본 무기 시트**(0단계)를 인물 기준으로 물립니다.
+// 시트마다 따로 생성하면 열두 자루의 기사가 조금씩 딴사람이 됩니다 — 창 쪽
+// 갑옷이 더 화려해지고 투구 깃이 길어지는 식으로. 다 그려 놓은 0단계 시트를
+// 함께 주고 "이 사람 그대로, 무기와 동작만" 이라고 하면 그 흔들림이 잡힙니다.
+// 원본(마젠타 배경 · 8칸)을 그대로 씁니다 — 배경과 칸 배치까지 같이 베끼게 됩니다.
+function baseFor(job, weapon) {
+  if (weapon.key === `w-${job}-0`) return null;      // 자기 자신은 물리지 않습니다
+  const f = path.join(ROOT, 'shots', 'sheet-raw', `w-${job}-0.png`);
+  return fs.existsSync(f) ? fs.readFileSync(f).toString('base64') : null;
+}
+
+const BASE_RULE = [
+  'The FIRST attached image is the CHARACTER REFERENCE: the finished sprite sheet of this same',
+  'character with the basic starting weapon, in exactly the layout and on exactly the background',
+  'you must produce.',
+  'Copy that character EXACTLY — the same face and helmet, the same armour plates and their shapes,',
+  'the same cape, the same colours, the same proportions, the same body size, the same line weight',
+  'and shading style, the same grid, the same cell size, the same ground line, the same flat magenta',
+  'background. Someone must be able to put your sheet next to it and see one single character.',
+  'ONLY TWO THINGS CHANGE: the weapon in the hands, and the poses of the attack.',
+].join(' ');
+
 // 참조는 **가늠자**입니다. 그대로 베끼게 했더니 원본 모션이 원래 얌전해서
 // 휘두르는 맛이 안 났습니다. 그래서 "순서·방향·발 자리"만 가져가고, 힘은
 // 애니메이션 원칙으로 다시 넣게 합니다 — 예비동작 · 스미어 · 팔로스루.
@@ -166,10 +188,21 @@ const REF_RULE = [
 ].join(' ');
 
 async function generate(job, weapon) {
+  const base = baseFor(job, weapon);
   const ref = refFor(job, weapon);
   const parts = [];
+  // 붙이는 차례가 곧 "첫째 그림 · 둘째 그림"입니다. 지시문이 그 차례를 가리킵니다.
+  if (base) parts.push({ inlineData: { mimeType: 'image/png', data: base } });
   if (ref) parts.push({ inlineData: { mimeType: 'image/png', data: ref } });
-  parts.push({ text: (ref ? REF_RULE + '\n\n' : '') + promptFor(job, weapon) });
+  const head = [];
+  if (base) head.push(BASE_RULE);
+  if (ref) {
+    // 그림이 둘이면 몇 번째인지 가리켜 줘야 합니다. 하나뿐이면 그냥 "첨부한 그림".
+    head.push(base
+      ? REF_RULE.replace('The attached image is', 'The SECOND attached image is')
+      : REF_RULE);
+  }
+  parts.push({ text: (head.length ? head.join('\n\n') + '\n\n' : '') + promptFor(job, weapon) });
   const res = await fetch(
     'https://generativelanguage.googleapis.com/v1beta/models/' +
       encodeURIComponent(MODEL) + ':generateContent',
