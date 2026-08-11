@@ -85,12 +85,28 @@ const SUBJECTS = [
   // anchor: 땅을 딛는 놈은 'bottom'. 모델이 그려 주는 비율이 표의 비율과 안 맞아
   // 상자 안에 여백이 남는데, 가운데에 두면 기는 놈이 공중에 떠 보입니다.
   // 나는 놈(flyer · bomber · diver · ghost)과 박쥐·보스는 떠 있어야 하므로 그대로 둡니다.
+  // 코인벌레 — 0층부터 만나는, 한 대에 죽는 첫 상대입니다. 나머지 적이 전부
+  // 붉거나 어두운 쪽이라 이것만 반짝여야 **"잡아도 되는 것"**으로 먼저 읽힙니다.
+  // 무섭게 그리면 안 됩니다 (js/config.js 의 enemyTypes 첫 줄 참고).
+  { name: 'e-coinbug', group: 'enemy', anchor: 'bottom', w: 28, h: 26,
+    what: 'A tiny round golden beetle monster, plump and dome-shaped like a coin lying on its '
+        + 'side, a polished gold shell with a bright highlight on it, a few short stubby legs '
+        + 'underneath, small friendly dark eyes. It looks harmless and valuable, not scary. '
+        + 'Gold #FFCA28 with amber #FF8F00 legs.' },
   { name: 'e-crawler', group: 'enemy', anchor: 'bottom', w: 32, h: 32,
     what: 'A small red armoured crawling bug monster low to the ground, thick stubby legs, '
         + 'a segmented shell, big white eyes, pincer jaws forward. Red #EF5350.' },
   { name: 'e-hopper', group: 'enemy', anchor: 'bottom', w: 34, h: 32,
     what: 'A green frog-like hopping monster, huge folded coiled hind legs like a spring, '
         + 'bulging eyes on top of the head, wide mouth. Yellow-green #8BC34A.' },
+  // 황금개구리 — 뛰는 것과 **몸이 같아야** 합니다. 실루엣이 같아야 처음 보는
+  // 순간에도 어떻게 움직일지 이미 알고, 색만 보고 값어치를 정할 수 있습니다.
+  // 그래서 `like` 로 뛰는 것의 그림을 물립니다.
+  { name: 'e-goldfrog', group: 'enemy', anchor: 'bottom', w: 34, h: 32, like: 'e-hopper',
+    what: 'A frog-like hopping monster made entirely of gleaming GOLD: the same body and the '
+        + 'same coiled hind legs as the reference, but its skin is polished golden metal with '
+        + 'bright highlights, pale cream eyes with dark pupils, a small gold gem glinting on its '
+        + 'belly. Nothing green anywhere. Gold #FFCA28, deeper gold #F9A825, highlights #FFF9C4.' },
   { name: 'e-flyer', group: 'enemy', w: 36, h: 32,
     what: 'A purple flying insect monster with jagged bat-like wings spread, a tapered striped '
         + 'body, large pale eyes, small antennae. Purple #7E57C2.' },
@@ -391,10 +407,32 @@ function pickImage(json) {
   return out[0] || null;
 }
 
+// 어떤 놈은 **다른 놈과 실루엣이 같아야** 합니다. 황금개구리가 그렇습니다 —
+// 뛰는 것과 몸이 같고 색만 금빛이어야, 처음 보는 순간에도 어떻게 움직일지
+// 이미 알고 "쫓아갈까 말까"만 정하면 됩니다 (js/textures.js 의 주석).
+// 말로만 시키면 모델이 제 개구리를 새로 지어냅니다. 그림을 물려야 합니다.
+const SHAPE_RULE = [
+  'The attached image is a SHAPE REFERENCE: another monster from this same game.',
+  'Copy its silhouette closely — the same body shape, the same proportions, the same pose,',
+  'the same stance, the same head and limb placement, the same outline weight. A player must',
+  'recognise it as the same kind of creature at a glance.',
+  'ONLY THE COLOURS AND THE SURFACE CHANGE, exactly as described above.',
+].join(' ');
+
+function refOf(subject) {
+  if (!subject.like) return null;
+  const f = path.join(OUT, subject.like + '.png');
+  return fs.existsSync(f) ? fs.readFileSync(f).toString('base64') : null;
+}
+
 async function generate(subject) {
   // 보스는 가로로 넓적하고 나머지는 거의 정사각형입니다. 비율을 맞춰 달라고
   // 해야 모델이 여백을 덜 만듭니다.
   const ratio = subject.w / subject.h > 1.2 ? '4:3' : '1:1';
+  const ref = refOf(subject);
+  const parts = [];
+  if (ref) parts.push({ inlineData: { mimeType: 'image/png', data: ref } });
+  parts.push({ text: promptFor(subject) + (ref ? '\n\n' + SHAPE_RULE : '') });
   const res = await fetch(
     'https://generativelanguage.googleapis.com/v1beta/models/' +
       encodeURIComponent(MODEL) + ':generateContent',
@@ -402,7 +440,7 @@ async function generate(subject) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: promptFor(subject) }] }],
+        contents: [{ parts }],
         generationConfig: { imageConfig: { aspectRatio: ratio } },
       }),
     });

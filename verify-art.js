@@ -88,15 +88,25 @@ const check = (ok, label, got) => {
       // 손그림 SVG (art/*.svg) 와 래스터 스프라이트 (assets/*.png) 를 섞어 봅니다.
       // 둘 다 게임에서는 똑같이 '그림'이어야 합니다.
       art: ['player-warrior', 'e-crawler', 'e-flyer', 'wall', 'plat',
-        'e-dasher', 'e-ghost', 'e-charger', 'bat-thief', 'bat-biter'].map((k) => k + '=' + kindOf(k)),
+        'e-dasher', 'e-ghost', 'e-charger', 'bat-thief', 'bat-biter',
+        // 마지막 둘 — 코인벌레와 황금개구리. 여기까지 오면 **적은 다 그림**입니다.
+        'e-coinbug', 'e-goldfrog'].map((k) => k + '=' + kindOf(k)),
       // 아직 안 그린 것은 도형이 맡고 있어야 합니다 — 빈칸이면 안 됩니다.
-      shape: ['e-coinbug', 'e-goldfrog', 'coin'].map((k) => k + '=' + kindOf(k)),
+      // 남은 것은 날아가는 것과 이펙트뿐입니다 (assets/ 에 그림은 있지만 아직
+      // bake-sprites.js 의 WANT 에 안 넣었습니다 — 색을 코드가 입혀 쓰는 것들이라
+      // 그림으로 바꾸면 그 색이 먹힙니다).
+      shape: ['coin', 'slash', 'spark'].map((k) => k + '=' + kindOf(k)),
+      // 적 표에 있는 열셋이 하나도 안 빠지고 그림이어야 합니다.
+      everyEnemy: CFG.enemyTypes.map((t) => 'e-' + t.key)
+        .concat(['e-goldfrog']).filter((k) => kindOf(k) !== '그림'),
     };
   });
   check(source.art.every((x) => x.endsWith('그림')), '그려 둔 것은 그림이 쓰임',
     source.art.join(' · '));
   check(source.shape.every((x) => x.endsWith('도형')), '안 그린 것은 도형이 자리를 지킴',
     source.shape.join(' · '));
+  check(!source.everyEnemy.length, '적 표의 열셋과 황금개구리가 모두 그림',
+    source.everyEnemy.length ? '도형으로 남음: ' + source.everyEnemy.join(' ') : '빠진 것 없음');
 
   // 래스터 스프라이트도 **1배로** 들어와야 합니다. 4배 그대로 얹으면 충돌
   // 상자가 그림 배율을 안 따라가서 적이 허공에 걸립니다 (js/artset.js 맨 위).

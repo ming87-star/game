@@ -35,8 +35,9 @@ const QUALITY = 0.92; // 32px 까지 줄이고 나면 화질이 아까우므로 
 // render-art.js 로 뽑은 것)도 섞여 있어서, 통째로 쓸어 담으면 손으로 그린 SVG 를
 // 그 미리보기가 덮어씁니다.
 const WANT = [
-  'e-crawler', 'e-hopper', 'e-flyer', 'e-brute', 'e-charger', 'e-dasher',
-  'e-bomber', 'e-giant', 'e-splitter', 'e-shooter', 'e-diver', 'e-ghost',
+  'e-coinbug', 'e-crawler', 'e-hopper', 'e-goldfrog', 'e-flyer', 'e-brute',
+  'e-charger', 'e-dasher', 'e-bomber', 'e-giant', 'e-splitter', 'e-shooter',
+  'e-diver', 'e-ghost',
   'bat-thief', 'bat-biter',
 ];
 
