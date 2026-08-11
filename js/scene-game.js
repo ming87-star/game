@@ -136,6 +136,11 @@ class GameScene extends Phaser.Scene {
       floor: this.floorIndex,
       hp: this.hp, maxHp: this.maxHp,
       armor: this.armor, dodge: this.dodge,
+      // 한계와 부적도 함께 챙깁니다. **상점에서 코인을 주고 산 것들입니다.**
+      // 이걸 빠뜨렸더니 부적을 사고 죽어서 이어 가면 부적이 없었습니다 —
+      // 값은 치렀는데 물건이 사라진 것이라, 밖에서 보면 "부적이 안 듣는다"입니다.
+      armorMax: this.armorMax, dodgeMax: this.dodgeMax,
+      charm: this.charm,
       coins: this.coins, totalCoins: this.totalCoins,
       kills: this.kills,
       continues: this.continues,
@@ -155,6 +160,10 @@ class GameScene extends Phaser.Scene {
     this.hp = r.hp;
     this.armor = r.armor;
     this.dodge = r.dodge;
+    // 예전 기록에는 없던 값들이라 없으면 지금 것을 그대로 씁니다.
+    if (r.armorMax !== undefined) this.armorMax = r.armorMax;
+    if (r.dodgeMax !== undefined) this.dodgeMax = r.dodgeMax;
+    this.charm = !!r.charm;
     this.coins = r.coins;
     this.totalCoins = r.totalCoins;
     this.kills = r.kills;
@@ -280,6 +289,14 @@ class GameScene extends Phaser.Scene {
     if (kind === SLOT.UPGRADE) {
       face = this.add.image(0, 0, weaponIconKey(this.job.key, this.nextTier())).setDisplaySize(30, 30);
       parts.push(this.add.circle(0, 0, 18, mark.color), face);
+      // 밟으면 초당 피해가 얼마나 달라지는지. **밟기 전에 알아야 선택입니다.**
+      // 그림만으로는 다음 무기가 더 센지 알 수 없고, 단계가 오를 때 `+1`이
+      // 초기화되므로 실제로 손해인 경우도 있습니다.
+      slot.upGain = this.add.text(0, 24, '', {
+        fontFamily: 'sans-serif', fontSize: '16px', color: '#a5d6a7',
+      }).setOrigin(0.5);
+      parts.push(slot.upGain);
+      this.markUpGain(slot);
     } else if (artKey && this.textures.exists(artKey)) {
       face = this.add.image(0, 0, artKey);
       parts.push(face);
@@ -319,8 +336,13 @@ class GameScene extends Phaser.Scene {
   // 다른 UP을 밟으면, 이미 지어 둔 발판의 그림이 한 단계 뒤진 채로 남습니다.
   // 단계가 바뀌었을 때만 훑어서 고쳐 답니다.
   syncUpgradeMarks() {
-    if (this.markedTier === this.weapon.tier) return;
+    // 단계가 바뀌면 그림을, **초당 피해가 바뀌면 이득 표시를** 다시 씁니다.
+    // `+1`이나 `속`을 하나 주울 때마다 위층 UP 의 손익이 달라집니다.
+    const dps = this.weapon.dps;
+    if (this.markedTier === this.weapon.tier && this.markedDps === dps) return;
+    const tierChanged = this.markedTier !== this.weapon.tier;
     this.markedTier = this.weapon.tier;
+    this.markedDps = dps;
 
     const key = weaponIconKey(this.job.key, this.nextTier());
     this.floors.forEach((floor) => {
@@ -330,16 +352,33 @@ class GameScene extends Phaser.Scene {
 
         // 마지막 무기를 들면 UP은 회복으로 쓰입니다. 표시도 회복이어야 합니다 —
         // 무기 그림을 달아 둔 채로 밟으면 안 나오는 것을 기대하게 만듭니다.
-        if (this.weapon.atMaxTier) {
+        if (tierChanged && this.weapon.atMaxTier) {
           slot.view.destroy();
           slot.upIcon = null;
+          slot.upGain = null;
           slot.view = this.makeMark(slot);
           if (slot.view) floor.views.push(slot.view);
           continue;
         }
         if (slot.upIcon.texture.key !== key) slot.upIcon.setTexture(key).setDisplaySize(30, 30);
+        this.markUpGain(slot);
       }
     });
+  }
+
+  // UP 발판에 "밟으면 초당 피해가 이만큼 달라진다"를 적습니다.
+  //
+  // 손해일 수도 있습니다 — 단계가 오르면 `+1`이 전부 날아가므로, 강화를 많이
+  // 쌓아 둔 채로 밟으면 오히려 약해집니다. 그럴 때 빨갛게 적어 주면
+  // "지금은 밟지 말자"가 하나의 선택이 됩니다.
+  markUpGain(slot) {
+    if (!slot.upGain) return;
+    const now = this.weapon.dps;
+    const next = this.weapon.nextDps;
+    if (!next || !now) return slot.upGain.setText('');
+    const pct = Math.round((next / now - 1) * 100);
+    slot.upGain.setText((pct >= 0 ? '+' : '') + pct + '%');
+    slot.upGain.setColor(pct >= 0 ? '#a5d6a7' : '#ff8a80');
   }
 
   removeFloor(index) {
@@ -2059,6 +2098,8 @@ class GameScene extends Phaser.Scene {
 
     // 겉몸은 언제나 물리 몸을 따라갑니다. 공격이 없어도 매 프레임 돌아야
     // 뛰거나 줄을 옮길 때 겉몸이 뒤처지지 않습니다.
+    // 손에 든 무기도 여기서 맞춰 둡니다 — 무기가 그대로면 아무 일도 안 합니다.
+    this.rig.setWeapon(this.job, this.weapon);
     this.rig.sync();
 
     this.updateBats(time);

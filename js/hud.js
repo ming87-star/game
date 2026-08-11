@@ -35,6 +35,18 @@ class Hud {
     this.multText = fixed(scene.add.text(0, 68, '', font(22, '#4fc3f7')));
     this.relicText = fixed(scene.add.text(CFG.width - 24, 96, '', font(17, '#ffd54f')).setOrigin(1, 0));
 
+    // 초당 피해. **"그래서 센가?"에 답하는 유일한 숫자입니다.**
+    // 공격력만 적으면 `속`을 주워도 숫자가 안 움직여서, 주운 사람이
+    // "이건 아무것도 안 하는구나"로 배웁니다 (js/weapon.js 의 dps).
+    //
+    // 무기 이름 **아래 줄**에 둡니다. 오른쪽에 붙였더니 코인·메달과 겹쳤습니다.
+    this.dpsText = fixed(scene.add.text(60, 90, '', font(19, '#ff8a65')));
+
+    // 수호 부적. 가지고 있는 동안만 보입니다 — 안 보이면 샀는지 깨졌는지를
+    // 알 길이 없어서, 깨지고 나서 죽으면 "부적이 안 들었다"가 됩니다.
+    // 글자로 적습니다 — 방패 그림문자는 기기에 따라 하트로 떨어집니다.
+    this.charmText = fixed(scene.add.text(0, 90, '', font(17, '#4dd0e1')));
+
     // ── 보스 체력 ──────────────────────────────────────
     // 보스와 싸우는 동안만 보입니다. 얼마나 남았는지 안 보이면
     // 끝이 안 나는 싸움처럼 느껴집니다.
@@ -130,6 +142,9 @@ class Hud {
       this.weaponIcon.setTexture(icon).setDisplaySize(34, 34);
     }
     this.weaponText.setText(w.name);
+    this.dpsText.setText('초당 ' + shortNum(w.dps));
+    this.charmText.setText(s.charm ? '· 수호 부적' : '')
+      .setX(this.dpsText.x + this.dpsText.width + 12);
     let x = this.weaponText.x + this.weaponText.width + 10;
 
     // 도적은 +1이 절반 값이라 실제 붙은 양을 그대로 적습니다 (+2.5 처럼).
@@ -155,4 +170,13 @@ class Hud {
   fadeHint(delta) {
     if (this.hint.alpha > 0) this.hint.setAlpha(Math.max(0, this.hint.alpha - delta / 800));
   }
+}
+
+// 큰 수를 짧게. 후반에는 초당 피해가 십만을 넘어가는데, 자릿수를 다 적으면
+// 읽는 데 시간이 걸려서 **비교**가 안 됩니다 — 이 숫자는 어차피 크기를 견주는
+// 데 씁니다. 만 아래는 그대로 적어 정확히 보이게 둡니다.
+function shortNum(n) {
+  if (n < 10000) return n.toLocaleString('ko-KR');
+  if (n < 100000000) return (n / 10000).toFixed(n < 100000 ? 1 : 0) + '만';
+  return (n / 100000000).toFixed(1) + '억';
 }

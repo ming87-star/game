@@ -177,6 +177,8 @@ const check = (ok, label, got) => {
     s.dead = false;
     s.floorIndex = 100;
     s.coins = 240; s.totalCoins = 700; s.armor = 55;
+    // 상점에서 코인을 주고 산 것들 — 부적과 한계.
+    s.charm = true; s.armorMax = 78; s.dodgeMax = 0.4;
     s.weapon.tier = 4; s.weapon.plus = 3; s.weapon.haste = 6;
     s.weapon.relics = [RELICS.find((r) => r.key === 'bloodcloak')];
     s.snapshotAtShop();       // 100층 상점을 나선 셈
@@ -200,6 +202,7 @@ const check = (ok, label, got) => {
     return {
       scene: 'game', floor: s.floorIndex, coins: s.coins, armor: s.armor,
       medals: s.medals, continues: s.continues,
+      charm: s.charm, armorMax: s.armorMax, dodgeMax: s.dodgeMax,
       tier: s.weapon.tier, plus: s.weapon.plus, haste: s.weapon.haste,
       relics: s.weapon.relics.map((r) => r.key),
       onShop: !!(s.floors.get(s.floorIndex) && s.floors.get(s.floorIndex).shop),
@@ -209,6 +212,13 @@ const check = (ok, label, got) => {
   check(resumed.floor === 100 && resumed.onShop,
     '이어서 진행 → 마지막 상점 층에서 다시 시작', resumed.floor + '층 · 상점 발판 ' + resumed.onShop);
   check(!resumed.shopOpen, '이미 쓴 상점이 다시 열리지는 않음');
+
+  // 상점에서 **코인을 주고 산 것**은 이어 갈 때도 따라와야 합니다.
+  // 이걸 빠뜨렸더니 부적을 사고 죽어서 이어 가면 부적이 없었습니다 —
+  // 값은 치렀는데 물건이 사라진 것이라, 밖에서 보면 "부적이 안 듣는다"입니다.
+  check(resumed.charm === true && resumed.armorMax === 78 && resumed.dodgeMax === 0.4,
+    '상점에서 산 부적과 한계도 그대로 따라옴',
+    `부적 ${resumed.charm} · 방어한계 ${resumed.armorMax} · 회피한계 ${resumed.dodgeMax}`);
   check(resumed.tier === 4 && resumed.plus === 3 && resumed.haste === 6 &&
     resumed.coins === 240 && resumed.armor === 55 && resumed.relics.length === 1,
     '무기·강화·코인·방어·유물이 상점을 나서던 그대로',

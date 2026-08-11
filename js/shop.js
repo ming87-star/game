@@ -213,13 +213,16 @@ class Shop {
         desc.setText('공격 속도가 이미 한계입니다').setColor('#ff8a80');
       } else if (offer.key === 'upgrade') {
         const w = s.weapon;
+        // **초당 피해가 얼마나 달라지는지를 먼저 적습니다.** 그것이 사는 이유이자
+        // 안 사는 이유입니다 — 강화를 많이 쌓아 두었으면 오히려 손해입니다.
         // 잃는 것은 공격력 강화뿐입니다. 공격 속도는 무기를 바꿔도 남습니다.
-        const stack = w.plus ? '+' + w.plus : '';
-        if (stack) {
-          desc.setText('지금 강화를 잃습니다   ' + stack).setColor(can ? '#ff8a80' : '#6b7599');
-        } else {
-          desc.setText(SHOP_ITEMS.upgrade.desc).setColor(can ? '#8794b5' : '#4a5578');
-        }
+        const pct = (w.nextDps && w.dps)
+          ? Math.round((w.nextDps / w.dps - 1) * 100) : null;
+        const gain = pct === null ? SHOP_ITEMS.upgrade.desc
+          : '초당 피해 ' + (pct >= 0 ? '+' : '') + pct + '%';
+        const lost = w.plus ? '   (+' + w.plus + ' 잃음)' : '';
+        desc.setText(gain + lost)
+          .setColor(!can ? '#6b7599' : (pct === null || pct >= 0) ? '#a5d6a7' : '#ff8a80');
       } else {
         desc.setColor(can ? '#8794b5' : '#4a5578');
       }

@@ -64,6 +64,27 @@ class Weapon {
   get atMaxTier() { return this.tier >= this.table.length - 1; }
   get nextName() { return this.atMaxTier ? null : this.table[this.tier + 1].name; }
 
+  // ── 초당 피해 ─────────────────────────────────────────
+  // **이 숫자 하나가 "그래서 센가?"에 답합니다.**
+  //
+  // 공격력만 보여 주면 두 가지가 거짓말이 됩니다.
+  //   · `속`(공격 속도)을 아무리 주워도 숫자가 안 움직입니다. 그러면 주운
+  //     사람은 "이건 아무것도 안 하는구나"로 배웁니다.
+  //   · 무기는 단계가 오를 때 공격력과 속도를 맞바꿉니다. 공격력만 보면
+  //     느려진 무기가 더 세 보입니다.
+  //
+  // 근접은 사거리 안의 적을 한 번에 다 벱니다. 그러니 이 값은 **한 놈에게
+  // 들어가는 몫**이고, 여럿에 둘러싸이면 실제로는 이보다 큽니다.
+  get dps() { return Math.round(this.dmg * this.shots * 1000 / this.rate); }
+
+  // UP 을 밟으면 얼마가 되는가. 밟는 순간 `+1`은 초기화되고 속도는 남습니다 —
+  // 그 규칙까지 넣어서 세야 "밟는 것이 이득인가"에 바르게 답합니다.
+  get nextDps() {
+    if (this.atMaxTier) return null;
+    const n = this.table[this.tier + 1];
+    return Math.round(n.dmg * (n.shots || 1) * 1000 / (n.rate / this.speedMult));
+  }
+
   addPlus() { this.plus++; }
 
   addHaste() { this.haste++; }

@@ -20,12 +20,12 @@ const server = http.createServer((req, res) => {
 
 // 무엇을 들고 보여 줄지. 직업 · 무기 단계 · 이름.
 const SHOTS = [
-  { job: 0, tier: 0, motion: 'sword', title: '검 — 들었다가 돌려서 내리침' },
-  { job: 0, tier: 3, motion: 'spear', title: '창 — 회전 없이 곧게 찌름' },
-  { job: 2, tier: 0, motion: 'dagger', title: '단검 — 짧고 빠르게 찔러 넣음' },
-  { job: 2, tier: 2, motion: 'daggerTwin', title: '쌍단검 — 같은 동작을 두 번' },
-  { job: 1, tier: 0, motion: 'bow', title: '활 — 길게 당겼다가 놓음' },
-  { job: 1, tier: 3, motion: 'crossbow', title: '석궁 — 당김 없이 반동으로 밀림' },
+  { job: 0, tier: 0, motion: 'sword', title: '녹슨 장검 (1단계) — 들었다가 돌려서 내리침' },
+  { job: 0, tier: 11, motion: 'sword', title: '천공검 (12단계) — 같은 갈래인데 색과 크기가 다릅니다' },
+  { job: 0, tier: 3, motion: 'spear', title: '은빛 창 — 회전 없이 곧게 찌름' },
+  { job: 2, tier: 2, motion: 'daggerTwin', title: '쌍날 단검 — 같은 동작을 두 번' },
+  { job: 1, tier: 0, motion: 'bow', title: '사냥활 — 길게 당겼다가 놓음' },
+  { job: 1, tier: 3, motion: 'crossbow', title: '강철 석궁 — 당김 없이 반동으로 밀림' },
 ];
 const FRAMES = 8;
 const BOX = { w: 120, h: 108 }; // 주인공을 둘러싼 만큼만. 자리는 화면에서 직접 잽니다
@@ -67,6 +67,7 @@ async function boot(browser, port, jobIndex) {
       s.hurt = () => {};
       window.updateEnemies = () => {};
       s.weapon.tier = spec.tier;
+      s.rig.setWeapon(s.job, s.weapon);
       s.floorIndex = 40;
       s.addFloor(s.floorIndex);
       const slot = s.floors.get(s.floorIndex).slots.mid || s.floors.get(s.floorIndex).slots.left;

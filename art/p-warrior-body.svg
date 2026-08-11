@@ -16,6 +16,13 @@
   </defs>
   <g stroke="#131826" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">
 
+    <!-- 망토 — 몸통과 **한 덩어리**입니다. 따로 흔들지 않습니다 (아래 주석) -->
+    <path d="M14 17 q-9 3 -11 14 q-1 6 2 11 q5 -3 7 -9 q2 -7 4 -10 z" fill="#a52b2b"/>
+    <path d="M13 20 q-6 4 -7 12 q3 -6 8 -9 z" fill="#c94141" stroke="none"/>
+    <path d="M11 24 q-4 5 -5 11 M14 27 q-3 5 -3 10" fill="none" stroke-width="0.9" stroke-opacity=".5"/>
+    <path d="M13.6 17.6 q-8 3.4 -10 12" fill="none" stroke="#ffffff" stroke-opacity=".28" stroke-width="1"/>
+
+
     <!-- 몸통 -->
     <path d="M12 19 q7 -3 15 0 q1 8 -2 15 q-5 2 -11 0 q-3 -7 -2 -15 z" fill="#7d93a8"/>
     <path d="M23 19.6 q4 0.6 4 4 q0.4 6 -2 10.4 q-2.4 1 -4.4 1.2 q3.4 -8 2.4 -15.6 z"

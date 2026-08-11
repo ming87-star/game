@@ -1,0 +1,25 @@
+<!-- 손에 드는 활 44×48 · 손잡이(15,26)를 축으로. 배가 **오른쪽**으로 불룩합니다 —
+     쏘는 쪽입니다. 시위는 그 왼쪽에 곧게 섭니다.
+     끝이 반대로 꺾인 것(각궁)이 막대와 활을 가릅니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="44" height="48" viewBox="0 0 44 48">
+  <g stroke="#123018" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round">
+    <!-- 몸통 -->
+    <path d="M13 5 q10 9 10 21 q0 12 -10 21" fill="none" stroke="#5d4037" stroke-width="4.4"/>
+    <path d="M13 5 q10 9 10 21 q0 12 -10 21" fill="none" stroke="#a9713d" stroke-width="2.6"/>
+    <path d="M13.8 7 q8.6 8.4 8.6 19" fill="none" stroke="#d2955a" stroke-width="1" stroke-opacity=".9"/>
+    <!-- 각궁 — 끝이 반대로 젖혀집니다 -->
+    <path d="M13 5 q-4 1.6 -3.6 5.2" fill="none" stroke="#5d4037" stroke-width="3.6"/>
+    <path d="M13 47 q-4 -1.6 -3.6 -5.2" fill="none" stroke="#5d4037" stroke-width="3.6"/>
+    <path d="M13 5 q-4 1.6 -3.6 5.2 M13 47 q-4 -1.6 -3.6 -5.2" fill="none"
+          stroke="#a9713d" stroke-width="1.8"/>
+    <!-- 시위 -->
+    <path d="M9.4 10.2 L9.4 41.8" fill="none" stroke="#f5efe0" stroke-width="1" stroke-opacity=".9"/>
+    <!-- 손잡이 감개 -->
+    <path d="M20.6 21 q2.4 -0.6 3.4 0.6 l0 9 q-1.4 1.4 -3.4 0.6 z" fill="#3e2723"/>
+    <path d="M21.4 23 h2.4 M21.4 26 h2.4 M21.4 29 h2.4" fill="none" stroke="#6d4c41" stroke-width="0.8"/>
+    <!-- 메긴 화살 — 활이 비어 있으면 쏘는 것으로 안 보입니다 -->
+    <path d="M9.4 26 L30 26" fill="none" stroke="#8d6e63" stroke-width="1.5"/>
+    <path d="M30 26 L26 24.2 L26 27.8 z" fill="#eceff1"/>
+    <path d="M9.4 26 L12.6 23.8 M9.4 26 L12.6 28.2" fill="none" stroke="#a5d6a7" stroke-width="1.2"/>
+  </g>
+</svg>

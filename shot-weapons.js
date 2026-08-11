@@ -47,7 +47,7 @@ const server = http.createServer((req, res) => {
       const job = classByKey(key);
       const gone2 = [];
       put(s.add.rectangle(0, 0, 540, 960, 0x0d1120).setOrigin(0, 0));
-      put(s.add.text(270, 24, job.name + ' — 무기 그림 (흰 외곽선 통일)', {
+      put(s.add.text(270, 24, job.name + ' — 무기 그림 — 단계마다 색과 모양이 다릅니다', {
         fontFamily: 'sans-serif', fontSize: '24px', color: '#ffffff',
       }).setOrigin(0.5));
 

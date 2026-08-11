@@ -72,7 +72,7 @@ async function boot(browser, port, jobIndex) {
     // 한 판을 촘촘히 훑어 조각마다 어디까지 갔는지를 잽니다.
     const sweep = (m) => {
       const out = {};
-      ['root', 'body', 'arm', 'legs', 'cape'].forEach((k) => {
+      ['root', 'body', 'arm', 'legs'].forEach((k) => {
         out[k] = { minDx: 0, maxDx: 0, minRot: 0, maxRot: 0, peaks: 0 };
       });
       const armDx = [];
@@ -105,7 +105,7 @@ async function boot(browser, port, jobIndex) {
     };
 
     rig.applyAt(MOTIONS.sword, 1);
-    const ended = { root: { ...rig.root }, arm: { ...rig.pose.arm }, cape: { ...rig.pose.cape } };
+    const ended = { root: { ...rig.root }, arm: { ...rig.pose.arm }, legs: { ...rig.pose.legs } };
     rig.rest();
 
     return {
@@ -130,8 +130,8 @@ async function boot(browser, port, jobIndex) {
   });
 
   // 몸이 조각으로 나뉘어 있고, 어깨와 망토가 몸통에 매달려 있어야 합니다.
-  check(motion.cut && motion.parts.join(' ') === 'cape→body legs body arm→body',
-    '몸이 네 조각이고 팔·망토가 몸통에 매달림', motion.parts.join(' '));
+  check(motion.cut && motion.parts.join(' ') === 'legs body arm→body hand→arm',
+    '다리·몸통·팔로 나뉘고, 손에 든 무기가 팔에 매달림', motion.parts.join(' '));
 
   check(motion.picks.join(' · ') ===
     '전사0=sword · 전사3=spear · 도적0=dagger · 도적2=daggerTwin · 궁수0=bow · 궁수3=crossbow',
@@ -216,8 +216,18 @@ async function boot(browser, port, jobIndex) {
     const right = step(false);
     const left = step(true);
 
+    // 몸 전체가 도는 것 (도적이 뛰며 한 바퀴). 조각의 **자리**까지 몸 한가운데를
+    // 돌아야 합니다. 각도만 돌면 조각마다 제 축에서 따로 돌아 몸이 흩어집니다.
+    s.player.setFlipX(false);
+    s.rig.rest(); s.rig.sync();
+    const flat = armOf();
+    s.player.setRotation(Math.PI / 2);
+    s.rig.sync();
+    const spun = armOf();
+    s.player.setRotation(0);
+
     s.rig.rest(); s.player.setFlipX(false); s.rig.sync();
-    return { rest, turned, right, left, hidden: s.player.visible };
+    return { rest, turned, right, left, flat, spun, hidden: s.player.visible };
   });
   const moved = Math.hypot(follow.turned.x - follow.rest.x, follow.turned.y - follow.rest.y);
   check(moved > 2, '허리를 돌리면 어깨도 따라 돎 (팔이 떨어져 나가지 않음)',
@@ -225,6 +235,12 @@ async function boot(browser, port, jobIndex) {
   check(follow.right === 10 && follow.left === -10,
     '앞쪽은 바라보는 쪽 (좌우가 뒤집혀도 같은 크기)',
     `오른쪽 ${follow.right.toFixed(0)} · 왼쪽 ${follow.left.toFixed(0)}`);
+  // 몸이 90도 돌면 어깨는 몸 한가운데를 돌아 **다른 자리로** 가야 합니다.
+  // 제자리에서 각도만 돌면 여기가 0 이 되고, 화면에서는 몸이 산산이 흩어집니다.
+  const spunBy = Math.hypot(follow.spun.x - follow.flat.x, follow.spun.y - follow.flat.y);
+  check(spunBy > 5, '몸 전체가 돌면 조각의 자리도 몸 한가운데를 돎 (흩어지지 않음)',
+    spunBy.toFixed(1) + 'px 옮겨 감');
+
   check(follow.hidden === false, '물리 몸은 안 보이고 조각만 보임');
 
   // ── 파동검 (전사) ──────────────────────────────────────

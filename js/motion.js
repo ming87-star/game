@@ -8,17 +8,21 @@
 //      검은 120도를 돕니다. 휘두르는 것은 검이지 몸통이 아닙니다.
 //   2. 발까지 같이 미끄러집니다. 사람은 발을 딛고 그 위에서 몸을 던집니다.
 //      발이 제자리에 남아야 "밀었다"가 아니라 "실었다"가 됩니다.
-//   3. 망토가 몸에 붙어 한 덩어리로 움직입니다. 천은 늘 몸보다 **늦게**
-//      따라오고, 몸이 멈춘 뒤에 한 번 더 흔들립니다.
+//   3. 팔이 몸통과 한 덩어리라, 무기를 든 손이 몸과 같은 자리에만 있습니다.
 //
-// 그래서 주인공 그림을 네 조각으로 잘랐습니다 (art/p-*.svg — 원본에서 칠도
+// 그래서 주인공 그림을 세 조각으로 잘랐습니다 (art/p-*.svg — 원본에서 칠도
 // 좌표도 안 바꾸고 떼어 온 것입니다). 조각마다 축이 있고, 조각마다 다른
 // 가락으로 움직입니다.
 //
-//   망토(cape)  등 뒤. 몸을 늦게 따라옵니다
 //   다리(legs)  골반이 축. 거의 안 움직입니다 — 딛는 것이 일입니다
-//   몸통(body)  허리가 축. 사람은 벨 때 허리부터 돕니다
+//   몸통(body)  허리가 축. 사람은 벨 때 허리부터 돕니다 (망토도 여기 붙어 있습니다)
 //   팔(arm)     어깨가 축. **여기가 모션의 전부입니다**
+//
+// ── 망토를 왜 따로 안 흔드는가 ──────────────────────────
+// 한때 망토를 넷째 조각으로 떼어 늦게 따라오게 했습니다. 천을 제대로 흔들려면
+// 중력과 바람이 있어야 하는데, 그것 없이 각도만 흔드니 **천이 아니라 널빤지가
+// 몸에 붙었다 떨어졌다** 했습니다. 어설프게 흔드는 것보다 몸통에 붙여 두는 편이
+// 낫습니다 — 지금 망토는 몸통 그림의 일부이고, 허리가 도는 만큼만 같이 돕니다.
 //
 // ── 왜 몸을 직접 안 움직이는가 ──────────────────────────
 // `scene.player` 는 물리 몸입니다. 그 x·y 는 이미 셋이 잡고 있습니다 —
@@ -32,11 +36,11 @@
 // 몸 전체를 기울이는 것까지만 합니다. 조용히 덜 움직일 뿐 게임은 그대로 돕니다.
 
 // 조각의 축과 **매달린 곳**. 좌표는 원본 그림 그대로입니다 (왼쪽 위가 0,0).
-// z 는 앞뒤 — 망토가 가장 뒤, 무기 쥔 팔이 가장 앞입니다.
+// z 는 앞뒤 — 다리가 가장 뒤, 무기 쥔 팔이 가장 앞입니다.
 //
-// `on: 'body'` 는 그 조각이 **몸통에 매달려 있다**는 뜻입니다. 어깨와 목덜미는
-// 허리가 돌면 같이 따라 돕니다. 이걸 안 하고 조각마다 제자리에서 따로 돌렸더니
-// 허리를 젖히는 순간 **망토와 팔만 그 자리에 남아** 몸에서 떨어져 나갔습니다.
+// `on: 'body'` 는 그 조각이 **몸통에 매달려 있다**는 뜻입니다. 어깨는 허리가
+// 돌면 같이 따라 돕니다. 이걸 안 하고 제자리에서 따로 돌렸더니 허리를 젖히는
+// 순간 **팔만 그 자리에 남아** 몸에서 떨어져 나갔습니다.
 //
 // 다리는 몸통에 안 매답니다. 발은 땅에 붙어 있고, 허리가 젖혀져도 따라 젖혀지면
 // 안 됩니다 — 다리가 몸통을 받치는 것이지 매달린 것이 아닙니다.
@@ -44,33 +48,53 @@ const RIGS = {
   warrior: {
     body: [19, 32],
     parts: [
-      { key: 'cape', art: 'p-warrior-cape', pivot: [14, 18], z: -2, on: 'body' },
       { key: 'legs', art: 'p-warrior-legs', pivot: [19, 33], z: -1 },
       { key: 'body', art: 'p-warrior-body', pivot: [19, 32], z: 0 },
       { key: 'arm', art: 'p-warrior-arm', pivot: [22.5, 26.5], z: 1, on: 'body' },
+      { key: 'hand', hand: true, z: 2, on: 'arm' },
     ],
   },
   rogue: {
     body: [23, 32],
     parts: [
-      { key: 'cape', art: 'p-rogue-cape', pivot: [22, 19], z: -2, on: 'body' },
       { key: 'legs', art: 'p-rogue-legs', pivot: [20, 33], z: -1 },
       { key: 'body', art: 'p-rogue-body', pivot: [23, 32], z: 0 },
       { key: 'arm', art: 'p-rogue-arm', pivot: [29.6, 25.6], z: 1, on: 'body' },
+      { key: 'hand', hand: true, z: 2, on: 'arm' },
     ],
   },
   archer: {
     body: [23, 31],
     parts: [
-      { key: 'cape', art: 'p-archer-back', pivot: [20, 22], z: -2, on: 'body' },
       { key: 'legs', art: 'p-archer-legs', pivot: [24, 31], z: -1 },
       { key: 'body', art: 'p-archer-body', pivot: [23, 31], z: 0 },
       { key: 'arm', art: 'p-archer-arm', pivot: [29.4, 21], z: 1, on: 'body' },
+      { key: 'hand', hand: true, z: 2, on: 'arm' },
     ],
   },
 };
 
-const PART_KEYS = ['cape', 'legs', 'body', 'arm'];
+// 손에 드는 무기. 축은 손잡이를 쥐는 자리이고, `rot` 은 그 직업이 **쉴 때**
+// 무기를 든 각도입니다 (그림은 전부 날이 위를 보게 그려져 있습니다).
+//
+// 크기와 색은 코드가 정합니다 — 단계가 오르면 조금씩 커지고, 무기표의 색이
+// 그대로 입혀집니다. 그래서 열두 자루가 다 다르게 보입니다.
+// 나중에 희귀도가 붙으면 그 색을 여기 한 번 더 곱하면 됩니다.
+const HAND = {
+  // size 는 **화면에서 차지할 길이**입니다 (주인공 키가 48). 검은 주인공보다
+  // 짧고 창은 길어야 합니다 — 이 한 값이 검과 창의 실루엣을 가릅니다.
+  sword:    { art: 'hand-sword',    pivot: [22, 40], rot: 0.62, size: 34 },
+  spear:    { art: 'hand-spear',    pivot: [22, 34], rot: 0.26, size: 58 },
+  dagger:   { art: 'hand-dagger',   pivot: [22, 38], rot: 0.75, size: 26 },
+  bow:      { art: 'hand-bow',      pivot: [15, 26], rot: 0, size: 40 },
+  crossbow: { art: 'hand-crossbow', pivot: [17, 30], rot: -0.15, size: 34 },
+};
+
+// 손에 무기를 쥐는 자리 — 직업마다 다릅니다 (팔 그림의 손 위치).
+const HAND_AT = { warrior: [25.6, 30.6], rogue: [35.2, 30.4], archer: [36, 27.4] };
+
+const PART_KEYS = ['legs', 'body', 'arm'];
+const ZERO = { dx: 0, dy: 0, rot: 0 }; // 자세 트랙이 없는 조각(손에 든 무기)용
 
 class PlayerRig {
   constructor(scene) {
@@ -84,7 +108,8 @@ class PlayerRig {
     this.pose = {};
 
     // 조각이 다 있을 때만 나눠 씁니다. 하나라도 없으면 한 장짜리로 갑니다.
-    const cut = spec && spec.parts.every((p) => scene.textures.exists(p.art));
+    const cut = spec && spec.parts.every((p) => p.hand || scene.textures.exists(p.art))
+      && Object.values(HAND).every((h) => scene.textures.exists(h.art));
     if (cut) {
       const src = scene.textures.get(whole).getSourceImage();
       this.half = { x: src.width / 2, y: src.height / 2 };
@@ -92,17 +117,22 @@ class PlayerRig {
       // 이 점을 중심으로 같이 돕니다.
       this.hip = { x: spec.body[0] - this.half.x, y: spec.body[1] - this.half.y };
       spec.parts.forEach((p) => {
-        const img = scene.textures.get(p.art).getSourceImage();
-        const view = scene.add.sprite(this.body.x, this.body.y, p.art)
-          .setOrigin(p.pivot[0] / img.width, p.pivot[1] / img.height)
+        // 손에 드는 무기는 그림도 크기도 판 중에 바뀝니다. 자리는 손이고,
+        // 무엇을 쥐고 있는지는 setWeapon 이 나중에 채웁니다.
+        const at = p.hand ? HAND_AT[this.jobKey] : p.pivot;
+        const art = p.hand ? HAND.sword.art : p.art;
+        const img = scene.textures.get(art).getSourceImage();
+        const view = scene.add.sprite(this.body.x, this.body.y, art)
+          .setOrigin(p.hand ? 0.5 : p.pivot[0] / img.width,
+            p.hand ? 0.5 : p.pivot[1] / img.height)
           .setDepth(this.body.depth + p.z * 0.01);
         // 축이 그림 한가운데에서 얼마나 떨어져 있는지. 조각을 이만큼 옮겨 놓아야
-        // 네 조각이 원래 한 장이던 자리에 그대로 겹칩니다.
+        // 조각들이 원래 한 장이던 자리에 그대로 겹칩니다.
         this.parts.push({
-          key: p.key, view, on: p.on || null,
-          ox: p.pivot[0] - this.half.x, oy: p.pivot[1] - this.half.y,
+          key: p.key, view, on: p.on || null, hand: !!p.hand,
+          ox: at[0] - this.half.x, oy: at[1] - this.half.y,
         });
-        this.pose[p.key] = { dx: 0, dy: 0, rot: 0 };
+        if (!p.hand) this.pose[p.key] = { dx: 0, dy: 0, rot: 0 };
       });
       this.body.setVisible(false);
     } else {
@@ -117,6 +147,36 @@ class PlayerRig {
     // 겉모습이 바뀌는 곳은 여기 하나뿐입니다. 다른 코드가 주인공 그림을
     // 만질 일이 있으면 이 목록을 봐야 합니다.
     this.views = this.parts.map((p) => p.view);
+    this.handPart = this.parts.find((p) => p.hand) || null;
+    this.handKey = null;
+  }
+
+  // 들고 있는 무기가 바뀌면 손의 그림도 바뀝니다.
+  //
+  // 서른여섯 자루를 다 그리지는 않았습니다. **생김새는 갈래(검·창·단검·활·석궁)가
+  // 정하고, 단계는 색과 크기가 말합니다.** 무기표에는 단계마다 다른 색이 이미
+  // 있으므로(`base.color`), 그걸 그대로 입히면 열두 자루가 다 달라 보입니다.
+  // 희귀도가 붙으면 이 색 위에 한 번 더 곱하면 됩니다.
+  setWeapon(job, weapon) {
+    const p = this.handPart;
+    if (!p) return;
+    const icon = (weapon.base && weapon.base.icon) || {};
+    const art = icon.art || (job.attack === 'ranged' ? 'bow' : 'sword');
+    const h = HAND[art] || HAND.sword;
+    const tiers = Math.max(1, job.weapons.length - 1);
+    const grow = 1 + (weapon.tier / tiers) * 0.34; // 마지막 자루가 첫 자루보다 3분의 1 큽니다
+    const key = art + weapon.tier;
+    if (this.handKey === key) return;
+    this.handKey = key;
+
+    const img = this.scene.textures.get(h.art).getSourceImage();
+    p.view.setTexture(h.art)
+      .setOrigin(h.pivot[0] / img.width, h.pivot[1] / img.height)
+      .setTint(weapon.color);
+    // 크기는 sync 가 매 프레임 다시 씁니다 (몸 전체의 scale 과 곱해야 하므로).
+    // 여기서 setDisplaySize 로 박아 두면 다음 프레임에 지워집니다.
+    p.scale = (h.size / 44) * grow;
+    p.rest = h.rot;
   }
 
   // 매 프레임 물리 몸을 그대로 베끼고 모션만 더합니다.
@@ -132,36 +192,64 @@ class PlayerRig {
       return;
     }
 
-    const cx = b.x + r.dx * s;
-    const cy = b.y + r.dy;
-    const spin = this.pose.body ? this.pose.body.rot : 0;
-    const cos = Math.cos(spin);
-    const sin = Math.sin(spin);
+    // 몸 전체가 도는 것 — 도적이 뛰면서 한 바퀴 돕니다 (player.rotation).
+    const whole = b.rotation;
+    const wcos = Math.cos(whole);
+    const wsin = Math.sin(whole);
+
+    // 조각은 **매달린 순서대로** 풀어야 합니다. 어깨는 허리를 따라가고,
+    // 손에 든 무기는 그 어깨를 따라갑니다 — 부모를 먼저 풀어 놓지 않으면
+    // 자식이 낡은 자리를 보고 따라갑니다. RIGS 에 적은 차례가 곧 그 순서입니다.
+    const done = {};
 
     this.parts.forEach((p) => {
-      const q = this.pose[p.key];
+      const q = this.pose[p.key] || ZERO;
       let ox = p.ox + q.dx;
       let oy = p.oy + q.dy;
-      let rot = r.rot + q.rot;
+      // 손에 든 무기는 제 자세 트랙이 없습니다. 팔을 그대로 따라가고,
+      // 쥔 각도(그 직업이 무기를 드는 각)만 얹습니다.
+      let rot = r.rot + q.rot + (p.rest || 0);
 
-      // 몸통에 매달린 조각은 **허리가 도는 만큼 같이 실려 갑니다.**
-      // 축의 자리를 허리 둘레로 돌려 놓고, 각도에도 허리의 몫을 더합니다.
-      if (p.on === 'body') {
-        const rx = ox - this.hip.x;
-        const ry = oy - this.hip.y;
-        ox = this.hip.x + rx * cos - ry * sin;
-        oy = this.hip.y + rx * sin + ry * cos;
-        rot += spin;
-        // 몸통 자신이 dx·dy 로 움직였으면 매달린 것도 그만큼 따라갑니다.
-        ox += this.pose.body.dx;
-        oy += this.pose.body.dy;
+      // 매달린 조각은 **부모가 도는 만큼 같이 실려 갑니다.**
+      // 축의 자리를 부모의 축 둘레로 돌려 놓고, 각도에도 부모의 몫을 더합니다.
+      const up = done[p.on];
+      if (up) {
+        const rx = ox - up.restX;
+        const ry = oy - up.restY;
+        const c = Math.cos(up.spin);
+        const n = Math.sin(up.spin);
+        ox = up.restX + rx * c - ry * n + up.moveX;
+        oy = up.restY + rx * n + ry * c + up.moveY;
+        rot += up.spin;
       }
 
+      // 나를 따라올 자식들을 위해, 내가 어디로 얼마나 갔는지 남깁니다.
+      done[p.key] = {
+        restX: p.ox, restY: p.oy,
+        moveX: ox - p.ox, moveY: oy - p.oy,
+        spin: rot - r.rot,
+      };
+
       // 좌우를 뒤집으면 앞쪽도 각도도 같이 뒤집힙니다.
-      p.view.setPosition(cx + ox * s, cy + oy);
+      let wx = (ox + r.dx) * s;
+      let wy = oy + r.dy;
+
+      // 몸 전체가 돌 때는 **조각의 자리도 몸 한가운데를 돌아야** 합니다.
+      // 각도만 돌리면 조각마다 제 축에서 따로 돌아서 몸이 산산이 흩어집니다 —
+      // 도적이 뛰며 한 바퀴 돌 때 망토가 몸에서 떨어져 나가던 것이 이것이었습니다.
+      if (whole) {
+        const nx = wx * wcos - wy * wsin;
+        wy = wx * wsin + wy * wcos;
+        wx = nx;
+      }
+
+      p.view.setPosition(b.x + wx, b.y + wy);
       p.view.setFlipX(b.flipX);
-      p.view.rotation = b.rotation + rot * s;
-      p.view.setScale(r.sx, r.sy);
+      p.view.rotation = whole + rot * s;
+      // 손에 든 무기는 제 크기를 따로 갖습니다. 몸의 크기와 **곱해야** 합니다 —
+      // 덮어쓰면 무기가 판마다 원래 크기로 튀어 오릅니다.
+      const k = p.scale || 1;
+      p.view.setScale(r.sx * k, r.sy * k);
       p.view.setAlpha(b.alpha);
     });
   }
@@ -285,13 +373,6 @@ const MOTIONS = {
       { at: 0.48, dx: 3, rot: 0.06, ease: 'snap' },     // 앞발로 버틴다
       { at: 1, ease: 'out' },
     ],
-    cape: [
-      { at: 0 },
-      { at: 0.30, rot: 0.16, dx: 2, ease: 'out' },      // 몸이 뒤로 가니 천은 앞으로
-      { at: 0.60, rot: -0.30, dx: -3, ease: 'out' },    // 몸이 나가니 천은 뒤로 — 늦게
-      { at: 0.82, rot: 0.10, dx: 1, ease: 'out' },      // 되돌아오며 한 번 더
-      { at: 1, ease: 'out' },
-    ],
   },
 
   // 창 — **돌리지 않습니다.** 어깨가 앞뒤로 밀립니다.
@@ -325,13 +406,6 @@ const MOTIONS = {
       { at: 0.70, dx: 2, ease: 'out' },
       { at: 1, ease: 'out' },
     ],
-    cape: [
-      { at: 0 },
-      { at: 0.34, rot: 0.12, dx: 2, ease: 'out' },
-      { at: 0.58, rot: -0.26, dx: -4, ease: 'out' },
-      { at: 0.80, rot: 0.08, ease: 'out' },
-      { at: 1, ease: 'out' },
-    ],
   },
 
   // 단검 — 짧고 빠릅니다. 몸을 낮추고 어깨를 찔러 넣습니다.
@@ -360,13 +434,6 @@ const MOTIONS = {
     legs: [
       { at: 0 },
       { at: 0.34, dx: 3, ease: 'snap' },
-      { at: 1, ease: 'out' },
-    ],
-    cape: [
-      { at: 0 },
-      { at: 0.24, rot: 0.14, ease: 'out' },
-      { at: 0.52, rot: -0.34, dx: -4, ease: 'out' },
-      { at: 0.78, rot: 0.12, ease: 'out' },
       { at: 1, ease: 'out' },
     ],
   },
@@ -406,14 +473,6 @@ const MOTIONS = {
       { at: 0.58, dx: 2, ease: 'snap' },
       { at: 1, ease: 'out' },
     ],
-    cape: [
-      { at: 0 },
-      { at: 0.22, rot: 0.14, ease: 'out' },
-      { at: 0.48, rot: -0.32, dx: -4, ease: 'out' },
-      { at: 0.72, rot: -0.16, dx: -2, ease: 'out' },
-      { at: 0.88, rot: 0.10, ease: 'out' },
-      { at: 1, ease: 'out' },
-    ],
   },
 
   // 활 — 당기는 마디가 가장 깁니다. 활 든 팔은 앞으로 뻗어 **버티고**,
@@ -449,12 +508,6 @@ const MOTIONS = {
       { at: 0.58, dx: 1, ease: 'out' },
       { at: 1, ease: 'out' },
     ],
-    cape: [
-      { at: 0 },
-      { at: 0.46, rot: 0.10, dx: 2, ease: 'out' },
-      { at: 0.68, rot: -0.14, dx: -2, ease: 'out' },
-      { at: 1, ease: 'out' },
-    ],
   },
 
   // 석궁 — **당기는 마디가 없습니다.** 이미 걸려 있는 것을 놓을 뿐이라
@@ -485,12 +538,6 @@ const MOTIONS = {
       { at: 0 },
       { at: 0.14, dx: -3, ease: 'snap' },               // 반동을 발로 받는다
       { at: 0.44, dx: -1, ease: 'out' },
-      { at: 1, ease: 'out' },
-    ],
-    cape: [
-      { at: 0 },
-      { at: 0.20, rot: 0.20, dx: 3, ease: 'out' },      // 몸이 뒤로 밀리니 천은 앞으로
-      { at: 0.50, rot: -0.08, ease: 'out' },
       { at: 1, ease: 'out' },
     ],
   },
