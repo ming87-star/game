@@ -35,15 +35,27 @@ const QUALITY = 0.92; // 32px 까지 줄이고 나면 화질이 아까우므로 
 // render-art.js 로 뽑은 것)도 섞여 있어서, 통째로 쓸어 담으면 손으로 그린 SVG 를
 // 그 미리보기가 덮어씁니다.
 //
-// 기는 것 · 뛰는 것 · 날것 · 단단한 놈 넷은 **손그림 SVG 가 이기고 있었습니다.**
-// AI 가 그린 것이 assets/ 에 이미 있었는데 아무도 안 쓰고 있었고, 그래서 이 넷만
-// 그림체가 달랐습니다. 지금은 art/e-*.svg 넷을 지워서 AI 쪽이 씁니다.
+// 이 규칙 때문에 **그려 놓고 아무도 안 쓰는 그림**이 두 번 나왔습니다. 적 넷과
+// 아이템 스무 장이 그랬습니다 — AI 판이 assets/ 에 진작 있었는데 art/*.svg 가
+// 먼저 걸려서 건너뛰었습니다. 지금은 그 SVG 들을 지웠으므로 AI 쪽이 씁니다.
+//
+// art/ 에 남은 SVG 는 **AI 가 실패한 것들**뿐입니다 — 벽과 발판 셋. 돌벽만
+// 그리라고 했는데 모델이 그 위에 드워프 전사를 그려 넣었습니다 (ART.md 11절).
+// 그리고 주인공 셋과 보스 다섯은 손대지 않기로 한 것들입니다.
 const WANT = [
+  // 적 열넷 + 박쥐 둘 — 게임에 나오는 적 전부입니다
   'e-coinbug', 'e-crawler', 'e-hopper', 'e-goldfrog', 'e-flyer', 'e-brute',
   'e-charger', 'e-dasher', 'e-bomber', 'e-giant', 'e-splitter', 'e-shooter',
   'e-diver', 'e-ghost',
   'bat-thief', 'bat-biter',
-];   // 적 열넷 + 박쥐 둘 — 게임에 나오는 적 전부입니다
+  // 발판 위에 놓이는 것 스무 장. 가짜는 진짜와 **짝을 이뤄야** 합니다 —
+  // 하나만 갈아 끼우면 다가가기 전과 뒤의 그림체가 달라져서 미리 들킵니다.
+  'item-plus', 'item-fake-plus', 'item-plus-anvil', 'item-plus-hammer',
+  'item-haste', 'item-fake-haste', 'item-double',
+  'item-armor-warrior', 'item-armor-archer', 'item-fake-armor', 'item-fake-armor-archer',
+  'item-dodge', 'item-fake-dodge', 'item-heal', 'item-fake-heal',
+  'item-treasure', 'item-fake-treasure', 'item-medal', 'item-relic', 'item-bomb',
+];
 
 (async () => {
   const jobs = [];
