@@ -155,7 +155,12 @@ async function measureAndPack(page, dir, files) {
       .sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
     const r = await measureAndPack(page, dir, files);
     if (r.error) { console.log(`${key}  건너뜀 — ${r.error}`); continue; }
-    out[key] = { url: r.url, n: r.n, fw: r.fw, fh: r.fh,
+    // **키 앞에 sheet- 를 붙입니다.** 안 붙이면 js/textures.js 의
+    // weaponIconKey(job, tier) 와 이름이 똑같아집니다 ('w-warrior-0').
+    // buildWeaponIcons 는 "이미 있는 키는 건너뛴다"라서, 시트가 먼저 올라가면
+    // 무기 아이콘이 아예 안 만들어지고 발판 위 UP 칸과 HUD 에 **주인공이 통째로
+    // 30×30 으로 찌그러져** 나옵니다. 실제로 그랬습니다.
+    out['sheet-' + key] = { url: r.url, n: r.n, fw: r.fw, fh: r.fh,
       foot: r.foot, ground: r.ground, hero: r.hero };
     total += r.bytes;
     console.log(`${key.padEnd(13)} ${r.n}컷 ${r.fw}×${r.fh}  키 ${r.hero}  발 ${r.foot},${r.ground}`
@@ -167,6 +172,7 @@ async function measureAndPack(page, dir, files) {
   fs.writeFileSync(OUT, [
     '// bake-sheets.js 가 만든 파일입니다. 손으로 고치지 마세요.',
     '// assets/sheets/<무기>/0..7.png → 무기마다 가로로 이어 붙인 띠 한 장(webp).',
+    '// 키는 sheet- 로 시작합니다 — 무기 아이콘(w-warrior-0)과 이름이 겹치면 안 됩니다.',
     '// n=컷수, fw·fh=칸 크기, foot·ground=발이 딛는 자리, hero=머리끝에서 발까지.',
     'const SHEET_ART = {',
     ...body,

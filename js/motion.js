@@ -202,9 +202,15 @@ class PlayerRig {
   rest() { this.setFrame(0); }
 }
 
-// 이 무기의 시트 이름. gen-sheet.js 가 만든 이름과 같아야 합니다.
+// 이 무기의 시트 이름.
+//
+// **`sheet-` 를 반드시 붙입니다.** 이걸 뺐다가 한 번 크게 당했습니다 —
+// js/textures.js 의 weaponIconKey(job, tier) 가 'w-warrior-0' 을 내놓는데,
+// 시트를 같은 이름으로 올리니 buildWeaponIcons 가 "이미 있다"며 건너뛰었고,
+// 발판 위 UP 칸과 HUD 의 무기 그림 자리에 **주인공이 통째로 30×30 으로
+// 찌그러져** 들어앉았습니다. 텍스처 이름은 게임 전체가 함께 쓰는 이름표입니다.
 function sheetKey(job, weapon) {
-  return 'w-' + job.key + '-' + weapon.tier;
+  return 'sheet-w-' + job.key + '-' + weapon.tier;
 }
 
 // 지금 든 무기의 박자. 무기표의 `icon.art` 를 그대로 씁니다 —

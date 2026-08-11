@@ -78,7 +78,7 @@ function loadArt(scene) {
 function loadSheets(scene, jobKey) {
   if (typeof SHEET_ART === 'undefined') return;
   Object.keys(SHEET_ART).forEach((key) => {
-    if (jobKey && !key.startsWith('w-' + jobKey + '-')) return;
+    if (jobKey && !key.startsWith('sheet-w-' + jobKey + '-')) return;
     if (scene.textures.exists(key)) return;
     const s = SHEET_ART[key];
     scene.load.spritesheet(key, s.url, { frameWidth: s.fw, frameHeight: s.fh });

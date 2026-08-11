@@ -101,14 +101,24 @@ async function boot(browser, port, jobIndex) {
 
     // 서른여섯 자루가 화면에서 같은 키로 서는가. 무기마다 휘두르는 폭이
     // 달라 인물이 다르게 구워졌으므로 잰 키로 나눠 줍니다.
-    const heights = Object.keys(SHEET_ART).map((k) => {
-      const d = SHEET_ART[k];
-      return +(52 / d.hero * d.hero).toFixed(1);   // = HERO_H, 정의상 늘 같아야 합니다
-    });
     const missing = [];
     ['warrior', 'archer', 'rogue'].forEach((j) => {
-      for (let t = 0; t < 12; t++) if (!SHEET_ART['w-' + j + '-' + t]) missing.push(j + t);
+      for (let t = 0; t < 12; t++) if (!SHEET_ART['sheet-w-' + j + '-' + t]) missing.push(j + t);
     });
+
+    // **시트 이름이 무기 아이콘 이름을 덮으면 안 됩니다.**
+    // weaponIconKey(job, tier) 는 'w-warrior-0' 을 내놓고, buildWeaponIcons 는
+    // "이미 있는 키는 건너뛴다"입니다. 시트를 같은 이름으로 올렸더니 무기
+    // 아이콘이 아예 안 만들어지고, 발판 위 UP 칸과 HUD 에 주인공이 통째로
+    // 30×30 으로 찌그러져 들어앉았습니다. 이름이 겹치는지 여기서 봅니다.
+    const clash = [];
+    CLASSES.forEach((job) => job.weapons.forEach((w, t) => {
+      const k = weaponIconKey(job.key, t);
+      if (SHEET_ART[k]) clash.push(k);
+      // 무기 아이콘은 **한 칸짜리**여야 합니다. 여러 칸이면 시트가 앉은 것입니다.
+      const tex = s.textures.get(k);
+      if (tex && tex.frameTotal > 2) clash.push(k + '(칸 ' + (tex.frameTotal - 1) + ')');
+    }));
 
     return {
       walk: walk(BEATS.sword),
@@ -118,7 +128,12 @@ async function boot(browser, port, jobIndex) {
       onScreen: +(rig.scale * rig.data.hero).toFixed(1),
       sheets: Object.keys(SHEET_ART).length,
       missing,
-      heights: heights.length,
+      clash,
+      // 발판 위 UP 칸이 쓰는 그림. 무기 아이콘의 실제 크기입니다.
+      iconSize: (() => {
+        const im = s.textures.get(weaponIconKey(s.job.key, 0)).getSourceImage();
+        return im.width + '×' + im.height;
+      })(),
       picks: [
         '전사0=' + pick('warrior', 0), '전사3=' + pick('warrior', 3),
         '도적0=' + pick('rogue', 0), '도적2=' + pick('rogue', 2),
@@ -131,8 +146,12 @@ async function boot(browser, port, jobIndex) {
     };
   });
 
-  check(motion.cut && motion.key === 'w-warrior-0',
+  check(motion.cut && motion.key === 'sheet-w-warrior-0',
     '주인공이 그 무기의 시트로 서 있음', motion.key);
+
+  check(!motion.clash.length,
+    '시트 이름이 무기 아이콘 이름을 안 덮음 (발판 위 UP 칸이 무기로 보임)',
+    motion.clash.length ? '겹침: ' + motion.clash.join(' ') : '무기 아이콘 ' + motion.iconSize);
 
   check(motion.sheets === 36 && !motion.missing.length,
     '무기 서른여섯 자루의 시트가 다 있음',
