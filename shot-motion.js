@@ -5,6 +5,18 @@
 // 타이밍은 게임 그대로입니다 — js/motion.js 의 motionMs(rate) = min(rate*0.85, 320).
 // 여덟 컷을 그 시간에 나눠 돌리고, 다음 공격까지 남는 시간은 첫 컷으로 쉽니다.
 // 그 쉬는 마디가 있어야 "휘두르고 돌아온다"가 보입니다.
+//
+// ── 컷마다 시간이 다릅니다 ─────────────────────────────────
+// 여덟 컷을 40ms 씩 균등하게 돌렸더니 휘두르는 맛이 없었습니다. 애니메이션
+// 쪽 통설이 그 이유를 정확히 말해 줍니다 — **예비동작을 늦추고 타격을 빠르게
+// 하는 것이, 컷을 더 넣는 것보다 낫다.**
+//
+// 그래서 컷마다 무게를 다르게 줍니다.
+//   0~2 예비동작   느리게 (칼을 뒤로 당기는 동안 시간이 흘러야 힘이 쌓입니다)
+//   3~4 타격       아주 빠르게 (한 컷이 확 지나가야 빠르게 보입니다)
+//   5   팔로스루   길게 붙듭니다 (여기가 "맞았다"가 읽히는 자리입니다)
+//   6~7 회복       보통
+const WEIGHT = [1.7, 1.4, 1.0, 0.45, 0.45, 1.9, 1.1, 1.0];
 const fs=require('fs'), path=require('path'); const { chromium }=require('playwright');
 const ROOT=__dirname;
 const RATES={}; // classes.js 에서 읽습니다
@@ -57,14 +69,18 @@ const RATES={}; // classes.js 에서 읽습니다
        <img class=real id="r${n}" src="${c.frames[0]}">
      </div><div class=t>${c.label} · ${c.rate}ms 마다</div></div>`).join('')}</div>
    <script>
-   const CARDS=${JSON.stringify(cards.map(c=>({frames:c.frames,ms:c.ms,rate:c.rate})))};
+   const CARDS=${JSON.stringify(cards.map(c=>({frames:c.frames,ms:c.ms,rate:c.rate,weight:WEIGHT})))};
    CARDS.forEach((c,n)=>{
      const big=document.getElementById('b'+n), real=document.getElementById('r'+n);
-     const per=c.ms/8;
+     // 컷마다 시간이 다릅니다. 무게를 합이 1 이 되게 고쳐 누적 경계를 만듭니다.
+     const W=c.weight, sum=W.reduce((a,b)=>a+b,0);
+     const edge=[]; let acc=0;
+     W.forEach(w=>{acc+=w/sum*c.ms; edge.push(acc);});
      let t0=performance.now();
      function tick(now){
        const e=(now-t0)%c.rate;
-       const i=e<c.ms?Math.min(7,Math.floor(e/per)):0;   // 남는 시간은 첫 컷으로 쉽니다
+       let i=0;
+       if(e<c.ms){ while(i<7&&e>edge[i]) i++; } else i=0;  // 남는 시간은 첫 컷으로 쉽니다
        big.src=c.frames[i]; real.src=c.frames[i];
        requestAnimationFrame(tick);
      }

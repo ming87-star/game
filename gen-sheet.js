@@ -105,6 +105,10 @@ function promptFor(job, weapon) {
     'CRITICAL: it is the exact same character and the exact same weapon in all frames — identical '
       + 'armour, identical colours, identical proportions, identical size. Only the pose changes.',
     GRID, STYLE, BG,
+    // 배경 규칙을 맨 끝에 한 번 더 둡니다. 지시문이 길어지면 앞쪽이 묻혀서
+    // 흰 칸 위에 그려 오는 일이 생깁니다.
+    'FINAL REMINDER: the entire background, in every cell and between all cells, is flat pure '
+      + 'magenta #FF00FF. Not white. Not grey. Not a card or a panel. Magenta.',
   ].join('\n\n');
 }
 
@@ -130,19 +134,35 @@ function refFor(job, weapon) {
   return fs.existsSync(f) ? fs.readFileSync(f).toString('base64') : null;
 }
 
+// 참조는 **가늠자**입니다. 그대로 베끼게 했더니 원본 모션이 원래 얌전해서
+// 휘두르는 맛이 안 났습니다. 그래서 "순서·방향·발 자리"만 가져가고, 힘은
+// 애니메이션 원칙으로 다시 넣게 합니다 — 예비동작 · 스미어 · 팔로스루.
 const REF_RULE = [
-  'The attached image is a POSE REFERENCE sheet: the same 8 frames of this exact attack animation,',
-  'laid out in the same grid, drawn as rough placeholder art.',
-  'Redraw every frame in your own polished style, but KEEP THE POSE OF EACH FRAME EXACTLY as it is',
-  'in the reference — the same body angle, the same lean, the same arm and weapon angle, the same',
-  'foot placement, the same frame order. Frame N of your sheet must match frame N of the reference.',
-  'The feet stay planted where the reference puts them; do not slide the character around.',
-  'Keep the same overall size and the same ground line in every cell as the reference.',
-  'Only the art quality changes — the motion must not.',
-  'IMPORTANT: in the reference the weapon is sometimes CLIPPED where it runs past the edge of its',
-  'cell. Do not copy that clipping — work out where the blade was going and draw the weapon WHOLE,',
-  'complete from hilt to tip, at the same angle. Shrink the figure a little if that is what it takes',
-  'to fit the whole weapon inside the cell with a margin.',
+  'The attached image is a rough POSE GUIDE: the same 8 frames of this attack, in the same grid,',
+  'drawn as crude placeholder art. Use it ONLY to know, for each frame: where in the swing we are,',
+  'which way the weapon points, which foot is forward, and how the frames run in order.',
+  'Do NOT copy it literally — that guide is stiff and weak, and copying it makes a limp animation.',
+  '',
+  'Redraw the whole cycle as a real, powerful attack using proper animation principles:',
+  '· ANTICIPATION — the early frames wind up FURTHER back than the guide does, weight shifting onto',
+  '  the back foot, shoulders and hips coiled away from the target.',
+  '· EXTREMES — push the strongest frames well past the guide. Big rotation of the weapon between',
+  '  consecutive frames is good; a swing should cover a lot of arc in very few frames.',
+  '· SMEAR — on the fastest frame (the impact), stretch and blur the weapon into a curved arc trail',
+  '  so the eye reads speed. One smear frame is enough.',
+  '· FOLLOW THROUGH — after impact the weapon overshoots low and the body is committed forward,',
+  '  clearly past the point of balance, before recovering.',
+  '· WEIGHT — the body leans and drops through the strike; do not keep it upright and static.',
+  '',
+  'Keep from the guide: the frame order, the general direction of travel, and the feet staying',
+  'planted on the same ground line (the character must not drift across the cell).',
+  'Every frame must be the same character at the same scale on the same ground line.',
+  '',
+  'Draw the weapon WHOLE in every frame — complete from hilt to tip, never running off the edge of',
+  'its cell and never cut short. If a long weapon will not fit, draw the character slightly smaller.',
+  '',
+  'KEEP THE BACKGROUND OF THE REFERENCE: the guide sits on flat pure magenta #FF00FF and yours must',
+  'too. Do not put the frames on white, on a light box, on cards or on panels of any kind.',
 ].join(' ');
 
 async function generate(job, weapon) {
@@ -194,21 +214,43 @@ async function slice(oven, png, job) {
     }
     x.putImageData(d, 0, 0);
 
-    // 1.5 칸 테두리를 얇게 지웁니다.
+    // 1.5 격자선만 골라 지웁니다.
     // 모델에게 "격자선을 그리지 마라"고 해도 **검은 칸 선을 그려 옵니다.**
-    // 그 선은 마젠타가 아니라 배경 제거를 통과하고, 칸 네 변에 붙어 있어서
-    // 경계를 재면 늘 칸 끝까지 벌어집니다. 여백을 넉넉히 요구해 두었으니
-    // 이 띠를 지워도 그림은 안 다칩니다.
+    // 그 선은 마젠타가 아니라 배경 제거를 통과합니다.
+    //
+    // 처음엔 칸 테두리를 2% 통째로 지웠는데, 그러면 **그 띠에 걸친 칼끝까지
+    // 같이 잘려 나갑니다.** 그래서 지금은 경계선 자리를 훑어보고 "거의 다 차
+    // 있는 줄"일 때만 그 줄 ±2px 을 지웁니다. 칼은 한 줄을 다 채우지 못하므로
+    // 안 걸립니다.
     const cw0 = c.width / a.cols, ch0 = c.height / a.rows;
-    const inset = Math.max(4, Math.round(Math.min(cw0, ch0) * 0.02));
-    for (let r = 0; r < a.rows; r++) for (let q = 0; q < a.cols; q++) {
-      const sx = Math.round(q * cw0), sy = Math.round(r * ch0);
-      const ex = Math.round((q + 1) * cw0), ey = Math.round((r + 1) * ch0);
-      for (let Y = sy; Y < ey; Y++) for (let X = sx; X < ex; X++) {
-        if (X < sx + inset || X >= ex - inset || Y < sy + inset || Y >= ey - inset) {
-          p[(Y * c.width + X) * 4 + 3] = 0;
-        }
+    const wipeCol = (X) => {
+      let filled = 0;
+      for (let Y = 0; Y < c.height; Y++) if (p[(Y * c.width + X) * 4 + 3] > 24) filled++;
+      if (filled < c.height * 0.7) return false;
+      for (let dx = -2; dx <= 2; dx++) {
+        const nx = X + dx; if (nx < 0 || nx >= c.width) continue;
+        for (let Y = 0; Y < c.height; Y++) p[(Y * c.width + nx) * 4 + 3] = 0;
       }
+      return true;
+    };
+    const wipeRow = (Y) => {
+      let filled = 0;
+      for (let X = 0; X < c.width; X++) if (p[(Y * c.width + X) * 4 + 3] > 24) filled++;
+      if (filled < c.width * 0.7) return false;
+      for (let dy = -2; dy <= 2; dy++) {
+        const ny = Y + dy; if (ny < 0 || ny >= c.height) continue;
+        for (let X = 0; X < c.width; X++) p[(ny * c.width + X) * 4 + 3] = 0;
+      }
+      return true;
+    };
+    let wiped = 0;
+    for (let q = 0; q <= a.cols; q++) {
+      const X = Math.min(c.width - 1, Math.max(0, Math.round(q * cw0)));
+      for (let o = -3; o <= 3; o++) if (wipeCol(Math.min(c.width - 1, Math.max(0, X + o)))) wiped++;
+    }
+    for (let r = 0; r <= a.rows; r++) {
+      const Y = Math.min(c.height - 1, Math.max(0, Math.round(r * ch0)));
+      for (let o = -3; o <= 3; o++) if (wipeRow(Math.min(c.height - 1, Math.max(0, Y + o)))) wiped++;
     }
     x.putImageData(d, 0, 0);
 
