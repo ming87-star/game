@@ -1,0 +1,17 @@
+<!-- 도적 · 웅크린 다리 조각 40×48 · 골반(20,33)을 축으로 돕니다
+     원본에서 다리 · 무릎 감개 · 발을 떼어 왔습니다.
+     도적은 원래 낮게 웅크린 자세라, 찌를 때 무릎이 조금만 더 펴져도
+     "밀고 나갔다"가 크게 읽힙니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="48" viewBox="0 0 40 48">
+  <g stroke="#1e0f36" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M15 32 q-5 4 -4 10 h5.4 q0 -5.4 3.6 -8.4 z" fill="#4527a0"/>
+    <path d="M25 32 q5 4 4 10 h-5.4 q0 -5.4 -3.6 -8.4 z" fill="#5e35b1"/>
+    <path d="M26 34 q2.6 2.6 3 6.4 l-2.4 0 q-0.6 -3.4 -2.6 -5.4 z" fill="#7e57c2" stroke="none"/>
+    <path d="M12.6 38 q3.4 1 5.6 -0.6 M23 37.4 q3 1.6 5.6 0.6" fill="none" stroke-width="1"/>
+    <path d="M9 41.6 h8 q1.2 0 1.2 1.6 v3 q0 1.2 -1.2 1.2 h-8 q-1.2 0 -1.2 -1.2 v-3 q0 -1.6 1.2 -1.6 z"
+          fill="#241645"/>
+    <path d="M23 41.6 h8 q1.2 0 1.2 1.6 v3 q0 1.2 -1.2 1.2 h-8 q-1.2 0 -1.2 -1.2 v-3 q0 -1.6 1.2 -1.6 z"
+          fill="#3a2653"/>
+    <path d="M24 42.4 q3.4 -0.6 6.4 0" fill="none" stroke="#9575cd" stroke-width="0.9"/>
+  </g>
+</svg>

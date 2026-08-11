@@ -1,0 +1,34 @@
+<!-- 궁수 · 활을 잡은 앞팔 조각 42×48 · 어깨(29.4,21)를 축으로 돕니다
+     앞팔 · 팔뚝 보호대 · 손, 그리고 **그 손에 쥔 활**.
+
+     원본에서 활은 등에 메여 있었습니다. 그러면 쏘는 동안 앞손은 빈손으로
+     허공을 잡고, 활은 등에서 흔들립니다 — 당기는 것도 놓는 것도 안 보입니다.
+     활을 손으로 옮기니 이제 활이 앞으로 나가고, 시위가 뒤로 당겨지고,
+     놓는 순간 활 전체가 앞으로 튕깁니다.
+
+     활의 배(불룩한 쪽)가 오른쪽을 봅니다 — 쏘는 쪽입니다. 시위는 그 왼쪽에
+     곧게 섭니다. 끝이 반대로 젖혀진 것(각궁)은 원본 활에서 가져온 성격입니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="42" height="48" viewBox="0 0 42 48">
+  <g stroke="#123018" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">
+
+    <!-- 활 — 손보다 먼저 그려야 손이 활 위에 옵니다 (쥔 것으로 보입니다) -->
+    <path d="M33.6 12.4 q6.4 8 6.4 15.6 q0 7.6 -6.4 15.6"
+          fill="none" stroke="#a9713d" stroke-width="2.8"/>
+    <path d="M33.6 12.4 q6.4 8 6.4 15.6 q0 7.6 -6.4 15.6"
+          fill="none" stroke="#d2955a" stroke-width="1.1"/>
+    <!-- 각궁 — 끝이 반대로 젖혀집니다 -->
+    <path d="M33.6 12.4 q-2.6 1 -2.4 3.4 M33.6 43.6 q-2.6 -1 -2.4 -3.4"
+          fill="none" stroke="#a9713d" stroke-width="2.2"/>
+    <!-- 시위 -->
+    <path d="M31.2 15.8 L31.2 40.2" fill="none" stroke="#f5efe0" stroke-width="0.8" stroke-opacity=".85"/>
+    <!-- 손잡이 감개 -->
+    <path d="M38.4 25 q1.4 -0.4 2 0.4 l0 5 q-1.2 0.8 -2.2 0 z" fill="#4e342e" stroke-width="1.2"/>
+
+    <!-- 앞팔과 손 -->
+    <path d="M29.4 21 q4.4 1.4 6 5.4" fill="none" stroke-width="3.6"/>
+    <path d="M29.4 21 q4.4 1.4 6 5.4" fill="none" stroke="#43a047" stroke-width="2"/>
+    <path d="M31.6 22.6 q2.6 1.4 3.4 3.6 l-2 1 q-0.8 -2.2 -3 -3.4 z" fill="#6d4c41"/>
+    <path d="M32 22.4 q2.6 1.4 3.6 3.8" fill="none" stroke="#ffc94d" stroke-width="0.9"/>
+    <circle cx="36" cy="27.4" r="2" fill="#f4c08a"/>
+  </g>
+</svg>

@@ -58,6 +58,7 @@ async function boot(browser, port, jobIndex) {
     args: ['--no-sandbox', '--use-gl=swiftshader'],
   });
 
+
   // ── 공격 모션 ──────────────────────────────────────────
   // 몸짓은 눈으로 봐야 알지만, **눈으로만 보면 조용히 어긋납니다.** 값을 하나
   // 잘못 고쳐 창이 검처럼 돌아도 화면에서는 "좀 이상한데" 정도로만 보입니다.
@@ -68,22 +69,29 @@ async function boot(browser, port, jobIndex) {
     const s = window.__scene;
     const rig = s.rig;
 
-    // 한 판을 촘촘히 훑어 그 몸짓이 어디까지 갔는지를 잽니다.
+    // 한 판을 촘촘히 훑어 조각마다 어디까지 갔는지를 잽니다.
     const sweep = (m) => {
-      const out = { minDx: 0, maxDx: 0, maxRot: 0, minRot: 0, peaks: 0 };
-      const dxs = [];
+      const out = {};
+      ['root', 'body', 'arm', 'legs', 'cape'].forEach((k) => {
+        out[k] = { minDx: 0, maxDx: 0, minRot: 0, maxRot: 0, peaks: 0 };
+      });
+      const armDx = [];
       for (let i = 0; i <= 100; i++) {
-        rig.applyAt(m.keys, i / 100);
-        const p = rig.pose;
-        dxs.push(p.dx);
-        out.minDx = Math.min(out.minDx, p.dx);
-        out.maxDx = Math.max(out.maxDx, p.dx);
-        out.maxRot = Math.max(out.maxRot, p.rot);
-        out.minRot = Math.min(out.minRot, p.rot);
+        rig.applyAt(m, i / 100);
+        const all = { root: rig.root, ...rig.pose };
+        Object.keys(out).forEach((k) => {
+          const p = all[k];
+          if (!p) return;
+          out[k].minDx = Math.min(out[k].minDx, p.dx);
+          out[k].maxDx = Math.max(out[k].maxDx, p.dx);
+          out[k].minRot = Math.min(out[k].minRot, p.rot);
+          out[k].maxRot = Math.max(out[k].maxRot, p.rot);
+        });
+        armDx.push(rig.root.dx + (rig.pose.arm ? rig.pose.arm.dx : 0));
       }
       // 앞으로 나갔다 되돌아오는 산의 개수. 쌍단검만 둘이어야 합니다.
-      for (let i = 1; i < dxs.length - 1; i++) {
-        if (dxs[i] > dxs[i - 1] && dxs[i] >= dxs[i + 1] && dxs[i] > 4) out.peaks++;
+      for (let i = 1; i < armDx.length - 1; i++) {
+        if (armDx[i] > armDx[i - 1] && armDx[i] >= armDx[i + 1] && armDx[i] > 4) out.arm.peaks++;
       }
       return out;
     };
@@ -92,13 +100,12 @@ async function boot(browser, port, jobIndex) {
     // MOTIONS 만 맞고 무기가 딴 것을 집으면 아무 뜻이 없습니다.
     const pick = (jobKey, tier) => {
       const job = classByKey(jobKey);
-      const w = { base: job.weapons[tier] };
-      const m = motionFor(job, w);
+      const m = motionFor(job, { base: job.weapons[tier] });
       return Object.keys(MOTIONS).find((k) => MOTIONS[k] === m);
     };
 
-    rig.applyAt(MOTIONS.sword.keys, 1);
-    const ended = { ...rig.pose };
+    rig.applyAt(MOTIONS.sword, 1);
+    const ended = { root: { ...rig.root }, arm: { ...rig.pose.arm }, cape: { ...rig.pose.cape } };
     rig.rest();
 
     return {
@@ -109,72 +116,116 @@ async function boot(browser, port, jobIndex) {
       bow: sweep(MOTIONS.bow),
       crossbow: sweep(MOTIONS.crossbow),
       ended,
+      cut: rig.cut,
+      parts: rig.parts.map((p) => p.key + (p.on ? '→' + p.on : '')),
       picks: [
         '전사0=' + pick('warrior', 0), '전사3=' + pick('warrior', 3),
         '도적0=' + pick('rogue', 0), '도적2=' + pick('rogue', 2),
         '궁수0=' + pick('archer', 0), '궁수3=' + pick('archer', 3),
       ],
-      // 다음 대가 나가기 전에 한 판이 끝나야 동작이 잘려 보이지 않습니다.
       fits: [410, 300, 230, 170, 85].every((rate) => motionMs(rate) <= rate),
-      // 이펙트를 늦추는 것은 아무리 느린 무기라도 70ms 를 넘지 않습니다.
       lead: Math.max(...[410, 300, 230, 170].map(
         (rate) => motionLead(MOTIONS.bow, motionMs(rate)))),
     };
   });
 
+  // 몸이 조각으로 나뉘어 있고, 어깨와 망토가 몸통에 매달려 있어야 합니다.
+  check(motion.cut && motion.parts.join(' ') === 'cape→body legs body arm→body',
+    '몸이 네 조각이고 팔·망토가 몸통에 매달림', motion.parts.join(' '));
+
   check(motion.picks.join(' · ') ===
     '전사0=sword · 전사3=spear · 도적0=dagger · 도적2=daggerTwin · 궁수0=bow · 궁수3=crossbow',
     '무기표의 그림과 몸짓이 짝을 이룸', motion.picks.join(' · '));
 
+  // **이 검사가 이번 손질의 핵심입니다.** 예전에는 그림 한 장을 통째로 기울여서
+  // 검이 몸과 같은 각도로만 움직였습니다. 휘두르는 것은 검이지 몸통이 아닙니다.
+  const swing = motion.sword.arm.maxRot - motion.sword.arm.minRot;
+  const torso = motion.sword.body.maxRot - motion.sword.body.minRot;
+  check(swing > torso * 2.5,
+    '검을 휘두를 때 팔이 몸통보다 훨씬 크게 돎',
+    `팔 ${swing.toFixed(2)}rad vs 몸통 ${torso.toFixed(2)}rad`);
+
+  // 발은 딛는 것이 일입니다. 다리까지 크게 움직이면 미끄러지는 것으로 보입니다.
+  check(Math.abs(motion.sword.legs.maxDx) <= 4 && Math.abs(motion.sword.legs.minDx) <= 4,
+    '다리는 거의 안 움직임 (딛고 버팀)',
+    `${motion.sword.legs.minDx.toFixed(0)} ~ ${motion.sword.legs.maxDx.toFixed(0)}`);
+
   // 검은 돌려서 베고 창은 밀어 넣습니다. 이 둘이 안 갈리면 창이 몽둥이가 됩니다.
-  check(motion.spear.maxDx > motion.sword.maxDx * 1.4 &&
-    motion.spear.maxRot < motion.sword.maxRot * 0.5,
+  const spearReach = motion.spear.root.maxDx + motion.spear.arm.maxDx;
+  const swordReach = motion.sword.root.maxDx + motion.sword.arm.maxDx;
+  const spearTurn = motion.spear.arm.maxRot - motion.spear.arm.minRot;
+  check(spearReach > swordReach * 1.5 && spearTurn < swing * 0.25,
     '창은 검보다 멀리 나가고 훨씬 덜 돎',
-    `앞으로 ${motion.spear.maxDx.toFixed(0)} vs ${motion.sword.maxDx.toFixed(0)} · ` +
-    `회전 ${motion.spear.maxRot.toFixed(2)} vs ${motion.sword.maxRot.toFixed(2)}`);
+    `앞으로 ${spearReach.toFixed(0)} vs ${swordReach.toFixed(0)} · ` +
+    `팔 회전 ${spearTurn.toFixed(2)} vs ${swing.toFixed(2)}`);
 
   // 석궁은 이미 걸려 있는 것을 놓을 뿐이라 앞으로 나갈 일이 없습니다.
-  check(motion.crossbow.minDx < -8 && motion.crossbow.maxDx <= 0,
+  check(motion.crossbow.root.minDx < -8 && motion.crossbow.root.maxDx <= 0,
     '석궁은 앞으로 안 나가고 뒤로 밀림',
-    `뒤로 ${motion.crossbow.minDx.toFixed(0)} · 앞으로 ${motion.crossbow.maxDx.toFixed(0)}`);
+    `뒤로 ${motion.crossbow.root.minDx.toFixed(0)} · 앞으로 ${motion.crossbow.root.maxDx.toFixed(0)}`);
 
-  check(motion.twin.peaks === 2 && motion.dagger.peaks === 1,
+  check(motion.twin.arm.peaks === 2 && motion.dagger.arm.peaks === 1,
     '쌍단검은 두 번, 단검은 한 번 나감',
-    `쌍 ${motion.twin.peaks}번 · 단 ${motion.dagger.peaks}번`);
+    `쌍 ${motion.twin.arm.peaks}번 · 단 ${motion.dagger.arm.peaks}번`);
 
-  // 활은 놓을 때가 아니라 **당길 때** 힘이 실립니다 — 뒤로 눕는 것이 더 커야 합니다.
-  check(motion.bow.minRot < -0.15 && Math.abs(motion.bow.minRot) > motion.bow.maxRot,
+  // 활은 놓을 때가 아니라 **당길 때** 힘이 실립니다 — 몸이 뒤로 눕는 것이 더 큽니다.
+  check(motion.bow.body.minRot < -0.15 &&
+    Math.abs(motion.bow.body.minRot) > motion.bow.body.maxRot,
     '활은 앞으로 서기보다 뒤로 눕는 것이 큼',
-    `뒤 ${motion.bow.minRot.toFixed(2)} · 앞 ${motion.bow.maxRot.toFixed(2)}`);
+    `뒤 ${motion.bow.body.minRot.toFixed(2)} · 앞 ${motion.bow.body.maxRot.toFixed(2)}`);
 
-  const rested = Object.values(motion.ended);
-  check(rested.every((v) => Math.abs(v) < 0.001 || Math.abs(v - 1) < 0.001),
-    '판이 끝나면 자세가 제자리로', JSON.stringify(motion.ended));
+  // 활 든 팔은 몸통에 매달려 있으므로, 허리가 젖힌 만큼을 되돌려야 활이 섭니다.
+  check(motion.bow.arm.maxRot >= Math.abs(motion.bow.body.minRot) * 0.9,
+    '활 든 팔은 허리가 젖혀도 표적을 향해 버팀',
+    `팔 +${motion.bow.arm.maxRot.toFixed(2)} vs 허리 ${motion.bow.body.minRot.toFixed(2)}`);
+
+  const restVals = [].concat(...Object.values(motion.ended).map((o) => Object.values(o)));
+  check(restVals.every((v) => Math.abs(v) < 0.001 || Math.abs(v - 1) < 0.001),
+    '판이 끝나면 조각이 모두 제자리로', JSON.stringify(motion.ended.arm));
 
   check(motion.fits, '한 판이 다음 대보다 먼저 끝남');
   check(motion.lead <= 70, '이펙트를 늦추는 것은 70ms 를 안 넘음', motion.lead + 'ms');
 
-  // 겉몸이 물리 몸을 그대로 따라가는가. 여기가 어긋나면 주인공이 제자리에
-  // 서 있는데 그림만 딴 데 가 있습니다.
+  // 조각이 물리 몸을 그대로 따라가는가. 여기가 어긋나면 주인공이 제자리에
+  // 서 있는데 그림만 딴 데 가 있습니다. 그리고 허리를 돌리면 어깨도 따라와야
+  // 합니다 — 안 따라오면 팔만 그 자리에 남아 몸에서 떨어져 나갑니다.
   const follow = await warrior.evaluate(() => {
     const s = window.__scene;
+    const armOf = () => {
+      const a = s.rig.parts.find((p) => p.key === 'arm').view;
+      return { x: Math.round(a.x * 10) / 10, y: Math.round(a.y * 10) / 10 };
+    };
     s.player.setPosition(200, 400);
     s.player.setFlipX(false);
-    s.rig.pose.dx = 10; s.rig.pose.dy = -4;
-    s.rig.sync();
-    const right = { x: s.rig.view.x, y: s.rig.view.y };
-    s.player.setFlipX(true); // 왼쪽을 보면 앞은 왼쪽입니다
-    s.rig.sync();
-    const left = { x: s.rig.view.x, y: s.rig.view.y };
     s.rig.rest(); s.rig.sync();
-    const rest = { x: s.rig.view.x, y: s.rig.view.y, hidden: s.player.visible };
-    return { right, left, rest };
+    const rest = armOf();
+
+    s.rig.pose.body.rot = 0.6; // 허리만 돌립니다
+    s.rig.sync();
+    const turned = armOf();
+
+    // 앞으로 10 나갔을 때 어느 쪽으로 얼마나 가는가. 바라보는 쪽마다
+    // **쉬는 자리가 다르므로**(어깨도 같이 뒤집힙니다) 각자의 쉬는 자리에서 잽니다.
+    const step = (flip) => {
+      s.player.setFlipX(flip);
+      s.rig.rest(); s.rig.sync();
+      const from = armOf().x;
+      s.rig.root.dx = 10; s.rig.sync();
+      return armOf().x - from;
+    };
+    const right = step(false);
+    const left = step(true);
+
+    s.rig.rest(); s.player.setFlipX(false); s.rig.sync();
+    return { rest, turned, right, left, hidden: s.player.visible };
   });
-  check(follow.right.x === 210 && follow.right.y === 396 && follow.left.x === 190,
-    '겉몸이 물리 몸을 따라가고, 앞쪽은 바라보는 쪽',
-    `오른쪽 ${follow.right.x} · 왼쪽 ${follow.left.x}`);
-  check(follow.rest.x === 200 && follow.rest.y === 400 && follow.rest.hidden === false,
-    '쉴 때는 물리 몸 자리 그대로 (그리고 물리 몸은 안 보임)');
+  const moved = Math.hypot(follow.turned.x - follow.rest.x, follow.turned.y - follow.rest.y);
+  check(moved > 2, '허리를 돌리면 어깨도 따라 돎 (팔이 떨어져 나가지 않음)',
+    moved.toFixed(1) + 'px 실려 감');
+  check(follow.right === 10 && follow.left === -10,
+    '앞쪽은 바라보는 쪽 (좌우가 뒤집혀도 같은 크기)',
+    `오른쪽 ${follow.right.toFixed(0)} · 왼쪽 ${follow.left.toFixed(0)}`);
+  check(follow.hidden === false, '물리 몸은 안 보이고 조각만 보임');
 
   // ── 파동검 (전사) ──────────────────────────────────────
   const wave = await warrior.evaluate(async () => {

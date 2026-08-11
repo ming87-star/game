@@ -1,0 +1,27 @@
+<!-- 전사 · 검을 쥔 팔 조각 38×48 · 어깨(22.5,26.5)를 축으로 돕니다
+     원본에서 검 · 코등이 · 자루 · 팔을 통째로 떼어 왔습니다. 칠도 좌표도 그대로입니다.
+
+     **이 조각 하나가 모션의 전부입니다.** 예전에는 그림 한 장을 기울이기만 해서
+     검이 몸과 같은 각도로만 움직였습니다. 검은 몸보다 훨씬 크게, 훨씬 빨리
+     움직여야 "휘둘렀다"가 됩니다 — 몸이 20도 도는 동안 검은 120도를 돕니다.
+
+     팔의 시작(22,27)은 stroke-linecap="round" 라 그 자체가 둥근 관절입니다.
+     따로 이음매를 그려 덮을 필요가 없습니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="38" height="48" viewBox="0 0 38 48">
+  <g stroke="#131826" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">
+
+    <!-- 팔 — 검보다 먼저 그려야 검이 손 위에 옵니다 -->
+    <path d="M22 27 q3 1 4 4" fill="none" stroke-width="3.4"/>
+    <path d="M22 27 q3 1 4 4" fill="none" stroke="#8fa3b5" stroke-width="1.8"/>
+
+    <!-- 검 -->
+    <path d="M25.4 25.6 L31.2 6.6 L35 2 L34 8.4 L28.6 27 z" fill="#c3d4e4"/>
+    <path d="M25.4 25.6 L31.2 6.6 L35 2 L32.8 6.4 L27.4 26.2 z" fill="#ffffff" stroke="none"/>
+    <path d="M27.6 25 L32.4 8" fill="none" stroke="#8fa3b5" stroke-width="0.8"/>
+
+    <!-- 코등이와 자루 -->
+    <path d="M22.4 23.6 L30.2 26.6 L29.2 29.4 L21.4 26.4 z" fill="#ffc94d"/>
+    <path d="M22.8 24.4 L29.6 27 L29.2 28 L22.4 25.4 z" fill="#ffe9a8" stroke="none"/>
+    <path d="M24.4 28.6 L21.4 33.4" fill="none" stroke-width="2.6"/>
+  </g>
+</svg>

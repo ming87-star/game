@@ -887,7 +887,7 @@ class GameScene extends Phaser.Scene {
     const motion = motionFor(this.job, this.weapon);
     const ms = motionMs(this.weapon.rate);
     this.rig.face(target.x);
-    this.rig.play(motion.keys, ms);
+    this.rig.play(motion, ms);
     return motionLead(motion, ms);
   }
 

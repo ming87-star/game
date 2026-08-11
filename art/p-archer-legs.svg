@@ -1,0 +1,18 @@
+<!-- 궁수 · 다리 조각 42×48 · 골반(24,31)을 축으로 돕니다
+     다리 · 정강이 감개 · 부츠, 그리고 허리에서 갈라져 날리는 겉옷 자락.
+     겉옷을 다리에 붙여 둔 것은 그 자락이 다리를 따라 흔들려야 하기 때문입니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="42" height="48" viewBox="0 0 42 48">
+  <g stroke="#123018" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M17 28 q-5 5 -7 13 q5 -3 8 -8 z" fill="#1f5b2a"/>
+    <path d="M29 28 q4 4 5 10 q-4 -2 -6 -6 z" fill="#2e7d32"/>
+    <path d="M19 31 q-1.5 6 -0.5 11 h4.5 q1 -5 0.5 -11 z" fill="#1f5b2a"/>
+    <path d="M25 31 q-1.5 6 -0.5 11 h4.5 q1 -5 0.5 -11 z" fill="#43a047"/>
+    <path d="M26 32.5 q1.5 -0.5 2.5 0 q0 4 -0.5 8 q-1.5 0.5 -2.5 0 z" fill="#81c784" stroke="none"/>
+    <path d="M18.6 36 q3 1.4 5.4 0 M24.6 36 q3 1.4 5.4 0" fill="none" stroke-width="1"/>
+    <path d="M16 41.6 h7 q1.2 0 1.2 1.6 v3 q0 1.2 -1.2 1.2 h-7 q-1.2 0 -1.2 -1.2 v-3 q0 -1.6 1.2 -1.6 z"
+          fill="#2b1f14"/>
+    <path d="M24 41.6 h7 q1.2 0 1.2 1.6 v3 q0 1.2 -1.2 1.2 h-7 q-1.2 0 -1.2 -1.2 v-3 q0 -1.6 1.2 -1.6 z"
+          fill="#4a3524"/>
+    <path d="M25 42.4 q3 -0.6 5.6 0" fill="none" stroke="#8d6e63" stroke-width="0.9"/>
+  </g>
+</svg>

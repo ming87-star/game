@@ -1,0 +1,16 @@
+<!-- 궁수 · 등에 진 것 조각 42×48 · 어깨(20,22)를 축으로 돕니다
+     화살통과 어깨 너머 화살 깃입니다.
+
+     **활은 여기 없습니다.** 원본에서는 활이 등에 메여 있었는데, 그러면 쏘는
+     동안 활이 등에서 흔들리고 앞손은 빈손으로 허공을 잡습니다. 활을 앞손으로
+     옮겼습니다 (p-archer-arm) — 당기고 놓는 것이 보이려면 활이 손에 있어야 합니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="42" height="48" viewBox="0 0 42 48">
+  <g stroke="#123018" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M14 34 L19 21 L24 23 L20 36 q-3 2 -6 -2 z" fill="#5d4037"/>
+    <path d="M15.6 32 L19.6 22 L21.6 22.8 L17.6 33 z" fill="#8d6e63" stroke="none"/>
+    <path d="M16 25 q4 2 7 0" fill="none" stroke="#3e2723" stroke-width="1.1"/>
+    <path d="M18.6 22 L10 9 M21 21 L13.6 7" fill="none" stroke="#8d6e63" stroke-width="1.2"/>
+    <path d="M10 9 q-3.4 -3 -1.6 -5.4 q3.4 1.4 3.4 4.4 z" fill="#f5efe0" stroke-width="1.1"/>
+    <path d="M13.6 7 q-2.4 -4 -0.4 -5.6 q3 2.2 2.2 5.2 z" fill="#a5d6a7" stroke-width="1.1"/>
+  </g>
+</svg>

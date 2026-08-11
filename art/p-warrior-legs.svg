@@ -1,0 +1,17 @@
+<!-- 전사 · 다리 조각 38×48 · 골반(19,33)을 축으로 돕니다
+     원본에서 다리와 부츠만 떼어 왔습니다.
+
+     다리를 따로 두는 것이 이 모션에서 가장 크게 달라지는 부분입니다.
+     예전에는 그림 한 장을 통째로 앞으로 밀었더니 **발까지 같이 미끄러졌습니다.**
+     사람은 발을 딛고 그 위에서 몸을 던집니다 — 발이 제자리에 남아야
+     "밀었다"가 아니라 "실었다"가 됩니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="38" height="48" viewBox="0 0 38 48">
+  <g stroke="#131826" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M14 33 q-1 5 0 8 h4 q1 -4 0 -8 z" fill="#465a70"/>
+    <path d="M21 33 q-1 5 0 8 h4 q1 -4 0 -8 z" fill="#5f778f"/>
+    <path d="M22 34 q1.4 -0.4 2.4 0 q0.4 3 0 6 q-1.4 0.4 -2.4 0 z" fill="#7d93a8" stroke="none"/>
+    <path d="M11 41 h7 q1 0 1 2 v3 q0 1 -1 1 h-7 q-1 0 -1 -1 v-3 q0 -2 1 -2 z" fill="#2c3849"/>
+    <path d="M20 41 h7 q1 0 1 2 v3 q0 1 -1 1 h-7 q-1 0 -1 -1 v-3 q0 -2 1 -2 z" fill="#3b4c61"/>
+    <path d="M21 41.8 q3 -0.6 5.6 0" fill="none" stroke="#7d93a8" stroke-width="0.9"/>
+  </g>
+</svg>

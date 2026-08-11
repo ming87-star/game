@@ -1,0 +1,15 @@
+<!-- 도적 · 단검을 쥔 앞팔 조각 40×48 · 어깨(29.6,25.6)를 축으로 돕니다
+     원본에서 앞팔 · 손 · 날 · 코등이를 떼어 왔습니다.
+
+     도적의 팔은 검보다 짧아서 크게 돌리면 팔만 헛돕니다. 대신 어깨를
+     **앞뒤로 밀어** 찔러 넣습니다 — 회전보다 이동이 큰 것이 단검의 성격입니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="48" viewBox="0 0 40 48">
+  <g stroke="#1e0f36" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M29.6 25.6 q4 1.2 5.4 4.4" fill="none" stroke-width="3.6"/>
+    <path d="M29.6 25.6 q4 1.2 5.4 4.4" fill="none" stroke="#9575cd" stroke-width="2"/>
+    <circle cx="35.2" cy="30.4" r="2" fill="#4527a0"/>
+    <path d="M34 28.4 L39.4 22.6 L40 24 L35.6 30 z" fill="#eceff1"/>
+    <path d="M34.6 28.8 L39.4 22.6 L39.7 23.4 L35 29.4 z" fill="#ffffff" stroke="none"/>
+    <path d="M33 27.6 L36.4 30 l-1 1.6 l-3.4 -2.4 z" fill="#ffd54f" stroke-width="1.1"/>
+  </g>
+</svg>

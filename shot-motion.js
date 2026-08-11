@@ -28,7 +28,8 @@ const SHOTS = [
   { job: 1, tier: 3, motion: 'crossbow', title: '석궁 — 당김 없이 반동으로 밀림' },
 ];
 const FRAMES = 8;
-const BOX = { w: 150, h: 130 }; // 주인공을 둘러싼 만큼만. 자리는 화면에서 직접 잽니다
+const BOX = { w: 120, h: 108 }; // 주인공을 둘러싼 만큼만. 자리는 화면에서 직접 잽니다
+const ZOOM = 2;                 // 띠는 두 배로 키워 봅니다 — 관절은 작으면 안 보입니다
 
 async function boot(browser, port, jobIndex) {
   const page = await browser.newPage({ viewport: { width: 540, height: 960 } });
@@ -92,7 +93,8 @@ async function boot(browser, port, jobIndex) {
       s.enemies.getChildren().slice().forEach((e) => e.destroy());
       s.bullets.clear(true, true);
       s.scene.pause();
-      s.children.list.forEach((o) => { if (o !== s.rig.view && o.setVisible) o.setVisible(false); });
+      const keep = new Set(s.rig.views);
+      s.children.list.forEach((o) => { if (!keep.has(o) && o.setVisible) o.setVisible(false); });
       s.cameras.main.setBackgroundColor('#1d2542');
     });
     await page.waitForTimeout(200);
@@ -107,7 +109,7 @@ async function boot(browser, port, jobIndex) {
         const s = window.__scene;
         const cam = s.cameras.main;
         if (s.rig.tw) { s.rig.tw.remove(); s.rig.tw = null; }
-        s.rig.applyAt(motionFor(s.job, s.weapon).keys, i / (n - 1));
+        s.rig.applyAt(motionFor(s.job, s.weapon), i / (n - 1));
         s.rig.sync();
         // 겉몸이 아니라 **물리 몸**을 가운데 둡니다. 겉몸에 맞추면 몸이 앞으로
         // 나간 만큼 틀도 따라 나가서, 움직임이 통째로 지워집니다.
@@ -124,21 +126,21 @@ async function boot(browser, port, jobIndex) {
     await page.close();
   }
 
-  const sheet = await browser.newPage({ viewport: { width: 1310, height: 1260 } });
+  const sheet = await browser.newPage({ viewport: { width: 2000, height: 1740 } });
   await sheet.setContent(`<style>
     html,body{margin:0;background:#0d1120;font-family:sans-serif;color:#8794b5}
     .strip{padding:8px 18px}
     h3{font-size:16px;margin:6px 0;color:#cfd8dc;font-weight:600}
     .row{display:flex;gap:4px}
     figure{margin:0}
-    .win{width:${BOX.w}px;height:${BOX.h}px;overflow:hidden;position:relative;border:1px solid #232b47}
-    .win img{position:absolute;display:block}
+    .win{width:${BOX.w * ZOOM}px;height:${BOX.h * ZOOM}px;overflow:hidden;position:relative;border:1px solid #232b47}
+    .win img{position:absolute;display:block;transform-origin:0 0;transform:scale(${ZOOM});image-rendering:auto}
     figcaption{text-align:center;font-size:11px;padding:3px 0}
     </style>` +
     strips.map((s) => `<div class="strip"><h3>${s.title}</h3><div class="row">` +
       s.frames.map((f, i) =>
-        `<figure><div class="win"><img src="${f}" style="left:${Math.round(BOX.w / 2 - s.at.x)}px;` +
-        `top:${Math.round(BOX.h / 2 - s.at.y)}px"></div><figcaption>${i + 1}</figcaption></figure></figure>`).join('') +
+        `<figure><div class="win"><img src="${f}" style="left:${Math.round((BOX.w / 2 - s.at.x) * ZOOM)}px;` +
+        `top:${Math.round((BOX.h / 2 - s.at.y) * ZOOM)}px"></div><figcaption>${i + 1}</figcaption></figure>`).join('') +
       '</div></div>').join(''));
   await sheet.waitForTimeout(300);
   await sheet.screenshot({ path: path.join(ROOT, 'shots/motion.png'), fullPage: true });
