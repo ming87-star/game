@@ -61,6 +61,20 @@ const WANT = [
   'boss-shot', 'boss-shot-gazer', 'boss-shot-crusher', 'boss-shot-brood', 'boss-shot-phantom',
 ];
 
+// assets/ 에 있지만 **일부러** 안 굽는 것들. 여기 없으면 아래에서
+// "그려는 놨는데 목록에 없다"고 알려 줍니다.
+//
+//   이펙트 여덟  코드가 무기 색을 입혀 씁니다 (setTint). 색이 들어간 그림을
+//                넣으면 그 색이 먹혀서 무기마다 다른 빛깔이 안 나옵니다.
+//                흰색으로 다시 뽑아야 붙일 수 있습니다.
+//   벽·발판·주인공  art/*.svg 가 원본이고 assets/ 쪽은 그 미리보기입니다
+//                (주인공의 SVG 는 화면에 안 나옵니다 — 물리 몸 껍데기입니다).
+const ON_PURPOSE = new Set([
+  'coin', 'slash', 'spark', 'wave', 'bullet', 'enemy-bullet', 'arrow', 'arrow-trail',
+  'wall', 'plat', 'plat-shop', 'plat-boss',
+  'player-warrior', 'player-archer', 'player-rogue',
+]);
+
 (async () => {
   const jobs = [];
   const skipped = [];
@@ -114,6 +128,30 @@ const WANT = [
 
   const kb = Math.round(fs.statSync(OUT).size / 1024);
   console.log(`\njs/spritedata.js  ${kb}KB  (${Object.keys(out).length}장)`);
-  if (skipped.length) console.log('손그림 SVG 가 이김: ' + skipped.join(' '));
   if (missing.length) console.log('아직 없는 그림: ' + missing.join(' ') + ' (도형이 자리를 지킵니다)');
+
+  // ── 놓치기 쉬운 두 가지를 크게 알려 줍니다 ──────────────
+  // 둘 다 **오류가 안 나는** 실수입니다. 그림이 안 붙으면 게임은 조용히
+  // 도형으로 돌아갈 뿐이라, 여기서 안 짚어 주면 눈으로 보기 전에는 모릅니다.
+  // 실제로 이것 때문에 그려 놓은 그림 서른네 장이 두 번이나 묻혔습니다.
+  if (skipped.length) {
+    console.log('\n⚠ 같은 이름의 art/*.svg 가 있어서 **안 구운** 것 ' + skipped.length + '장:');
+    console.log('    ' + skipped.join(' '));
+    console.log('  손그림을 지키려는 규칙인데, AI 그림으로 갈아타는 중이라면');
+    console.log('  이건 그냥 묻히는 것입니다. 갈아탈 것이면 SVG 부터 지우세요:');
+    console.log('    rm ' + skipped.map((k) => 'art/' + k + '.svg').join(' '));
+  }
+
+  // assets/ 에 그림이 있는데 WANT 에 이름이 없으면 그것도 안 들어갑니다.
+  const listed = new Set(WANT);
+  const orphan = fs.readdirSync(ASSETS)
+    .filter((f) => f.endsWith('.png'))
+    .map((f) => f.slice(0, -4))
+    .filter((k) => !listed.has(k) && !ON_PURPOSE.has(k));
+  if (orphan.length) {
+    console.log('\n⚠ assets/ 에 그림은 있는데 WANT 에 이름이 없는 것 ' + orphan.length + '장:');
+    console.log('    ' + orphan.join(' '));
+    console.log('  이대로면 게임에서는 도형이 계속 서 있습니다. 쓸 것이면 WANT 에 넣으세요.');
+    console.log('  일부러 빼 둔 것이면 ON_PURPOSE 에 넣어 이 경고를 끄면 됩니다.');
+  }
 })();

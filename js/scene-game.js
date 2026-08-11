@@ -260,6 +260,15 @@ class GameScene extends Phaser.Scene {
   // 올라가기 전에 무엇이 있는지 보이게 해서, 좌우 선택이 판단이 되게 합니다.
   // 무엇을 놓을지는 SLOT_MARK 와 slotArtKey 가 정합니다 (js/tower.js).
   makeMark(slot) {
+    // 이 둘은 UP 칸에서만 만들어집니다 (아래). 그런데 **지우는 사람이 없어서**,
+    // 한 번 UP 이었던 칸을 다른 것으로 다시 표시하면 앞선 표의 조각을 가리킨
+    // 채로 남았습니다 — 그 조각은 이미 부서졌으므로 syncUpgradeMarks 가
+    // 손대는 순간 터집니다 (setText → glTexture 가 null).
+    // 표를 새로 만들 때마다 여기서 비웁니다. "지금 표에 붙어 있는 것만
+    // 가리킨다"가 늘 참이 됩니다.
+    slot.upIcon = null;
+    slot.upGain = null;
+
     if (slot.kind === SLOT.BOSS) {
       return this.add.text(slot.x, slot.y - 46, '보 스', {
         fontFamily: 'sans-serif', fontSize: '28px', color: '#ce93d8',
@@ -387,7 +396,10 @@ class GameScene extends Phaser.Scene {
   // 쌓아 둔 채로 밟으면 오히려 약해집니다. 그럴 때 빨갛게 적어 주면
   // "지금은 밟지 말자"가 하나의 선택이 됩니다.
   markUpGain(slot) {
-    if (!slot.upGain) return;
+    // scene 이 없으면 이미 부서진 것입니다 (Phaser 가 destroy 에서 지웁니다).
+    // 위 makeMark 가 근본을 막지만, 여기는 매 프레임 지나가는 자리라
+    // 한 겹 더 둡니다 — 터지면 판이 통째로 멈춥니다.
+    if (!slot.upGain || !slot.upGain.scene) return;
     const now = this.weapon.dps;
     const next = this.weapon.nextDps;
     if (!next || !now) return slot.upGain.setText('');
