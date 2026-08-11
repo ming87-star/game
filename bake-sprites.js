@@ -34,12 +34,16 @@ const QUALITY = 0.92; // 32px 까지 줄이고 나면 화질이 아까우므로 
 // 이 목록에 있는 것만 굽습니다. assets/ 에는 미리보기로 구워 둔 것(art/*.svg 를
 // render-art.js 로 뽑은 것)도 섞여 있어서, 통째로 쓸어 담으면 손으로 그린 SVG 를
 // 그 미리보기가 덮어씁니다.
+//
+// 기는 것 · 뛰는 것 · 날것 · 단단한 놈 넷은 **손그림 SVG 가 이기고 있었습니다.**
+// AI 가 그린 것이 assets/ 에 이미 있었는데 아무도 안 쓰고 있었고, 그래서 이 넷만
+// 그림체가 달랐습니다. 지금은 art/e-*.svg 넷을 지워서 AI 쪽이 씁니다.
 const WANT = [
   'e-coinbug', 'e-crawler', 'e-hopper', 'e-goldfrog', 'e-flyer', 'e-brute',
   'e-charger', 'e-dasher', 'e-bomber', 'e-giant', 'e-splitter', 'e-shooter',
   'e-diver', 'e-ghost',
   'bat-thief', 'bat-biter',
-];
+];   // 적 열넷 + 박쥐 둘 — 게임에 나오는 적 전부입니다
 
 (async () => {
   const jobs = [];

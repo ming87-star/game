@@ -273,6 +273,12 @@ const SUBJECTS = [
   { name: 'item-fake-armor', group: 'item', w: 36, h: 36,
     what: 'The same shield shape, tarnished grey, with a ragged hole punched clean through its '
         + 'middle and cracks radiating from the hole. The hole is empty, showing through.' },
+  // 궁수는 가죽을 두르므로 가짜도 가죽이어야 합니다. 강철 가짜를 그대로 쓰면
+  // "이건 내 것이 아니구나"가 먼저 읽혀서 속지를 않습니다 (verify-art.js 가 봅니다).
+  { name: 'item-fake-armor-archer', group: 'item', w: 36, h: 36, like: 'item-armor-archer',
+    what: 'The same green leather shield, but ruined: the leather is faded and grey-green, split '
+        + 'open by a ragged tear through its middle with the stitching burst and threads hanging '
+        + 'loose. The tear is empty, showing through.' },
   { name: 'item-dodge', group: 'item', w: 36, h: 36,
     what: 'ONE single light leather boot with a small wing on its heel, seen from the side, '
         + 'tilted as if in mid-stride, with two faint speed streaks trailing behind it. '
@@ -291,6 +297,18 @@ const SUBJECTS = [
   { name: 'item-relic', group: 'item', w: 36, h: 36,
     what: 'A precious golden faceted gem held upright in a clawed golden setting, glowing, with '
         + 'small sparkles around it — a rare relic. Gold #FFD54F.' },
+  { name: 'item-treasure', group: 'item', w: 36, h: 36,
+    what: 'A closed wooden treasure chest with a domed lid, iron bands across it, gold corner '
+        + 'fittings and a gold lock plate with a keyhole in the middle. Shut and ordinary — '
+        + 'nothing about it is alive. Wood #8D6E63, gold #FFC94D.' },
+  // 가짜 보물상자는 **미믹**입니다. 진짜와 나란히 놓았을 때 "저건 살아 있다"가
+  // 한눈에 읽혀야 합니다 — 다가가기 전에는 진짜 그림을 쓰고, 다가가면 이걸로
+  // 바뀝니다 (js/tower.js 의 MIMIC_DISGUISES).
+  { name: 'item-fake-treasure', group: 'item', w: 36, h: 36, like: 'item-treasure',
+    what: 'The same wooden chest, but it is a MIMIC that has woken up: the lid is thrown wide '
+        + 'open like a jaw, a row of long white fangs lines the rim above and below, a fat pink '
+        + 'tongue lolls out, and two round glowing yellow eyes stare from inside the lid. '
+        + 'Wood #8D6E63, gold #FFC94D, eyes #FFCA28.' },
   { name: 'item-bomb', group: 'item', w: 36, h: 36,
     what: 'A classic black iron bomb, a round heavy sphere with a short fuse burning at the top '
         + 'and a bright spark. It is openly dangerous, not disguised.' },
