@@ -121,14 +121,42 @@ function pickImage(json) {
   return out[0];
 }
 
+// 참조 시트가 있으면 물립니다. 이게 어색한 모션을 고치는 핵심입니다 —
+// 글로만 시키면 모델이 자세를 지어내고, 그 자세들이 서로 안 이어져서 튑니다.
+// 지금 관절 모션은 공들여 다듬어 둔 것이므로(js/motion.js 머리말), 그 자세를
+// shot-poseref.js 로 찍어 참조로 주면 모델은 **다시 그리기만** 하면 됩니다.
+function refFor(job, weapon) {
+  const f = path.join(ROOT, 'shots', 'poseref', `${job}-${weapon.kind}.png`);
+  return fs.existsSync(f) ? fs.readFileSync(f).toString('base64') : null;
+}
+
+const REF_RULE = [
+  'The attached image is a POSE REFERENCE sheet: the same 8 frames of this exact attack animation,',
+  'laid out in the same grid, drawn as rough placeholder art.',
+  'Redraw every frame in your own polished style, but KEEP THE POSE OF EACH FRAME EXACTLY as it is',
+  'in the reference — the same body angle, the same lean, the same arm and weapon angle, the same',
+  'foot placement, the same frame order. Frame N of your sheet must match frame N of the reference.',
+  'The feet stay planted where the reference puts them; do not slide the character around.',
+  'Keep the same overall size and the same ground line in every cell as the reference.',
+  'Only the art quality changes — the motion must not.',
+  'IMPORTANT: in the reference the weapon is sometimes CLIPPED where it runs past the edge of its',
+  'cell. Do not copy that clipping — work out where the blade was going and draw the weapon WHOLE,',
+  'complete from hilt to tip, at the same angle. Shrink the figure a little if that is what it takes',
+  'to fit the whole weapon inside the cell with a margin.',
+].join(' ');
+
 async function generate(job, weapon) {
+  const ref = refFor(job, weapon);
+  const parts = [];
+  if (ref) parts.push({ inlineData: { mimeType: 'image/png', data: ref } });
+  parts.push({ text: (ref ? REF_RULE + '\n\n' : '') + promptFor(job, weapon) });
   const res = await fetch(
     'https://generativelanguage.googleapis.com/v1beta/models/' +
       encodeURIComponent(MODEL) + ':generateContent',
     { method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: promptFor(job, weapon) }] }],
+        contents: [{ parts }],
         generationConfig: { imageConfig: { aspectRatio: '16:9' } },
       }) });
   const text = await res.text();
