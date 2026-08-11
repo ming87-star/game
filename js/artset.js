@@ -19,13 +19,25 @@
 // 건너뜁니다**. 그래서 그림이 있는 것은 그림이, 없는 것은 도형이 쓰입니다.
 // 그림을 한 장 더 그려 넣으면 그 순간 도형을 밀어냅니다.
 
+// 그림은 두 곳에서 옵니다. 어느 쪽이든 게임에서는 똑같이 씁니다.
+//   ART_SVG     손으로 그린 art/*.svg (bake-art.js)
+//   SPRITE_ART  gen-sprite.js 가 그린 assets/*.png (bake-sprites.js)
+// 같은 이름이 양쪽에 있으면 **손그림이 이깁니다** — bake-sprites.js 가
+// 그런 것은 아예 담지 않으므로 여기서는 순서만 지키면 됩니다.
+function spriteArt(key) {
+  return typeof SPRITE_ART !== 'undefined' && SPRITE_ART ? SPRITE_ART[key] : null;
+}
+
 function hasArt(key) {
-  return typeof ART_SVG !== 'undefined' && !!ART_SVG[key];
+  if (typeof ART_SVG !== 'undefined' && ART_SVG[key]) return true;
+  return !!spriteArt(key);
 }
 
 function artSize(key) {
-  const a = hasArt(key) && ART_SVG[key];
-  return a ? { w: a.w, h: a.h } : null;
+  const a = typeof ART_SVG !== 'undefined' && ART_SVG[key];
+  if (a) return { w: a.w, h: a.h };
+  const p = spriteArt(key);
+  return p ? { w: p.w, h: p.h } : null;
 }
 
 // 한글 주석은 굽는 과정에서 빠지지만, 그림 안에 한글이 들어올 수도 있으므로
@@ -38,13 +50,23 @@ function svgDataUri(svg) {
 }
 
 function loadArt(scene) {
-  if (typeof ART_SVG === 'undefined') return;
-  Object.keys(ART_SVG).forEach((key) => {
-    // 텍스처는 판을 넘어 남습니다. 다시 구울 이유가 없습니다.
-    if (scene.textures.exists(key)) return;
-    const a = ART_SVG[key];
-    scene.load.svg(key, svgDataUri(a.svg), { width: a.w, height: a.h });
-  });
+  if (typeof ART_SVG !== 'undefined') {
+    Object.keys(ART_SVG).forEach((key) => {
+      // 텍스처는 판을 넘어 남습니다. 다시 구울 이유가 없습니다.
+      if (scene.textures.exists(key)) return;
+      const a = ART_SVG[key];
+      scene.load.svg(key, svgDataUri(a.svg), { width: a.w, height: a.h });
+    });
+  }
+
+  // 래스터로 그린 것들 (bake-sprites.js). 이미 1배로 줄여 담겨 있으므로
+  // 그냥 얹으면 그림 픽셀 = 게임 픽셀입니다.
+  if (typeof SPRITE_ART !== 'undefined' && SPRITE_ART) {
+    Object.keys(SPRITE_ART).forEach((key) => {
+      if (scene.textures.exists(key)) return;
+      scene.load.image(key, SPRITE_ART[key].uri);
+    });
+  }
 }
 
 // 주인공의 공격 컷(js/sheetdata.js). 무기 한 자루가 띠 한 장이고, 그 안에

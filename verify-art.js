@@ -85,15 +85,38 @@ const check = (ok, label, got) => {
       return (img && img.tagName === 'CANVAS') ? '도형' : '그림';
     };
     return {
-      art: ['player-warrior', 'e-crawler', 'e-flyer', 'wall', 'plat'].map((k) => k + '=' + kindOf(k)),
+      // 손그림 SVG (art/*.svg) 와 래스터 스프라이트 (assets/*.png) 를 섞어 봅니다.
+      // 둘 다 게임에서는 똑같이 '그림'이어야 합니다.
+      art: ['player-warrior', 'e-crawler', 'e-flyer', 'wall', 'plat',
+        'e-dasher', 'e-ghost', 'e-charger', 'bat-thief', 'bat-biter'].map((k) => k + '=' + kindOf(k)),
       // 아직 안 그린 것은 도형이 맡고 있어야 합니다 — 빈칸이면 안 됩니다.
-      shape: ['e-dasher', 'bat-thief', 'coin'].map((k) => k + '=' + kindOf(k)),
+      shape: ['e-coinbug', 'e-goldfrog', 'coin'].map((k) => k + '=' + kindOf(k)),
     };
   });
   check(source.art.every((x) => x.endsWith('그림')), '그려 둔 것은 그림이 쓰임',
     source.art.join(' · '));
   check(source.shape.every((x) => x.endsWith('도형')), '안 그린 것은 도형이 자리를 지킴',
     source.shape.join(' · '));
+
+  // 래스터 스프라이트도 **1배로** 들어와야 합니다. 4배 그대로 얹으면 충돌
+  // 상자가 그림 배율을 안 따라가서 적이 허공에 걸립니다 (js/artset.js 맨 위).
+  const rasterSize = await page.evaluate(() => {
+    if (typeof SPRITE_ART === 'undefined') return { bad: ['spritedata.js 가 없음'], n: 0 };
+    const s = window.__scene;
+    const bad = [];
+    Object.keys(SPRITE_ART).forEach((k) => {
+      if (!s.textures.exists(k)) { bad.push(k + ' 안 붙음'); return; }
+      const img = s.textures.get(k).getSourceImage();
+      const a = SPRITE_ART[k];
+      if (img.width !== a.w || img.height !== a.h) {
+        bad.push(`${k} ${img.width}×${img.height} (${a.w}×${a.h} 여야 함)`);
+      }
+    });
+    return { bad, n: Object.keys(SPRITE_ART).length };
+  });
+  check(rasterSize.bad.length === 0 && rasterSize.n > 0,
+    '래스터 스프라이트도 게임 픽셀 = 그림 픽셀 (1배)',
+    rasterSize.n + '장 · ' + (rasterSize.bad.join(' · ') || '전부 맞음'));
 
   // ── 충돌 상자가 그대로인가 ─────────────────────────────
   // 그림을 크게 굽고 화면에서만 줄이면 여기가 조용히 어긋납니다.
