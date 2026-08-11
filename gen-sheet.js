@@ -41,8 +41,12 @@ const HEROES = {
   },
   archer: {
     w: 42, h: 48,
-    who: 'an archer: a sharply pointed hood, a slim tall body, light leather gear. '
-       + 'Green accent #A5D6A7.',
+    // 초록을 세게 못박습니다. 그냥 "green accent" 라고만 두었더니 카키·황토로
+    // 나와서, 붉은 전사 · 보라 도적과 색으로 갈리지 않았습니다. 세 직업을
+    // 색으로 외우는 게임이라 여기가 흐려지면 안 됩니다.
+    who: 'an archer dressed in GREEN: a sharply pointed green hood and green cloak, a slim tall '
+       + 'body, green leather gear with darker green straps. The green must be clearly, obviously '
+       + 'green (#A5D6A7 and #4C8C2A) — not khaki, not tan, not brown, not olive.',
   },
   rogue: {
     w: 40, h: 48,
