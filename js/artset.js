@@ -46,3 +46,19 @@ function loadArt(scene) {
     scene.load.svg(key, svgDataUri(a.svg), { width: a.w, height: a.h });
   });
 }
+
+// 주인공의 공격 컷(js/sheetdata.js). 무기 한 자루가 띠 한 장이고, 그 안에
+// 여덟 칸이 가로로 들어 있습니다 — Phaser 가 fw 로 잘라 줍니다.
+//
+// **그 직업 것만 굽습니다.** 서른여섯 자루를 다 구우면 288장을 풀어야 하는데,
+// 한 판에서 쓰는 것은 열두 자루뿐입니다. 판을 새로 시작해도 텍스처는 남으므로
+// 직업을 바꿔 가며 놀면 그때그때 필요한 것만 쌓입니다.
+function loadSheets(scene, jobKey) {
+  if (typeof SHEET_ART === 'undefined') return;
+  Object.keys(SHEET_ART).forEach((key) => {
+    if (jobKey && !key.startsWith('w-' + jobKey + '-')) return;
+    if (scene.textures.exists(key)) return;
+    const s = SHEET_ART[key];
+    scene.load.spritesheet(key, s.url, { frameWidth: s.fw, frameHeight: s.fh });
+  });
+}

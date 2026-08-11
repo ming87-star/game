@@ -1,100 +1,89 @@
-// 공격 모션 — 몸을 조각으로 나눠 따로 움직입니다.
+// 공격 모션 — 무기마다 그려 둔 여덟 컷을 갈아 끼웁니다.
 //
-// ── 왜 다시 만들었는가 ──────────────────────────────────
-// 처음에는 그림 한 장을 통째로 기울였다 세웠습니다. 그건 모션이 아닙니다.
-// 그렇게 하면 세 가지가 한꺼번에 거짓말을 합니다.
+// ── 여기까지 온 길 ──────────────────────────────────────
+// 1. 그림 한 장을 통째로 기울였습니다. 검이 몸과 같은 각도로만 움직이고 발이
+//    같이 미끄러졌습니다. 그건 모션이 아닙니다.
+// 2. 몸을 세 조각(다리·몸통·팔)으로 잘라 따로 돌렸습니다. 훨씬 나아졌지만
+//    조각을 돌리는 것으로 낼 수 있는 자세는 한계가 있습니다 — 몸이 웅크리지도
+//    늘어나지도 못하고, 칼이 지나간 잔상을 그릴 수도 없습니다.
+// 3. 지금 — 무기 서른여섯 자루마다 **여덟 컷을 그려 두었습니다**
+//    (gen-sheet.js → assets/sheets → bake-sheets.js → js/sheetdata.js).
+//    예비동작 · 극단 자세 · 스미어 · 팔로스루가 그림 안에 들어 있습니다.
+//    코드가 할 일은 그 여덟 장을 **어떤 박자로 넘길지** 정하는 것뿐입니다.
 //
-//   1. 검이 몸과 **같은 각도로만** 움직입니다. 실제로는 몸이 20도 도는 동안
-//      검은 120도를 돕니다. 휘두르는 것은 검이지 몸통이 아닙니다.
-//   2. 발까지 같이 미끄러집니다. 사람은 발을 딛고 그 위에서 몸을 던집니다.
-//      발이 제자리에 남아야 "밀었다"가 아니라 "실었다"가 됩니다.
-//   3. 팔이 몸통과 한 덩어리라, 무기를 든 손이 몸과 같은 자리에만 있습니다.
+// ── 무엇이 없어졌는가 ───────────────────────────────────
+// 조각(art/p-*.svg)도, 손에 쥐는 무기 그림(art/hand-*.svg)도, 조각마다의
+// 자세 트랙(MOTIONS)도 없습니다. 그림이 자세를 갖고 있으므로 코드가 자세를
+// 만들 이유가 없습니다. 조각 시절의 코드는 git 기록에 남아 있습니다.
 //
-// 그래서 주인공 그림을 세 조각으로 잘랐습니다 (art/p-*.svg — 원본에서 칠도
-// 좌표도 안 바꾸고 떼어 온 것입니다). 조각마다 축이 있고, 조각마다 다른
-// 가락으로 움직입니다.
-//
-//   다리(legs)  골반이 축. 거의 안 움직입니다 — 딛는 것이 일입니다
-//   몸통(body)  허리가 축. 사람은 벨 때 허리부터 돕니다 (망토도 여기 붙어 있습니다)
-//   팔(arm)     어깨가 축. **여기가 모션의 전부입니다**
-//
-// ── 망토를 왜 따로 안 흔드는가 ──────────────────────────
-// 한때 망토를 넷째 조각으로 떼어 늦게 따라오게 했습니다. 천을 제대로 흔들려면
-// 중력과 바람이 있어야 하는데, 그것 없이 각도만 흔드니 **천이 아니라 널빤지가
-// 몸에 붙었다 떨어졌다** 했습니다. 어설프게 흔드는 것보다 몸통에 붙여 두는 편이
-// 낫습니다 — 지금 망토는 몸통 그림의 일부이고, 허리가 도는 만큼만 같이 돕니다.
-//
-// ── 왜 몸을 직접 안 움직이는가 ──────────────────────────
+// ── 왜 물리 몸을 직접 안 바꾸는가 (이건 그대로입니다) ──────
 // `scene.player` 는 물리 몸입니다. 그 x·y 는 이미 셋이 잡고 있습니다 —
 // 층을 뛰어오르는 트윈, 줄을 옮기는 트윈, 도적이 뛰며 도는 회전. 거기에
-// 모션까지 얹으면 트윈끼리 서로를 덮어써서, 뛰는 도중에 때리면 주인공이
-// 발판 밖으로 미끄러집니다. 물리 몸은 그대로 두고 안 보이게 하고,
-// 조각들이 매 프레임 그 자리를 따라갑니다. 충돌·사거리·이동은 안 바뀝니다.
+// 모션까지 얹으면 트윈끼리 서로를 덮어씁니다. 물리 몸은 그대로 두고 안 보이게
+// 하고, 겉몸 한 장이 매 프레임 그 자리를 따라갑니다.
+// 충돌 상자(26×40)도 사거리도 한 줄 안 바뀝니다.
 //
-// ── 조각이 없으면 ──────────────────────────────────────
-// 그림 조각이 하나라도 없으면 예전처럼 **한 장짜리 그림**으로 돌아가서,
-// 몸 전체를 기울이는 것까지만 합니다. 조용히 덜 움직일 뿐 게임은 그대로 돕니다.
+// ── 시트가 없으면 ──────────────────────────────────────
+// js/sheetdata.js 가 없거나 그 무기의 시트가 없으면 물리 몸 그림을 그대로
+// 보여 줍니다. 모션만 없을 뿐 게임은 그대로 돕니다.
 
-// 조각의 축과 **매달린 곳**. 좌표는 원본 그림 그대로입니다 (왼쪽 위가 0,0).
-// z 는 앞뒤 — 다리가 가장 뒤, 무기 쥔 팔이 가장 앞입니다.
+// 화면에서 주인공의 머리끝에서 발까지. 물리 몸은 26×40 이고 그림 상자는
+// 38×48 이었습니다 — 그림은 상자보다 조금 커도 됩니다. 부딪히는 것은 상자니까.
+const HERO_H = 52;
+
+// 물리 몸 한가운데에서 발바닥까지. 물리 몸 그림이 38×48 이고 발이 그 바닥에
+// 닿게 그려져 있었으므로 절반인 24 입니다. 시트의 `ground` 줄을 여기 맞춥니다.
+const FEET_DY = 24;
+
+// ── 여덟 컷을 어떤 박자로 넘기는가 ──────────────────────
 //
-// `on: 'body'` 는 그 조각이 **몸통에 매달려 있다**는 뜻입니다. 어깨는 허리가
-// 돌면 같이 따라 돕니다. 이걸 안 하고 제자리에서 따로 돌렸더니 허리를 젖히는
-// 순간 **팔만 그 자리에 남아** 몸에서 떨어져 나갔습니다.
+// 여기가 이제 모션의 전부입니다. 컷을 똑같은 간격으로 넘기면 그림이 아무리
+// 좋아도 밋밋합니다. 애니메이션에서 오래된 규칙 하나가 있습니다 —
+// **컷을 더 그리는 것보다, 예비동작을 늦추고 타격을 빠르게 하는 것이 낫다.**
 //
-// 다리는 몸통에 안 매답니다. 발은 땅에 붙어 있고, 허리가 젖혀져도 따라 젖혀지면
-// 안 됩니다 — 다리가 몸통을 받치는 것이지 매달린 것이 아닙니다.
-const RIGS = {
-  warrior: {
-    body: [19, 32],
-    parts: [
-      { key: 'legs', art: 'p-warrior-legs', pivot: [19, 33], z: -1 },
-      { key: 'body', art: 'p-warrior-body', pivot: [19, 32], z: 0 },
-      { key: 'arm', art: 'p-warrior-arm', pivot: [22.5, 26.5], z: 1, on: 'body' },
-      { key: 'hand', hand: true, z: 2, on: 'arm' },
-    ],
-  },
-  rogue: {
-    body: [23, 32],
-    parts: [
-      { key: 'legs', art: 'p-rogue-legs', pivot: [20, 33], z: -1 },
-      { key: 'body', art: 'p-rogue-body', pivot: [23, 32], z: 0 },
-      { key: 'arm', art: 'p-rogue-arm', pivot: [29.6, 25.6], z: 1, on: 'body' },
-      { key: 'hand', hand: true, z: 2, on: 'arm' },
-    ],
-  },
-  archer: {
-    body: [23, 31],
-    parts: [
-      { key: 'legs', art: 'p-archer-legs', pivot: [24, 31], z: -1 },
-      { key: 'body', art: 'p-archer-body', pivot: [23, 31], z: 0 },
-      { key: 'arm', art: 'p-archer-arm', pivot: [29.4, 21], z: 1, on: 'body' },
-      { key: 'hand', hand: true, z: 2, on: 'arm' },
-    ],
-  },
+// 값은 그 컷을 **얼마나 오래 붙들고 있는가**입니다. 서로의 비율만 뜻하므로
+// 무기가 빨라져 판이 짧아져도 박자는 그대로입니다.
+//
+// 여덟 컷의 뜻은 시트마다 같습니다 (gen-sheet.js 가 그렇게 시킵니다):
+//   0 준비  1 들기  2 끝까지 든 자리  3 **때리는 컷(스미어)**
+//   4 지나간 자리  5 실린 몸  6 돌아오는 중  7 자세 잡기
+//
+// `hit` 은 때리는 컷의 번호입니다. 칼자국·파동·화살을 이 컷이 뜨는 순간에
+// 맞춰 내보냅니다 — 몸이 지나가기도 전에 빛이 번지면 거짓말이 됩니다.
+const BEATS = {
+  // 검 — 크게 들었다가 내리찍습니다. 드는 세 컷이 때리는 두 컷의 두 배쯤
+  // 걸립니다. 이 비율이 "묵직하다"의 정체입니다.
+  sword:     { hold: [0.85, 0.80, 0.95, 0.42, 0.45, 1.25, 0.95, 1.00], hit: 3 },
+  // 창 — 찌르기는 뻗는 순간이 검보다 더 짧고, 되돌리는 데 더 오래 걸립니다.
+  spear:     { hold: [0.80, 0.90, 1.10, 0.35, 0.55, 1.10, 0.85, 0.95], hit: 3 },
+  // 단검 — 전부 짧습니다. 예비동작까지 짧아야 "빠르다"가 됩니다.
+  dagger:    { hold: [0.70, 0.75, 0.85, 0.32, 0.40, 1.00, 0.85, 0.95], hit: 3 },
+  // 쌍단검 — 두 번 긋습니다. 되돌아오는 쪽에도 힘이 실려 있어 뒤가 덜 늘어집니다.
+  daggerTwin:{ hold: [0.62, 0.68, 0.75, 0.30, 0.35, 0.72, 0.70, 0.85], hit: 3 },
+  // 활 — 당기는 동안이 길고 놓는 순간은 없다시피 합니다.
+  bow:       { hold: [0.70, 0.85, 1.05, 0.30, 0.50, 1.05, 0.90, 1.00], hit: 3 },
+  // 석궁 — 겨누는 동안 멈춰 있다가 반동으로 밀립니다. 밀린 자리를 오래 붙듭니다.
+  crossbow:  { hold: [0.75, 0.85, 1.00, 0.28, 0.60, 1.15, 0.90, 1.00], hit: 3 },
 };
 
-// 손에 드는 무기. 축은 손잡이를 쥐는 자리이고, `rot` 은 그 직업이 **쉴 때**
-// 무기를 든 각도입니다 (그림은 전부 날이 위를 보게 그려져 있습니다).
-//
-// 크기와 색은 코드가 정합니다 — 단계가 오르면 조금씩 커지고, 무기표의 색이
-// 그대로 입혀집니다. 그래서 열두 자루가 다 다르게 보입니다.
-// 나중에 희귀도가 붙으면 그 색을 여기 한 번 더 곱하면 됩니다.
-const HAND = {
-  // size 는 **화면에서 차지할 길이**입니다 (주인공 키가 48). 검은 주인공보다
-  // 짧고 창은 길어야 합니다 — 이 한 값이 검과 창의 실루엣을 가릅니다.
-  sword:    { art: 'hand-sword',    pivot: [22, 40], rot: 0.62, size: 34 },
-  spear:    { art: 'hand-spear',    pivot: [22, 34], rot: 0.26, size: 58 },
-  dagger:   { art: 'hand-dagger',   pivot: [22, 38], rot: 0.75, size: 26 },
-  bow:      { art: 'hand-bow',      pivot: [15, 26], rot: 0, size: 40 },
-  crossbow: { art: 'hand-crossbow', pivot: [17, 30], rot: -0.15, size: 34 },
-};
+// 붙드는 값을 **0…1 위의 자리**로 바꿔 둡니다 (누적). 판마다 다시 셀 이유가
+// 없으므로 파일을 읽을 때 한 번만 셉니다.
+Object.keys(BEATS).forEach((k) => {
+  const b = BEATS[k];
+  const sum = b.hold.reduce((a, v) => a + v, 0);
+  let run = 0;
+  b.at = b.hold.map((v) => { const s = run / sum; run += v; return s; });
+  b.at.push(1);
+  b.lead = b.at[b.hit];        // 때리는 컷이 뜨는 자리
+});
 
-// 손에 무기를 쥐는 자리 — 직업마다 다릅니다 (팔 그림의 손 위치).
-const HAND_AT = { warrior: [25.6, 30.6], rogue: [35.2, 30.4], archer: [36, 27.4] };
-
-const PART_KEYS = ['legs', 'body', 'arm'];
-const ZERO = { dx: 0, dy: 0, rot: 0 }; // 자세 트랙이 없는 조각(손에 든 무기)용
+// 컷 수가 시트와 다르면(여덟이 아니면) 고르게 나눕니다.
+function beatFor(beat, n) {
+  if (beat.hold.length === n) return beat;
+  const at = [];
+  for (let i = 0; i <= n; i++) at.push(i / n);
+  return { at, hit: Math.min(beat.hit, n - 1), lead: Math.min(beat.hit, n - 1) / n };
+}
 
 class PlayerRig {
   constructor(scene) {
@@ -102,163 +91,79 @@ class PlayerRig {
     this.body = scene.player;
     this.jobKey = scene.job.key;
 
-    const spec = RIGS[this.jobKey];
-    const whole = this.body.texture.key;
-    this.parts = [];
-    this.pose = {};
-
-    // 조각이 다 있을 때만 나눠 씁니다. 하나라도 없으면 한 장짜리로 갑니다.
-    const cut = spec && spec.parts.every((p) => p.hand || scene.textures.exists(p.art))
-      && Object.values(HAND).every((h) => scene.textures.exists(h.art));
-    if (cut) {
-      const src = scene.textures.get(whole).getSourceImage();
-      this.half = { x: src.width / 2, y: src.height / 2 };
-      // 몸통의 축이 그림 한가운데에서 얼마나 떨어져 있는지. 매달린 조각들은
-      // 이 점을 중심으로 같이 돕니다.
-      this.hip = { x: spec.body[0] - this.half.x, y: spec.body[1] - this.half.y };
-      spec.parts.forEach((p) => {
-        // 손에 드는 무기는 그림도 크기도 판 중에 바뀝니다. 자리는 손이고,
-        // 무엇을 쥐고 있는지는 setWeapon 이 나중에 채웁니다.
-        const at = p.hand ? HAND_AT[this.jobKey] : p.pivot;
-        const art = p.hand ? HAND.sword.art : p.art;
-        const img = scene.textures.get(art).getSourceImage();
-        const view = scene.add.sprite(this.body.x, this.body.y, art)
-          .setOrigin(p.hand ? 0.5 : p.pivot[0] / img.width,
-            p.hand ? 0.5 : p.pivot[1] / img.height)
-          .setDepth(this.body.depth + p.z * 0.01);
-        // 축이 그림 한가운데에서 얼마나 떨어져 있는지. 조각을 이만큼 옮겨 놓아야
-        // 조각들이 원래 한 장이던 자리에 그대로 겹칩니다.
-        this.parts.push({
-          key: p.key, view, on: p.on || null, hand: !!p.hand,
-          ox: at[0] - this.half.x, oy: at[1] - this.half.y,
-        });
-        if (!p.hand) this.pose[p.key] = { dx: 0, dy: 0, rot: 0 };
-      });
-      this.body.setVisible(false);
-    } else {
-      // 한 장짜리. 물리 몸을 그대로 보여 주고 뿌리 자세만 얹습니다.
-      this.parts = [];
-      this.half = { x: 0, y: 0 };
-    }
-
-    this.cut = cut;
-    this.root = { dx: 0, dy: 0, rot: 0, sx: 1, sy: 1 };
+    this.view = null;      // 겉몸 한 장
+    this.data = null;      // 지금 시트의 잰 값 (js/sheetdata.js)
+    this.n = 0;
+    this.key = null;
+    this.frame = 0;
     this.tw = null;
-    // 겉모습이 바뀌는 곳은 여기 하나뿐입니다. 다른 코드가 주인공 그림을
-    // 만질 일이 있으면 이 목록을 봐야 합니다.
-    this.views = this.parts.map((p) => p.view);
-    this.handPart = this.parts.find((p) => p.hand) || null;
-    this.handKey = null;
+    this.views = [];       // 주인공 그림을 만지는 다른 코드를 위한 목록
+
+    // 첫 무기의 시트를 바로 붙입니다. 없으면 물리 몸 그림이 그대로 보입니다.
+    if (scene.weapon) this.setWeapon(scene.job, scene.weapon);
   }
 
-  // 들고 있는 무기가 바뀌면 손의 그림도 바뀝니다.
-  //
-  // 서른여섯 자루를 다 그리지는 않았습니다. **생김새는 갈래(검·창·단검·활·석궁)가
-  // 정하고, 단계는 색과 크기가 말합니다.** 무기표에는 단계마다 다른 색이 이미
-  // 있으므로(`base.color`), 그걸 그대로 입히면 열두 자루가 다 달라 보입니다.
-  // 희귀도가 붙으면 이 색 위에 한 번 더 곱하면 됩니다.
+  // 시트로 돌고 있는가. 겉몸이 붙었다는 뜻입니다.
+  get cut() { return !!this.view; }
+
+  // 들고 있는 무기가 바뀌면 **시트를 통째로 갈아 끼웁니다.**
+  // 예전에는 손에 쥔 그림만 바꾸고 몸은 그대로였습니다. 지금은 무기마다
+  // 몸짓까지 다 그려 두었으므로 갈아 끼우는 것이 곧 다른 사람이 되는 것입니다.
   setWeapon(job, weapon) {
-    const p = this.handPart;
-    if (!p) return;
-    const icon = (weapon.base && weapon.base.icon) || {};
-    const art = icon.art || (job.attack === 'ranged' ? 'bow' : 'sword');
-    const h = HAND[art] || HAND.sword;
-    const tiers = Math.max(1, job.weapons.length - 1);
-    const grow = 1 + (weapon.tier / tiers) * 0.34; // 마지막 자루가 첫 자루보다 3분의 1 큽니다
-    const key = art + weapon.tier;
-    if (this.handKey === key) return;
-    this.handKey = key;
+    const key = sheetKey(job, weapon);
+    if (key === this.key) return;
+    const d = typeof SHEET_ART !== 'undefined' && SHEET_ART[key];
+    if (!d || !this.scene.textures.exists(key)) return;   // 시트가 없으면 그대로 둡니다
 
-    const img = this.scene.textures.get(h.art).getSourceImage();
-    p.view.setTexture(h.art)
-      .setOrigin(h.pivot[0] / img.width, h.pivot[1] / img.height)
-      .setTint(weapon.color);
-    // 크기는 sync 가 매 프레임 다시 씁니다 (몸 전체의 scale 과 곱해야 하므로).
-    // 여기서 setDisplaySize 로 박아 두면 다음 프레임에 지워집니다.
-    p.scale = (h.size / 44) * grow;
-    p.rest = h.rot;
+    this.key = key;
+    this.data = d;
+    this.n = d.n;
+    if (!this.view) {
+      this.view = this.scene.add.sprite(this.body.x, this.body.y, key, 0)
+        .setDepth(this.body.depth);
+      this.views = [this.view];
+      // 겉몸이 생긴 뒤에야 물리 몸을 감춥니다 — 먼저 감추면 시트가 없는 판에서
+      // 주인공이 통째로 사라집니다.
+      this.body.setVisible(false);
+    }
+    this.view.setTexture(key, Math.min(this.frame, this.n - 1));
+    // 발을 딛는 자리를 축으로 삼습니다. 축이 발이면 좌우를 뒤집어도 발이
+    // 제자리에 남고, 몸이 통째로 돌 때도 발을 중심으로 돕니다.
+    this.view.setOrigin(d.foot / d.fw, d.ground / d.fh);
+    // 무기마다 휘두르는 폭이 달라서 인물이 몇 %씩 다르게 구워졌습니다.
+    // 잰 키로 나눠 주면 서른여섯 자루가 화면에서 같은 키로 섭니다.
+    this.scale = HERO_H / d.hero;
   }
 
-  // 매 프레임 물리 몸을 그대로 베끼고 모션만 더합니다.
-  // 알파까지 따라가야 맞을 때 깜빡이는 것이 겉몸에도 보입니다.
+  // 매 프레임 물리 몸을 그대로 베낍니다. 알파까지 따라가야 맞을 때 깜빡이는
+  // 것이 겉몸에도 보입니다.
   sync() {
     const b = this.body;
-    const r = this.root;
-    const s = b.flipX ? -1 : 1;
+    if (!this.view) return;
 
-    if (!this.cut) {
-      // 한 장짜리 — 물리 몸 자체에 얹을 수는 없으므로 아무것도 안 합니다.
-      // (조각이 없는 판에서는 모션 없이 이펙트만 나갑니다)
-      return;
+    // 몸 한가운데에서 발까지. 몸이 통째로 돌면(도적이 뛰며 한 바퀴) 이 벡터도
+    // 같이 돌아야 합니다 — 축이 발이라 그림은 발을 중심으로 돌고, 그 발이
+    // 몸 한가운데를 돌아서 결국 몸 한가운데를 축으로 도는 것이 됩니다.
+    const rot = b.rotation;
+    let dx = 0, dy = FEET_DY;
+    if (rot) {
+      const c = Math.cos(rot), s = Math.sin(rot);
+      const nx = dx * c - dy * s;
+      dy = dx * s + dy * c;
+      dx = nx;
     }
-
-    // 몸 전체가 도는 것 — 도적이 뛰면서 한 바퀴 돕니다 (player.rotation).
-    const whole = b.rotation;
-    const wcos = Math.cos(whole);
-    const wsin = Math.sin(whole);
-
-    // 조각은 **매달린 순서대로** 풀어야 합니다. 어깨는 허리를 따라가고,
-    // 손에 든 무기는 그 어깨를 따라갑니다 — 부모를 먼저 풀어 놓지 않으면
-    // 자식이 낡은 자리를 보고 따라갑니다. RIGS 에 적은 차례가 곧 그 순서입니다.
-    const done = {};
-
-    this.parts.forEach((p) => {
-      const q = this.pose[p.key] || ZERO;
-      let ox = p.ox + q.dx;
-      let oy = p.oy + q.dy;
-      // 손에 든 무기는 제 자세 트랙이 없습니다. 팔을 그대로 따라가고,
-      // 쥔 각도(그 직업이 무기를 드는 각)만 얹습니다.
-      let rot = r.rot + q.rot + (p.rest || 0);
-
-      // 매달린 조각은 **부모가 도는 만큼 같이 실려 갑니다.**
-      // 축의 자리를 부모의 축 둘레로 돌려 놓고, 각도에도 부모의 몫을 더합니다.
-      const up = done[p.on];
-      if (up) {
-        const rx = ox - up.restX;
-        const ry = oy - up.restY;
-        const c = Math.cos(up.spin);
-        const n = Math.sin(up.spin);
-        ox = up.restX + rx * c - ry * n + up.moveX;
-        oy = up.restY + rx * n + ry * c + up.moveY;
-        rot += up.spin;
-      }
-
-      // 나를 따라올 자식들을 위해, 내가 어디로 얼마나 갔는지 남깁니다.
-      done[p.key] = {
-        restX: p.ox, restY: p.oy,
-        moveX: ox - p.ox, moveY: oy - p.oy,
-        spin: rot - r.rot,
-      };
-
-      // 좌우를 뒤집으면 앞쪽도 각도도 같이 뒤집힙니다.
-      let wx = (ox + r.dx) * s;
-      let wy = oy + r.dy;
-
-      // 몸 전체가 돌 때는 **조각의 자리도 몸 한가운데를 돌아야** 합니다.
-      // 각도만 돌리면 조각마다 제 축에서 따로 돌아서 몸이 산산이 흩어집니다 —
-      // 도적이 뛰며 한 바퀴 돌 때 망토가 몸에서 떨어져 나가던 것이 이것이었습니다.
-      if (whole) {
-        const nx = wx * wcos - wy * wsin;
-        wy = wx * wsin + wy * wcos;
-        wx = nx;
-      }
-
-      p.view.setPosition(b.x + wx, b.y + wy);
-      p.view.setFlipX(b.flipX);
-      p.view.rotation = whole + rot * s;
-      // 손에 든 무기는 제 크기를 따로 갖습니다. 몸의 크기와 **곱해야** 합니다 —
-      // 덮어쓰면 무기가 판마다 원래 크기로 튀어 오릅니다.
-      const k = p.scale || 1;
-      p.view.setScale(r.sx * k, r.sy * k);
-      p.view.setAlpha(b.alpha);
-    });
+    this.view.setPosition(b.x + dx, b.y + dy);
+    this.view.setFlipX(b.flipX);
+    this.view.rotation = rot;
+    this.view.setScale(this.scale);
+    this.view.setAlpha(b.alpha);
+    this.view.setDepth(b.depth);
   }
 
   // 때리는 쪽으로 몸을 돌립니다.
   //
-  // 예전에는 뒤를 보고도 앞쪽 적을 벴습니다. 좌우 뒤집기가 **가는 쪽**으로만
-  // 정해졌기 때문입니다. 뛰는 도중에는 안 돌립니다 — 그때의 방향은 가는 쪽이
-  // 맞고, 공중에서 몸만 홱 돌면 착지가 미끄러져 보입니다.
+  // 뛰는 도중에는 안 돌립니다 — 그때의 방향은 가는 쪽이 맞고, 공중에서 몸만
+  // 홱 돌면 착지가 미끄러져 보입니다.
   face(x) {
     if (this.scene.jumping) return;
     this.body.setFlipX(x < this.body.x);
@@ -266,294 +171,53 @@ class PlayerRig {
 
   // 한 판의 모션을 겁니다. 앞의 것이 아직 돌고 있으면 끊고 새로 시작합니다 —
   // 빠른 무기는 앞 동작이 끝나기 전에 다음 대가 나갑니다.
-  play(motion, ms) {
+  play(beat, ms) {
+    if (!this.view) return;
     if (this.tw) this.tw.remove();
     const clock = { t: 0 };
     this.tw = this.scene.tweens.add({
       targets: clock, t: 1, duration: ms, ease: 'Linear',
-      onUpdate: () => this.applyAt(motion, clock.t),
+      onUpdate: () => this.frameAt(beat, clock.t),
       onComplete: () => { this.tw = null; this.rest(); },
     });
   }
 
-  rest() {
-    this.root.dx = 0; this.root.dy = 0; this.root.rot = 0;
-    this.root.sx = 1; this.root.sy = 1;
-    PART_KEYS.forEach((k) => {
-      const q = this.pose[k];
-      if (q) { q.dx = 0; q.dy = 0; q.rot = 0; }
-    });
+  // 판의 어느 지점(t)에서 몇 번째 컷인가. 붙드는 시간이 컷마다 다르므로
+  // t 를 그냥 컷 수로 나누면 안 됩니다.
+  frameAt(beat, t) {
+    const b = beatFor(beat, this.n);
+    let i = this.n - 1;
+    for (let k = 0; k < this.n; k++) { if (t < b.at[k + 1]) { i = k; break; } }
+    this.setFrame(i);
   }
 
-  // 한 판의 어느 지점(t)에서 각 조각이 어떤 자세인지.
-  applyAt(motion, t) {
-    trackInto(motion.root, t, this.root);
-    PART_KEYS.forEach((k) => {
-      if (this.pose[k]) trackInto(motion[k], t, this.pose[k]);
-    });
+  setFrame(i) {
+    if (i === this.frame || !this.view) return;
+    this.frame = i;
+    this.view.setFrame(i);
   }
+
+  // 쉬는 자세는 첫 컷입니다. 마지막 컷(자세 잡기)에서 첫 컷으로 넘어가는 것은
+  // 곧 다음 대의 예비동작이라 눈에 안 걸립니다.
+  rest() { this.setFrame(0); }
 }
 
-// 마디와 마디 사이를 잇습니다. 가속을 **도착하는 마디**가 정합니다 —
-// 칼을 드는 마디는 부드럽게 서고(out/in), 내리치는 마디는 앞이 급해야(snap) 합니다.
-function trackInto(keys, t, out) {
-  if (!keys || !keys.length) {
-    out.dx = 0; out.dy = 0; out.rot = 0;
-    if (out.sx !== undefined) { out.sx = 1; out.sy = 1; }
-    return;
-  }
-  let a = keys[0];
-  let b = keys[keys.length - 1];
-  for (let i = 1; i < keys.length; i++) {
-    if (t <= keys[i].at) { a = keys[i - 1]; b = keys[i]; break; }
-  }
-  const span = b.at - a.at;
-  const k = span <= 0 ? 1 : EASE[b.ease || 'linear']((t - a.at) / span);
-  const pick = (key, name, dflt) => (key[name] === undefined ? dflt : key[name]);
-  out.dx = lerp(pick(a, 'dx', 0), pick(b, 'dx', 0), k);
-  out.dy = lerp(pick(a, 'dy', 0), pick(b, 'dy', 0), k);
-  out.rot = lerp(pick(a, 'rot', 0), pick(b, 'rot', 0), k);
-  if (out.sx !== undefined) {
-    out.sx = lerp(pick(a, 'sx', 1), pick(b, 'sx', 1), k);
-    out.sy = lerp(pick(a, 'sy', 1), pick(b, 'sy', 1), k);
-  }
+// 이 무기의 시트 이름. gen-sheet.js 가 만든 이름과 같아야 합니다.
+function sheetKey(job, weapon) {
+  return 'w-' + job.key + '-' + weapon.tier;
 }
 
-function lerp(a, b, t) { return a + (b - a) * t; }
-
-// 가속 곡선을 직접 씁니다. 이름 넷이면 충분하고, 엔진이 바뀌어도 그대로 돕니다.
-const EASE = {
-  linear: (t) => t,
-  in: (t) => t * t,                       // 서서히 실린다 — 힘을 모으는 마디
-  out: (t) => 1 - (1 - t) * (1 - t),      // 부드럽게 선다 — 자세를 잡는 마디
-  snap: (t) => 1 - Math.pow(1 - t, 4),    // 앞이 급하다 — 때리는 마디
-};
-
-// ── 무기마다 다른 몸짓 ──────────────────────────────────
-//
-// 자리는 전부 **한 판을 1로 놓은 비율**입니다. 무기가 빨라지면 판이 통째로
-// 짧아지므로, 마디의 비율은 그대로 두고 길이만 줄어듭니다.
-//
-// `windup` 은 때리는 마디가 시작되는 자리입니다. 칼자국·파동·화살을 이만큼
-// 늦춰서 내보내야 **몸이 지나간 그 자리에** 이펙트가 뜹니다. 늦추는 것은
-// 그림뿐이고 피해는 그대로 곧장 들어갑니다.
-//
-// 조각마다 가락이 다릅니다. 셋을 지켰습니다:
-//   · 팔은 몸통보다 **크게** 돕니다 (검은 대여섯 배)
-//   · 다리는 거의 안 움직입니다. 딛는 것이 다리의 일입니다
-//   · 망토는 몸보다 **늦게** 도착하고, 몸이 선 뒤에 한 번 더 흔들립니다
-const MOTIONS = {
-  // 검 — 어깨 뒤로 크게 들었다가 내리찍습니다.
-  // 팔이 1.9rad(약 110도)을 도는 동안 몸통은 0.30rad(약 17도)만 돕니다.
-  sword: {
-    windup: 0.26,
-    root: [
-      { at: 0 },
-      { at: 0.26, dx: -3, dy: -1, ease: 'in' },
-      { at: 0.48, dx: 8, dy: 2, ease: 'snap' },
-      { at: 0.70, dx: 3, dy: 0, ease: 'out' },
-      { at: 1, ease: 'out' },
-    ],
-    body: [
-      { at: 0 },
-      { at: 0.26, rot: -0.24, dy: -1, ease: 'in' },     // 허리를 뒤로 젖힌다
-      { at: 0.48, rot: 0.30, dy: 1, ease: 'snap' },     // 허리부터 돌아 나온다
-      { at: 1, ease: 'out' },
-    ],
-    arm: [
-      { at: 0 },
-      { at: 0.26, rot: -0.98, dx: -1, dy: -2, ease: 'in' },  // 어깨 뒤로 든다
-      { at: 0.48, rot: 0.74, dx: 2, dy: 1, ease: 'snap' },   // 내리찍는다 — 수평에서 선다
-      { at: 0.66, rot: 0.56, ease: 'out' },                  // 무게에 끌려 조금 더
-      { at: 1, ease: 'out' },
-    ],
-    legs: [
-      { at: 0 },
-      { at: 0.26, dx: -1, ease: 'in' },
-      { at: 0.48, dx: 3, rot: 0.06, ease: 'snap' },     // 앞발로 버틴다
-      { at: 1, ease: 'out' },
-    ],
-  },
-
-  // 창 — **돌리지 않습니다.** 어깨가 앞뒤로 밀립니다.
-  // 검과 갈리는 것은 이 한 가지입니다. 창을 휘두르면 창이 아니라 몽둥이입니다.
-  spear: {
-    windup: 0.30,
-    root: [
-      { at: 0 },
-      { at: 0.30, dx: -7, sx: 0.94, ease: 'in' },
-      { at: 0.42, dx: 16, sx: 1.06, ease: 'snap' },
-      { at: 0.66, dx: 6, sx: 1, ease: 'out' },
-      { at: 1, ease: 'out' },
-    ],
-    body: [
-      { at: 0 },
-      { at: 0.30, rot: -0.10, dx: -2, ease: 'in' },     // 몸을 뒤로 뺀다
-      { at: 0.42, rot: 0.14, dx: 3, ease: 'snap' },     // 앞으로 민다 — 검의 절반도 안 돈다
-      { at: 1, ease: 'out' },
-    ],
-    arm: [
-      { at: 0 },
-      { at: 0.30, dx: -5, dy: 3, rot: 0.18, ease: 'in' },  // 자루를 허리께로 당긴다
-      { at: 0.42, dx: 15, dy: 1, rot: 0.22, ease: 'snap' }, // 곧게 내지른다 — 각도가 거의 안 변한다
-      { at: 0.62, dx: 5, dy: 1, rot: 0.14, ease: 'out' },
-      { at: 1, ease: 'out' },
-    ],
-    legs: [
-      { at: 0 },
-      { at: 0.30, dx: -2, ease: 'in' },
-      { at: 0.42, dx: 5, ease: 'snap' },                // 앞발이 한 걸음 나간다
-      { at: 0.70, dx: 2, ease: 'out' },
-      { at: 1, ease: 'out' },
-    ],
-  },
-
-  // 단검 — 짧고 빠릅니다. 몸을 낮추고 어깨를 찔러 넣습니다.
-  dagger: {
-    windup: 0.18,
-    root: [
-      { at: 0 },
-      { at: 0.18, dx: -3, dy: 2, ease: 'in' },          // 몸을 낮춘다
-      { at: 0.34, dx: 10, dy: 1, ease: 'snap' },
-      { at: 0.60, dx: 3, ease: 'out' },
-      { at: 1, ease: 'out' },
-    ],
-    body: [
-      { at: 0 },
-      { at: 0.18, rot: -0.14, dy: 1, ease: 'in' },
-      { at: 0.34, rot: 0.26, dy: -1, ease: 'snap' },
-      { at: 1, ease: 'out' },
-    ],
-    arm: [
-      { at: 0 },
-      { at: 0.18, dx: -5, rot: -0.34, ease: 'in' },     // 팔을 접어 당긴다
-      { at: 0.34, dx: 9, rot: 0.46, ease: 'snap' },     // 찔러 넣는다
-      { at: 0.56, dx: 2, rot: 0.16, ease: 'out' },
-      { at: 1, ease: 'out' },
-    ],
-    legs: [
-      { at: 0 },
-      { at: 0.34, dx: 3, ease: 'snap' },
-      { at: 1, ease: 'out' },
-    ],
-  },
-
-  // 쌍단검 — 같은 동작을 **두 번** 합니다. 한 대인데 두 번 번쩍이는 것이
-  // 두 자루를 든 이유입니다. 둘째가 첫째보다 얕아야 되돌아오는 흐름이 보입니다.
-  daggerTwin: {
-    windup: 0.14,
-    root: [
-      { at: 0 },
-      { at: 0.14, dx: -3, dy: 2, ease: 'in' },
-      { at: 0.28, dx: 10, dy: 1, ease: 'snap' },
-      { at: 0.44, dx: 1, dy: 2, ease: 'out' },
-      { at: 0.58, dx: 8, dy: 1, ease: 'snap' },
-      { at: 1, ease: 'out' },
-    ],
-    body: [
-      { at: 0 },
-      { at: 0.14, rot: -0.12, ease: 'in' },
-      { at: 0.28, rot: 0.24, ease: 'snap' },
-      { at: 0.44, rot: -0.10, ease: 'out' },
-      { at: 0.58, rot: 0.20, ease: 'snap' },
-      { at: 1, ease: 'out' },
-    ],
-    arm: [
-      { at: 0 },
-      { at: 0.14, dx: -5, rot: -0.32, ease: 'in' },
-      { at: 0.28, dx: 9, rot: 0.44, ease: 'snap' },     // 첫 칼
-      { at: 0.44, dx: -4, rot: -0.28, ease: 'out' },    // 되당긴다
-      { at: 0.58, dx: 7, rot: 0.38, ease: 'snap' },     // 둘째 칼
-      { at: 0.76, dx: 2, rot: 0.12, ease: 'out' },
-      { at: 1, ease: 'out' },
-    ],
-    legs: [
-      { at: 0 },
-      { at: 0.28, dx: 3, ease: 'snap' },
-      { at: 0.58, dx: 2, ease: 'snap' },
-      { at: 1, ease: 'out' },
-    ],
-  },
-
-  // 활 — 당기는 마디가 가장 깁니다. 활 든 팔은 앞으로 뻗어 **버티고**,
-  // 몸이 뒤로 눕습니다. 활에서 힘이 실리는 곳은 놓을 때가 아니라 당길 때입니다.
-  bow: {
-    windup: 0.42,
-    root: [
-      { at: 0 },
-      { at: 0.42, dx: -6, dy: -1, ease: 'in' },
-      { at: 0.54, dx: 4, dy: 1, ease: 'snap' },
-      { at: 1, ease: 'out' },
-    ],
-    body: [
-      { at: 0 },
-      { at: 0.42, rot: -0.22, dx: -2, ease: 'in' },     // 뒤로 눕는다
-      { at: 0.54, rot: 0.10, dx: 2, ease: 'snap' },     // 놓는 순간 앞으로 선다
-      { at: 0.72, rot: -0.04, ease: 'out' },
-      { at: 1, ease: 'out' },
-    ],
-    arm: [
-      { at: 0 },
-      // 몸통에 매달려 있으므로 허리가 젖혀지면 활도 같이 눕습니다. 활은 표적을
-      // 향해 **버텨야** 하므로 허리가 젖힌 만큼(-0.22)을 여기서 되돌립니다.
-      { at: 0.42, dx: 5, rot: 0.24, ease: 'in' },       // 활 든 팔은 앞으로 뻗어 버틴다
-      { at: 0.50, dx: 6, rot: 0.22, ease: 'out' },
-      { at: 0.58, dx: 1, rot: -0.14, ease: 'snap' },    // 놓는 순간 활이 앞으로 튕긴다
-      { at: 0.74, dx: 2, rot: 0.04, ease: 'out' },      // 한 번 떤다
-      { at: 1, ease: 'out' },
-    ],
-    legs: [
-      { at: 0 },
-      { at: 0.42, dx: -2, ease: 'in' },
-      { at: 0.58, dx: 1, ease: 'out' },
-      { at: 1, ease: 'out' },
-    ],
-  },
-
-  // 석궁 — **당기는 마디가 없습니다.** 이미 걸려 있는 것을 놓을 뿐이라
-  // 몸이 앞으로 나가지 않고 반동으로 **뒤로 밀립니다.** 그리고 천천히 되감습니다.
-  // 활과 석궁이 같은 몸짓이면 둘을 나눠 놓은 뜻이 없습니다.
-  crossbow: {
-    windup: 0,
-    root: [
-      { at: 0 },
-      { at: 0.14, dx: -11, dy: -2, ease: 'snap' },      // 반동
-      { at: 0.36, dx: -4, dy: 0, ease: 'out' },
-      { at: 1, ease: 'out' },
-    ],
-    body: [
-      { at: 0 },
-      { at: 0.14, rot: -0.20, ease: 'snap' },
-      { at: 0.40, rot: -0.06, ease: 'out' },
-      { at: 1, ease: 'out' },
-    ],
-    arm: [
-      { at: 0 },
-      { at: 0.12, dx: -6, rot: -0.26, ease: 'snap' },   // 팔이 통째로 튀어 오른다
-      { at: 0.40, dx: -2, rot: -0.06, ease: 'out' },
-      { at: 0.72, dx: -3, rot: 0.08, ease: 'in' },      // 되감는다 — 느리게 아래로
-      { at: 1, ease: 'out' },
-    ],
-    legs: [
-      { at: 0 },
-      { at: 0.14, dx: -3, ease: 'snap' },               // 반동을 발로 받는다
-      { at: 0.44, dx: -1, ease: 'out' },
-      { at: 1, ease: 'out' },
-    ],
-  },
-};
-
-// 지금 든 무기의 몸짓. 무기표의 `icon.art` 를 그대로 씁니다 —
-// 그림이 창이면 몸짓도 창이어야 하고, 그 둘이 갈리면 어느 쪽이든 거짓말이 됩니다.
+// 지금 든 무기의 박자. 무기표의 `icon.art` 를 그대로 씁니다 —
+// 그림이 창이면 박자도 창이어야 하고, 그 둘이 갈리면 어느 쪽이든 거짓말이 됩니다.
 function motionFor(job, weapon) {
   const icon = (weapon.base && weapon.base.icon) || {};
   const art = icon.art || (job.attack === 'ranged' ? 'bow' : 'sword');
-  if ((art === 'dagger' || art === 'sword') && icon.twin) return MOTIONS.daggerTwin;
-  return MOTIONS[art] || MOTIONS.sword;
+  if ((art === 'dagger' || art === 'sword') && icon.twin) return BEATS.daggerTwin;
+  return BEATS[art] || BEATS.sword;
 }
 
 // 한 판의 길이. **다음 대가 나가기 전에 끝나야** 합니다 — 안 그러면 앞 동작이
-// 매번 잘려서, 몸이 돌아오는 마디를 한 번도 못 보게 됩니다.
+// 매번 잘려서, 여덟 컷 중 앞의 서넛만 보고 살게 됩니다.
 //
 // 그래서 아래쪽으로는 안 자릅니다. 공격 속도를 끝까지 올리면 한 대가 85ms 마다
 // 나가는데, 거기에 "적어도 90ms"를 박아 두면 그 순간부터 규칙이 깨집니다.
@@ -562,9 +226,12 @@ function motionMs(rate) {
   return Math.min(rate * 0.85, 320);
 }
 
-// 이펙트를 늦출 시간. 아무리 느린 무기라도 **70ms 를 넘기지 않습니다** —
-// 피해는 곧장 들어가므로, 그림이 그보다 더 늦으면 맞은 티가 먼저 나고
-// 칼이 나중에 지나갑니다.
-function motionLead(motion, ms) {
-  return Math.min(motion.windup * ms, 70);
+// 이펙트를 늦출 시간 — **때리는 컷이 뜨는 순간**입니다.
+//
+// 위로 100ms 를 넘기지 않습니다. 피해는 곧장 들어가므로, 그림이 그보다 더
+// 늦으면 맞은 티가 먼저 나고 칼이 나중에 지나갑니다. 조각 시절에는 70ms 였는데,
+// 지금은 예비동작이 그림 안에 제대로 들어 있어 때리는 컷이 더 뒤에 옵니다.
+// 조금 늦춰 주는 편이 그림과 맞습니다.
+function motionLead(beat, ms) {
+  return Math.min(beat.lead * ms, 100);
 }

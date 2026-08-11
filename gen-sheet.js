@@ -44,8 +44,11 @@ const HEROES = {
     // 초록을 세게 못박습니다. 그냥 "green accent" 라고만 두었더니 카키·황토로
     // 나와서, 붉은 전사 · 보라 도적과 색으로 갈리지 않았습니다. 세 직업을
     // 색으로 외우는 게임이라 여기가 흐려지면 안 됩니다.
-    who: 'an archer dressed in GREEN: a sharply pointed green hood and green cloak, a slim tall '
-       + 'body, green leather gear with darker green straps. The green must be clearly, obviously '
+    // "slim tall body" 라고 적어 두었더니 궁수만 **7등신 실사 비례**로 나왔습니다.
+    // 전사와 도적은 4등신이라 셋을 나란히 놓으면 궁수 혼자 딴 게임 사람입니다.
+    // 키는 몸이 아니라 **자세**로 말하게 하고, 비례는 PROPORTION 이 못박습니다.
+    who: 'an archer dressed in GREEN: a sharply pointed green hood and green cloak, '
+       + 'green leather gear with darker green straps. The green must be clearly, obviously '
        + 'green (#A5D6A7 and #4C8C2A) — not khaki, not tan, not brown, not olive.',
   },
   rogue: {
@@ -56,6 +59,17 @@ const HEROES = {
 };
 
 // 무기 종류마다 몸이 다르게 움직입니다 (js/motion.js 의 MOTIONS 와 같은 갈래).
+// 갈래를 그림으로 말하는 낱말. js/classes.js 의 icon.art 값이 열쇠입니다.
+const KIND_WORD = {
+  sword: 'one-handed SWORD with a straight blade and a crossguard',
+  spear: 'long SPEAR — a long wooden shaft with a pointed metal head at the tip, '
+       + 'clearly much longer than the character is tall',
+  dagger: 'short DAGGER — a small knife-length blade',
+  bow: 'BOW — a curved limb with a drawn bowstring, shooting arrows',
+  crossbow: 'CROSSBOW — a horizontal bow mounted crosswise on a wooden stock with a trigger, '
+          + 'held like a rifle, NOT a hand bow',
+};
+
 const SWINGS = {
   sword: 'a one-handed sword slash: wind the sword up behind the head, step in, cut down and '
        + 'across, follow through low, then recover to a ready guard',
@@ -73,6 +87,17 @@ const STYLE = [
   '2D game sprite art, side view, the character FACING RIGHT in every single frame,',
   'bold clean dark outlines, flat cel shading with two tone shadows, saturated colours,',
   'dark fantasy but friendly, mobile game art.',
+].join(' ');
+
+// ── 세 직업의 비례를 하나로 못박습니다 ──────────────────────
+// 직업 설명에 "slim tall" 같은 말을 한 마디 넣으면 모델이 그 직업만 실사 비례로
+// 그립니다. 화면에서 셋은 같은 크기의 말이라 비례가 다르면 한 명만 어른입니다.
+// 그래서 등신을 숫자로 적습니다 — 취향이 아니라 규격입니다.
+const PROPORTION = [
+  'PROPORTIONS (identical for every class in this game): a chunky CHIBI build about four heads',
+  'tall — a big head, a short sturdy torso, short thick limbs, large hands and boots.',
+  'NOT a realistic seven- or eight-head figure, not slender, not lanky, not tall.',
+  'The whole standing figure fills roughly two thirds of the height of its cell.',
 ].join(' ');
 
 // 칸이 붙으면 잘라 낼 때 서로를 침범합니다. 여백을 크게 요구하는 것이 대책입니다.
@@ -104,11 +129,15 @@ function promptFor(job, weapon) {
   return [
     `A sprite sheet of ${COLS * ROWS} animation frames showing one complete attack cycle of `
       + `the SAME character: ${hero.who}`,
-    `The character is wielding "${weapon.label}" — ${weapon.look}`,
+    // 무기 이름은 한글입니다 ("강철 석궁"). 모델이 그걸 못 읽어서 석궁을
+    // 활로, 창을 검으로 그려 온 일이 있습니다. 갈래를 영어로 한 번 더 못박습니다.
+    `The character is wielding "${weapon.label}", which is A ${KIND_WORD[weapon.kind] || weapon.kind}`
+      + ` — and it must unmistakably read as a ${KIND_WORD[weapon.kind] || weapon.kind},`
+      + ` not as any other kind of weapon. ${weapon.look}`,
     `The motion is ${swing}.`,
     'CRITICAL: it is the exact same character and the exact same weapon in all frames — identical '
       + 'armour, identical colours, identical proportions, identical size. Only the pose changes.',
-    GRID, STYLE, BG,
+    PROPORTION, GRID, STYLE, BG,
     // 배경 규칙을 맨 끝에 한 번 더 둡니다. 지시문이 길어지면 앞쪽이 묻혀서
     // 흰 칸 위에 그려 오는 일이 생깁니다.
     'FINAL REMINDER: the entire background, in every cell and between all cells, is flat pure '
@@ -133,8 +162,11 @@ function pickImage(json) {
 // 글로만 시키면 모델이 자세를 지어내고, 그 자세들이 서로 안 이어져서 튑니다.
 // 지금 관절 모션은 공들여 다듬어 둔 것이므로(js/motion.js 머리말), 그 자세를
 // shot-poseref.js 로 찍어 참조로 주면 모델은 **다시 그리기만** 하면 됩니다.
+// 이 다섯 장은 관절 리그(js/motion.js 의 옛 PlayerRig)를 여덟 지점에서 찍어
+// 만든 것입니다. 그 리그는 시트로 갈아타면서 없어졌으므로 다시 못 찍습니다 —
+// 그래서 shots/(무시됨) 가 아니라 assets/poseref/ 에 넣어 함께 갑니다.
 function refFor(job, weapon) {
-  const f = path.join(ROOT, 'shots', 'poseref', `${job}-${weapon.kind}.png`);
+  const f = path.join(ROOT, 'assets', 'poseref', `${job}-${weapon.kind}.png`);
   return fs.existsSync(f) ? fs.readFileSync(f).toString('base64') : null;
 }
 
@@ -148,6 +180,27 @@ function baseFor(job, weapon) {
   const f = path.join(ROOT, 'shots', 'sheet-raw', `w-${job}-0.png`);
   return fs.existsSync(f) ? fs.readFileSync(f).toString('base64') : null;
 }
+
+// 0단계 시트를 그릴 때는 **전사의 0단계 시트**를 비례 견본으로 물립니다.
+// 다른 사람을 그리는 것이므로 인물 기준(baseFor)과는 쓰임이 다릅니다 —
+// 가져갈 것은 등신·화면에서 차지하는 크기·선 굵기·칸 배치뿐입니다.
+const ANCHOR_JOB = 'warrior';
+function anchorFor(job, weapon) {
+  if (weapon.key !== `w-${job}-0` || job === ANCHOR_JOB) return null;
+  const f = path.join(ROOT, 'shots', 'sheet-raw', `w-${ANCHOR_JOB}-0.png`);
+  return fs.existsSync(f) ? fs.readFileSync(f).toString('base64') : null;
+}
+
+const ANCHOR_RULE = [
+  'The FIRST attached image is a PROPORTION SAMPLE: another character class from this same game,',
+  'already finished. It is NOT the character you are drawing and you must not copy its armour,',
+  'its colours or its weapon.',
+  'Take from it ONLY the measurements: the same chunky four-head chibi build, the same head-to-body',
+  'ratio, the same limb thickness, the same figure height inside the cell, the same outline weight',
+  'and shading, the same grid and cell size and ground line, the same flat magenta background.',
+  'Put the two sheets side by side and the two characters must look like the same size of person',
+  'from the same game — different costume, same skeleton.',
+].join(' ');
 
 const BASE_RULE = [
   'The FIRST attached image is the CHARACTER REFERENCE: the finished sprite sheet of this same',
@@ -192,17 +245,22 @@ const REF_RULE = [
 ].join(' ');
 
 async function generate(job, weapon) {
+  // 첫 자리는 하나뿐입니다 — 0단계에는 비례 견본이, 그 위 단계에는 인물 기준이
+  // 옵니다. 둘이 같이 붙는 일은 없습니다.
   const base = baseFor(job, weapon);
+  const anchor = base ? null : anchorFor(job, weapon);
   const ref = refFor(job, weapon);
   const parts = [];
   // 붙이는 차례가 곧 "첫째 그림 · 둘째 그림"입니다. 지시문이 그 차례를 가리킵니다.
   if (base) parts.push({ inlineData: { mimeType: 'image/png', data: base } });
+  if (anchor) parts.push({ inlineData: { mimeType: 'image/png', data: anchor } });
   if (ref) parts.push({ inlineData: { mimeType: 'image/png', data: ref } });
   const head = [];
   if (base) head.push(BASE_RULE);
+  if (anchor) head.push(ANCHOR_RULE);
   if (ref) {
     // 그림이 둘이면 몇 번째인지 가리켜 줘야 합니다. 하나뿐이면 그냥 "첨부한 그림".
-    head.push(base
+    head.push(base || anchor
       ? REF_RULE.replace('The attached image is', 'The SECOND attached image is')
       : REF_RULE);
   }

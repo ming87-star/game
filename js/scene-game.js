@@ -16,6 +16,8 @@ class GameScene extends Phaser.Scene {
   // 건너뛰므로, 그림이 있는 것은 그림이 · 없는 것은 도형이 쓰입니다.
   preload() {
     loadArt(this);
+    // 주인공의 공격 컷은 이번 판에서 고른 직업 것만 굽습니다 (js/artset.js).
+    loadSheets(this, this.job.key);
   }
 
   create() {

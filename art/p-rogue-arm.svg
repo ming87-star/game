@@ -1,9 +1,0 @@
-<!-- 도적 · 앞팔만 40×48 · 어깨(29.6,25.6)를 축으로 돕니다
-     단검은 여기 없습니다 — 손에 드는 것은 따로 붙습니다 (hand-dagger). -->
-<svg xmlns="http://www.w3.org/2000/svg" width="40" height="48" viewBox="0 0 40 48">
-  <g stroke="#1e0f36" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">
-    <path d="M29.6 25.6 q4 1.2 5.4 4.4" fill="none" stroke-width="3.6"/>
-    <path d="M29.6 25.6 q4 1.2 5.4 4.4" fill="none" stroke="#9575cd" stroke-width="2"/>
-    <circle cx="35.2" cy="30.4" r="2.1" fill="#4527a0"/>
-  </g>
-</svg>

@@ -2,24 +2,38 @@
 //
 //   CHROME_PATH=... node shot-motion.js w-warrior-0 w-warrior-5 w-warrior-11
 //
-// 타이밍은 게임 그대로입니다 — js/motion.js 의 motionMs(rate) = min(rate*0.85, 320).
+// 타이밍은 게임 그대로입니다. 판의 길이도(motionMs) 컷마다 붙드는 시간도
+// (BEATS) js/motion.js 에서 **그대로 읽어 옵니다** — 여기 값을 따로 적어 두면
+// 한쪽만 고쳤을 때 띠와 게임이 조용히 갈라집니다. 실제로 한 번 갈라졌습니다.
+//
 // 여덟 컷을 그 시간에 나눠 돌리고, 다음 공격까지 남는 시간은 첫 컷으로 쉽니다.
 // 그 쉬는 마디가 있어야 "휘두르고 돌아온다"가 보입니다.
-//
-// ── 컷마다 시간이 다릅니다 ─────────────────────────────────
-// 여덟 컷을 40ms 씩 균등하게 돌렸더니 휘두르는 맛이 없었습니다. 애니메이션
-// 쪽 통설이 그 이유를 정확히 말해 줍니다 — **예비동작을 늦추고 타격을 빠르게
-// 하는 것이, 컷을 더 넣는 것보다 낫다.**
-//
-// 그래서 컷마다 무게를 다르게 줍니다.
-//   0~2 예비동작   느리게 (칼을 뒤로 당기는 동안 시간이 흘러야 힘이 쌓입니다)
-//   3~4 타격       아주 빠르게 (한 컷이 확 지나가야 빠르게 보입니다)
-//   5   팔로스루   길게 붙듭니다 (여기가 "맞았다"가 읽히는 자리입니다)
-//   6~7 회복       보통
-const WEIGHT = [1.7, 1.4, 1.0, 0.45, 0.45, 1.9, 1.1, 1.0];
 const fs=require('fs'), path=require('path'); const { chromium }=require('playwright');
 const ROOT=__dirname;
-const RATES={}; // classes.js 에서 읽습니다
+const RATES={};   // classes.js 에서 읽습니다
+const BEATS={};   // js/motion.js 에서 읽습니다 (한 곳에만 적어 둡니다)
+(function(){
+ const src=fs.readFileSync(path.join(ROOT,'js','motion.js'),'utf8');
+ const blk=src.slice(src.indexOf('const BEATS = {'), src.indexOf('// 붙드는 값을'));
+ [...blk.matchAll(/(\w+)\s*:\s*\{\s*hold:\s*\[([^\]]+)\]\s*,\s*hit:\s*(\d+)/g)]
+  .forEach(m=>{BEATS[m[1]]={hold:m[2].split(',').map(Number),hit:+m[3]};});
+ if(!Object.keys(BEATS).length) throw new Error('js/motion.js 에서 BEATS 를 못 읽었습니다');
+})();
+
+// 그 무기가 어떤 박자인가. js/classes.js 의 icon.art 를 봅니다.
+const KINDS={};
+(function(){
+ const src=fs.readFileSync(path.join(ROOT,'js','classes.js'),'utf8');
+ ['warrior','archer','rogue'].forEach((job,n)=>{
+  const blk=src.split('weapons: [')[n+1];
+  [...blk.matchAll(/icon: \{ art: '(\w+)'([^}]*)\}/g)].slice(0,12)
+   .forEach((m,i)=>{
+     const twin=/twin: *true/.test(m[2]);
+     const art=m[1];
+     KINDS[`w-${job}-${i}`]=(twin&&(art==='dagger'||art==='sword'))?'daggerTwin':art;
+   });
+ });
+})();
 (function(){
  const src=fs.readFileSync(path.join(ROOT,'js','classes.js'),'utf8');
  ['warrior','archer','rogue'].forEach((job,n)=>{
@@ -38,7 +52,9 @@ const RATES={}; // classes.js 에서 읽습니다
   if(!fs.existsSync(dir)) return null;
   const frames=[...Array(8)].map((_,i)=>b64(path.join(dir,`${i}.png`)));
   const info=RATES[k]||{label:k,rate:410};
-  return {k,frames,label:info.label,rate:info.rate,ms:Math.min(info.rate*0.85,320)};
+  const beat=BEATS[KINDS[k]]||BEATS.sword;
+  return {k,frames,label:info.label,rate:info.rate,ms:Math.min(info.rate*0.85,320),
+          weight:beat.hold};
  }).filter(Boolean);
  if(!cards.length){console.log('시트가 없습니다');return;}
 
@@ -69,7 +85,7 @@ const RATES={}; // classes.js 에서 읽습니다
        <img class=real id="r${n}" src="${c.frames[0]}">
      </div><div class=t>${c.label} · ${c.rate}ms 마다</div></div>`).join('')}</div>
    <script>
-   const CARDS=${JSON.stringify(cards.map(c=>({frames:c.frames,ms:c.ms,rate:c.rate,weight:WEIGHT})))};
+   const CARDS=${JSON.stringify(cards.map(c=>({frames:c.frames,ms:c.ms,rate:c.rate,weight:c.weight})))};
    CARDS.forEach((c,n)=>{
      const big=document.getElementById('b'+n), real=document.getElementById('r'+n);
      // 컷마다 시간이 다릅니다. 무게를 합이 1 이 되게 고쳐 누적 경계를 만듭니다.
@@ -80,7 +96,7 @@ const RATES={}; // classes.js 에서 읽습니다
      function tick(now){
        const e=(now-t0)%c.rate;
        let i=0;
-       if(e<c.ms){ while(i<7&&e>edge[i]) i++; } else i=0;  // 남는 시간은 첫 컷으로 쉽니다
+       if(e<c.ms){ while(i<W.length-1&&e>edge[i]) i++; } else i=0;  // 남는 시간은 첫 컷으로 쉽니다
        big.src=c.frames[i]; real.src=c.frames[i];
        requestAnimationFrame(tick);
      }
@@ -98,5 +114,6 @@ const RATES={}; // classes.js 에서 읽습니다
   fs.renameSync(path.join(ROOT,'shots','motion',latest.f),out);
   console.log('shots/motion/swing.webm  ('+Math.round(fs.statSync(out).size/1024)+'KB)');
  }
- console.log(cards.map(c=>`${c.label} — 8컷 ${Math.round(c.ms)}ms, ${c.rate}ms 주기`).join('\n'));
+ console.log(cards.map(c=>`${c.label} — ${c.frames.length}컷 ${Math.round(c.ms)}ms, ${c.rate}ms 주기`
+   +` · 박자 [${c.weight.join(' ')}]`).join('\n'));
 })();

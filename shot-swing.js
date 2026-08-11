@@ -1,0 +1,61 @@
+// 게임 안에서 실제로 휘두르는 것을 빠르게 여러 장 찍어 한 줄로 붙입니다.
+//   CHROME_PATH=... node shot-swing.js [warrior|archer|rogue] [단계]
+const fs=require('fs'),path=require('path'),http=require('http');
+const {chromium}=require('playwright');
+const ROOT=__dirname;
+const MIME={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png'};
+const server=http.createServer((req,res)=>{
+  const f=path.join(ROOT,req.url==='/'?'index.html':req.url.split('?')[0]);
+  fs.readFile(f,(e,b)=>{ if(e){res.writeHead(404);return res.end();}
+    res.writeHead(200,{'Content-Type':MIME[path.extname(f)]||'application/octet-stream'});res.end(b);});
+});
+(async()=>{
+ const job=process.argv[2]||'warrior', tier=+(process.argv[3]||0);
+ const port=9844; await new Promise(r=>server.listen(port,r));
+ const br=await chromium.launch({executablePath:process.env.CHROME_PATH,args:['--no-sandbox','--use-gl=swiftshader']});
+ const page=await br.newPage({viewport:{width:540,height:960}});
+ const errs=[]; page.on('pageerror',e=>errs.push(e.message));
+ await page.goto('http://localhost:'+port+'/',{waitUntil:'networkidle'});
+ await page.evaluate(j=>window.localStorage.setItem('tower-climb-v1',JSON.stringify({
+   bestFloor:0,deaths:0,runs:0,bestCoins:0,medals:0,weapons:{},boosts:{},
+   relics:{},unlocked:{archer:true,rogue:true},lastJob:j,sawStory:true})),job);
+ await page.reload({waitUntil:'networkidle'});
+ await page.waitForTimeout(900);
+ // 직업 카드는 y=278 부터 200 씩 (js/scene-select.js)
+ const row={warrior:0,archer:1,rogue:2}[job]||0;
+ await page.mouse.click(270,278+row*200); await page.waitForTimeout(500);
+ const st=await page.evaluate(()=>window.__medal.startAt);
+ await page.mouse.click(st.x,st.y); await page.waitForTimeout(1200);
+
+ // 무기를 갈아 끼우고 적을 하나 세워 둡니다. 죽지 않게 체력을 크게 줍니다.
+ const set=await page.evaluate((t)=>{
+   const s=window.__scene;
+   while (s.weapon.tier<t && s.weapon.upgrade) s.weapon.upgrade();
+   s.rig.setWeapon(s.job,s.weapon);
+   return {key:s.rig.key,rate:s.weapon.rate,label:s.weapon.base.name};
+ },tier);
+ console.log(JSON.stringify(set));
+
+ // 판을 세우고 t 를 직접 옮기며 여덟 컷을 찍습니다. 자리·크기·좌우뒤집기가
+ // 게임 안에서 어떻게 나오는지 보려는 것이라, 박자는 여기서 볼 것이 아닙니다.
+ await page.evaluate(()=>{const s=window.__scene;
+   s.enemies.getChildren().slice().forEach(e=>e.destroy());
+   s.bullets.clear(true,true); s.scene.pause();});
+ const N=8, shots=[];
+ for (let i=0;i<N;i++){
+   await page.evaluate((k)=>{const s=window.__scene;
+     const beat=motionFor(s.job,s.weapon);
+     s.rig.frameAt(beat, k/8 + 0.001);   // 그 컷의 한가운데가 아니라 시작점
+     s.rig.setFrame(k); s.rig.sync();},i);
+   await page.waitForTimeout(40);
+   shots.push(await page.screenshot({type:'png',clip:{x:190,y:566,width:170,height:132}}));
+ }
+ const oven=await br.newPage({viewport:{width:N*346,height:280}});
+ await oven.setContent(`<style>html,body{margin:0;background:#111}.g{display:flex}
+   img{width:340px;image-rendering:pixelated}</style><div class=g>`+
+   shots.map(s=>`<img src="data:image/png;base64,${s.toString('base64')}">`).join('')+`</div>`);
+ await oven.waitForTimeout(200);
+ await oven.screenshot({path:`/tmp/claude-0/-home-user-CRETEC-test/589e2d63-5001-53ca-91ea-464e907f5b5a/scratchpad/swing-${job}.png`,fullPage:true});
+ console.log(errs.length?'오류: '+errs.slice(0,3).join(' | '):'오류 없음');
+ await br.close(); server.close();
+})();
