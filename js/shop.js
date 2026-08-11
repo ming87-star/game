@@ -40,6 +40,66 @@ const SHOP_ITEMS = {
   charm:   { title: '수호 부적',   desc: '쓰러질 때 한 번만 버팁니다' },
 };
 
+// 진열에서 산 것이든 보물상자에서 나온 것이든, 실제로 주는 효과는 하나입니다.
+function applyShopEffect(scene, key) {
+  const s = scene;
+  switch (key) {
+    // 지도에서는 하나씩, 상점에서는 뭉치로. 그것이 상점의 값어치입니다.
+    case 'plus': for (let i = 0; i < CFG.shop.bundle.plus; i++) s.weapon.addPlus(); break;
+    case 'haste': for (let i = 0; i < CFG.shop.bundle.haste; i++) s.weapon.addHaste(); break;
+    case 'upgrade': if (s.weapon.upgrade()) s.noteWeapon(); break;
+    case 'heal': s.hp = s.maxHp; break;
+    case 'maxhp':
+      s.maxHp += CFG.shop.maxhpGain;
+      s.hp = Math.min(s.maxHp, s.hp + CFG.shop.maxhpGain);
+      break;
+    case 'armor':
+      s.armor = Math.min(s.armorMax, s.armor + CFG.armor.shopGain);
+      break;
+    case 'dodge':
+      s.dodge = Math.min(s.dodgeMax, s.dodge + CFG.dodge.shopGain);
+      break;
+    // 한계를 올립니다. 지도에는 이런 것이 없습니다 — 지도의 방어구는
+    // 한계 안을 채울 뿐이고, 그 한계를 미는 것은 여기서만 삽니다.
+    case 'cap':
+      if (s.job.usesArmor) {
+        s.armorMax += CFG.shop.capGain.armor;
+        s.armor = Math.min(s.armorMax, s.armor + CFG.shop.capGain.armor);
+      } else {
+        s.dodgeMax += CFG.shop.capGain.dodge;
+        s.dodge = Math.min(s.dodgeMax, s.dodge + CFG.shop.capGain.dodge);
+      }
+      break;
+    case 'charm':
+      s.charm = true;
+      break;
+  }
+}
+
+// 보물상자에서 나올 수 있는 것. 상점 진열과 같은 종류입니다 — 다만 값을 안 치릅니다.
+//
+// **아무것도 안 주는 것이 나오면 안 됩니다.** 상점에서는 진열을 보고 고르므로
+// 이미 한계에 닿은 것을 굳이 살 이유가 없고, 사려 들면 「이미 한계입니다」라고
+// 적어 줍니다. 그런데 상자는 고를 수가 없습니다 — 화면을 가득 채우는 이펙트를
+// 터뜨려 놓고 실제로는 아무 일도 안 일어나면, 그건 보상이 아니라 놀림입니다.
+//
+// 그래서 **지금 실제로 값이 움직이는 것만** 후보에 넣습니다.
+// (시험이 이걸 잡아냈습니다 — 스무 번 열어 세 번이 빈손이었습니다.)
+function rollChestLoot(scene) {
+  const s = scene;
+  const pool = ['maxhp', 'cap', 'plus']; // 이 셋은 한계가 없어 언제나 값이 움직입니다
+  if (!s.weapon.speedCapped) pool.push('haste');
+  if (s.hp < s.maxHp) pool.push('heal');
+  if (s.job.usesArmor) {
+    if (s.armor < s.armorMax) pool.push('armor');
+  } else if (s.dodge < s.dodgeMax) {
+    pool.push('dodge');
+  }
+  if (!s.weapon.atMaxTier) pool.push('upgrade');
+  if (!s.charm) pool.push('charm');
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 class Shop {
   constructor(scene) {
     this.scene = scene;
@@ -153,38 +213,7 @@ class Shop {
 
     s.coins -= offer.price;
     offer.sold = true;
-
-    switch (offer.key) {
-      // 지도에서는 하나씩, 여기서는 뭉치로. 그것이 상점의 값어치입니다.
-      case 'plus': for (let i = 0; i < CFG.shop.bundle.plus; i++) s.weapon.addPlus(); break;
-      case 'haste': for (let i = 0; i < CFG.shop.bundle.haste; i++) s.weapon.addHaste(); break;
-      case 'upgrade': if (s.weapon.upgrade()) s.noteWeapon(); break;
-      case 'heal': s.hp = s.maxHp; break;
-      case 'maxhp':
-        s.maxHp += CFG.shop.maxhpGain;
-        s.hp = Math.min(s.maxHp, s.hp + CFG.shop.maxhpGain);
-        break;
-      case 'armor':
-        s.armor = Math.min(s.armorMax, s.armor + CFG.armor.shopGain);
-        break;
-      case 'dodge':
-        s.dodge = Math.min(s.dodgeMax, s.dodge + CFG.dodge.shopGain);
-        break;
-      // 한계를 올립니다. 지도에는 이런 것이 없습니다 — 지도의 방어구는
-      // 한계 안을 채울 뿐이고, 그 한계를 미는 것은 여기서만 삽니다.
-      case 'cap':
-        if (s.job.usesArmor) {
-          s.armorMax += CFG.shop.capGain.armor;
-          s.armor = Math.min(s.armorMax, s.armor + CFG.shop.capGain.armor);
-        } else {
-          s.dodgeMax += CFG.shop.capGain.dodge;
-          s.dodge = Math.min(s.dodgeMax, s.dodge + CFG.shop.capGain.dodge);
-        }
-        break;
-      case 'charm':
-        s.charm = true;
-        break;
-    }
+    applyShopEffect(s, offer.key);
     this.refresh();
   }
 

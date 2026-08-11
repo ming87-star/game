@@ -18,10 +18,13 @@ const SLOT = {
   MIMIC: 'mimic',     // 좋은 것인 척하는 함정. 겉모습은 slot.disguise 를 따릅니다
   SHOP: 'shop',
   BOSS: 'boss',       // 보스 투기장. 발판도 상점도 없습니다
+  GOLDFROG: 'goldfrog', // 낮은 확률로 필드에 나오는 특별한 몬스터. 잡으면 코인을 왕창 줍니다
+  TREASURE: 'treasure', // 보물상자. UP·유물처럼 구간마다 자리를 정해 둡니다
 };
 
-// 시간이 지나면 사라지는 것들. 상점과 적은 해당하지 않습니다.
-const ITEM_KINDS = new Set([SLOT.PLUS, SLOT.HASTE, SLOT.DOUBLE, SLOT.UPGRADE, SLOT.HEAL, SLOT.ARMOR, SLOT.DODGE, SLOT.RELIC, SLOT.MEDAL, SLOT.BOMB, SLOT.MIMIC]);
+// 시간이 지나면 사라지는 것들. 상점과 적(황금개구리 포함)은 해당하지 않습니다 —
+// 그것들은 아이템이 아니라 잡아야 하는 몬스터입니다.
+const ITEM_KINDS = new Set([SLOT.PLUS, SLOT.HASTE, SLOT.DOUBLE, SLOT.UPGRADE, SLOT.HEAL, SLOT.ARMOR, SLOT.DODGE, SLOT.RELIC, SLOT.MEDAL, SLOT.BOMB, SLOT.MIMIC, SLOT.TREASURE]);
 
 // 함정. 좋은 것과 수명이 다릅니다 — 훨씬 빨리 삭습니다.
 const TRAP_KINDS = new Set([SLOT.BOMB, SLOT.MIMIC]);
@@ -47,6 +50,7 @@ const SLOT_MARK = {
   [SLOT.RELIC]:   { label: '★', color: 0xffd54f, text: '#3e2723', art: 'item-relic' },
   [SLOT.MEDAL]:   { label: '메', color: 0xffca28, text: '#4e342e', art: 'item-medal' },
   [SLOT.BOMB]:    { label: '폭', color: 0x8e0000, text: '#ffcdd2', art: 'item-bomb' },
+  [SLOT.TREASURE]: { label: '보물', color: 0xffc94d, text: '#3e2415', art: 'item-treasure' },
 };
 
 // 방어구만 직업을 탑니다. 전사는 강철 방패, 궁수는 가죽 방패 — 경로는 같고
@@ -72,13 +76,19 @@ function fakeArtKey(disguise, jobKey) {
     [SLOT.HASTE]: 'item-fake-haste',
     [SLOT.DODGE]: 'item-fake-dodge',
     [SLOT.HEAL]: 'item-fake-heal',
+    [SLOT.TREASURE]: 'item-fake-treasure',
   };
   return map[disguise] || null;
 }
 
 // 가짜가 흉내 낼 수 있는 것들. 메달과 ×2는 뺐습니다 —
 // 워낙 귀해서 가짜였을 때의 배신감이 재미를 넘어섭니다.
-const MIMIC_DISGUISES = [SLOT.PLUS, SLOT.HASTE, SLOT.ARMOR, SLOT.DODGE, SLOT.HEAL];
+//
+// 보물상자는 101층부터(CFG.trap.fromFloor) 함정이 섞이는 그 순간부터 같이
+// 흉내낼 수 있는 대상이 됩니다. 그 전까지 보물상자는 늘 진짜입니다 —
+// 함정을 아직 안 배운 사람에게 "상자도 의심해야 한다"까지 얹으면 배우는 게
+// 아니라 겁만 먹습니다.
+const MIMIC_DISGUISES = [SLOT.PLUS, SLOT.HASTE, SLOT.ARMOR, SLOT.DODGE, SLOT.HEAL, SLOT.TREASURE];
 
 function floorY(index) {
   return CFG.groundY - index * CFG.floorHeight;
@@ -104,10 +114,12 @@ function isBigShopFloor(index) {
 // 무기 단계는 한 구간에 최대 두 번 오릅니다 — 운이 아니라 계획의 문제가 됩니다.
 let upFloorByBand = new Map();
 let relicFloorByBand = new Map();
+let treasureFloorByBand = new Map();
 
 function resetTowerRun() {
   upFloorByBand = new Map();
   relicFloorByBand = new Map();
+  treasureFloorByBand = new Map();
 }
 
 // ── 유물의 자리 ─────────────────────────────────────────
@@ -126,6 +138,32 @@ function relicFloorFor(index) {
     relicFloorByBand.set(band, floor);
   }
   return relicFloorByBand.get(band);
+}
+
+// ── 보물상자의 자리 ─────────────────────────────────────
+// 확률로만 뿌리면 운이 나쁠 때 보스 하나를 지나는 내내 한 번도 못 볼 수
+// 있습니다. UP·유물과 같은 방식으로 구간마다 정확히 한 번씩 자리를 정해
+// 둡니다 — every(50)가 shopEvery 와 같고 bossEvery(200)를 나누어떨어지므로,
+// **상점 구간마다 하나 = 보스 하나를 지나는 동안 네 번**입니다.
+//
+// every 가 보스 간격을 나누어떨어지지 않으면 구간이 보스를 걸치고, 걸친
+// 구간의 상자가 보스 너머에 떨어진 판은 세 번을 못 채웁니다. 까닭은
+// CFG.treasure 옆에 적어 뒀습니다.
+function treasureFloorFor(index) {
+  const t = CFG.treasure;
+  if (index < (t.from || 0)) return -1;
+
+  const band = Math.floor((index - t.from) / t.every);
+  if (!treasureFloorByBand.has(band)) {
+    const start = t.from + band * t.every;
+    const pick = () => start + Math.floor(Math.random() * t.every);
+    let floor = pick();
+    for (let i = 0; i < 12 &&
+      (isShopFloor(floor) || isBossFloor(floor) ||
+       floor === relicFloorFor(floor) || floor === upFloorFor(floor)); i++) floor = pick();
+    treasureFloorByBand.set(band, floor);
+  }
+  return treasureFloorByBand.get(band);
 }
 
 function upFloorFor(index) {
@@ -175,6 +213,9 @@ function pickKind(index, need, usesArmor = true) {
   // 메달을 가장 먼저 봅니다. 확률이 워낙 작아 순서는 사실 상관없지만,
   // 뒤에 두면 앞의 확률을 만질 때마다 같이 흔들려서 눈에 띄게 해 둡니다.
   if (r < (acc += c.medal)) return SLOT.MEDAL;
+  // 황금개구리. 보물상자와 달리 자리를 정해 두지 않습니다 — 몇 번을 보든
+  // 순전히 운입니다 (js/enemies.js 의 spawnGoldFrog).
+  if (r < (acc += c.goldfrog)) return SLOT.GOLDFROG;
   if (r < (acc += c.plus * fade)) return SLOT.PLUS;
   if (r < (acc += c.haste * fade)) return SLOT.HASTE;
   if (r < (acc += healChance(need))) return SLOT.HEAL;
@@ -332,6 +373,12 @@ function makeFloor(index, need = 0, usesArmor = true) {
   if (index === relicFloorFor(index)) {
     floor.slots.mid = blankSlot(index, 'mid', SLOT.RELIC);
     return floor;
+  }
+
+  // 이 구간의 보물상자. UP·유물과 같은 자리(가운데)를 씁니다 — 한 칸씩만
+  // 옮겨 가므로 양 끝에 두면 반대편에 있던 판은 통째로 놓칩니다.
+  if (index === treasureFloorFor(index)) {
+    floor.slots.mid = blankSlot(index, 'mid', SLOT.TREASURE);
   }
 
   // 이 구간에 하나뿐인 UP이 놓이는 층입니다.

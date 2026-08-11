@@ -16,5 +16,6 @@ window.__game = new Phaser.Game({
     arcade: { gravity: { y: 0 }, debug: false },
   },
   // 직업 고르기 → 메달 상점 → 탑. 죽으면 무엇을 가져갈지에 따라 셋 중 하나로 갈립니다.
-  scene: [SelectScene, MedalScene, RelicBookScene, GameScene],
+  // 일시정지는 탑 위에 겹쳐 띄웁니다 — 혼자 시작되는 화면이 아니라 맨 뒤에 둡니다.
+  scene: [SelectScene, MedalScene, RelicBookScene, GameScene, PauseScene],
 });

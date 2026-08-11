@@ -12,9 +12,9 @@ const vm = require('vm');
 // 참조하지만 여기서 쓰는 것은 무기표뿐이라, 빈 껍데기 하나만 세워 두면 됩니다.
 const source = ['js/config.js', 'js/classes.js', 'js/tower.js']
   .map((f) => fs.readFileSync(path.join(__dirname, f), 'utf8'))
-  .join('\n;\n') + '\n;({ makeFloor, resetTowerRun, healNeedFrom, LANES, ITEM_KINDS, CFG, CLASSES })';
+  .join('\n;\n') + '\n;({ makeFloor, resetTowerRun, healNeedFrom, treasureFloorFor, LANES, ITEM_KINDS, CFG, CLASSES })';
 
-const { makeFloor, resetTowerRun, healNeedFrom, LANES, ITEM_KINDS, CFG, CLASSES } =
+const { makeFloor, resetTowerRun, healNeedFrom, treasureFloorFor, LANES, ITEM_KINDS, CFG, CLASSES } =
   vm.runInContext(source, vm.createContext({
     Math,
     Save: { data: { unlocked: {} }, recordWeapon() {} },
@@ -69,16 +69,39 @@ const pct = (n, d) => ((n || 0) / d * 100).toFixed(1).padStart(5) + '%';
 
 console.log(`${ROUNDS}판 × ${TOP}층 · 체력 ${Math.round(HP_RATIO * 100)}% 상태 기준\n`);
 console.log('한 층에 올라섰을 때 그것을 마주칠 확률 (길 중 하나라도)\n');
-console.log('  구간        아이템    +1      속     방     회복     UP     ×2     적     함정    폭탄    가짜');
+console.log('  구간        아이템    +1      속     방     회복     UP     ×2    상자   개구리    적     함정    폭탄    가짜');
 
 for (const [b, [from, to]] of BANDS.entries()) {
   const s = bandStats[b];
   const anyItem = ITEMS.reduce((a, k) => a + (s.has[k] || 0), 0);
   console.log(
     `  ${String(from).padStart(3)}~${String(to).padStart(3)}층  ` +
-    [anyItem, s.has.plus, s.has.haste, s.has.armor, s.has.heal, s.has.upgrade, s.has.double, s.has.enemy,
+    [anyItem, s.has.plus, s.has.haste, s.has.armor, s.has.heal, s.has.upgrade, s.has.double,
+      s.has.treasure, s.has.goldfrog, s.has.enemy,
       TRAPS.reduce((a, k) => a + (s.has[k] || 0), 0), s.has.bomb, s.has.mimic]
       .map((n) => pct(n, s.floors)).join(' '));
+}
+
+// 보물상자도 UP 처럼 확률이 아니라 배치입니다. 여기서 노리는 것은 "구간마다
+// 하나"가 아니라 **"보스 하나를 지나는 동안 세 번 이상"** 입니다.
+//
+// 판을 여러 번 뽑아서 봐야 합니다. 한 판만 보면, 구간 폭이 보스 간격을
+// 나누어떨어지지 않아 어쩌다 두 번뿐인 판이 섞이는 것을 놓칩니다.
+{
+  const per = [];
+  for (let round = 0; round < 200; round++) {
+    resetTowerRun();
+    for (let band = 0; band * CFG.bossEvery < 800; band++) {
+      let n = 0;
+      const from = band * CFG.bossEvery + 1;
+      for (let f = from; f < from + CFG.bossEvery; f++) if (f === treasureFloorFor(f)) n++;
+      per.push(n);
+    }
+  }
+  const worst = Math.min(...per);
+  console.log(`\n보스 사이(${CFG.bossEvery}층)마다 나온 보물상자 — ${per.length}구간 중` +
+    ` 가장 적을 때 ${worst}개 · 가장 많을 때 ${Math.max(...per)}개`);
+  console.log(worst >= 3 ? '  ✓ 어느 구간에서도 세 번 이상' : '  ✗ 세 번을 못 채우는 구간이 있습니다');
 }
 
 console.log('\n갈림길 수 (한 층에 놓인 길의 개수)\n');

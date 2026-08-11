@@ -159,7 +159,7 @@ const check = (ok, label, got) => {
   const items = await page.evaluate(() => {
     const s = window.__scene;
     const kinds = [SLOT.PLUS, SLOT.HASTE, SLOT.DOUBLE, SLOT.HEAL,
-      SLOT.ARMOR, SLOT.DODGE, SLOT.RELIC, SLOT.MEDAL, SLOT.BOMB];
+      SLOT.ARMOR, SLOT.DODGE, SLOT.RELIC, SLOT.MEDAL, SLOT.BOMB, SLOT.TREASURE];
     const out = [];
     kinds.forEach((kind) => {
       const slot = { kind, x: 270, y: 400, deck: [] };
@@ -176,7 +176,7 @@ const check = (ok, label, got) => {
     return out;
   });
   const asImage = items.filter((i) => i.parts === 1 && i.key.startsWith('item-'));
-  check(asImage.length === items.length, '아이템 아홉이 전부 물건 그림 (동그라미·글자 없음)',
+  check(asImage.length === items.length, '아이템 열이 전부 물건 그림 (동그라미·글자 없음)',
     items.filter((i) => i.parts !== 1).map((i) => i.kind + '=' + i.key).join(' · ') || '전부 그림');
   check(items.every((i) => i.w === 36), '발판 위에서 36px 그대로',
     items.map((i) => i.w).join(','));

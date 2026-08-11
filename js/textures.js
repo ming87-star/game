@@ -71,6 +71,21 @@ function buildTextures(scene) {
   // ── 적 ────────────────────────────────────────────────
   // 종류마다 실루엣과 색을 다르게 해서 멀리서도 구분되게 합니다.
 
+  // 코인벌레 — 아주 처음부터 만나는, 한 대에 죽는 상대.
+  // 작고 동글동글하고 황금빛입니다. 다른 적이 전부 붉거나 어두운 쪽이라
+  // 이것만 반짝이면 "잡아도 되는 것"으로 먼저 읽힙니다.
+  g.clear();
+  g.fillStyle(0xffca28, 1);
+  g.fillEllipse(14, 14, 22, 16);
+  g.fillStyle(0xff8f00, 1);
+  for (let i = 0; i < 3; i++) g.fillRect(3 + i * 8, 19, 3, 5); // 짧은 다리
+  g.fillStyle(0x5d4037, 1);
+  g.fillCircle(10, 12, 2.2);
+  g.fillCircle(18, 12, 2.2);
+  g.fillStyle(0xfff9c4, 1);
+  g.fillCircle(19, 8, 2); // 등껍질의 윤
+  bake('e-coinbug', 28, 26);
+
   // 기는 것 — 납작하고 다리가 달린 작은 놈
   g.clear();
   g.fillStyle(0xef5350, 1);
@@ -154,6 +169,25 @@ function buildTextures(scene) {
   g.fillCircle(12, 12, 2);
   g.fillCircle(22, 12, 2);
   bake('e-hopper', 34, 32);
+
+  // 황금개구리 — 뛰는 것과 같은 몸이지만 온통 금빛입니다.
+  // 실루엣을 일부러 같이 둡니다. 움직임을 이미 아는 놈이어야 "쫓아갈까"를
+  // 바로 정할 수 있습니다 — 색만 보고 값어치를 알아보면 됩니다.
+  g.clear();
+  g.fillStyle(0xffca28, 1);
+  g.fillEllipse(17, 16, 30, 22);
+  g.fillStyle(0xf9a825, 1);
+  g.fillEllipse(6, 24, 12, 12);   // 뒷다리
+  g.fillEllipse(28, 24, 12, 12);
+  g.fillStyle(0xfff9c4, 1);
+  g.fillCircle(12, 12, 4);
+  g.fillCircle(22, 12, 4);
+  g.fillStyle(0x5d4037, 1);
+  g.fillCircle(12, 12, 2);
+  g.fillCircle(22, 12, 2);
+  g.fillStyle(0xfff59d, 1);
+  g.fillCircle(17, 20, 3); // 배에 얹힌 금빛
+  bake('e-goldfrog', 34, 32);
 
   // 돌진병 — 앞으로 내민 방패
   g.clear();

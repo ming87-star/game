@@ -1,3 +1,18 @@
+// ── 초당 피해를 화면에 적을 때 나누는 값 ──────────────────
+// 체력은 세 자리(184 → 천 몇백)인데 초당 피해는 만 단위까지 갑니다. 같은
+// 화면에 나란히 놓으니 단위가 어긋나 보여서, 둘 중 하나가 잘못 적힌 것처럼
+// 읽혔습니다. 숫자의 크기를 서로 맞춰 줍니다.
+//
+// **표시에서만 나눕니다.** 무기의 피해도 적의 체력도 건드리지 않습니다 —
+// 둘을 같은 값으로 나눠 고치는 것과 결과가 완전히 같은데(잡는 데 걸리는
+// 대수는 체력÷피해라 나눈 값이 약분됩니다), 서른여섯 개나 되는 무기 피해값을
+// 손으로 옮겨 적는 위험만 없습니다. UP 발판의 `+12%` 같은 비율 표시도
+// 나누기가 약분되므로 그대로 맞습니다.
+//
+// 100이 아니라 10인 것은, 100으로 나누면 시작 무기가 `초당 1`이 되어
+// "이걸 올려서 뭐하나" 싶은 숫자가 되기 때문입니다.
+const DPS_DISPLAY_DIV = 10;
+
 // 화면 위쪽 정보 띠. 카메라에 고정됩니다.
 class Hud {
   constructor(scene) {
@@ -57,6 +72,17 @@ class Hud {
       .setDepth(102);
     this.setBoss(null);
 
+    // ── 일시정지 단추 ──────────────────────────────────
+    // 오른쪽 아래 구석. 방향 단추 셋과 겹치지 않는 유일한 자리입니다.
+    // 스스로 입력을 받지 않습니다 — 화면 전체가 이동 입력을 받으므로 한 번
+    // 누른 것이 양쪽에 먹힐 수 있어서, 자리로 걸러 냅니다
+    // (js/scene-game.js 의 bindInput 과 아래 hitsPauseButton).
+    this.pauseAt = { x: CFG.width - 44, y: CFG.height - 44, r: 30 };
+    fixed(scene.add.circle(this.pauseAt.x, this.pauseAt.y, 24, 0xffffff, 0.06)
+      .setStrokeStyle(2, 0xffffff, 0.18));
+    fixed(scene.add.text(this.pauseAt.x, this.pauseAt.y, '❚❚',
+      font(20, '#ffffff')).setOrigin(0.5)).setAlpha(0.6);
+
     this.hint = fixed(scene.add.text(CFG.width / 2, CFG.height - 70,
       '왼쪽 · 위 · 오른쪽 — 한 칸씩만 옮겨 갑니다', font(22, '#ffffff')).setOrigin(0.5)).setAlpha(0.85);
 
@@ -92,6 +118,13 @@ class Hud {
       a.ring.setFillStyle(0xffffff, on ? 0.06 : 0.02).setStrokeStyle(2, 0xffffff, on ? 0.2 : 0.07);
       a.glyph.setAlpha(on ? 0.75 : 0.2);
     });
+  }
+
+  // 누른 자리가 일시정지 단추 안인지. 화면 전체가 이동 입력을 받으므로
+  // 이동보다 **먼저** 물어봐야 합니다.
+  hitsPauseButton(x, y) {
+    const p = this.pauseAt;
+    return Phaser.Math.Distance.Between(x, y, p.x, p.y) <= p.r;
   }
 
   // 눌린 방향을 잠깐 부풀려 눌렸다는 것을 알려 줍니다.
@@ -142,7 +175,7 @@ class Hud {
       this.weaponIcon.setTexture(icon).setDisplaySize(34, 34);
     }
     this.weaponText.setText(w.name);
-    this.dpsText.setText('초당 ' + shortNum(w.dps));
+    this.dpsText.setText('초당 ' + shortNum(Math.round(w.dps / DPS_DISPLAY_DIV)));
     this.charmText.setText(s.charm ? '· 수호 부적' : '')
       .setX(this.dpsText.x + this.dpsText.width + 12);
     let x = this.weaponText.x + this.weaponText.width + 10;

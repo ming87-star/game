@@ -19,13 +19,13 @@ const server = http.createServer((req, res) => {
 //
 // 세 장이 **같은 자리**를 씁니다 — 진짜와 가짜를 같은 칸에 놓고 갈아 끼워야
 // 눈이 둘을 겹쳐 볼 수 있습니다. 따로 놓으면 둘 다 그럴듯해 보입니다.
-const REAL = ['plus', 'haste', 'armor', 'dodge', 'heal', 'double', 'relic', 'medal'];
+const REAL = ['plus', 'haste', 'armor', 'dodge', 'heal', 'treasure', 'relic', 'medal'];
 const PAGES = [
   { name: 'items-real.png', title: '진짜', slots: REAL },
   { name: 'items-fake.png', title: '가짜 — 드러나기 전',
-    slots: ['m:plus', 'm:haste', 'm:armor', 'm:dodge', 'm:heal', 'bomb', 'relic', 'medal'] },
+    slots: ['m:plus', 'm:haste', 'm:armor', 'm:dodge', 'm:heal', 'm:treasure', 'bomb', 'medal'] },
   { name: 'items-shown.png', title: '가짜 — 드러난 뒤',
-    slots: ['r:plus', 'r:haste', 'r:armor', 'r:dodge', 'r:heal', 'bomb', 'relic', 'medal'] },
+    slots: ['r:plus', 'r:haste', 'r:armor', 'r:dodge', 'r:heal', 'r:treasure', 'bomb', 'medal'] },
 ];
 
 (async () => {

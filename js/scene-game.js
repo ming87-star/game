@@ -121,6 +121,12 @@ class GameScene extends Phaser.Scene {
     this.markReach();
     this.announceBoosts();
 
+    // 너무 오래 멈춰 있으면 (js/config.js 의 CFG.idle).
+    this.idleMs = 0;
+    this.idleWarned = false;
+    this.shadowPool = null;
+    this.swallowing = false;
+
     window.__scene = this; // 브라우저 콘솔·자동 플레이테스트에서 상태를 보기 위한 통로
   }
 
@@ -270,6 +276,13 @@ class GameScene extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(5);
     }
 
+    // 황금개구리. 미리 보여야 "쫓아갈까 말까"를 두 층 밖에서 정할 수 있습니다.
+    if (slot.kind === SLOT.GOLDFROG) {
+      return this.add.text(slot.x, slot.y - 40, '🐸', {
+        fontFamily: 'sans-serif', fontSize: '26px', color: '#ffd54f',
+      }).setOrigin(0.5).setDepth(5);
+    }
+
     // 최고 단계에서는 UP이 회복으로 대신 쓰이므로, 표시도 회복처럼 보여야 합니다.
     // 가짜는 흉내 내는 것의 표를 그대로 씁니다 — 겉으로는 구분이 안 됩니다.
     let kind = slot.kind === SLOT.UPGRADE && this.weapon.atMaxTier ? SLOT.HEAL : slot.kind;
@@ -394,7 +407,17 @@ class GameScene extends Phaser.Scene {
     if (!floor) return;
     for (const lane of LANES) {
       const slot = floor.slots[lane];
-      if (!slot || slot.kind !== SLOT.ENEMY || slot.spawned) continue;
+      if (!slot || slot.spawned) continue;
+
+      if (slot.kind === SLOT.GOLDFROG) {
+        slot.spawned = true;
+        spawnGoldFrog(this, slot.x, slot.y - 50, index);
+        this.announceGoldFrog();
+        if (slot.view) { slot.view.destroy(); slot.view = null; }
+        continue;
+      }
+
+      if (slot.kind !== SLOT.ENEMY) continue;
       slot.spawned = true;
       slot.enemyTypes.forEach((type, i) => {
         spawnEnemy(this, slot.x + Phaser.Math.Between(-45, 45), slot.y - 50 - i * 30, index, type);
@@ -402,6 +425,22 @@ class GameScene extends Phaser.Scene {
       // 실제로 나왔으니 예고 표시는 지웁니다.
       if (slot.view) { slot.view.destroy(); slot.view = null; }
     }
+  }
+
+  // 황금개구리가 나타났음을 알립니다 (js/enemies.js 의 spawnGoldFrog).
+  announceGoldFrog() {
+    const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
+    const cx = CFG.width / 2;
+    const parts = [
+      this.add.text(cx, 168, '황금개구리가 나타났습니다', font(20, '#ffd54f')).setOrigin(0.5),
+      this.add.text(cx, 202, '🐸', font(38, '#ffd54f')).setOrigin(0.5),
+      this.add.text(cx, 238, '잡으면 코인을 왕창 줍니다', font(16, '#8794b5')).setOrigin(0.5),
+    ];
+    parts.forEach((t) => {
+      t.setScrollFactor(0).setDepth(150).setAlpha(0);
+      this.tweens.add({ targets: t, alpha: 1, duration: 260, yoyo: true, hold: 1500,
+        onComplete: () => t.destroy() });
+    });
   }
 
   // 이 판에서 처음 나온 종류라면 이름을 띄웁니다.
@@ -460,6 +499,12 @@ class GameScene extends Phaser.Scene {
       // 죽은 뒤에는 아무 데나 눌러 다시 시작할 수 없습니다. 무엇을 가져갈지
       // 세 갈래 중 하나를 골라야 하고, 그 버튼들이 직접 입력을 받습니다.
       if (this.dead) return;
+
+      // 일시정지 단추. 화면 전체가 이동 입력을 받으므로, 단추에 따로
+      // setInteractive 를 걸면 한 번 누른 것이 단추와 이동 양쪽에 먹힐 수
+      // 있습니다. 자리로 걸러 내면 순서에 기대지 않아도 한 번만 먹습니다.
+      if (this.hud.hitsPauseButton(p.x, p.y)) { this.pauseGame(); return; }
+
       // 화면을 삼등분해서 왼쪽이면 한 칸 왼쪽, 가운데면 바로 위, 오른쪽이면 한 칸 오른쪽.
       // 누른 자리의 발판으로 순간이동하는 것이 아니라 방향을 고르는 것입니다.
       const third = this.scale.width / 3;
@@ -476,6 +521,23 @@ class GameScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-UP', key(0));
     this.input.keyboard.on('keydown-DOWN', key(0));
     this.input.keyboard.on('keydown-RIGHT', key(1));
+    this.input.keyboard.on('keydown-P', () => this.pauseGame());
+    this.input.keyboard.on('keydown-ESC', () => this.pauseGame());
+  }
+
+  // ── 일시정지 ──────────────────────────────────────────
+  // 어쩔 수 없이 자리를 비워야 할 때가 있습니다. 그런데 이 게임은 가만히
+  // 서 있는 것에 값을 매기므로(updateIdle), 멈출 방법이 없으면 그 규칙이
+  // 그냥 벌칙이 됩니다. 둘은 같이 있어야 합니다.
+  //
+  // 장면을 통째로 멈춥니다 — scene.pause() 는 update 도 물리도 트윈도 그
+  // 장면의 시계(this.time.now)도 그 자리에 세웁니다. 박쥐·함정·보스가 전부
+  // 절대 시각을 기준으로 잡아 둔 값들인데, 하나하나 "멈춘 동안은 빼고 세라"고
+  // 챙기는 대신 장면 자체를 멈춰서 그 문제를 통째로 없앱니다.
+  pauseGame() {
+    if (this.dead || this.shop.open || this.choosing || this.swallowing) return;
+    this.scene.launch('pause');
+    this.scene.pause();
   }
 
   // step: -1 왼쪽 · 0 바로 위 · +1 오른쪽. 한 번에 한 칸까지만 옮겨 갑니다.
@@ -535,6 +597,10 @@ class GameScene extends Phaser.Scene {
         this.floorIndex = next.index;
         this.checkFloorGates();
         this.lane = slot.lane;
+        // 층이 바뀌었으니 "가만히 있는 것"의 시계도 다시 0부터입니다.
+        this.idleMs = 0;
+        this.idleWarned = false;
+        this.clearShadowPool();
         this.land(slot);
       },
     });
@@ -564,6 +630,7 @@ class GameScene extends Phaser.Scene {
     this.bossEntering = true;
     this.bossFloor = this.floorIndex;
     this.arenaY = slot.y;
+    this.clearShadowPool();
 
     // 따라오던 것들은 물러갑니다. 투기장에는 보스와 주인공뿐입니다.
     this.enemies.getChildren().slice().forEach((e) => e.destroy());
@@ -663,6 +730,9 @@ class GameScene extends Phaser.Scene {
         case SLOT.RELIC:
           // 자동으로 붙지 않습니다. 판이 멈추고 세 장 중 하나를 고릅니다.
           this.openRelicChoice();
+          break;
+        case SLOT.TREASURE:
+          this.openTreasure(slot);
           break;
         case SLOT.ARMOR:
           this.armor = Math.min(this.armorMax, this.armor + CFG.armor.perItem);
@@ -1274,8 +1344,12 @@ class GameScene extends Phaser.Scene {
       return;
     }
 
-    // 모든 적이 코인을 흘리지는 않습니다. 대신 나올 때는 그만큼 더 줍니다.
-    if (enemy.coin > 0 && Math.random() < CFG.coin.dropChance) {
+    // 황금개구리는 확률로 흘리지 않습니다 — 잡으면 무조건, 가진 만큼 그대로.
+    // 낮은 확률로 나온 것을 잡았는데 또 확률에 걸려 빈손이면 실망만 남습니다.
+    if (enemy.isGoldFrog) {
+      this.dropCoin(enemy.x, enemy.y, enemy.coin, true);
+    } else if (enemy.coin > 0 && Math.random() < CFG.coin.dropChance) {
+      // 모든 적이 코인을 흘리지는 않습니다. 대신 나올 때는 그만큼 더 줍니다.
       this.dropCoin(enemy.x, enemy.y, Math.round(enemy.coin * CFG.coin.dropBonus));
     }
 
@@ -1451,6 +1525,9 @@ class GameScene extends Phaser.Scene {
         this.dodge = Math.max(0, this.dodge - CFG.dodge.perItem * 2);
         this.popup('가짜! 회피 ' + Math.round(this.dodge * 100) + '%', '#ff5252');
         break;
+      case SLOT.TREASURE:
+        this.springTrap(t.mimicTreasure, '가짜 상자!');
+        return;
       default:
         this.springTrap(t.mimicHeal, '가짜!');
         return;
@@ -1599,6 +1676,64 @@ class GameScene extends Phaser.Scene {
     this.hud.update();
   }
 
+  // ── 보물상자 ──────────────────────────────────────────
+  // 아주 낮은 확률로 유물이 들어 있습니다. 이미 유물이 꽉 찼으면 굴리지
+  // 않습니다 — 무엇을 버릴지 고르게 하면서까지 상자를 열 이유는 없습니다.
+  openTreasure(slot) {
+    const canHoldRelic = this.weapon.relics.length < CFG.relic.maxHeld;
+    const relic = canHoldRelic && Math.random() < CFG.treasure.relicChance
+      ? rollRelicChoices(this.job.key, this.weapon.relics, 1)[0]
+      : null;
+
+    if (relic) {
+      this.takeRelic(relic);
+      this.treasureFx(slot.x, slot.y, true);
+      return;
+    }
+
+    const key = rollChestLoot(this);
+    applyShopEffect(this, key);
+    this.popup(SHOP_ITEMS[key].title, '#ffd54f');
+    this.hud.update();
+    this.treasureFx(slot.x, slot.y, false);
+  }
+
+  // 화면을 가득 채우는 화려한 이펙트. 유물이 들어 있었으면 황금빛입니다 —
+  // 무엇을 열었는지가 이펙트 색만 보고도 짐작이 가야 합니다.
+  treasureFx(x, y, golden) {
+    const tint = golden ? 0xffd54f : 0xffe0b2;
+
+    const flash = this.add.rectangle(CFG.width / 2, CFG.height / 2, CFG.width, CFG.height, tint, 0.55)
+      .setScrollFactor(0).setDepth(190);
+    this.tweens.add({ targets: flash, alpha: 0, duration: golden ? 620 : 420,
+      onComplete: () => flash.destroy() });
+
+    this.cameras.main.shake(golden ? 260 : 160, golden ? 0.012 : 0.008);
+
+    const n = golden ? 26 : 16;
+    for (let i = 0; i < n; i++) {
+      const a = (Math.PI * 2 * i) / n + Math.random() * 0.3;
+      const dist = 60 + Math.random() * (golden ? 140 : 90);
+      const spark = this.add.sprite(x, y, 'spark').setDepth(191).setTint(tint);
+      this.tweens.add({
+        targets: spark, x: x + Math.cos(a) * dist, y: y + Math.sin(a) * dist,
+        scale: golden ? 3 : 2, alpha: 0, duration: 500 + Math.random() * 300,
+        onComplete: () => spark.destroy(),
+      });
+    }
+
+    [0, 120].forEach((delay) => {
+      this.time.delayedCall(delay, () => {
+        const ring = this.add.circle(x, y, 10, tint, 0).setStrokeStyle(3, tint, 0.8).setDepth(191);
+        this.tweens.add({
+          targets: ring, radius: golden ? 160 : 100, alpha: 0, duration: 500,
+          onUpdate: () => ring.setRadius(ring.radius),
+          onComplete: () => ring.destroy(),
+        });
+      });
+    });
+  }
+
   onEnemyTouch(player, enemy) {
     if (this.dead) return;
 
@@ -1631,6 +1766,8 @@ class GameScene extends Phaser.Scene {
   }
 
   hurt(amount, source, fromBoss) {
+    // 그림자에게 삼켜지는 중에는 다른 피해가 끼어들 이유가 없습니다.
+    if (this.dead || this.swallowing) return;
     // 도적은 일정 확률로 통째로 흘려 넘깁니다.
     // 다만 보스가 내리꽂는 것에는 덜 통합니다 — 안 그러면 피하지 않아도
     // 절반 넘게 흘러가서, 줄을 고르는 그 싸움을 도적만 안 하게 됩니다.
@@ -1901,7 +2038,8 @@ class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: t, y: t.y - 60, alpha: 0, duration: 700, onComplete: () => t.destroy() });
   }
 
-  gameOver() {
+  gameOver(reason) {
+    if (this.dead) return;
     this.dead = true;
     this.hp = 0;
     // 판을 넘어 남는 기록. 직업 해금이 여기에 기댑니다.
@@ -1925,6 +2063,7 @@ class GameScene extends Phaser.Scene {
     add(this.add.text(cx, 190, this.floorIndex + '층', font(66, '#ffffff')).setOrigin(0.5));
     add(this.add.text(cx, 244, '점수 ' + this.score() + '   처치 ' + this.kills +
       '   코인 ' + this.totalCoins, font(22, '#b0bec5')).setOrigin(0.5));
+    if (reason) add(this.add.text(cx, 164, reason, font(14, '#b39ddb')).setOrigin(0.5));
 
     // 들고 있던 유물. 어떤 조합으로 여기까지 왔는지가 다음 판의 계획이 됩니다.
     if (this.weapon.relics.length) {
@@ -2103,6 +2242,7 @@ class GameScene extends Phaser.Scene {
     this.rig.sync();
 
     this.updateBats(time);
+    this.updateIdle(delta);
 
     // 무작위 등장 — 높이 올라갈수록 간격이 짧아집니다.
     // 투기장에서는 보스가 직접 졸개를 부르므로 여기서는 쉽니다.
@@ -2111,5 +2251,84 @@ class GameScene extends Phaser.Scene {
       const delay = Math.max(CFG.ambient.minDelay, CFG.ambient.baseDelay - this.floorIndex * CFG.ambient.delayPerFloor);
       this.ambientAt = time + delay;
     }
+  }
+
+  // ── 너무 오래 멈춰 있으면 ─────────────────────────────
+  // 위로 오르지 않고 한 자리에 눌러앉아 몰려오는 적만 잡아 코인을 버는 것을
+  // 막습니다 (js/config.js 의 CFG.idle). jump()가 층을 옮길 때마다 idleMs를
+  // 0으로 되돌리므로, 여기서 세는 것은 순수하게 "가만히 있는 시간"입니다.
+  //
+  // 상점·유물 고르기·일시정지 중에는 update() 자체가 안 돌아서 자동으로
+  // 빠집니다 (상점/고르기는 위쪽의 이른 return, 일시정지는 scene.pause()).
+  // 보스전만은 update()가 계속 도니 따로 걸러 줍니다 — 이미 다른 압박(보스의
+  // 공격)이 있는 자리라 여기서까지 값을 매길 이유가 없습니다.
+  updateIdle(delta) {
+    if (this.bossFight) { this.idleMs = 0; this.idleWarned = false; this.clearShadowPool(); return; }
+
+    const c = CFG.idle;
+    this.idleMs += delta;
+
+    if (!this.idleWarned && this.idleMs >= c.warnMs) {
+      this.idleWarned = true;
+      this.warnShadow();
+    }
+
+    if (this.shadowPool) {
+      const t = Phaser.Math.Clamp((this.idleMs - c.warnMs) / (c.killMs - c.warnMs), 0, 1);
+      this.shadowPool.setPosition(this.player.x, this.player.y + 20);
+      this.shadowPool.setRadius(6 + t * 46);
+      this.shadowPool.setAlpha(0.3 + t * 0.4);
+    }
+
+    if (this.idleMs >= c.killMs) this.swallowPlayer();
+  }
+
+  // 그림자가 올라오기 전의 경고. 바닥에 옅은 검은 웅덩이도 함께 남겨서,
+  // 문구가 사라진 뒤에도 "여기서 자라고 있다"가 눈에 보이게 합니다.
+  warnShadow() {
+    const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
+    const cx = CFG.width / 2;
+    const parts = [
+      this.add.text(cx, 300, '너무 오래 멈춰 있습니다', font(22, '#b39ddb')).setOrigin(0.5),
+      this.add.text(cx, 336, '발밑에서 그림자가 올라옵니다', font(18, '#8794b5')).setOrigin(0.5),
+    ];
+    parts.forEach((t) => {
+      t.setScrollFactor(0).setDepth(150).setAlpha(0);
+      this.tweens.add({ targets: t, alpha: 1, duration: 300, yoyo: true, hold: 1400,
+        onComplete: () => t.destroy() });
+    });
+    this.shadowPool = this.add.circle(this.player.x, this.player.y + 20, 2, 0x000000, 0.5).setDepth(7);
+  }
+
+  clearShadowPool() {
+    if (this.shadowPool) { this.shadowPool.destroy(); this.shadowPool = null; }
+  }
+
+  // 검은 그림자가 캐릭터를 삼킵니다. 방어력도 부적도 소용없습니다 — 자리를
+  // 지키고 버티는 것 자체가 값을 치르는 규칙이라, 빠져나갈 구멍을 두면 안 됩니다.
+  swallowPlayer() {
+    if (this.swallowing || this.dead) return;
+    this.swallowing = true;
+    this.clearShadowPool();
+    this.physics.pause();
+    this.cameras.main.shake(500, 0.01);
+
+    const px = this.player.x, py = this.player.y;
+    for (let i = 0; i < 6; i++) {
+      const t = this.add.rectangle(
+        px + Phaser.Math.Between(-24, 24), py + 20, 6, 4, 0x000000, 0.7).setDepth(9);
+      this.tweens.add({
+        targets: t, y: py - 30 - Math.random() * 20, scaleY: 8, alpha: 0,
+        duration: 700, delay: i * 60, ease: 'Quad.in',
+      });
+    }
+
+    const cover = this.add.circle(px, py, 4, 0x000000, 0.92).setDepth(195);
+    this.tweens.add({ targets: [this.player], alpha: 0, duration: 750, ease: 'Quad.in' });
+    this.tweens.add({
+      targets: cover, radius: CFG.width, duration: 750, ease: 'Quad.in',
+      onUpdate: () => cover.setRadius(cover.radius),
+      onComplete: () => this.gameOver('그림자에게 삼켜졌습니다'),
+    });
   }
 }

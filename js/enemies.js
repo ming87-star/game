@@ -319,6 +319,45 @@ function spawnBoss(scene, floor, x, y) {
   return e;
 }
 
+// ── 황금개구리 ────────────────────────────────────────────
+// 아주 낮은 확률로 나타나는 특별한 몬스터 (js/tower.js 의 SLOT.GOLDFROG).
+// 보통 적의 종류 목록(CFG.enemyTypes)에는 넣지 않습니다 — 파도에 섞여
+// 흔해지는 대신, 늘 낮은 확률로 "어쩌다 한 번" 나와야 특별하게 느껴집니다.
+// 잡으면 층에 따라 불어나는 큰 코인을 한꺼번에 줍니다 — 위층 상점 값이
+// 오르는 것을 벌충하려는 몫입니다.
+function spawnGoldFrog(scene, x, y, floor) {
+  if (scene.enemies.countActive(true) >= CFG.maxEnemies) return null;
+  const g = CFG.goldfrog;
+  const skin = scene.textures.exists('e-goldfrog') ? 'e-goldfrog' : 'e-hopper';
+  const def = {
+    key: 'goldfrog', name: '황금개구리', from: 0,
+    hp: g.hpScale, speed: g.speedScale, dmg: g.dmg, coin: 0,
+    scale: g.visualScale, ground: true, move: 'hop',
+  };
+
+  const e = scene.enemies.create(x, y, skin);
+  e.setDepth(8);
+  e.setScale(def.scale);
+  e.body.setAllowGravity(true);
+  e.body.setGravityY(CFG.ground.gravity);
+  e.dir = Math.random() < 0.5 ? -1 : 1;
+  e.def = def;
+  e.isGoldFrog = true;
+  e.maxHp = Math.round((CFG.enemy.baseHp + floor * CFG.enemy.hpPerFloor)
+    * enemyHpScale(floor) * g.hpScale);
+  e.hp = e.maxHp;
+  e.speed = Math.min(CFG.enemy.maxSpeed,
+    (CFG.enemy.baseSpeed + floor * CFG.enemy.speedPerFloor) * g.speedScale);
+  e.floor = floor;
+  e.contactDamage = Math.round(g.dmg * (1 + floor * CFG.enemy.dmgPerFloor));
+  e.coin = Math.round(g.coinBase * (1 + floor * g.coinPerFloor));
+  e.phase = Math.random() * Math.PI * 2;
+  e.nextHopAt = scene.time.now + Math.random() * CFG.hop.interval;
+
+  scene.tweens.add({ targets: e, scaleX: def.scale * 1.15, scaleY: def.scale * 0.85, duration: 260, yoyo: true, repeat: -1 });
+  return e;
+}
+
 function bossStep(scene, e, player, time) {
   e.body.velocity.set(0, 0);
   if (scene.bossEntering) return;
