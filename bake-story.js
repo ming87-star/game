@@ -26,8 +26,18 @@ const ART = path.join(ROOT, 'art');
 const OUT = path.join(ROOT, 'js', 'storydata.js');
 const WARN_KB = 400;
 
-// 굽을 그림들. 이름 → 그 그림이 없어도 게임이 돌아가야 합니다.
-const WANT = ['story', 'meet-archer', 'meet-rogue'];
+// 굽을 그림들. 하나도 없어도 게임은 돌아가야 합니다.
+//
+// 오프닝은 **두 가지 길** 중 아무 쪽이나 됩니다.
+//   story.webp                        2×2 네 컷 한 장 (코드가 사분면으로 자름)
+//   story-1..4.webp                    컷마다 한 장씩 (자르지 않음)
+//
+// 낱장 쪽을 더 권합니다. 그림 도구에게 "정확히 한가운데서 잘리는 2×2"를
+// 시키면 칸 사이에 여백이나 테두리를 멋대로 넣기 일쑤인데, 그러면 잘린 자리에
+// 흰 띠가 남습니다. 낱장이면 그 문제가 아예 없습니다.
+// 둘 다 있으면 낱장이 이깁니다 (js/scene-story.js).
+const WANT = ['story', 'story-1', 'story-2', 'story-3', 'story-4',
+  'meet-archer', 'meet-rogue'];
 
 // 넷 중 먼저 찾은 것을 씁니다. webp 가 같은 화질에서 가장 가볍습니다.
 const EXTS = ['.webp', '.jpg', '.jpeg', '.png'];
@@ -62,7 +72,15 @@ fs.writeFileSync(OUT,
   'const STORY_ART = ' + JSON.stringify(found, null, 0) + ';\n');
 
 const outKb = Math.round(fs.statSync(OUT).size / 1024);
-console.log(`\njs/storydata.js  ${outKb}KB  (${Object.keys(found).length}/${WANT.length}장)`);
+const cuts = [1, 2, 3, 4].filter((i) => found['story-' + i]).length;
+console.log(`\njs/storydata.js  ${outKb}KB  (${Object.keys(found).length}장)`);
+console.log(cuts === 4 ? '오프닝: 낱장 넷을 씁니다 (자르지 않음)'
+  : found.story ? '오프닝: 2×2 한 장을 사분면으로 자릅니다'
+    : '오프닝: 그림이 없어 빈 네모로 나옵니다');
+if (cuts && cuts < 4) {
+  console.log(`  ⚠ 낱장이 ${cuts}장뿐입니다. 넷을 다 채우거나, 없는 컷은`);
+  console.log('    story.webp(2×2 한 장)로 메워집니다.');
+}
 if (missing.length) {
   console.log('아직 없는 그림: ' + missing.map((m) => 'art/' + m + '.webp').join(' · '));
   console.log('없어도 돌아갑니다 — 그 자리만 빈 네모로 나옵니다.');

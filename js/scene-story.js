@@ -30,7 +30,9 @@ class StoryScene extends Phaser.Scene {
 
   preload() {
     // 데이터 URI라 네트워크를 타지 않습니다. 이미 구웠으면 다시 굽지 않습니다.
+    // 낱장 넷과 2×2 한 장, 둘 다 받습니다 (bake-story.js 위쪽 참고).
     loadStoryArt(this, 'story');
+    for (let i = 1; i <= 4; i++) loadStoryArt(this, 'story-' + i);
   }
 
   create() {
@@ -55,14 +57,27 @@ class StoryScene extends Phaser.Scene {
     this.add.rectangle(this.frameX, this.frameY, this.frameW + 8, this.frameW + 8, 0x0d1120)
       .setStrokeStyle(2, 0x3f4a78);
 
-    this.hasArt = this.textures.exists('story');
+    // 컷마다 낱장이 있으면 그쪽이 이깁니다 — 자를 일이 없으니 어긋날 일도
+    // 없습니다. 없으면 2×2 한 장을 사분면으로 자릅니다.
+    this.cutKeys = this.panels.map((_, i) => 'story-' + (i + 1))
+      .map((k) => (this.textures.exists(k) ? k : null));
+    this.sheet = this.textures.exists('story');
+    this.hasArt = this.sheet || this.cutKeys.some(Boolean);
+
     if (this.hasArt) {
-      // 한 컷만 보이도록 잘라 냅니다. crop 은 원본 픽셀 기준이라, 원본이
-      // 몇 픽셀이든 절반씩 나누면 사분면이 됩니다 — 크기를 못박지 않아도 됩니다.
-      const src = this.textures.get('story').getSourceImage();
-      this.cutW = Math.floor(src.width / 2);
-      this.cutH = Math.floor(src.height / 2);
-      this.art = this.add.image(this.frameX, this.frameY, 'story');
+      if (this.sheet) {
+        // crop 은 원본 픽셀 기준이라, 원본이 몇 픽셀이든 절반씩 나누면
+        // 사분면이 됩니다 — 크기를 못박지 않아도 됩니다.
+        const src = this.textures.get('story').getSourceImage();
+        this.cutW = Math.floor(src.width / 2);
+        this.cutH = Math.floor(src.height / 2);
+      }
+      this.art = this.add.image(this.frameX, this.frameY, this.sheet ? 'story' : 'story-1');
+      // 낱장만 있는 컷과 2×2만 있는 컷이 섞여 있을 수 있으므로,
+      // 빈 자리를 적을 글도 같이 준비해 둡니다.
+      this.placeholder = this.add.text(this.frameX, this.frameY, '', {
+        fontFamily: 'sans-serif', fontSize: '20px', color: '#3c456b',
+      }).setOrigin(0.5);
     } else {
       this.add.text(this.frameX, this.frameY - 16, '네 컷 만화가 들어올 자리', {
         fontFamily: 'sans-serif', fontSize: '20px', color: '#3c456b',
@@ -110,7 +125,17 @@ class StoryScene extends Phaser.Scene {
     if (!p) return this.finish();
     this.at = n;
 
-    if (this.hasArt) {
+    const cut = this.cutKeys && this.cutKeys[n];
+    if (cut) {
+      // 낱장 — 자르지 않고 그대로 액자에 맞춥니다.
+      const src = this.textures.get(cut).getSourceImage();
+      this.art.setVisible(true).setCrop().setTexture(cut).setScale(1)
+        .setDisplaySize(this.frameW, this.frameW * (src.height / src.width))
+        .setPosition(this.frameX, this.frameY);
+      this.placeholder.setText('');
+    } else if (this.sheet) {
+      this.art.setVisible(true).setTexture('story');
+      this.placeholder.setText('');
       // 왼위 → 오른위 → 왼아래 → 오른아래
       const col = n % 2;
       const row = Math.floor(n / 2);
@@ -129,7 +154,11 @@ class StoryScene extends Phaser.Scene {
         this.frameX + this.cutW * scale * (0.5 - col),
         this.frameY + this.cutH * scale * (0.5 - row));
     } else if (this.placeholder) {
-      this.placeholder.setText((n + 1) + ' / ' + this.panels.length);
+      // 그림이 아직 없는 컷.
+      if (this.art) this.art.setVisible(false);
+      this.placeholder.setText(this.hasArt
+        ? (n + 1) + '컷이 들어올 자리'
+        : (n + 1) + ' / ' + this.panels.length);
     }
 
     this.titleText.setText(p.title || '');
