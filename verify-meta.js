@@ -244,6 +244,69 @@ const check = (ok, label, got) => {
   check(await page.evaluate(() => window.__scene.dead) === true,
     '두 번을 다 쓰면 더는 이어갈 수 없음', '최대 ' + limit.max + '번');
 
+  // ── 상점의 「추천」 표 ──────────────────────────────────
+  // 진열에서 가장 이득인 하나를 가리킵니다. 이득은 화력×맷집(힘)으로 재는데,
+  // **틀린 것을 가리키면 안 가리키느니만 못합니다** — 사람이 그걸 믿고 삽니다.
+  // 그래서 "가리키지 말아야 할 때 안 가리키는가"를 더 많이 봅니다.
+  const rec = await page.evaluate(() => {
+    const s = window.__scene;
+    const setup = (fn) => {
+      if (s.shop.open) s.shop.close();
+      s.weapon.tier = 0; s.weapon.plus = 0; s.weapon.haste = 0;
+      s.maxHp = s.job.hp; s.hp = s.maxHp;
+      s.armor = s.job.armor; s.dodge = s.job.dodge || 0;
+      s.coins = 4000;
+      fn(s);
+      s.shop.show(50);
+      // 진열은 무작위라, 보고 싶은 것이 안 나올 수 있습니다. 손으로 심습니다.
+      return s.shop;
+    };
+    const plant = (keys) => {
+      s.shop.offers = keys.map((k) => ({ k: k, key: k, price: 30, sold: false }));
+      s.shop.rows.forEach((r) => { r.rec.destroy(); r.recBg.destroy(); r.box.destroy();
+        r.name.destroy(); r.desc.destroy(); r.price.destroy(); });
+      s.shop.rows = s.shop.offers.map((o, i) => s.shop.buildRow(o, 270, 200 + i * 100));
+      s.shop.refresh();
+      return s.shop.rows.filter((r) => r.rec.visible).map((r) => r.offer.key);
+    };
+
+    const out = {};
+    // 1. 체력이 가득이면 회복은 아무것도 안 줍니다 — 가리키면 안 됩니다.
+    setup((x) => { x.hp = x.maxHp; });
+    out.fullHp = plant(['heal', 'plus']);
+    // 2. 속도가 한계면 「가벼운 손」도 헛것입니다.
+    setup((x) => { x.weapon.haste = 999; });
+    out.capped = plant(['haste', 'plus']);
+    // 3. 못 사는 것은 안 가리킵니다 — 약만 오릅니다.
+    setup((x) => { x.coins = 40; x.hp = Math.round(x.maxHp * 0.3); });
+    s.shop.offers = [{ key: 'heal', price: 9999, sold: false }, { key: 'plus', price: 30, sold: false }];
+    out.tooPoor = plant(['plus']); // 위에서 심은 비싼 heal 은 빠집니다
+    // 4. 반죽은 채로 오면 회복이 이깁니다 (같은 값이라면).
+    setup((x) => { x.hp = Math.round(x.maxHp * 0.2); });
+    out.hurt = plant(['heal', 'cap']);
+    // 5. 이미 산 것은 안 가리킵니다.
+    setup((x) => { x.hp = Math.round(x.maxHp * 0.2); });
+    s.shop.offers = [{ key: 'heal', price: 30, sold: true }, { key: 'plus', price: 30, sold: false }];
+    s.shop.rows.forEach((r) => { r.rec.destroy(); r.recBg.destroy(); r.box.destroy();
+      r.name.destroy(); r.desc.destroy(); r.price.destroy(); });
+    s.shop.rows = s.shop.offers.map((o, i) => s.shop.buildRow(o, 270, 200 + i * 100));
+    s.shop.refresh();
+    out.sold = s.shop.rows.filter((r) => r.rec.visible).map((r) => r.offer.key);
+
+    if (s.shop.open) s.shop.close();
+    return out;
+  });
+
+  check(rec.fullHp.join() === 'plus', '체력이 가득이면 회복을 안 가리킴',
+    rec.fullHp.join(' ') || '(아무것도 안 가리킴)');
+  check(rec.capped.join() === 'plus', '속도가 한계면 「가벼운 손」을 안 가리킴',
+    rec.capped.join(' ') || '(아무것도 안 가리킴)');
+  check(rec.tooPoor.join() === 'plus', '못 사는 것은 안 가리킴', rec.tooPoor.join(' '));
+  check(rec.hurt.join() === 'heal', '반죽은 채로 오면 회복을 가리킴', rec.hurt.join(' '));
+  check(rec.sold.join() === 'plus', '이미 산 것은 안 가리킴', rec.sold.join(' '));
+  check([rec.fullHp, rec.capped, rec.tooPoor, rec.hurt, rec.sold].every((r) => r.length <= 1),
+    '표는 늘 한 칸에만 붙음');
+
   console.log(bad ? `\n${bad}건 어긋남` : '\n메달·계승 흐름 모두 맞음');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
   await browser.close();

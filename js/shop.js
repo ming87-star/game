@@ -100,6 +100,82 @@ function rollChestLoot(scene) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
+// ── 무엇이 가장 이득인가 ────────────────────────────────
+// 화력과 맷집은 단위가 달라서 그냥은 못 견줍니다. 곱으로 묶으면 견줄 수 있습니다.
+//
+//   힘 = 초당 피해 × 실질 체력
+//
+// 이 곱이 뜻하는 것은 **화력 10%와 맷집 10%가 같은 값**이라는 것입니다.
+// 둘 다 "쓰러지기 전에 넣을 수 있는 피해"를 꼭 10% 늘리니까요. 그래야
+// 「날붙이 갈기」와 「두꺼운 갑옷」을 한 자로 잽니다.
+//
+// 실질 체력에는 **지금 체력**을 씁니다 (최대 체력이 아니라). 그래야 반죽은
+// 채로 들어온 사람에게 회복이 제값으로 보이고, 가득 찬 사람에게는 0이 됩니다.
+function powerOf(dps, hp, armor, dodge) {
+  const taken = Math.max(0.01, (1 - dodge) * (1 - armor / 100));
+  return dps * (hp / taken);
+}
+
+function powerNow(s) {
+  return powerOf(s.weapon.dps, s.hp, s.armor, s.dodge);
+}
+
+// 그것을 샀을 때의 힘. **실제로 사 보지 않고** 셈으로만 냅니다 —
+// applyShopEffect 를 불러서 되돌리는 길도 있지만, 되돌리기를 한 군데라도
+// 빠뜨리면 사지도 않은 것이 붙은 채로 판이 굴러갑니다.
+function powerAfter(s, key) {
+  const w = s.weapon;
+  let dps = w.dps;
+  let hp = s.hp;
+  let armor = s.armor;
+  let dodge = s.dodge;
+  const c = CFG.shop;
+
+  switch (key) {
+    case 'plus': {
+      // 공격력은 밑값에 비례합니다. 붙는 양만큼 비율로 밀어 줍니다.
+      const before = 1 + w.plusValue * CFG.plusStep;
+      const after = 1 + (w.plusValue + c.bundle.plus * (s.job.plusScale || 1)) * CFG.plusStep;
+      dps = dps * after / before;
+      break;
+    }
+    case 'haste': {
+      // 한계에 닿아 있으면 아무 일도 안 일어납니다 — 그러면 이득이 0입니다.
+      const raw = (1 + (w.haste + c.bundle.haste) * CFG.hasteStep) * w.mult;
+      dps = dps * Math.min(w.speedCap, raw) / w.speedMult;
+      break;
+    }
+    case 'upgrade':
+      // 손해일 수도 있습니다 (단계가 오르면 `+1`이 날아갑니다). 그대로 셉니다.
+      dps = w.nextDps || dps;
+      break;
+    case 'heal':
+      hp = s.maxHp;
+      break;
+    case 'maxhp':
+      hp = Math.min(s.maxHp + c.maxhpGain, hp + c.maxhpGain);
+      break;
+    case 'armor':
+      armor = Math.min(s.armorMax, armor + CFG.armor.shopGain);
+      break;
+    case 'dodge':
+      dodge = Math.min(s.dodgeMax, dodge + CFG.dodge.shopGain);
+      break;
+    case 'cap':
+      if (s.job.usesArmor) armor = Math.min(s.armorMax + c.capGain.armor, armor + c.capGain.armor);
+      else dodge = Math.min(s.dodgeMax + c.capGain.dodge, dodge + c.capGain.dodge);
+      break;
+    case 'charm':
+      // 부적은 **미뤄 둔 회복**입니다. 쓰러질 때 최대 체력의 charmHeal 만큼으로
+      // 일어납니다 (js/scene-game.js 의 breakCharm). 그만큼을 지금 받은 셈 칩니다.
+      // 판이 안 끝난다는 값어치는 여기 안 들어갑니다 — 그것까지 세면 부적이
+      // 늘 이겨서 추천이 한 칸에 못 박힙니다.
+      hp += s.maxHp * c.charmHeal;
+      break;
+  }
+  return powerOf(dps, hp, armor, dodge);
+}
+
 class Shop {
   constructor(scene) {
     this.scene = scene;
@@ -130,6 +206,27 @@ class Shop {
       picked.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
     }
     return picked.map((key) => ({ key, price: this.priceOf(key, shopNo), sold: false }));
+  }
+
+  // 지금 진열에서 **가장 이득인 것** 하나. 없으면 null 입니다.
+  //
+  // 살 수 있는 것 중에서만 고릅니다 — 못 사는 것을 가리켜 봐야 약만 오릅니다.
+  // 그리고 이득이 0 이하면 아무것도 안 가리킵니다. 속도가 한계라 「가벼운 손」이
+  // 헛것이거나, 체력이 가득이라 「응급 처치」가 헛것인 판이 실제로 있습니다 —
+  // 그럴 때 억지로 하나를 골라 주면 그 추천이 거짓말이 됩니다.
+  bestKey() {
+    const s = this.scene;
+    const now = powerNow(s);
+    if (!(now > 0)) return null;
+
+    let best = null;
+    let bestGain = 0.0001; // 이보다 못 하면 추천할 값어치가 없습니다
+    this.offers.forEach((o) => {
+      if (o.sold || s.coins < o.price) return;
+      const gain = powerAfter(s, o.key) / now - 1;
+      if (gain > bestGain) { bestGain = gain; best = o.key; }
+    });
+    return best;
   }
 
   show(floorIndex) {
@@ -203,8 +300,16 @@ class Shop {
     const desc = add(s.add.text(left, y + 8, info.desc, font(18, '#8794b5')));
     const price = add(s.add.text(cx + 190, y, '◎ ' + offer.price, font(24, '#ffd54f')).setOrigin(1, 0.5));
 
+    // 「추천」 표. 자리와 켜고 끄는 것은 refresh 가 정합니다 — 무엇이 이득인지는
+    // 하나 살 때마다 바뀌고(공격력을 사면 다음엔 맷집이 아쉬워집니다), 코인이
+    // 줄면 못 사게 되는 것도 생기기 때문입니다.
+    const recBg = add(s.add.rectangle(0, y - 24, 54, 24, 0x2e7d32)
+      .setStrokeStyle(1, 0xa5d6a7).setVisible(false));
+    const rec = add(s.add.text(0, y - 24, '추천', font(16, '#c8e6c9'))
+      .setOrigin(0.5).setVisible(false));
+
     box.on('pointerdown', () => this.buy(offer));
-    return { offer, box, name, desc, price };
+    return { offer, box, name, desc, price, rec, recBg };
   }
 
   buy(offer) {
@@ -222,7 +327,15 @@ class Shop {
     const s = this.scene;
     this.coinLabel.setText('가진 코인  ◎ ' + s.coins);
 
-    this.rows.forEach(({ offer, box, name, desc, price }) => {
+    // 하나 살 때마다 다시 셉니다. 공격력을 사고 나면 다음엔 맷집이 아쉬워지고,
+    // 코인이 줄면 못 사게 되는 것도 생깁니다 — 표가 그걸 따라가야 뜻이 있습니다.
+    const best = this.bestKey();
+
+    this.rows.forEach(({ offer, box, name, desc, price, rec, recBg }) => {
+      const showRec = !offer.sold && offer.key === best;
+      rec.setVisible(showRec);
+      recBg.setVisible(showRec);
+
       if (offer.sold) {
         box.setFillStyle(0x171c2e).setStrokeStyle(2, 0x2a3252);
         name.setColor('#4a5578');
@@ -254,6 +367,15 @@ class Shop {
           .setColor(!can ? '#6b7599' : (pct === null || pct >= 0) ? '#a5d6a7' : '#ff8a80');
       } else {
         desc.setColor(can ? '#8794b5' : '#4a5578');
+      }
+
+      // 이름 뒤에 붙입니다. 이름 길이가 저마다 다르고(「다음 무기」는 무기
+      // 이름이라 더 깁니다) 무기 그림이 붙으면 왼쪽 끝도 밀리므로,
+      // **글자를 다 적은 뒤에** 실제 너비를 재서 자리를 잡습니다.
+      if (showRec) {
+        const x = name.x + name.width + 34;
+        rec.setX(x);
+        recBg.setX(x);
       }
     });
   }

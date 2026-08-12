@@ -332,6 +332,12 @@ async function boot(browser, port, jobIndex) {
     const put = (dy) => {
       const e = spawnEnemy(s, s.player.x + 60, s.player.y + dy, s.floorIndex, 'flyer');
       e.body.setAllowGravity(false);
+      // **제자리에 못 박습니다.** 날것은 주인공에게 곧장 다가오는데, 그러면
+      // 재는 사이에 주인공 위로 올라타 버립니다. 그 자리에서 쏜 화살은 나가자마자
+      // 그놈에게 맞아 사라지고, 세는 쪽은 "안 쐈다"로 읽습니다 —
+      // 스무 번에 세 번쯤 그렇게 어긋났습니다. 재려는 것은 **어느 높이를
+      // 겨누는가**이지 다가오는 속도가 아니므로, 움직임을 아예 끕니다.
+      e.body.moves = false;
       e.hp = 1e9;
       return e;
     };
@@ -339,28 +345,47 @@ async function boot(browser, port, jobIndex) {
     const sameFloor = put(18); // 같은 발판 — 발이 땅에 붙어 조금 아래
     const above = put(-150);  // 위층
 
-    // 화살은 **활을 다 당긴 뒤에** 나갑니다 (js/motion.js 의 windup).
-    // 쏘라고 이르고 곧장 세면 아직 시위에 걸려 있습니다.
-    // 파동과 같은 이유로, 시간을 박지 않고 나올 때까지 지켜봅니다.
-    const canHit = async (e) => {
+    // 여기서 재려는 것은 **어느 높이를 겨누는가**입니다. 그러니 겨눈 것을
+    // 그대로 봅니다 (s.subTarget) — shoot 이 정하는 그 값입니다.
+    //
+    // 예전에는 화살이 실제로 나올 때까지 25ms 씩 스무 번 지켜봤는데,
+    // 여덟 번에 두 번쯤 어긋났습니다. 까닭이 둘이었습니다 —
+    //   · 이 검사는 창을 셋 띄워 놓고 돌아서, 기계가 바쁘면 500ms 동안
+    //     게임 루프가 몇 프레임밖에 안 돕니다. 화살은 시위를 다 당긴 뒤에야
+    //     나오므로 그 안에 못 나옵니다
+    //   · 날것이 주인공 위로 올라타면, 나간 화살이 그 자리에서 맞고 사라져
+    //     세는 쪽이 "안 나왔다"로 읽습니다 (그래서 위에서 못 박아 뒀습니다)
+    // 겨눈 것을 보면 시계에 기대지 않아 매번 같은 답이 나옵니다.
+    const aimsAt = (e) => {
       s.enemies.getChildren().forEach((x) => x.setActive(x === e).setVisible(x === e));
       s.subTarget = null;
       s.lastSubAt = -1e9;
-      s.bullets.clear(true, true);
       s.shoot(s.time.now);
-      let n = 0;
-      for (let k = 0; k < 20 && !n; k++) {
-        await new Promise((r) => setTimeout(r, 25));
-        n = s.bullets.getChildren().filter((b) => b.active).length;
-      }
+      const got = s.subTarget === e;
       s.enemies.getChildren().forEach((x) => x.setActive(true).setVisible(true));
-      return n > 0;
+      return got;
     };
+
+    // 겨누는 것과 별개로, 화살이 **실제로 나오기는 하는지**도 한 번은 봐야
+    // 합니다. 겨누기만 하고 안 나가면 위 검사는 전부 통과해 버립니다.
+    s.enemies.getChildren().forEach((x) => x.setActive(x === above).setVisible(x === above));
+    s.subTarget = null;
+    s.lastSubAt = -1e9;
+    s.bullets.clear(true, true);
+    s.shoot(s.time.now);
+    let shots = 0;
+    for (let k = 0; k < 80 && !shots; k++) {
+      await new Promise((r) => setTimeout(r, 25));
+      shots = s.bullets.getChildren().filter((b) => b.active).length;
+    }
+    s.enemies.getChildren().forEach((x) => x.setActive(true).setVisible(true));
+
     return {
-      below: await canHit(below), same: await canHit(sameFloor),
-      above: await canHit(above), tol: CFG.aimBelow,
+      below: aimsAt(below), same: aimsAt(sameFloor),
+      above: aimsAt(above), tol: CFG.aimBelow, shots,
     };
   });
+  check(aim.shots > 0, '겨눈 뒤에 화살이 실제로 나감', aim.shots + '발');
   check(aim.above === true, '위층의 적은 쏨');
   check(aim.same === true, '같은 발판의 적도 쏨 (발밑 몫은 봐줌)', 'aimBelow ' + aim.tol);
   check(aim.below === false, '아래층의 적은 안 쏨');
