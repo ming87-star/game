@@ -47,7 +47,10 @@ function applyShopEffect(scene, key) {
     // 지도에서는 하나씩, 상점에서는 뭉치로. 그것이 상점의 값어치입니다.
     case 'plus': for (let i = 0; i < CFG.shop.bundle.plus; i++) s.weapon.addPlus(); break;
     case 'haste': for (let i = 0; i < CFG.shop.bundle.haste; i++) s.weapon.addHaste(); break;
-    case 'upgrade': if (s.weapon.upgrade()) s.noteWeapon(); break;
+    // 상점의 무기 칸. 진열을 펼칠 때 굴려 둔 자루로 곧장 갈아탑니다 —
+    // 상점은 이미 판이 멈춰 있고 값을 치르고 고르는 자리라, 여기서 또
+    // 갈아탈지 묻는 창을 띄우면 같은 질문을 두 번 하는 셈입니다.
+    case 'upgrade': if (s.weapon.swapTo(s.shopWeapon)) s.noteWeapon(); break;
     case 'heal': s.hp = s.maxHp; break;
     case 'maxhp':
       s.maxHp += CFG.shop.maxhpGain;
@@ -95,7 +98,7 @@ function rollChestLoot(scene) {
   } else if (s.dodge < s.dodgeMax) {
     pool.push('dodge');
   }
-  if (!s.weapon.atMaxTier) pool.push('upgrade');
+  if (s.shopWeapon) pool.push('upgrade');
   if (!s.charm) pool.push('charm');
   return pool[Math.floor(Math.random() * pool.length)];
 }
@@ -146,8 +149,9 @@ function powerAfter(s, key) {
       break;
     }
     case 'upgrade':
-      // 손해일 수도 있습니다 (단계가 오르면 `+1`이 날아갑니다). 그대로 셉니다.
-      dps = w.nextDps || dps;
+      // 갈아타면 강화가 전부 날아갑니다. 그래서 **강화 없이** 셉니다 —
+      // 손해로 나오는 것이 흔하고, 그게 사실입니다.
+      dps = s.shopWeapon ? w.dpsOf(s.shopWeapon, false) : dps;
       break;
     case 'heal':
       hp = s.maxHp;
@@ -194,7 +198,7 @@ class Shop {
     // 상점까지 운에 맡기면 무기 단계가 사실상 오르지 않습니다.
     // 지도에서 얻거나 여기서 사거나 — 두 길을 확실히 열어 둡니다.
     const picked = [];
-    if (!this.scene.weapon.atMaxTier) picked.push('upgrade');
+    if (this.scene.shopWeapon) picked.push('upgrade');
 
     // 갑옷을 안 입는 직업에게는 방어구 대신 회피를 팝니다.
     // ×2는 상점에서 팔지 않습니다. 지도에서 아주 드물게만 나오는 물건으로 남깁니다.
@@ -233,6 +237,14 @@ class Shop {
     const s = this.scene;
     this.open = true;
     this.shopNo = Math.floor(floorIndex / CFG.shopEvery);
+
+    // 이 상점이 들여놓은 자루. **진열을 뽑기 전에** 굴려야 합니다 —
+    // rollOffers 가 "팔 무기가 있느냐"를 보고 무기 칸을 넣을지 정하고,
+    // 이름과 그림과 손익도 전부 이 한 자루에서 나옵니다.
+    // 지금 든 것과 같은 자루면 팔 것이 없으므로 비웁니다.
+    const offered = rollWeapon(s.job, floorIndex);
+    s.shopWeapon = offered.index === s.weapon.index ? null : offered;
+
     this.offers = this.rollOffers(this.shopNo);
 
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
@@ -282,7 +294,7 @@ class Shop {
     const add = (o) => { this.parts.push(o.setScrollFactor(0).setDepth(301)); return o; };
 
     const info = SHOP_ITEMS[offer.key];
-    const title = offer.key === 'upgrade' && s.weapon.nextName ? s.weapon.nextName : info.title;
+    const title = offer.key === 'upgrade' && s.shopWeapon ? s.shopWeapon.name : info.title;
 
     const box = add(s.add.rectangle(cx, y, 420, 96, 0x232b47)
       .setStrokeStyle(2, 0x3f4a78).setInteractive({ useHandCursor: true }));
@@ -290,8 +302,8 @@ class Shop {
     // 다음 무기만은 그림을 같이 답니다. 값을 치르고 사는 것이 무엇인지
     // 이름만으로는 안 보입니다 — 발판 위 UP과 같은 그림이라 짝이 맞습니다.
     let left = cx - 190;
-    if (offer.key === 'upgrade' && !s.weapon.atMaxTier) {
-      add(s.add.image(left + 20, y - 8, weaponIconKey(s.job.key, s.nextTier()))
+    if (offer.key === 'upgrade' && s.shopWeapon) {
+      add(s.add.image(left + 20, y - 8, weaponIconKey(s.job.key, s.shopWeapon.index))
         .setDisplaySize(40, 40));
       left += 48;
     }
@@ -358,8 +370,8 @@ class Shop {
         // **초당 피해가 얼마나 달라지는지를 먼저 적습니다.** 그것이 사는 이유이자
         // 안 사는 이유입니다 — 강화를 많이 쌓아 두었으면 오히려 손해입니다.
         // 잃는 것은 공격력 강화뿐입니다. 공격 속도는 무기를 바꿔도 남습니다.
-        const pct = (w.nextDps && w.dps)
-          ? Math.round((w.nextDps / w.dps - 1) * 100) : null;
+        const next = s.shopWeapon ? w.dpsOf(s.shopWeapon, false) : 0;
+        const pct = (next && w.dps) ? Math.round((next / w.dps - 1) * 100) : null;
         const gain = pct === null ? SHOP_ITEMS.upgrade.desc
           : '초당 피해 ' + (pct >= 0 ? '+' : '') + pct + '%';
         const lost = w.plus ? '   (+' + w.plus + ' 잃음)' : '';

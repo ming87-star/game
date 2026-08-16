@@ -162,11 +162,11 @@ class GameScene extends Phaser.Scene {
       coins: this.coins, totalCoins: this.totalCoins,
       kills: this.kills,
       continues: this.continues,
-      gotWeapons: this.gotWeapons.map((g) => ({ tier: g.tier, plus: g.plus })),
+      gotWeapons: this.gotWeapons.map((g) => ({ index: g.index, plus: g.plus })),
       seenTypes: [...this.seenTypes],
       gatesShown: [...this.gatesShown],
       weapon: {
-        tier: w.tier, plus: w.plus, haste: w.haste, mult: w.mult, capBonus: w.capBonus,
+        index: w.index, plus: w.plus, haste: w.haste, mult: w.mult, capBonus: w.capBonus,
         relics: w.relics.map((r) => r.key),
       },
     };
@@ -185,7 +185,7 @@ class GameScene extends Phaser.Scene {
     this.coins = r.coins;
     this.totalCoins = r.totalCoins;
     this.kills = r.kills;
-    this.gotWeapons = r.gotWeapons.map((g) => ({ tier: g.tier, plus: g.plus }));
+    this.gotWeapons = r.gotWeapons.map((g) => ({ index: g.index, plus: g.plus }));
     this.seenTypes = new Set(r.seenTypes);
     // 이미 본 알림은 다시 안 띄웁니다. 150층 상점에서 이어서 시작하는데
     // "이제 함정이 섞입니다"가 또 뜨면 새 소식이 아니라 잡음입니다.
@@ -193,7 +193,7 @@ class GameScene extends Phaser.Scene {
     // 메달은 여기 없습니다. 그것이 이어서 진행하는 값입니다.
 
     const w = this.weapon;
-    w.tier = r.weapon.tier;
+    w.index = r.weapon.index;
     w.plus = r.weapon.plus;
     w.haste = r.weapon.haste;
     w.mult = r.weapon.mult;
@@ -304,9 +304,8 @@ class GameScene extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(5);
     }
 
-    // 최고 단계에서는 UP이 회복으로 대신 쓰이므로, 표시도 회복처럼 보여야 합니다.
     // 가짜는 흉내 내는 것의 표를 그대로 씁니다 — 겉으로는 구분이 안 됩니다.
-    let kind = slot.kind === SLOT.UPGRADE && this.weapon.atMaxTier ? SLOT.HEAL : slot.kind;
+    let kind = slot.kind;
     if (kind === SLOT.MIMIC) kind = slot.disguise;
     const mark = SLOT_MARK[kind];
     if (!mark) return null;
@@ -321,11 +320,16 @@ class GameScene extends Phaser.Scene {
     const parts = [];
     let face;
     if (kind === SLOT.UPGRADE) {
-      face = this.add.image(0, 0, weaponIconKey(this.job.key, this.nextTier())).setDisplaySize(30, 30);
+      // **놓인 자루는 여기서 한 번 굴려 두고 그대로 갑니다.** 밟을 때 굴리면
+      // 위층에 보이던 그림과 실제로 손에 들어오는 것이 달라져서, 두 층 밖에서
+      // 보고 길을 정하는 일이 뜻을 잃습니다. 층이 깊을수록 좋은 자루가 나옵니다.
+      if (!slot.weapon) slot.weapon = rollWeapon(this.job, slot.index || this.floorIndex);
+      face = this.add.image(0, 0, weaponIconKey(this.job.key, slot.weapon.index))
+        .setDisplaySize(30, 30);
       parts.push(this.add.circle(0, 0, 18, mark.color), face);
       // 밟으면 초당 피해가 얼마나 달라지는지. **밟기 전에 알아야 선택입니다.**
-      // 그림만으로는 다음 무기가 더 센지 알 수 없고, 단계가 오를 때 `+1`이
-      // 초기화되므로 실제로 손해인 경우도 있습니다.
+      // 그림만으로는 저 자루가 더 센지 알 수 없고, 갈아타면 쌓아 둔 강화가
+      // 전부 날아가므로 실제로 손해인 경우가 많습니다.
       slot.upGain = this.add.text(0, 24, '', {
         fontFamily: 'sans-serif', fontSize: '16px', color: '#a5d6a7',
       }).setOrigin(0.5);
@@ -361,57 +365,38 @@ class GameScene extends Phaser.Scene {
     return badge;
   }
 
-  // UP을 밟으면 손에 들어올 무기의 단계. 마지막 무기를 들었으면 그대로입니다.
-  nextTier() {
-    return Math.min(this.weapon.tier + 1, this.job.weapons.length - 1);
-  }
-
-  // 발판은 주인공보다 예닐곱 층 앞서 지어집니다. 그 사이에 상점에서 UP을 사거나
-  // 다른 UP을 밟으면, 이미 지어 둔 발판의 그림이 한 단계 뒤진 채로 남습니다.
-  // 단계가 바뀌었을 때만 훑어서 고쳐 답니다.
+  // 위층 무기 칸에 적어 둔 손익을 다시 씁니다.
+  //
+  // **그림은 안 건드립니다.** 놓인 자루는 발판을 지을 때 굴려 놓은 것이라
+  // 바뀌지 않습니다 (makeMark). 바뀌는 것은 견주는 쪽 — 내가 `+1`이나 `속`을
+  // 하나 주울 때마다 저 자루가 이득인지 손해인지가 달라집니다.
   syncUpgradeMarks() {
-    // 단계가 바뀌면 그림을, **초당 피해가 바뀌면 이득 표시를** 다시 씁니다.
-    // `+1`이나 `속`을 하나 주울 때마다 위층 UP 의 손익이 달라집니다.
     const dps = this.weapon.dps;
-    if (this.markedTier === this.weapon.tier && this.markedDps === dps) return;
-    const tierChanged = this.markedTier !== this.weapon.tier;
-    this.markedTier = this.weapon.tier;
+    if (this.markedDps === dps) return;
     this.markedDps = dps;
 
-    const key = weaponIconKey(this.job.key, this.nextTier());
     this.floors.forEach((floor) => {
       for (const lane of LANES) {
         const slot = floor.slots[lane];
         if (!slot || !slot.upIcon || !slot.view || slot.taken || slot.expired) continue;
-
-        // 마지막 무기를 들면 UP은 회복으로 쓰입니다. 표시도 회복이어야 합니다 —
-        // 무기 그림을 달아 둔 채로 밟으면 안 나오는 것을 기대하게 만듭니다.
-        if (tierChanged && this.weapon.atMaxTier) {
-          slot.view.destroy();
-          slot.upIcon = null;
-          slot.upGain = null;
-          slot.view = this.makeMark(slot);
-          if (slot.view) floor.views.push(slot.view);
-          continue;
-        }
-        if (slot.upIcon.texture.key !== key) slot.upIcon.setTexture(key).setDisplaySize(30, 30);
         this.markUpGain(slot);
       }
     });
   }
 
-  // UP 발판에 "밟으면 초당 피해가 이만큼 달라진다"를 적습니다.
+  // 무기 발판에 "저것으로 갈아타면 초당 피해가 이만큼 달라진다"를 적습니다.
   //
-  // 손해일 수도 있습니다 — 단계가 오르면 `+1`이 전부 날아가므로, 강화를 많이
-  // 쌓아 둔 채로 밟으면 오히려 약해집니다. 그럴 때 빨갛게 적어 주면
-  // "지금은 밟지 말자"가 하나의 선택이 됩니다.
+  // **손해인 경우가 흔합니다.** 갈아타면 쌓아 둔 `+1`·`속`·`×2`가 전부
+  // 날아가므로, 오래 벼려 온 자루를 들고 있으면 더 좋은 자루도 지금보다
+  // 약합니다. 빨갛게 적어 주면 "지금은 밟지 말자"가 하나의 선택이 됩니다.
   markUpGain(slot) {
     // scene 이 없으면 이미 부서진 것입니다 (Phaser 가 destroy 에서 지웁니다).
     // 위 makeMark 가 근본을 막지만, 여기는 매 프레임 지나가는 자리라
     // 한 겹 더 둡니다 — 터지면 판이 통째로 멈춥니다.
     if (!slot.upGain || !slot.upGain.scene) return;
     const now = this.weapon.dps;
-    const next = this.weapon.nextDps;
+    // 새 자루는 **강화 없이** 셉니다. 갈아타면 지금 강화가 안 따라오니까요.
+    const next = slot.weapon ? this.weapon.dpsOf(slot.weapon, false) : 0;
     if (!next || !now) return slot.upGain.setText('');
     const pct = Math.round((next / now - 1) * 100);
     slot.upGain.setText((pct >= 0 ? '+' : '') + pct + '%');
@@ -775,8 +760,9 @@ class GameScene extends Phaser.Scene {
           this.popupSpeed();
           break;
         case SLOT.UPGRADE:
-          if (this.weapon.upgrade()) { this.noteWeapon(); this.popup(this.weapon.name, '#ff8a65'); }
-          else { this.hp = Math.min(this.maxHp, this.hp + CFG.heal); this.popup('+' + CFG.heal, '#a5d6a7'); }
+          // **판을 멈추고 고릅니다.** 갈아타면 강화가 날아가므로, 지나가면서
+          // 저절로 바뀌어서는 안 되는 결정입니다 (js/scene-swap.js).
+          this.offerWeapon(slot.weapon);
           break;
         case SLOT.HEAL:
           this.hp = Math.min(this.maxHp, this.hp + CFG.heal);
@@ -1092,7 +1078,15 @@ class GameScene extends Phaser.Scene {
     const scaleAt = (e) => (far >= 1 || !w.reach ? 1 :
       Phaser.Math.Clamp(1 - (1 - far) * (this.meleeDist(e) / w.reach), far, 1));
 
+    // 한 놈이라도 맞았으면 밀어냅니다 (전사의 넉백). 빗나간 놈은 안 밀립니다.
+    let landed = 0;
+
     hit.forEach((e) => {
+      // **정확도를 적마다 굴립니다.** 한 번 굴려 전부에 적용하면, 광역
+      // 한 방이 통째로 빗나가서 "가끔 아무 일도 안 일어나는" 무기가 됩니다.
+      // 한 놈씩 굴리면 흑철의 낮은 정확도가 "덜 들어간다"로 고르게 퍼집니다.
+      if (!w.hits()) return this.missFx(e);
+
       // 도적은 때리면서 주머니를 텁니다. 잡지 않아도 코인이 나옵니다.
       // 코인은 이제 확률로 나오므로 훔치는 것도 같은 확률을 탑니다.
       //
@@ -1103,7 +1097,11 @@ class GameScene extends Phaser.Scene {
         this.stealFx(e.x, e.y - 10);
         this.dropCoin(e.x, e.y - 10, Math.round(w.stealAmount * CFG.coin.dropBonus));
       }
-      this.hitEnemy(e, Math.max(1, Math.round(w.dmg * scaleAt(e))));
+      landed++;
+      // 공격력은 적마다 새로 굴립니다. 한 번 굴려 나눠 주면 범위가 있는 뜻이
+      // 반으로 줄어듭니다 — 화면에 뜨는 숫자 여럿이 늘 똑같아집니다.
+      this.hitEnemy(e, Math.max(1, Math.round(w.rollDamage() * scaleAt(e))), e);
+      this.knockBack(e);
     });
   }
 
@@ -1278,8 +1276,90 @@ class GameScene extends Phaser.Scene {
       // 그래서 겨눌 것을 다시 고릅니다. 활은 이미 당겨 놓았으니까요.
       this.after(lead, () => {
         const at = target.active ? target : this.pickAim(inRange);
-        if (at) this.fireArrow(this.player.x, this.player.y - 6, at, w.dmg, w.bounce);
+        // 화살 한 발마다 정확도와 공격력을 따로 굴립니다. 여러 발을 쏘는
+        // 활은 그래서 "몇 발은 빗나가고 몇 발은 크게 들어가는" 손맛이 됩니다.
+        if (!at) return;
+        if (!w.hits()) return this.missFx(at);
+        this.fireArrow(this.player.x, this.player.y - 6, at, w.rollDamage(), w.bounce);
       });
+    }
+  }
+
+  // 빗나갔다는 표. **적 머리 위**에 뜹니다 — 주인공 위에 띄우면 내가 회피한
+  // 것처럼 보이는데, 이건 반대로 내가 놓친 것입니다.
+  //
+  // 옅은 회색에 작은 글자입니다. 빗나가는 일은 자주 있는데 그때마다 크게
+  // 알리면 화면이 「빗나감」으로 도배됩니다.
+  missFx(enemy) {
+    if (!enemy || !enemy.active) return;
+    this.floatText(enemy.x, enemy.y - 18, '빗나감', '#78909c', 15, 26, 420);
+  }
+
+  // ── 넉백 ──────────────────────────────────────────────
+  // 전사가 휘두르면 적이 **발판 절반쯤** 뒤로 밀려납니다.
+  //
+  // 전사는 원래 "버티고 서서 막는" 직업이었는데, 버티기만으로는 다른 둘과
+  // 저울이 안 맞았습니다. 궁수는 멈출 필요가 없고 도적은 흘려 넘기는데,
+  // 전사는 맞으면서 때리는 것 말고는 할 수 있는 일이 없었습니다.
+  //
+  // 밀어내는 것은 **시간을 버는 방어**입니다. 밀려난 놈이 다시 붙는 데
+  // 걸리는 그 짧은 동안이 전사가 얻는 몫입니다. 그 대신 공격 속도 한계를
+  // 낮췄습니다 (1.65 → CFG 참고) — 밀어내면서 빠르기까지 하면 발판 위에
+  // 아무도 못 올라옵니다.
+  //
+  // 밀린 놈은 잠깐 제 걸음을 멈춥니다 (knockUntil). 안 그러면 밀자마자
+  // 제자리로 걸어와서, 밀려나는 그림만 보이고 실제로는 아무 일도 안 일어납니다.
+  knockBack(enemy) {
+    const k = CFG.knockback;
+    const power = this.job.knockback || 0;
+    if (!power || !enemy.active || enemy.isBoss || enemy.body.allowGravity === undefined) return;
+
+    // 덩치가 클수록 덜 밀립니다. 거인이 코인벌레와 똑같이 날아가면
+    // "크다"는 것이 그림에만 있고 손에는 없습니다.
+    const heft = 1 / (enemy.def && enemy.def.scale ? Math.max(0.6, enemy.def.scale) : 1);
+    const push = CFG.platformW * k.share * power * heft;
+    const dx = Math.sign(enemy.x - this.player.x) || (this.facing || 1);
+
+    // ── **밀되 제 칼이 닿는 데까지만** ──────────────────
+    //
+    // 처음에는 그냥 밀었습니다. 그랬더니 첫 대에 적이 사거리 밖으로 나가고,
+    // 다음 대는 허공을 향해 나가지도 않고, 적이 걸어 돌아올 때까지 아무 일도
+    // 안 일어났습니다. **공격 속도가 통째로 뜻을 잃었습니다** — 한 대 치고
+    // 800ms 를 기다리는 직업이 되니, 속을 아무리 주워도 화력이 그대로입니다.
+    //
+    // 밀어서 놓치면 밀 이유가 없습니다. 넉백은 적을 **내 몸에서** 떼어
+    // 놓으려는 것이지 **내 칼에서** 떼어 놓으려는 것이 아닙니다.
+    // 그래서 사거리 안쪽 끝까지만 밀어냅니다 — 계속 때리면서, 계속 못 닿게.
+    const keep = this.weapon.reach * k.keepInReach;
+    const gap = Math.min(Math.abs(enemy.x - this.player.x) + push, Math.max(push, keep));
+    enemy.x = this.player.x + gap * dx;
+    enemy.knockUntil = this.time.now + k.stunMs;
+    enemy.body.velocity.x = 0;
+  }
+
+  // ── 필드에서 무기를 만났을 때 ─────────────────────────
+  // **판을 멈추고 고릅니다.** 갈아타면 쌓아 둔 강화가 전부 날아가므로,
+  // 지나가면서 저절로 바뀌어서는 안 되는 결정입니다.
+  offerWeapon(entry) {
+    if (!entry) return;
+    // 이미 든 자루와 같으면 고를 것이 없습니다. 회복으로 대신합니다 —
+    // 밟았는데 아무 일도 안 일어나면 밟은 사람은 버그로 읽습니다.
+    if (entry.index === this.weapon.index) {
+      this.hp = Math.min(this.maxHp, this.hp + CFG.heal);
+      this.popup('+' + CFG.heal, '#a5d6a7');
+      return;
+    }
+    this.scene.pause();
+    this.scene.launch('swap', { from: this, entry });
+  }
+
+  // 갈아타기 창이 「바꾼다」를 누르면 여기로 돌아옵니다.
+  takeWeapon(entry) {
+    if (this.weapon.swapTo(entry)) {
+      this.noteWeapon();
+      this.rig.setWeapon(this.job, this.weapon);
+      this.popup(this.weapon.name, '#ff8a65');
+      this.markReach();
     }
   }
 
@@ -1599,8 +1679,8 @@ class GameScene extends Phaser.Scene {
   noteWeapon() {
     const w = this.weapon;
     const last = this.gotWeapons[this.gotWeapons.length - 1];
-    if (last && last.tier === w.tier) return;
-    this.gotWeapons.push({ tier: w.tier, plus: w.plus });
+    if (last && last.index === w.index) return;
+    this.gotWeapons.push({ index: w.index, plus: w.plus });
   }
 
   // 지도에 떨어진 메달. 상점에서 받는 것과 값은 같지만 만나는 일이 거의 없어서,
@@ -2376,8 +2456,8 @@ class GameScene extends Phaser.Scene {
     // 계승할 무기의 그림. 이름 옆에 붙여 두면 다음 판 HUD에 뜰 그림과 같아서,
     // 무엇을 들고 시작하는지가 고르는 자리에서 이미 보입니다.
     if (carry) {
-      const tier = Math.min(this.job.weapons.length - 1, carry.tier);
-      add(this.add.image(cx - 178, 590, weaponIconKey(this.job.key, tier))
+      const idx = Math.min(this.weapon.table.length - 1, carry.index || 0);
+      add(this.add.image(cx - 178, 590, weaponIconKey(this.job.key, idx))
         .setDisplaySize(46, 46));
     }
   }
@@ -2385,8 +2465,8 @@ class GameScene extends Phaser.Scene {
   // 계승할 무기를 사람이 읽을 이름으로. 공격 속도는 넘어가지 않으므로 적지 않습니다 —
   // 속도는 무기가 아니라 손에 붙는 것입니다.
   carryName(carry) {
-    const table = this.job.weapons;
-    const base = table[Math.min(table.length - 1, carry.tier)];
+    const table = this.weapon.table;
+    const base = table[Math.min(table.length - 1, carry.index || 0)];
     return base.name + (carry.plus ? ' +' + carry.plus : '');
   }
 

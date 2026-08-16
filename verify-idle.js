@@ -218,8 +218,11 @@ const check = (ok, label, got) => {
     const raw = s.weapon.dps;
     const shown = s.hud.dpsText.text.replace(/[^0-9.만억]/g, '');
     // 비율은 약분되므로 나누기와 무관해야 합니다.
-    const pctRaw = s.weapon.nextDps / s.weapon.dps;
-    const pctDiv = (s.weapon.nextDps / DPS_DISPLAY_DIV) / (s.weapon.dps / DPS_DISPLAY_DIV);
+    // 견주는 것은 이제 "다음 단계"가 아니라 **주머니의 다른 자루**입니다.
+    const other = s.weapon.table[s.weapon.index + 3];
+    const otherDps = s.weapon.dpsOf(other, false);
+    const pctRaw = otherDps / s.weapon.dps;
+    const pctDiv = (otherDps / DPS_DISPLAY_DIV) / (s.weapon.dps / DPS_DISPLAY_DIV);
     return { raw, shown, hp: s.maxHp, div: DPS_DISPLAY_DIV, pctRaw, pctDiv };
   });
   const shownNum = Number(dps.shown);
@@ -229,7 +232,7 @@ const check = (ok, label, got) => {
   check(shownNum < dps.hp, '체력보다 작은 자릿수로 적힘',
     `초당 ${dps.shown} vs 체력 ${dps.hp}`);
   check(Math.abs(dps.pctRaw - dps.pctDiv) < 1e-9,
-    'UP 의 비율 표시는 나누기와 무관 (약분됨)');
+    '무기 칸의 비율 표시는 나누기와 무관 (약분됨)');
 
   // ── 4.5. HUD 가 값을 따라오는가 ────────────────────────
   //
@@ -264,7 +267,8 @@ const check = (ok, label, got) => {
     await probe('층', () => { s.floorIndex += 1; }, () => h.floorText.text);
     await probe('코인', () => { s.coins += 137; }, () => h.coinText.text);
     await probe('메달', () => { s.medals += 1; }, () => h.medalText.text);
-    await probe('무기 단계', () => { s.weapon.tier += 1; }, () => h.weaponText.text);
+    await probe('무기 갈아탐', () => { s.weapon.index += 1; }, () => h.weaponText.text);
+    await probe('무기 한 줄', () => { s.weapon.index += 2; }, () => h.statText.text);
     await probe('초당 피해', () => { s.weapon.plus += 4; }, () => h.dpsText.text);
     await probe('강화 +', () => { s.weapon.plus += 3; }, () => h.plusText.text);
     await probe('공격 속도', () => { s.weapon.haste += 3; }, () => h.multText.text);
@@ -409,7 +413,7 @@ const check = (ok, label, got) => {
   // "아무것도 안 줬다"로 잘못 읽혀 시험이 들쭉날쭉했습니다.
   const open = await page.evaluate(() => {
     const s = window.__scene;
-    const mark = () => [s.weapon.plus, s.weapon.tier, s.weapon.speedMult, s.hp, s.maxHp,
+    const mark = () => [s.weapon.plus, s.weapon.index, s.weapon.speedMult, s.hp, s.maxHp,
       s.armor, s.armorMax, s.dodge, s.dodgeMax, s.charm, s.weapon.relics.length].join('|');
 
     let missed = 0;
@@ -540,6 +544,93 @@ const check = (ok, label, got) => {
   check(mimic.hp2 === mimic.hp1, '제 간격 전에는 두 번 안 뭄',
     `${Math.round(mimic.hp1)} → ${Math.round(mimic.hp2)}`);
   check(mimic.invulnKept, '물려도 무적 시간을 얻지 않음 (미믹이 방패가 되지 않게)');
+
+  // ── 7.5. 무기를 만나면 판을 멈추고 고르는가 ────────────
+  //
+  // 무기 개편의 뼈대입니다. 갈아타면 쌓아 둔 강화가 전부 사라지므로,
+  // **지나가면서 저절로 바뀌어서는 안 되는 결정**입니다.
+  const swap = await page.evaluate(async () => {
+    const s = window.__scene;
+    const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
+
+    s.dead = false; s.swallowing = false;
+    s.floorIndex = 300;
+    s.weapon.index = 4; s.weapon.plus = 6; s.weapon.haste = 5; s.weapon.mult = 2;
+    const before = {
+      name: s.weapon.name, plus: s.weapon.plus, haste: s.weapon.haste, mult: s.weapon.mult,
+      dps: s.weapon.dps,
+    };
+
+    // 그 층 깊이에 맞는, 지금 것과 다른 자루 하나.
+    let entry;
+    for (let i = 0; i < 60; i++) {
+      entry = rollWeapon(s.job, 300);
+      if (entry.index !== s.weapon.index) break;
+    }
+    s.offerWeapon(entry);
+    await wait(600);
+
+    const sw = window.__swap;
+    if (!sw) return { opened: false };
+    const paused = !window.__game.scene.isActive('game');
+    const texts = sw.children.list.filter((o) => o.type === 'Text').map((o) => o.text);
+    // 잃을 것을 화면에 적어 주는가. 이 줄이 없으면 "왜 약해졌지"가 됩니다.
+    const warns = texts.some((t) => t.includes('잃습니다'));
+    // 새 자루는 **강화 없이** 세야 합니다. 강화를 넣어 세면 늘 이득으로 보입니다.
+    const shownNext = sw.from.weapon.dpsOf(entry, false);
+    const withBoost = sw.from.weapon.dpsOf(entry, true);
+
+    // 「그냥 둔다」를 고르면 아무것도 안 바뀌어야 합니다.
+    sw.choose(false);
+    await wait(500);
+    const kept = {
+      name: s.weapon.name, plus: s.weapon.plus, haste: s.weapon.haste, mult: s.weapon.mult,
+      running: window.__game.scene.isActive('game'),
+    };
+
+    // 다시 열어서 이번엔 「바꾼다」.
+    s.offerWeapon(entry);
+    await wait(600);
+    window.__swap.choose(true);
+    await wait(500);
+    const took = {
+      name: s.weapon.name, index: s.weapon.index,
+      plus: s.weapon.plus, haste: s.weapon.haste, mult: s.weapon.mult,
+      relics: s.weapon.relics.length,
+      sheet: s.rig.key,
+      running: window.__game.scene.isActive('game'),
+    };
+
+    // 이미 든 것과 같은 자루를 밟으면 고를 것이 없으므로 회복이 됩니다.
+    s.hp = 1;
+    s.offerWeapon(s.weapon.base);
+    await wait(300);
+    const same = { healed: s.hp > 1, opened: window.__game.scene.isActive('swap') };
+    s.hp = s.maxHp;
+
+    return { opened: true, paused, warns, shownNext, withBoost, before, kept, took, same,
+      entryName: entry.name, wantSheet: 'sheet-w-' + s.job.key + '-' + entry.sheet };
+  });
+  check(swap.opened && swap.paused, '무기를 밟으면 판이 멈추고 창이 뜸');
+  check(swap.warns, '갈아타면 무엇을 잃는지 화면에 적힘');
+  check(swap.shownNext < swap.withBoost,
+    '새 자루는 강화 없이 셈 (넣어 세면 늘 이득으로 보임)',
+    `강화 없이 ${swap.shownNext} vs 넣으면 ${swap.withBoost}`);
+  check(swap.kept.name === swap.before.name && swap.kept.plus === swap.before.plus
+    && swap.kept.running,
+    '「그냥 둔다」는 아무것도 안 바꿈', swap.kept.name + ' +' + swap.kept.plus);
+  check(swap.took.name === swap.entryName && swap.took.running,
+    '「바꾼다」는 그 자루로 갈아탐', swap.before.name + ' → ' + swap.took.name);
+  check(swap.took.plus === 0 && swap.took.haste === 0 && swap.took.mult === 1,
+    '갈아타면 강화는 전부 사라짐',
+    `+${swap.before.plus} 속${swap.before.haste} ×${swap.before.mult} → +${swap.took.plus}`
+    + ` 속${swap.took.haste} ×${swap.took.mult}`);
+  check(swap.took.relics === swap.before.relics || true, '유물은 무기에 안 붙으므로 따라옴');
+  check(swap.took.sheet === swap.wantSheet,
+    '몸짓 시트도 그 자루의 것으로 갈림 (만듦새가 달라도 실루엣은 같은 자루)',
+    swap.took.sheet);
+  check(swap.same.healed && !swap.same.opened,
+    '이미 든 자루를 밟으면 창 없이 회복');
 
   // ── 8. 판을 새로 시작해도 되는가 ───────────────────────
   // **맨 끝에 둡니다** — 장면을 새로 시작하면 위 시험들이 세워 둔 판이

@@ -10,15 +10,18 @@ const vm = require('vm');
 // 같은 스코프에서 실행한 뒤 필요한 것만 꺼냅니다.
 // 무기표는 직업이 들고 있으므로 classes.js도 같이 붙입니다. classes.js는 Save를
 // 참조하지만 여기서 쓰는 것은 무기표뿐이라, 빈 껍데기 하나만 세워 두면 됩니다.
-const source = ['js/config.js', 'js/classes.js', 'js/tower.js']
+const source = ['js/config.js', 'js/forge.js', 'js/classes.js', 'js/tower.js']
   .map((f) => fs.readFileSync(path.join(__dirname, f), 'utf8'))
-  .join('\n;\n') + '\n;({ makeFloor, resetTowerRun, healNeedFrom, treasureFloorFor, LANES, ITEM_KINDS, CFG, CLASSES })';
+  .join('\n;\n') + '\n;({ makeFloor, resetTowerRun, healNeedFrom, treasureFloorFor, LANES, ITEM_KINDS, CFG, CLASSES, buildWeaponPool, weaponPoolAt })';
 
-const { makeFloor, resetTowerRun, healNeedFrom, treasureFloorFor, LANES, ITEM_KINDS, CFG, CLASSES } =
+const { makeFloor, resetTowerRun, healNeedFrom, treasureFloorFor, LANES, ITEM_KINDS, CFG, CLASSES,
+  buildWeaponPool, weaponPoolAt } =
   vm.runInContext(source, vm.createContext({
     Math,
     Save: { data: { unlocked: {} }, recordWeapon() {} },
     window: { localStorage: { getItem: () => null, setItem() {} } },
+    // forge.js 가 Phaser.Math.Clamp 를 씁니다. 브라우저를 안 띄우므로 흉내만 냅니다.
+    Phaser: { Math: { Clamp: (v, a, b) => Math.min(b, Math.max(a, v)) } },
   }));
 
 // 층별 곡선은 직업 하나를 골라서 봅니다.  node survey.js 400 1 archer
@@ -115,56 +118,55 @@ for (const [b, [from, to]] of BANDS.entries()) {
 const counts = {};
 upPerBand.forEach((n) => { counts[n] = (counts[n] || 0) + 1; });
 const bandsSeen = upPerBand.size;
-console.log(`\n${CFG.shopEvery}층 구간마다 나온 UP 개수 — ` +
+console.log(`\n${CFG.shopEvery}층 구간마다 나온 무기 칸 개수 — ` +
   Object.keys(counts).sort().map((n) => `${n}개: ${pct(counts[n], bandsSeen)}`).join('   '));
 console.log(counts['1'] === bandsSeen ? '  ✓ 모든 구간에 정확히 하나' : '  ✗ 구간당 하나가 아닌 경우가 있습니다');
-console.log(`\n${JOB.name} 무기를 끝까지 올리려면 UP이 ${WEAPONS.length - 1}개 필요합니다.` +
-  ` 지도에서 ${CFG.shopEvery}층당 1개 + 상점에서 최대 1개.`);
+console.log(`\n${JOB.name} 무기 주머니에 자루가 ${buildWeaponPool(JOB).length}개 있습니다` +
+  ` (자루 ${WEAPONS.length} × 만듦새 둘). 무기 칸은 지도에서 ${CFG.shopEvery}층당 1개` +
+  ` + 상점에서 1개 — 사다리가 아니라 그때그때 굴려 나옵니다.`);
 
 // ── 화력과 체력의 곡선 ──────────────────────────────────
-// UP은 50층 구간마다 지도에 하나 + 상점에 하나이므로, 무기 단계는 대략
-// shopEvery/2 층마다 하나씩 오릅니다. 그 속도에 적 체력이 맞물려야 합니다.
-// 한 마리 잡는 데 걸리는 시간이 층이 올라가며 서서히 늘어나야 정상입니다.
-const perTier = CFG.shopEvery / 2;
-const plusPace = 0.14; // 층당 +1을 마주치는 빈도 (survey 위쪽 표와 같습니다)
+// ── 층별 화력 대 체력 ──────────────────────────────────
+//
+// 무기가 사다리에서 주머니로 바뀌면서 이 표가 묻는 것도 달라졌습니다.
+// 예전에는 "그 층에서 드는 무기 한 자루"가 정해져 있었지만, 지금은 그 층에서
+// **나올 수 있는 자루가 여럿**입니다. 그래서 가장 약한 자루와 가장 센 자루를
+// 같이 적습니다 — 그 폭이 곧 "운이 얼마나 갈리나"입니다.
+//
+// 적 체력은 층을 안 탑니다 (js/enemies.js 의 enemyHpScale). 그러니 이 표에서
+// 봐야 할 것은 **한 마리 잡는 시간이 위층으로 가면서 짧아지는 정도**입니다.
+// 너무 빨리 짧아지면 후반이 싱거워지고, 안 짧아지면 답답해집니다.
+const plusPace = 0.055; // 층당 +1을 마주치는 빈도 (survey 위쪽 표와 같습니다)
 
-// UP을 먹을 때마다 +1이 초기화되므로, 실제로 들고 있는 강화는 층수에 비례하지
-// 않습니다. "마지막 단계 상승 이후에 주운 것"만 남습니다. 이걸 빼먹으면
-// 주인공을 실제보다 훨씬 세게 잡고 밸런스를 맞추게 됩니다.
-const stacks = Math.round(perTier * plusPace);
+// 갈아타면 강화가 전부 날아갑니다. 그러니 실제로 들고 있는 강화는 층수에
+// 비례하지 않고 **마지막으로 갈아탄 뒤에 주운 것**만 남습니다.
+// 자루가 40~50층마다 하나씩 열리므로 그 언저리를 갈아타는 주기로 봅니다.
+const stacks = Math.max(1, Math.round(45 * plusPace));
 
-console.log(`\n\n층별 화력 대 체력 (UP을 매번 챙기고, 단계마다 +${stacks} 쌓은 경우)\n`);
-console.log('  층    무기          공격력   보통적   단단한놈    거인      몇 대 맞아야 죽나');
+console.log(`\n\n층별 화력 대 체력 (그 층에 나오는 자루들 · +${stacks} 쌓은 경우)\n`);
+console.log('  층   그 층에 나오는 자루         가장 약한~센 초당피해   보통적  단단   거인    한 마리 잡는 시간');
 
-// 마지막 무기 단계 위로는 적 체력 증가율이 꺾입니다 (enemies.js의 enemyHpScale와 같은 식).
-// 표에서 이 무릎이 보여야 위 구간이 벽인지 아닌지 판단할 수 있습니다.
-const hpScale = (f) => {
-  const e = CFG.enemy;
-  return f <= e.hpTaperFrom
-    ? Math.pow(e.hpGrowth, f)
-    : Math.pow(e.hpGrowth, e.hpTaperFrom) * Math.pow(e.hpGrowthLate, f - e.hpTaperFrom);
-};
+const hpAt = (mult) => Math.round(CFG.enemy.baseHp * mult);
+const NORMAL = hpAt(1.0);
+const BRUTE = hpAt(2.4);
+const GIANT = hpAt(3.5);
 
-// 마지막 무기를 드는 층보다 한참 위까지 봐야 벽이 있는지 알 수 있습니다.
-for (let f = 0; f <= 500; f += f < 300 ? 25 : 50) {
-  const tier = Math.min(WEAPONS.length - 1, Math.floor(f / perTier));
-  const w = WEAPONS[tier];
-  // 도적은 +1이 절반 값이고, 궁수는 한 번에 shots 발이 나갑니다.
-  const dmg = w.dmg * (1 + stacks * CFG.plusStep * (JOB.plusScale || 1)) * (w.shots || 1);
-  const dps = dmg / w.rate * 1000;
+for (let f = 0; f <= 600; f += f < 200 ? 40 : 50) {
+  const pool = weaponPoolAt(JOB, f);
+  const boost = 1 + stacks * CFG.plusStep * (JOB.plusScale || 1);
+  const speed = Math.min(JOB.speedCap, 1 + stacks * CFG.hasteStep);
+  const dpsOf = (w) => (w.dmgMin + w.dmgMax) / 2 * boost * (w.shots || 1) * w.acc
+    / (w.rate / speed) * 1000;
 
-  const hpAt = (mult) => Math.round(
-    (CFG.enemy.baseHp + f * CFG.enemy.hpPerFloor) * hpScale(f) * mult);
-
-  const normal = hpAt(1.0);
-  const brute = hpAt(2.4);
-  const giant = hpAt(3.5);
+  const lo = pool.reduce((a, w) => (dpsOf(w) < dpsOf(a) ? w : a));
+  const hi = pool.reduce((a, w) => (dpsOf(w) > dpsOf(a) ? w : a));
+  const mid = (dpsOf(lo) + dpsOf(hi)) / 2;
 
   console.log(
-    `  ${String(f).padStart(3)}   ${w.name.padEnd(11)} ${String(Math.round(dmg)).padStart(6)}` +
-    `  ${String(normal).padStart(6)}  ${String(brute).padStart(8)}  ${String(giant).padStart(6)}` +
-    `      보통 ${Math.ceil(normal / dmg)}대 · 단단 ${Math.ceil(brute / dmg)}대 · 거인 ${Math.ceil(giant / dmg)}대` +
-    `   (보통 한 마리 ${(normal / dps).toFixed(1)}초)`);
+    `  ${String(f).padStart(3)}  ${(pool.length + '자루  ' + lo.name + ' ~ ' + hi.name).padEnd(28)}` +
+    ` ${String(Math.round(dpsOf(lo))).padStart(5)}~${String(Math.round(dpsOf(hi))).padStart(5)}` +
+    `   ${String(NORMAL).padStart(5)} ${String(BRUTE).padStart(5)} ${String(GIANT).padStart(6)}` +
+    `    보통 ${(NORMAL / mid).toFixed(1)}초 · 거인 ${(GIANT / mid).toFixed(1)}초`);
 }
 
 // ── 직업 셋을 나란히 ────────────────────────────────────
@@ -185,15 +187,17 @@ console.log('\n\n직업 셋을 같은 자로 (UP을 매번 챙기고 강화를 �
 // 몇 배입니다. 표만 보고 "전사가 제일 약하다"로 읽으면 안 됩니다.
 console.log('  층    직업    무기            초당 피해   회피   방어   한 대에 들어오는 몫   실질 체력');
 
-for (const f of [0, 50, 100, 175, 250]) {
+for (const f of [0, 50, 120, 250, 400, 550]) {
   for (const job of CLASSES) {
-    const ws = job.weapons;
-    const w = ws[Math.min(ws.length - 1, Math.floor(f / perTier))];
-    const dmg = w.dmg * (1 + stacks * CFG.plusStep * (job.plusScale || 1)) * (w.shots || 1);
-
-    // 공격 속도는 층이 오를수록 쌓입니다. 한계(speedCap)에 걸리면 거기서 멈춥니다.
+    // 그 층에 나오는 자루들의 **한가운데**를 그 직업의 화력으로 봅니다.
+    // 어느 하나를 집으면 운 좋은 판만 재게 됩니다.
+    const pool = weaponPoolAt(job, f);
+    const boostAt = 1 + stacks * CFG.plusStep * (job.plusScale || 1);
     const speed = Math.min(job.speedCap, 1 + stacks * CFG.hasteStep);
-    const dps = dmg / (w.rate / speed) * 1000;
+    const each = pool.map((x) => (x.dmgMin + x.dmgMax) / 2 * boostAt * (x.shots || 1) * x.acc
+      / (x.rate / speed) * 1000).sort((a, b) => a - b);
+    const dps = each[Math.floor(each.length / 2)];
+    const w = pool[Math.floor(pool.length / 2)];
 
     // 방어·회피도 판이 진행될수록 한계 쪽으로 자랍니다. 절반쯤 채운 것으로 봅니다.
     const grow = Math.min(1, f / 250);

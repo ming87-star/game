@@ -308,7 +308,10 @@ function pickEnemyType(index) {
 
 function blankSlot(index, lane, kind) {
   return {
-    lane, kind,
+    // 층 번호를 칸이 들고 다닙니다. 무기 칸이 **그 층 깊이에 맞는 자루**를
+    // 굴려야 하는데(js/forge.js 의 rollWeapon), 칸만 받아 놓고 층을 모르면
+    // 굴릴 수가 없습니다.
+    index, lane, kind,
     x: CFG.laneX[lane],
     y: floorY(index),
     enemyCount: 0, enemyTypes: [], disguise: null, revealed: false, taken: false, spawned: false,

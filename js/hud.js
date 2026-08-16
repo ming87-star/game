@@ -28,7 +28,10 @@ class Hud {
     const fixed = (o) => o.setScrollFactor(0).setDepth(100);
 
     // 발판이 뒤로 지나가도 글씨가 읽히도록 어두운 띠를 깝니다.
-    fixed(scene.add.rectangle(0, 0, CFG.width, 108, 0x0d1120, 0.85).setOrigin(0, 0));
+    // 108이었습니다. 무기 한 줄(공격력 범위·정확도·사거리)이 아래에 붙으면서
+    // 그만큼 키웠습니다 — 무기가 사다리가 아니라 자루마다 성격이 다른 것이
+    // 되었으니, 지금 든 것이 어떤 자루인지가 늘 보여야 합니다.
+    fixed(scene.add.rectangle(0, 0, CFG.width, 132, 0x0d1120, 0.85).setOrigin(0, 0));
 
     // 체력바와 그 아래 붙은 방어력 띠. 둘을 한 덩어리로 보이게 붙여 둡니다.
     this.hpBg = fixed(scene.add.rectangle(24, 28, 240, 22, 0x000000, 0.45).setOrigin(0, 0.5));
@@ -56,6 +59,14 @@ class Hud {
     this.plusText = fixed(scene.add.text(0, 68, '', font(22, '#ffd54f')));
     this.multText = fixed(scene.add.text(0, 68, '', font(22, '#4fc3f7')));
     this.relicText = fixed(scene.add.text(CFG.width - 24, 96, '', font(17, '#ffd54f')).setOrigin(1, 0));
+
+    // ── 지금 든 자루가 어떤 물건인가 ───────────────────
+    // 이름과 초당 피해만으로는 모자랍니다. 무기가 계단이던 시절에는 이름이
+    // 곧 세기였지만, 지금은 같은 초당 피해라도 「74~108 · 92%」와
+    // 「101~175 · 83%」가 전혀 다른 자루입니다. 그 차이가 늘 보여야
+    // 다음에 만나는 자루를 고를 수 있습니다.
+    // 자세한 것은 일시정지 화면에서 봅니다 (js/scene-pause.js).
+    this.statText = fixed(scene.add.text(60, 110, '', font(15, '#8794b5')));
 
     // 초당 피해. **"그래서 센가?"에 답하는 유일한 숫자입니다.**
     // 공격력만 적으면 `속`을 주워도 숫자가 안 움직여서, 주운 사람이
@@ -234,13 +245,23 @@ class Hud {
     }
 
     // ── 무기 ──────────────────────────────────────────
-    if (w.tier !== L.tier) {
-      L.tier = w.tier;
-      const icon = weaponIconKey(s.job.key, w.tier);
+    if (w.index !== L.index) {
+      L.index = w.index;
+      const icon = weaponIconKey(s.job.key, w.index);
       if (this.weaponIcon.texture.key !== icon) {
         this.weaponIcon.setTexture(icon).setDisplaySize(34, 34);
       }
       this.weaponText.setText(w.name);
+    }
+
+    // 무기 한 줄. 자루가 바뀌거나 `+1`을 주우면 다시 씁니다.
+    if (w.index !== L.statIndex || w.dmgMin !== L.dmgMin || w.rate !== L.rate) {
+      L.statIndex = w.index; L.dmgMin = w.dmgMin; L.rate = w.rate;
+      const far = w.range || w.reach;
+      this.statText.setText(w.dmgMin + '~' + w.dmgMax
+        + '  정확 ' + Math.round(w.accuracy * 100) + '%'
+        + '  거리 ' + Math.round(far)
+        + (w.shots > 1 ? '  ' + w.shots + '곳' : ''));
     }
 
     const dps = Math.round(w.dps / DPS_DISPLAY_DIV);
@@ -266,8 +287,8 @@ class Hud {
     // 적어 줘야, 다음에 속을 보고 그냥 지나칠지 판단할 수 있습니다.
     const speed = w.speedMult;
     const capped = w.speedCapped;
-    if (shown !== L.plus || speed !== L.speed || capped !== L.capped || w.tier !== L.boostTier) {
-      L.plus = shown; L.speed = speed; L.capped = capped; L.boostTier = w.tier;
+    if (shown !== L.plus || speed !== L.speed || capped !== L.capped || w.index !== L.boostIndex) {
+      L.plus = shown; L.speed = speed; L.capped = capped; L.boostIndex = w.index;
 
       let x = this.weaponText.x + this.weaponText.width + 10;
       this.plusText.setText(shown ? '+' + shown : '').setX(x);

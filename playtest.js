@@ -103,14 +103,16 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
       weapon: s.weapon.name, plus: Number(s.weapon.plusValue.toFixed(1)),
       speed: Number(s.weapon.speedMult.toFixed(2)), capped: s.weapon.speedCapped,
       dmg: s.weapon.dmg, reach: Math.round(s.weapon.reach), shots: s.weapon.shots,
-      // UP이 실제로 이득인지. 강화를 잃고도 화력이 오르는가로 판단합니다.
+      // 무기 칸이 실제로 이득인지. **놓여 있는 자루를 직접 보고** 셉니다 —
+      // 무기는 이제 사다리가 아니라 주머니라, "다음 단계"라는 것이 없습니다.
+      // 갈아타면 강화가 날아가므로 새 자루는 강화 없이 잽니다.
       upWorth: (() => {
-        const w = s.weapon, next = w.table[w.tier + 1];
-        if (!next) return false;
-        // 근접은 사거리 안을 한 번에 벱니다. 화력은 공격력 ÷ 주기,
-        // 거기에 사거리가 넓을수록 한 번에 더 많이 맞는 것을 얹어 봅니다.
-        const power = (t) => t.dmg / t.rate * (1 + (t.reach || 0) / 400) * (t.shots || 1);
-        return power(next) > power({ dmg: w.dmg, rate: w.rate, reach: w.reach, shots: w.shots });
+        const w = s.weapon;
+        const floor = s.floors.get(s.floorIndex + 1);
+        const slot = floor && LANES.map((l) => floor.slots[l])
+          .find((c) => c && c.kind === SLOT.UPGRADE && c.weapon);
+        if (!slot) return false;
+        return w.dpsOf(slot.weapon, false) > w.dps;
       })(),
       armor: Math.round(s.armor),
       lane: s.lane,
@@ -127,6 +129,7 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
           Phaser.Math.Distance.Between(e.x, e.y, s.player.x, s.player.y) <= near).length;
       })(),
       enemies: s.enemies.countActive(), dead: s.dead, shopOpen: s.shop.open,
+      swapOpen: !!(window.__game.scene.isActive('swap') && window.__swap),
       score: s.score(),
       medals: s.medals, boosts: s.boosts,
       // 보스와 유물은 흐름을 통째로 바꿉니다. harness도 알아야 합니다.
@@ -179,6 +182,7 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
   const log = [];
   let shopsSeen = 0;
   let relicsTaken = 0;
+  let swapsSeen = 0;
   let bossSeen = false;
   for (let i = 0; i < jumps; i++) {
     const s = await read();
@@ -188,6 +192,22 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
     if (s.shopOpen) {
       shopsSeen++;
       await doShop(`shop-${s.floor}.png`);
+      continue;
+    }
+
+    // 무기를 밟으면 판이 멈추고 갈아탈지 묻습니다. **이걸 안 눌러 주면
+    // 판이 통째로 거기서 멎습니다** — 남은 점프를 전부 멈춘 화면에 씁니다.
+    // 이득일 때만 갈아타는 사람으로 잽니다.
+    if (s.swapOpen) {
+      swapsSeen++;
+      const at2 = await page.evaluate(() => {
+        const sw = window.__swap;
+        const g = window.__scene;
+        const good = g.weapon.dpsOf(sw.entry, false) > g.weapon.dps;
+        return good ? sw.swapAt : sw.keepAt;
+      });
+      await page.mouse.click(...at(at2.x, at2.y));
+      await page.waitForTimeout(400);
       continue;
     }
 
@@ -264,7 +284,7 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
   }
 
   console.log(log.join('\n'));
-  console.log(`${jobKey} · 상점 ${shopsSeen}회 · 유물 ${relicsTaken}개 · 보스 ${bossSeen ? '만남' : '못 만남'}` +
+  console.log(`${jobKey} · 상점 ${shopsSeen}회 · 무기 ${swapsSeen}자루 만남 · 유물 ${relicsTaken}개 · 보스 ${bossSeen ? "만남" : "못 만남"}` +
     ` · 메달 ${state ? state.medals : 0}개` +
     (state && state.boosts && state.boosts.length ? ' · 시작 강화 ' + state.boosts.join(',') : ''));
   console.log('최종:', JSON.stringify(state));

@@ -51,14 +51,17 @@ const check = (ok, label, got) => {
   await page.mouse.click(...at(start.x, start.y));
   await page.waitForTimeout(900);
 
-  // ── 서른여섯 자루가 모두 구워졌는가 ────────────────────
+  // ── 일흔두 자루가 모두 구워졌는가 ──────────────────────
+  // 자루 열둘 × 만듦새 둘 × 직업 셋. **주머니(job.pool)를 돌아야 합니다** —
+  // 예전 코드가 job.weapons(열둘)만 돌았더니 열두 번째부터 텍스처가 없어서,
+  // 무기 칸과 HUD 에 초록 X 상자가 떴습니다.
   const baked = await page.evaluate(() => {
     const s = window.__scene;
     const missing = [];
     let total = 0;
-    CLASSES.forEach((job) => job.weapons.forEach((w, tier) => {
+    CLASSES.forEach((job) => buildWeaponPool(job).forEach((w, index) => {
       total++;
-      const key = weaponIconKey(job.key, tier);
+      const key = weaponIconKey(job.key, index);
       if (!s.textures.exists(key)) missing.push(job.key + ' ' + w.name);
     }));
     return { total, missing };
@@ -71,8 +74,8 @@ const check = (ok, label, got) => {
     const s = window.__scene;
     const seen = new Set();
     let dup = 0;
-    CLASSES.forEach((job) => job.weapons.forEach((w, tier) => {
-      const src = s.textures.get(weaponIconKey(job.key, tier)).getSourceImage();
+    CLASSES.forEach((job) => buildWeaponPool(job).forEach((w, index) => {
+      const src = s.textures.get(weaponIconKey(job.key, index)).getSourceImage();
       const c = document.createElement('canvas');
       c.width = src.width; c.height = src.height;
       c.getContext('2d').drawImage(src, 0, 0);
@@ -82,62 +85,69 @@ const check = (ok, label, got) => {
     }));
     return { unique: seen.size, dup };
   });
-  check(distinct.dup === 0, '서른여섯 자루가 서로 다른 그림',
+  check(distinct.dup === 0, '일흔두 자루가 서로 다른 그림',
     '서로 다른 것 ' + distinct.unique + '개 · 겹친 것 ' + distinct.dup + '개');
 
   // ── HUD 에 지금 든 무기가 보이는가 ─────────────────────
   const hud = await page.evaluate(() => {
     const s = window.__scene;
-    s.weapon.tier = 0;
+    s.weapon.index = 0;
     s.hud.update();
     const first = s.hud.weaponIcon.texture.key;
-    s.weapon.tier = 6;
+    s.weapon.index = 6;
     s.hud.update();
     return { first, later: s.hud.weaponIcon.texture.key, want: weaponIconKey(s.job.key, 6) };
   });
   check(hud.first === 'w-warrior-0' && hud.later === hud.want,
     'HUD 그림이 지금 든 무기를 따라감', hud.first + ' → ' + hud.later);
 
-  // ── 발판의 UP 이 다음 무기 그림인가 ────────────────────
+  // ── 발판의 무기 칸 ─────────────────────────────────────
+  //
+  // 무기는 이제 사다리가 아닙니다. 발판에 **놓여 있는 자루**가 따로 있고,
+  // 그림은 그 자루의 것이어야 합니다 (내가 든 것의 "다음 단계"가 아니라).
+  // 그리고 그 자루는 발판을 지을 때 한 번 굴려 놓고 **바뀌지 않아야** 합니다 —
+  // 두 층 밖에서 보고 길을 정하는 일이 뜻을 가지려면요.
   const mark = await page.evaluate(() => {
     const s = window.__scene;
-    s.weapon.tier = 3;
-    s.floorIndex = 40;
+    s.weapon.index = 3; s.weapon.plus = 0;
+    s.floorIndex = 240;
     const f = s.floorIndex + 1;
     s.removeFloor(f); s.addFloor(f);
     const floor = s.floors.get(f);
     const slot = floor.slots.mid;
     if (slot.view) { slot.view.destroy(); slot.view = null; }
     slot.kind = SLOT.UPGRADE;
-    slot.taken = false; slot.expired = false; slot.upIcon = null;
+    slot.taken = false; slot.expired = false; slot.upIcon = null; slot.weapon = null;
     slot.view = s.makeMark(slot);
     floor.views.push(slot.view);
 
     const shown = slot.upIcon && slot.upIcon.texture.key;
-    // 상점에서 무기를 한 단계 올리면 위층 그림도 따라 바뀌어야 합니다.
-    s.weapon.tier = 4;
-    s.updateItems(s.time.now);
-    return { shown, want4: weaponIconKey(s.job.key, 4), after: slot.upIcon && slot.upIcon.texture.key,
-      want5: weaponIconKey(s.job.key, 5) };
-  });
-  check(mark.shown === mark.want4, '발판의 UP 은 다음 단계 무기 그림', mark.shown);
-  check(mark.after === mark.want5, '무기 단계가 오르면 위층 그림도 따라 바뀜',
-    mark.shown + ' → ' + mark.after);
+    const want = weaponIconKey(s.job.key, slot.weapon.index);
+    // **게임이 쓰는 함수로 그대로 대조합니다.** 여기서 창을 다시 계산하면
+    // 어긋납니다 — 창의 기준은 "층 - lookBack"이 아니라 "그 층에서 열린 것 중
+    // 가장 깊은 자루 - lookBack"입니다. 실제로 그렇게 잘못 적었다가 판마다
+    // 붙었다 떨어졌다 했습니다.
+    const inPool = weaponPoolAt(s.job, 240).some((x) => x.index === slot.weapon.index);
+    const gainBefore = slot.upGain.text;
 
-  // 마지막 무기를 들면 UP 은 회복이 되므로, 무기 그림이 남아 있으면 안 됩니다.
-  const maxed = await page.evaluate(() => {
-    const s = window.__scene;
-    s.weapon.tier = s.job.weapons.length - 1;
+    // 내가 무기를 갈아타도 **놓인 자루는 그대로**여야 합니다.
+    // 바뀌는 것은 견주는 값(손익 표시)뿐입니다.
+    s.weapon.index = 8;
     s.updateItems(s.time.now);
-    const slot = s.floors.get(s.floorIndex + 1).slots.mid;
-    return { icon: !!slot.upIcon, hasView: !!slot.view };
+    return { shown, want, inPool, gainBefore,
+      after: slot.upIcon && slot.upIcon.texture.key, gainAfter: slot.upGain.text };
   });
-  check(!maxed.icon && maxed.hasView, '마지막 무기를 들면 UP 그림이 회복 표시로 바뀜');
+  check(mark.shown === mark.want, '발판에는 그 칸에 놓인 자루의 그림', mark.shown);
+  check(mark.inPool, '그 층에 나올 수 있는 자루만 놓임');
+  check(mark.after === mark.shown, '내가 갈아타도 놓인 자루의 그림은 그대로',
+    mark.shown + ' → ' + mark.after);
+  check(mark.gainBefore !== mark.gainAfter, '대신 손익 표시는 다시 셈',
+    mark.gainBefore + ' → ' + mark.gainAfter);
 
   // ── 죽는 이펙트 ────────────────────────────────────────
   const burst = await page.evaluate(() => {
     const s = window.__scene;
-    s.weapon.tier = 0;
+    s.weapon.index = 0;
     const before = s.children.list.length;
     s.addFloor(s.floorIndex);
     const fl = s.floors.get(s.floorIndex);

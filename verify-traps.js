@@ -97,8 +97,12 @@ const check = (ok, label, got) => {
     return { bomb: bomb / floors, mimic: mimic / floors, item: item / floors };
   });
   const pc = (x) => (x * 100).toFixed(1) + '%';
-  check(odds.bomb > 0.02 && odds.bomb < 0.09, '폭탄은 드물게 (2~9%)', pc(odds.bomb));
-  check(odds.mimic > 0.01 && odds.mimic < 0.06, '가짜는 더 드물게 (1~6%)', pc(odds.mimic));
+  // 값을 통째로 낮췄습니다 (폭탄 2~9% → 0.7~4% · 가짜 1~6% → 0.2~2%).
+  // 아이템 확률을 3분의 1로 줄이면서 함정도 같은 배수로 줄였기 때문입니다 —
+  // 좋은 것만 줄이고 함정을 그대로 두면 "아이템처럼 보이는 것 다섯에 하나"가
+  // 가짜가 되어, 집는 일 자체가 도박이 됩니다 (아래 검사가 그걸 봅니다).
+  check(odds.bomb > 0.007 && odds.bomb < 0.04, '폭탄은 드물게 (0.7~4%)', pc(odds.bomb));
+  check(odds.mimic > 0.002 && odds.mimic < 0.02, '가짜는 더 드물게 (0.2~2%)', pc(odds.mimic));
   // 진짜가 훨씬 많아야 아이템을 집는 일이 도박이 되지 않습니다.
   check(odds.mimic < odds.item * 0.12, '아이템 열에 하나 아래로만 가짜',
     `가짜 ${pc(odds.mimic)} vs 진짜 ${pc(odds.item)}`);

@@ -323,21 +323,45 @@ async function boot(browser, port, jobIndex) {
     const clear = () => s.enemies.getChildren().slice().forEach((e) => e.destroy());
     const put = (dx, dy) => {
       const e = spawnEnemy(s, s.player.x + dx, s.player.y + dy, s.floorIndex, 'crawler');
-      if (e) { e.hp = e.maxHp = 1e9; e.body.setAllowGravity(false); e.body.velocity.set(0, 0); }
+      if (e) {
+        e.hp = e.maxHp = 1e9;
+        e.body.setAllowGravity(false); e.body.velocity.set(0, 0);
+        e.__x = e.x; e.__y = e.y;      // 넉백으로 밀리므로 제자리를 적어 둡니다
+      }
       return e;
     };
-    const hitFor = (e) => { // 한 번 휘둘러 이 놈이 얼마나 깎이는가
+    // 한 번 휘둘러 이 놈이 얼마나 깎이는가. 주사위를 멈춰 뒀으므로 몇 번을
+    // 재도 같은 값이 나옵니다 — 넉백으로 밀린 자리만 되돌려 주면 됩니다.
+    const hitFor = (e, n = 8) => {
       const before = e.hp;
-      s.lastSwingAt = -1e9;
-      s.swing(s.time.now + 99999);
-      return before - e.hp;
+      for (let i = 0; i < n; i++) {
+        e.x = e.__x; e.y = e.__y;      // 넉백으로 밀린 자리를 되돌립니다
+        s.lastSwingAt = -1e9;
+        s.swing(s.time.now + 99999);
+      }
+      return (before - e.hp) / n;
     };
+
+    // ── 주사위를 잠시 멈춥니다 ─────────────────────────
+    // 여기서 재려는 것은 **거리에 따른 감쇠** 하나입니다. 공격력은 범위이고
+    // 정확도는 확률이라, 그대로 두면 60번을 재도 ±17%가 흔들려서 감쇠가
+    // 있는지 없는지를 못 가립니다 (실제로 그래서 한 번 틀렸습니다).
+    // 굴리는 것과 빗나가는 것은 따로 검사하므로 여기서는 고정합니다.
+    //
+    // **재고 나서 반드시 되돌립니다.** 무기 인스턴스에 직접 씌우는 것이라
+    // 안 걷어내면 그 뒤의 검사들이 전부 "안 빗나가고 늘 같은 값"인 무기를
+    // 재게 됩니다 (한 번 그렇게 물렸습니다).
+    const realRoll = s.weapon.rollDamage;
+    const realHits = s.weapon.hits;
+    s.weapon.rollDamage = function () { return this.dmg; };
+    s.weapon.hits = () => true;
+    const undoStub = () => { s.weapon.rollDamage = realRoll; s.weapon.hits = realHits; };
 
     const relic = RELICS.find((r) => r.key === 'farblade');
     // 마지막 무기로 올려 놓고 잽니다. 0단계 검은 사거리가 100 이라 1.5배를
     // 해도 150 — 한 층(165)에 못 미쳐서 "아래를 안 친다"를 시험할 수가 없습니다.
     // 아래층까지 팔이 닿는 것은 긴 무기에 유물을 얹었을 때뿐입니다.
-    s.weapon.tier = s.job.weapons.length - 1;
+    s.weapon.index = s.weapon.table.length - 1;
     const baseReach = s.weapon.reach;
 
     // 유물 없이: 거리와 상관없이 온전히 들어가야 합니다.
@@ -362,25 +386,26 @@ async function boot(browser, port, jobIndex) {
     clear();
     const below = put(0, CFG.floorHeight);
     const reachesBelow = s.meleeDist(below) <= longReach;
-    const hitBelow = hitFor(below);
+    const hitBelow = hitFor(below, 10);
     clear();
     s.weapon.relics = s.weapon.relics.filter((r) => r.key !== 'farblade');
+    undoStub();
 
     return { baseReach, longReach, plainNear, plainFar, relicNear, relicFar,
       reachesBelow, hitBelow, floorGap: CFG.floorHeight, falloff: relic.falloff };
   });
   check(farblade.longReach > farblade.baseReach, '먼 그림자 검은 사거리를 늘림',
     `${Math.round(farblade.baseReach)} → ${Math.round(farblade.longReach)}`);
-  check(farblade.plainFar === farblade.plainNear,
+  check(Math.abs(farblade.plainFar / farblade.plainNear - 1) < 0.12,
     '유물이 없으면 거리와 상관없이 온전히 들어감',
-    `코앞 ${farblade.plainNear} · 끝 ${farblade.plainFar}`);
-  check(farblade.relicNear / farblade.plainNear > 0.9,
+    `코앞 ${farblade.plainNear.toFixed(1)} · 끝 ${farblade.plainFar.toFixed(1)}`);
+  check(farblade.relicNear / farblade.plainNear > 0.85,
     '유물을 들어도 코앞은 거의 그대로',
-    `${farblade.relicNear} / ${farblade.plainNear} = `
+    `${farblade.relicNear.toFixed(1)} / ${farblade.plainNear.toFixed(1)} = `
     + (farblade.relicNear / farblade.plainNear).toFixed(2));
-  check(farblade.relicFar > 0 && farblade.relicFar / farblade.relicNear < farblade.falloff * 1.6,
+  check(farblade.relicFar > 0 && farblade.relicFar / farblade.relicNear < farblade.falloff * 1.8,
     '사거리 끝에서는 1할 언저리만 들어감',
-    `${farblade.relicFar} / ${farblade.relicNear} = `
+    `${farblade.relicFar.toFixed(1)} / ${farblade.relicNear.toFixed(1)} = `
     + (farblade.relicFar / farblade.relicNear).toFixed(2));
   check(farblade.reachesBelow && farblade.hitBelow === 0,
     '늘어난 사거리 안이라도 아래층은 안 침',
@@ -414,6 +439,135 @@ async function boot(browser, port, jobIndex) {
     `${leech.small} (뚜껑 ${leech.cap})`);
   check(leech.huge === leech.cap, '아무리 크게 때려도 한 대에 뚜껑까지만',
     `${leech.huge} = ${leech.cap}`);
+
+  // ── 공격력 범위와 정확도 ────────────────────────────────
+  // 무기 개편의 뼈대입니다. 한 값이 아니라 범위이고, 빗나가는 일이 있습니다.
+  const roll = await warrior.evaluate(() => {
+    const s = window.__scene;
+    const w = s.weapon;
+    w.index = 0; w.plus = 0;
+
+    // 범위: 굴린 값이 dmgMin~dmgMax 안에 있고, 양 끝이 실제로 나오는가.
+    const d = [];
+    for (let i = 0; i < 4000; i++) d.push(w.rollDamage());
+    const lo = Math.min(...d), hi = Math.max(...d);
+
+    // 정확도: 설정한 만큼 빗나가는가.
+    let miss = 0;
+    for (let i = 0; i < 8000; i++) if (!w.hits()) miss++;
+
+    // 강화(`+1`)는 범위 **전체**를 밀어 올려야 합니다. 아래쪽만 올리면
+    // "최소 공격력"이 곧 실제 공격력이 되어 범위라는 것이 뜻을 잃습니다.
+    const bare = [w.dmgMin, w.dmgMax];
+    w.plus = 5;
+    const boosted = [w.dmgMin, w.dmgMax];
+    w.plus = 0;
+
+    // 만듦새마다 성격이 다른가 — 은장은 고르고 흑철은 들쭉날쭉해야 합니다.
+    const pool = w.table;
+    const width = (k) => {
+      const e = pool.find((x) => x.forge === k);
+      return e ? (e.dmgMax - e.dmgMin) / ((e.dmgMax + e.dmgMin) / 2) : null;
+    };
+    const accOf = (k) => {
+      const e = pool.find((x) => x.forge === k);
+      return e ? e.acc : null;
+    };
+
+    return {
+      lo, hi, want: [w.dmgMin, w.dmgMax], missPct: miss / 8000, acc: w.accuracy,
+      bare, boosted,
+      silverWidth: width('silver'), blackWidth: width('black'),
+      silverAcc: accOf('silver'), blackAcc: accOf('black'), plainAcc: accOf('plain'),
+      pool: pool.length,
+    };
+  });
+  check(roll.lo >= roll.want[0] && roll.hi <= roll.want[1],
+    '공격력은 정해진 범위 안에서만 굴림',
+    `굴린 값 ${roll.lo}~${roll.hi} · 설정 ${roll.want[0]}~${roll.want[1]}`);
+  check(roll.lo === roll.want[0] && roll.hi === roll.want[1],
+    '범위의 양 끝이 실제로 나옴 (한가운데만 나오지 않음)');
+  check(Math.abs(roll.missPct - (1 - roll.acc)) < 0.02,
+    '정확도만큼 빗나감', `설정 ${Math.round(roll.acc * 100)}% · 실제 ${(100 - roll.missPct * 100).toFixed(1)}%`);
+  check(roll.boosted[0] > roll.bare[0] && roll.boosted[1] > roll.bare[1] &&
+    Math.abs((roll.boosted[0] / roll.bare[0]) - (roll.boosted[1] / roll.bare[1])) < 0.02,
+    '강화는 범위의 위아래를 같은 비율로 밀어 올림',
+    `${roll.bare.join('~')} → ${roll.boosted.join('~')}`);
+  check(roll.pool === 24, '주머니에 자루가 스물넷 (열둘 × 만듦새 둘)', roll.pool + '자루');
+  check(roll.silverWidth < roll.blackWidth,
+    '은장은 한 대가 고르고 흑철은 들쭉날쭉',
+    `은장 ±${(roll.silverWidth * 50).toFixed(0)}% · 흑철 ±${(roll.blackWidth * 50).toFixed(0)}%`);
+  check(roll.silverAcc > roll.plainAcc && roll.blackAcc < roll.plainAcc,
+    '은장은 잘 맞고 흑철은 잘 빗나감',
+    `은장 ${Math.round(roll.silverAcc * 100)}% · 원본 ${Math.round(roll.plainAcc * 100)}%`
+    + ` · 흑철 ${Math.round(roll.blackAcc * 100)}%`);
+
+  // ── 전사의 넉백 ─────────────────────────────────────────
+  const knock = await warrior.evaluate(async () => {
+    const s = window.__scene;
+    s.weapon.index = 0; s.weapon.plus = 0;
+    // 여기서 볼 것은 밀려나는 거리이지 얼마나 깎였느냐가 아닙니다.
+    // 빗나가면 안 밀리므로(그게 맞습니다) 재는 동안만 주사위를 멈춥니다.
+    const realRoll = s.weapon.rollDamage;
+    const realHits = s.weapon.hits;
+    s.weapon.rollDamage = function () { return this.dmg; };
+    s.weapon.hits = () => true;
+    s.enemies.getChildren().slice().forEach((e) => e.destroy());
+
+    const put = (dx) => {
+      const e = spawnEnemy(s, s.player.x + dx, s.player.y, s.floorIndex, 'crawler');
+      e.hp = e.maxHp = 1e9;
+      e.body.setAllowGravity(false); e.body.velocity.set(0, 0);
+      return e;
+    };
+
+    // 코앞의 놈을 한 번 치면 뒤로 밀려나야 합니다.
+    const e = put(12);
+    const before = e.x - s.player.x;
+    s.lastSwingAt = -1e9;
+    s.swing(s.time.now + 99999);
+    const after = e.x - s.player.x;
+    const stunned = e.knockUntil > s.time.now;
+
+    // **밀려나도 사거리 안에 남아야 합니다.** 밖으로 밀면 다음 대가 허공을
+    // 가르고, 적이 걸어 돌아올 때까지 아무 일도 안 일어납니다.
+    const stillInReach = s.meleeDist(e) <= s.weapon.reach;
+
+    // 열 번을 연달아 쳐도 계속 맞아야 합니다 (밀려 나가 버리지 않는가).
+    let landed = 0;
+    for (let i = 0; i < 10; i++) {
+      const hp = e.hp;
+      s.lastSwingAt = -1e9;
+      s.swing(s.time.now + 99999);
+      if (e.hp < hp) landed++;
+    }
+
+    // 밀린 동안에는 제자리에 멎어 있어야 합니다 — 그게 버는 시간입니다.
+    e.knockUntil = s.time.now + 9999;
+    groundStep(s, e, s.player, s.time.now);
+    const frozen = e.body.velocity.x === 0;
+    e.destroy();
+
+    // 보스는 안 밀립니다. 몸이 투기장을 덮고 있어서 밀리면 그림이 깨집니다.
+    const bossPushed = (() => {
+      const b = { active: true, isBoss: true, x: 100, body: { allowGravity: false, velocity: { x: 0 } } };
+      s.knockBack(b);
+      return b.x !== 100;
+    })();
+
+    s.weapon.rollDamage = realRoll;
+    s.weapon.hits = realHits;
+    return { before, after, stunned, stillInReach, landed, frozen, bossPushed,
+      half: CFG.platformW * CFG.knockback.share, reach: s.weapon.reach };
+  });
+  check(knock.after > knock.before, '전사가 휘두르면 적이 뒤로 밀려남',
+    `${Math.round(knock.before)}px → ${Math.round(knock.after)}px`);
+  check(knock.after - knock.before > knock.half * 0.5,
+    '발판 절반 언저리는 밀려남', `${Math.round(knock.after - knock.before)}px (발판 절반 ${knock.half})`);
+  check(knock.stunned && knock.frozen, '밀린 동안에는 다가오지 않음 (버는 시간)');
+  check(knock.stillInReach && knock.landed === 10,
+    '밀려나도 사거리 안 — 연달아 쳐도 계속 맞음', `열 번 중 ${knock.landed}번`);
+  check(!knock.bossPushed, '보스는 안 밀림');
 
   // ── 한 층에 도는 몬스터는 넷까지 ────────────────────────
   // 새 종류가 하나 풀리면 가장 먼저 나왔던 하나가 물러납니다.

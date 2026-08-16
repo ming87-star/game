@@ -124,24 +124,24 @@ const check = (ok, label, got) => {
   // 그러려면 이 판에서 무기를 두 번은 손에 넣어야 합니다.
   await page.evaluate(() => {
     const s = window.__scene;
-    s.weapon.upgrade(); s.noteWeapon();   // 둘째 무기
+    s.weapon.swapTo(s.weapon.table[2]); s.noteWeapon();   // 둘째 무기
     s.weapon.addPlus(); s.weapon.addPlus();
-    s.weapon.upgrade(); s.noteWeapon();   // 셋째 — 계승 대상이 아니어야 합니다
+    s.weapon.swapTo(s.weapon.table[4]); s.noteWeapon();   // 셋째 — 계승 대상이 아니어야 합니다
     s.weapon.haste = 9;                   // 속도는 넘어가면 안 됩니다
   });
   const choices2 = await die(2);
   const rolled = await page.evaluate(() => window.__scene.deathCarry);
   const got = await page.evaluate(() => window.__save.data.lastRun.got);
-  check(rolled && rolled.tier === got[1].tier,
+  check(rolled && rolled.index === got[1].index,
     '계승은 이번 판의 두 번째 무기로 고정',
-    `얻은 순서 ${got.map((w) => w.tier).join('→')} · 계승 ${rolled && rolled.tier}단계`);
+    `얻은 순서 ${got.map((w) => w.index).join('→')} · 계승 ${rolled && rolled.index}번 자루`);
   await page.mouse.click(...at(choices2[1].x, choices2[1].y)); // 2. 무기 계승
   await page.waitForTimeout(1000);
   const carried = await page.evaluate(() => {
     const w = window.__scene.weapon;
-    return { tier: w.tier, plus: w.plus, mult: w.mult, haste: w.haste, name: w.name };
+    return { index: w.index, plus: w.plus, mult: w.mult, haste: w.haste, name: w.name };
   });
-  check(await scene() === 'game' && carried.tier === rolled.tier &&
+  check(await scene() === 'game' && carried.index === rolled.index &&
     carried.plus === rolled.plus,
     '고른 무기를 그대로 들고 새 판이 시작됨',
     `계승 ${JSON.stringify(rolled)} → ${carried.name} +${carried.plus}`);
@@ -179,7 +179,7 @@ const check = (ok, label, got) => {
     s.coins = 240; s.totalCoins = 700; s.armor = 55;
     // 상점에서 코인을 주고 산 것들 — 부적과 한계.
     s.charm = true; s.armorMax = 78; s.dodgeMax = 0.4;
-    s.weapon.tier = 4; s.weapon.plus = 3; s.weapon.haste = 6;
+    s.weapon.index = 4; s.weapon.plus = 3; s.weapon.haste = 6;
     s.weapon.relics = [RELICS.find((r) => r.key === 'bloodcloak')];
     s.snapshotAtShop();       // 100층 상점을 나선 셈
     s.floorIndex = 137;       // 그 뒤로 더 올라가다가
@@ -203,7 +203,7 @@ const check = (ok, label, got) => {
       scene: 'game', floor: s.floorIndex, coins: s.coins, armor: s.armor,
       medals: s.medals, continues: s.continues,
       charm: s.charm, armorMax: s.armorMax, dodgeMax: s.dodgeMax,
-      tier: s.weapon.tier, plus: s.weapon.plus, haste: s.weapon.haste,
+      index: s.weapon.index, plus: s.weapon.plus, haste: s.weapon.haste,
       relics: s.weapon.relics.map((r) => r.key),
       onShop: !!(s.floors.get(s.floorIndex) && s.floors.get(s.floorIndex).shop),
       shopOpen: s.shop.open,
@@ -219,10 +219,10 @@ const check = (ok, label, got) => {
   check(resumed.charm === true && resumed.armorMax === 78 && resumed.dodgeMax === 0.4,
     '상점에서 산 부적과 한계도 그대로 따라옴',
     `부적 ${resumed.charm} · 방어한계 ${resumed.armorMax} · 회피한계 ${resumed.dodgeMax}`);
-  check(resumed.tier === 4 && resumed.plus === 3 && resumed.haste === 6 &&
+  check(resumed.index === 4 && resumed.plus === 3 && resumed.haste === 6 &&
     resumed.coins === 240 && resumed.armor === 55 && resumed.relics.length === 1,
     '무기·강화·코인·방어·유물이 상점을 나서던 그대로',
-    `${resumed.tier}단계 +${resumed.plus} 속${resumed.haste} · 코인 ${resumed.coins} · 방어 ${resumed.armor} · ${resumed.relics.join(',')}`);
+    `${resumed.index}단계 +${resumed.plus} 속${resumed.haste} · 코인 ${resumed.coins} · 방어 ${resumed.armor} · ${resumed.relics.join(',')}`);
   check(resumed.medals === 0 && (await save()).medals === before.medals,
     '이번 판에 번 메달은 버려짐 (쌓아 둔 것은 그대로)',
     `이번 판 ${resumed.medals} · 잔액 ${(await save()).medals}`);
@@ -252,7 +252,7 @@ const check = (ok, label, got) => {
     const s = window.__scene;
     const setup = (fn) => {
       if (s.shop.open) s.shop.close();
-      s.weapon.tier = 0; s.weapon.plus = 0; s.weapon.haste = 0;
+      s.weapon.index = 0; s.weapon.plus = 0; s.weapon.haste = 0;
       s.maxHp = s.job.hp; s.hp = s.maxHp;
       s.armor = s.job.armor; s.dodge = s.job.dodge || 0;
       s.coins = 4000;

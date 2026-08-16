@@ -25,11 +25,29 @@ const CLASSES = [
     // 방어는 셋 중 가장 두껍고, 손은 가장 느립니다.
     // 무거운 것을 크게 휘두르는 직업이라는 것이 수치로도 보여야 합니다.
     armorMax: 82,
-    speedCap: 1.65,
+    // 넉백이 생긴 만큼 손을 더 느리게 잡았습니다 (1.65 → 1.30).
+    // 밀어내면서 빠르기까지 하면 발판 위에 아무도 못 올라옵니다 —
+    // 그건 버티는 것이 아니라 그냥 아무 일도 안 일어나는 것입니다.
+    speedCap: 1.30,
     plusScale: 1,
     attack: 'melee',
     dodge: 0,
     steal: 0,
+
+    // ── 넉백 ───────────────────────────────────────────
+    // **휘두를 때마다 적이 발판 절반쯤 뒤로 밀려납니다** (CFG.knockback).
+    //
+    // 전사의 값어치는 원래 "두껍게 막는다" 하나였습니다. 그런데 막는 것은
+    // 맞는 속도를 늦출 뿐 아무것도 바꾸지 않습니다 — 궁수는 멈출 필요가
+    // 없고 도적은 통째로 흘려 넘기는데, 전사는 맞으면서 때리는 것 말고
+    // 할 수 있는 일이 없었습니다. **버티기만으로는 저울이 안 맞습니다.**
+    //
+    // 밀어내는 것은 시간을 버는 방어입니다. 밀린 놈이 다시 붙는 동안이
+    // 전사가 얻는 몫이고, 발판이 좁으므로 가장자리로 밀면 떨어지기도 합니다.
+    // 사거리가 긴 것과도 맞물립니다 — 멀리서 밀어 두고 그 거리를 유지합니다.
+    //
+    // 1이면 CFG.knockback.share 만큼(발판 절반). 큰 적일수록 덜 밀립니다.
+    knockback: 1,
 
     // 근접: 사거리 안을 한 번에 벱니다. 사거리가 길어 여럿이 함께 맞습니다.
     //
@@ -38,32 +56,71 @@ const CLASSES = [
     //   hw     날의 반너비 · len 날 길이 (가장 긴 날 0.76에 견줘서) · curve 휘어진 정도
     //   guard  none · bar 가로대 · cross 십자 · wing 젖힌 뿔 · ring 고리 (gw 는 그 너비)
     //   twin   두 자루 · notch 이 빠진 날 · gem 밑동의 보석
+    // ── 자루 열둘 ──────────────────────────────────────
+    // **사다리가 아니라 목록입니다.** 예전에는 열두 단계짜리 계단이라
+    // 다음 것이 늘 더 셌고, 그래서 고를 것이 없었습니다. 지금은 뒤쪽 자루가
+    // 조금 낫기는 해도 만듦새에 따라 앞쪽 자루가 더 맞을 수 있습니다.
+    //
+    //   dmg     공격력 가운뎃값. 실제로는 ±spread 만큼 흔들립니다
+    //   spread  그 흔들리는 폭 (없으면 0.18)
+    //   acc     정확도. 빗나가면 '빗나감'이 뜨고 피해가 없습니다 (없으면 0.92)
+    //   depth   이 층부터 필드에 나오기 시작합니다
+    //   forge   이 자루에 붙는 만듦새 하나 (js/forge.js). 그래서 자루당 둘입니다
+    //   sheet   빌려 쓸 몸짓 시트 번호. 만듦새가 달라도 실루엣은 같은 자루입니다
+    //
+    // icon 은 그림을 짓는 값입니다 (js/textures.js). 흰 외곽선으로 굽습니다.
+    //   art    sword 검 · dagger 짧은 검 · spear 창 · bow 활 · crossbow 석궁
+    //   hw     날의 반너비 · len 날 길이 (가장 긴 날 0.76에 견줘서) · curve 휘어진 정도
+    //   guard  none · bar 가로대 · cross 십자 · wing 젖힌 뿔 · ring 고리 (gw 는 그 너비)
+    //   twin   두 자루 · notch 이 빠진 날 · gem 밑동의 보석
     weapons: [
-      { name: '녹슨 장검', dmg: 48,  rate: 410, reach: 100, color: 0xcfd8dc,
+      { key: 'sword', name: '장검', dmg: 48, rate: 410, reach: 100, depth: 0,
+        forge: 'iron', sheet: 0, color: 0xcfd8dc,
+        detail: '무엇에도 모나지 않은 한 자루',
         icon: { art: 'sword', hw: 4.0, len: 0.60, guard: 'bar', gw: 12, notch: true } },
-      { name: '강철 검',   dmg: 86,  rate: 390, reach: 108, color: 0x90caf9,
+      { key: 'steel', name: '강철검', dmg: 52, rate: 400, reach: 108, depth: 40,
+        forge: 'keen', sheet: 1, color: 0x90caf9,
+        detail: '무게가 손에 잘 붙습니다',
         icon: { art: 'sword', hw: 4.6, len: 0.63, guard: 'bar', gw: 15 } },
-      { name: '쌍날 검',   dmg: 138,  rate: 350, reach: 116, color: 0xa5d6a7,
+      { key: 'twin', name: '쌍날검', dmg: 56, rate: 388, reach: 116, depth: 80,
+        forge: 'black', sheet: 2, color: 0xa5d6a7, spread: 0.24,
+        detail: '두 날이 엇갈립니다. 한 대가 들쭉날쭉합니다',
         icon: { art: 'sword', twin: true, hw: 5.0, len: 0.62, guard: 'bar', gw: 16 } },
-      { name: '은빛 창',   dmg: 236, rate: 330, reach: 124, color: 0xb0bec5,
+      { key: 'spear', name: '장창', dmg: 60, rate: 376, reach: 124, depth: 120,
+        forge: 'keen', sheet: 3, color: 0xb0bec5, acc: 0.96, spread: 0.12,
+        detail: '곧게 찌릅니다. 좀처럼 빗나가지 않습니다',
         icon: { art: 'spear' } },
-      { name: '마력 검',   dmg: 398, rate: 310, reach: 130, color: 0xce93d8,
+      { key: 'arcane', name: '마력검', dmg: 64, rate: 364, reach: 130, depth: 160,
+        forge: 'silver', sheet: 4, color: 0xce93d8,
+        detail: '날에 빛이 돕니다',
         icon: { art: 'sword', hw: 4.8, len: 0.66, guard: 'ring', gw: 14, gem: true } },
-      { name: '화염도',    dmg: 644, rate: 280, reach: 135, color: 0xff8a65,
+      { key: 'flame', name: '화염도', dmg: 68, rate: 352, reach: 135, depth: 200,
+        forge: 'iron', sheet: 5, color: 0xff8a65, spread: 0.26,
+        detail: '휘어진 날이 크게 훑습니다',
         icon: { art: 'sword', hw: 5.4, len: 0.66, curve: 1.1, guard: 'bar', gw: 12 } },
-      { name: '뇌전검',    dmg: 1030, rate: 250, reach: 139, color: 0x81d4fa,
+      { key: 'thunder', name: '뇌전검', dmg: 73, rate: 340, reach: 139, depth: 250,
+        forge: 'black', sheet: 6, color: 0x81d4fa,
+        detail: '내리칠 때 소리가 늦게 옵니다',
         icon: { art: 'sword', hw: 4.6, len: 0.68, guard: 'wing', gw: 15, gem: true } },
-      { name: '용살검',    dmg: 1544, rate: 210, reach: 143, color: 0xffb74d,
+      { key: 'dragon', name: '용살검', dmg: 77, rate: 328, reach: 143, depth: 300,
+        forge: 'keen', sheet: 7, color: 0xffb74d,
+        detail: '큰 것을 베라고 만든 자루',
         icon: { art: 'sword', hw: 6.6, len: 0.70, guard: 'cross', gw: 19 } },
-      // 여기서부터는 275층 언저리에서야 손에 들어옵니다. 한 판에 다 보기는 어렵고,
-      // 메달과 무기 계승으로 판을 거듭해야 닿는 구간입니다.
-      { name: '파천검',    dmg: 2620, rate: 200, reach: 147, color: 0xf48fb1,
+      { key: 'heaven', name: '파천검', dmg: 82, rate: 316, reach: 147, depth: 350,
+        forge: 'silver', sheet: 8, color: 0xf48fb1,
+        detail: '이가 빠진 채로도 잘 듭니다',
         icon: { art: 'sword', hw: 7.0, len: 0.70, curve: 0.6, guard: 'cross', gw: 20, notch: true } },
-      { name: '성흔검',    dmg: 4460, rate: 190,  reach: 151, color: 0xfff59d,
+      { key: 'holy', name: '성흔검', dmg: 88, rate: 304, reach: 151, depth: 400,
+        forge: 'iron', sheet: 9, color: 0xfff59d, acc: 0.95,
+        detail: '겨눈 곳으로 저절로 갑니다',
         icon: { art: 'sword', hw: 5.6, len: 0.73, guard: 'ring', gw: 17, gem: true } },
-      { name: '혼돈의 대검', dmg: 7560, rate: 180, reach: 155, color: 0x9575cd,
+      { key: 'chaos', name: '혼돈대검', dmg: 93, rate: 292, reach: 155, depth: 450,
+        forge: 'keen', sheet: 10, color: 0x9575cd, spread: 0.32, acc: 0.88,
+        detail: '한 대가 어떻게 들어갈지 스스로도 모릅니다',
         icon: { art: 'sword', hw: 8.0, len: 0.72, guard: 'wing', gw: 21, gem: true } },
-      { name: '천공검',    dmg: 12740, rate: 170,  reach: 159, color: 0x80cbc4,
+      { key: 'sky', name: '천공검', dmg: 99, rate: 280, reach: 159, depth: 500,
+        forge: 'black', sheet: 11, color: 0x80cbc4,
+        detail: '가장 멀리, 가장 무겁게',
         icon: { art: 'sword', hw: 6.4, len: 0.76, curve: 0.5, guard: 'wing', gw: 19, gem: true, notch: true } },
     ],
 
@@ -99,33 +156,57 @@ const CLASSES = [
     // 한 발이 근접보다 약한 대신 훨씬 자주 나갑니다.
     // icon 값의 뜻은 전사 쪽 주석을 보세요. 활은 recurve(각궁처럼 끝이 젖힌 것)와
     // big(큰 활), arrows(메긴 화살 수)로 갈립니다.
+    // 자루 열둘. 값의 뜻은 전사 쪽 주석을 보세요.
+    // 활은 recurve(끝이 젖힌 각궁)와 big(큰 활), arrows(메긴 화살 수)로 갈립니다.
+    // shots 는 **한 번에 노리는 서로 다른 적의 수**입니다.
     weapons: [
-      { name: '낡은 단궁',   dmg: 70,  rate: 320, range: 300, shots: 1, color: 0xd7ccc8,
+      { key: 'short', name: '단궁', dmg: 45, rate: 330, range: 300, shots: 1, depth: 0,
+        forge: 'keen', sheet: 0, color: 0xd7ccc8,
+        detail: '가볍고 손에 익습니다',
         icon: { art: 'bow', arrows: 1 } },
-      { name: '사냥꾼의 활', dmg: 120,  rate: 304, range: 315, shots: 1, color: 0xbcaaa4,
+      { key: 'hunter', name: '사냥활', dmg: 48, rate: 322, range: 310, shots: 1, depth: 40,
+        forge: 'iron', sheet: 1, color: 0xbcaaa4,
+        detail: '한 발이 무겁습니다',
         icon: { art: 'bow', big: true, arrows: 1 } },
-      { name: '각궁',       dmg: 100,  rate: 280, range: 330, shots: 2, color: 0xa5d6a7,
+      { key: 'horn', name: '각궁', dmg: 26, rate: 310, range: 325, shots: 2, depth: 80,
+        forge: 'silver', sheet: 2, color: 0xa5d6a7,
+        detail: '두 곳을 한꺼번에 노립니다',
         icon: { art: 'bow', recurve: true, arrows: 1 } },
-      { name: '강철 석궁',   dmg: 172,  rate: 264, range: 345, shots: 2, color: 0xb0bec5,
+      { key: 'crossbow', name: '강철석궁', dmg: 28, rate: 300, range: 340, shots: 2, depth: 120,
+        forge: 'black', sheet: 3, color: 0xb0bec5, acc: 0.95, spread: 0.10,
+        detail: '기계가 겨눕니다. 흔들림이 없습니다',
         icon: { art: 'crossbow' } },
-      { name: '바람의 활',   dmg: 198,  rate: 248, range: 360, shots: 3, color: 0x80deea,
+      { key: 'wind', name: '바람활', dmg: 30, rate: 292, range: 355, shots: 2, depth: 160,
+        forge: 'keen', sheet: 4, color: 0x80deea,
+        detail: '화살이 바람을 탑니다',
         icon: { art: 'bow', recurve: true, arrows: 2 } },
-      { name: '불꽃 장궁',   dmg: 320, rate: 226, range: 375, shots: 3, color: 0xff8a65,
+      { key: 'flamebow', name: '불꽃장궁', dmg: 21, rate: 284, range: 370, shots: 3, depth: 200,
+        forge: 'iron', sheet: 5, color: 0xff8a65, spread: 0.24,
+        detail: '세 곳을 동시에',
         icon: { art: 'bow', big: true, arrows: 2 } },
-      { name: '뇌명궁',     dmg: 382, rate: 204, range: 390, shots: 4, color: 0x81d4fa,
+      { key: 'roar', name: '뇌명궁', dmg: 23, rate: 276, range: 385, shots: 3, depth: 250,
+        forge: 'silver', sheet: 6, color: 0x81d4fa,
+        detail: '시위 소리가 뒤늦게 옵니다',
         icon: { art: 'bow', recurve: true, big: true, arrows: 2 } },
-      // 특수 무기 — 화살이 표적을 끝까지 쫓습니다. 아주 긴 판에서만 손에 들어옵니다.
-      { name: '용뼈 대궁',   dmg: 576, rate: 178,  range: 410, shots: 4, homing: true, color: 0xffb74d,
+      { key: 'bone', name: '용뼈대궁', dmg: 24, rate: 268, range: 400, shots: 3, depth: 300,
+        forge: 'keen', sheet: 7, color: 0xffb74d, homing: true,
+        detail: '화살이 표적을 끝까지 쫓습니다',
         icon: { art: 'crossbow', big: true } },
-      // 여기서부터는 유도가 기본입니다. 275층 언저리의 구간이라,
-      // 메달과 무기 계승으로 판을 거듭해야 닿습니다.
-      { name: '질풍 대궁',   dmg: 956,  rate: 164, range: 425, shots: 4, homing: true, color: 0xf48fb1,
+      { key: 'gale', name: '질풍대궁', dmg: 20, rate: 260, range: 415, shots: 4, depth: 350,
+        forge: 'black', sheet: 8, color: 0xf48fb1, homing: true,
+        detail: '네 곳을 쫓아갑니다',
         icon: { art: 'bow', big: true, arrows: 3 } },
-      { name: '성좌궁',     dmg: 1270,  rate: 152, range: 440, shots: 5, homing: true, color: 0xfff59d,
+      { key: 'star', name: '성좌궁', dmg: 21, rate: 252, range: 430, shots: 4, depth: 400,
+        forge: 'silver', sheet: 9, color: 0xfff59d, acc: 0.96,
+        detail: '겨눈 곳을 놓치는 법이 없습니다', homing: true,
         icon: { art: 'bow', recurve: true, big: true, arrows: 3 } },
-      { name: '심연 장궁',   dmg: 2110,  rate: 140, range: 455, shots: 5, homing: true, color: 0x9575cd,
+      { key: 'abyss', name: '심연장궁', dmg: 23, rate: 244, range: 445, shots: 4, depth: 450,
+        forge: 'iron', sheet: 10, color: 0x9575cd, homing: true, spread: 0.28,
+        detail: '한 발 한 발이 다릅니다',
         icon: { art: 'crossbow', big: true, gem: true } },
-      { name: '천뢰궁',     dmg: 2892, rate: 128, range: 470, shots: 6, homing: true, color: 0x80cbc4,
+      { key: 'skybow', name: '천뢰궁', dmg: 24, rate: 236, range: 460, shots: 4, depth: 500,
+        forge: 'keen', sheet: 11, color: 0x80cbc4, homing: true,
+        detail: '가장 멀리, 가장 자주',
         icon: { art: 'bow', recurve: true, big: true, arrows: 3, gem: true } },
     ],
 
@@ -196,31 +277,57 @@ const CLASSES = [
     // 전사의 절반쯤이라, 그만큼 한 대가 무거워야 총합이 맞습니다.
     // icon 값의 뜻은 전사 쪽 주석을 보세요. 도적은 날이 짧아 art 가 dagger 입니다 —
     // 자루가 짧고 코등이가 작아, 같은 검이라도 전사 것과 실루엣이 갈립니다.
+    // 자루 열둘. 값의 뜻은 전사 쪽 주석을 보세요.
+    // 도적은 날이 짧아 art 가 dagger 입니다 — 자루가 짧고 코등이가 작아,
+    // 같은 검이라도 전사 것과 실루엣이 갈립니다.
     weapons: [
-      { name: '이 빠진 단도', dmg: 44,  rate: 212, reach: 78, color: 0xcfd8dc,
+      { key: 'dagger', name: '단도', dmg: 40, rate: 212, reach: 78, depth: 0,
+        forge: 'keen', sheet: 0, color: 0xcfd8dc,
+        detail: '짧고 빠릅니다',
         icon: { art: 'dagger', hw: 3.6, len: 0.40, guard: 'none', notch: true } },
-      { name: '사냥칼',      dmg: 82,  rate: 202, reach: 82, color: 0x90caf9,
+      { key: 'hunting', name: '사냥칼', dmg: 43, rate: 205, reach: 82, depth: 40,
+        forge: 'iron', sheet: 1, color: 0x90caf9,
+        detail: '가르는 데 익숙한 날',
         icon: { art: 'dagger', hw: 4.0, len: 0.44, guard: 'bar', gw: 9 } },
-      { name: '쌍단도',      dmg: 128,  rate: 180,  reach: 86, color: 0xa5d6a7,
+      { key: 'twindagger', name: '쌍단도', dmg: 46, rate: 198, reach: 86, depth: 80,
+        forge: 'black', sheet: 2, color: 0xa5d6a7, spread: 0.24,
+        detail: '두 손이 번갈아 들어갑니다',
         icon: { art: 'dagger', twin: true, hw: 4.4, len: 0.44, guard: 'bar', gw: 11 } },
-      { name: '독니',        dmg: 218,  rate: 169,  reach: 91, color: 0x9ccc65,
+      { key: 'fang', name: '독니', dmg: 49, rate: 191, reach: 91, depth: 120,
+        forge: 'silver', sheet: 3, color: 0x9ccc65,
+        detail: '휘어진 끝이 걸립니다',
         icon: { art: 'dagger', hw: 4.0, len: 0.45, curve: 1.3, guard: 'none' } },
-      { name: '그림자 단검',  dmg: 366, rate: 160,  reach: 95, color: 0xce93d8,
+      { key: 'shadow', name: '그림자단검', dmg: 52, rate: 184, reach: 95, depth: 160,
+        forge: 'keen', sheet: 4, color: 0xce93d8, acc: 0.95,
+        detail: '보이지 않는 자리로 들어갑니다',
         icon: { art: 'dagger', hw: 4.0, len: 0.48, guard: 'bar', gw: 10, gem: true } },
-      { name: '월아도',      dmg: 594, rate: 144,  reach: 98, color: 0xff8a65,
+      { key: 'moon', name: '월아도', dmg: 56, rate: 178, reach: 98, depth: 200,
+        forge: 'iron', sheet: 5, color: 0xff8a65, spread: 0.26,
+        detail: '반달처럼 휘었습니다',
         icon: { art: 'dagger', hw: 5.0, len: 0.50, curve: 1.8, guard: 'bar', gw: 10 } },
-      { name: '뇌전 비수',    dmg: 948, rate: 129,  reach: 101, color: 0x81d4fa,
+      { key: 'bolt', name: '뇌전비수', dmg: 60, rate: 172, reach: 101, depth: 250,
+        forge: 'black', sheet: 6, color: 0x81d4fa,
+        detail: '찌른 자리가 저려옵니다',
         icon: { art: 'dagger', hw: 4.0, len: 0.50, guard: 'wing', gw: 11, gem: true } },
-      { name: '용아 단검',    dmg: 1420, rate: 110,  reach: 104, color: 0xffb74d,
+      { key: 'dragonfang', name: '용아단검', dmg: 64, rate: 166, reach: 104, depth: 300,
+        forge: 'keen', sheet: 7, color: 0xffb74d,
+        detail: '이빨을 갈아 만들었다고 합니다',
         icon: { art: 'dagger', hw: 4.8, len: 0.52, curve: 1.1, guard: 'cross', gw: 12 } },
-      // 275층 언저리 구간.
-      { name: '그믐 비수',    dmg: 2376,  rate: 103, reach: 107,  color: 0xf48fb1,
+      { key: 'dark', name: '그믐비수', dmg: 68, rate: 160, reach: 107, depth: 350,
+        forge: 'silver', sheet: 8, color: 0xf48fb1,
+        detail: '달이 없는 밤의 것',
         icon: { art: 'dagger', hw: 4.2, len: 0.53, curve: 1.6, guard: 'bar', gw: 10, gem: true } },
-      { name: '사혼도',      dmg: 3936, rate: 96, reach: 110, color: 0xfff59d,
+      { key: 'soul', name: '사혼도', dmg: 72, rate: 155, reach: 110, depth: 400,
+        forge: 'iron', sheet: 9, color: 0xfff59d,
+        detail: '베인 자리가 늦게 아픕니다',
         icon: { art: 'dagger', hw: 5.2, len: 0.55, curve: 1.2, guard: 'ring', gw: 12 } },
-      { name: '심연의 이빨',  dmg: 6510, rate: 88, reach: 113, color: 0x9575cd,
+      { key: 'abyssfang', name: '심연의이빨', dmg: 77, rate: 150, reach: 113, depth: 450,
+        forge: 'keen', sheet: 10, color: 0x9575cd, spread: 0.30, acc: 0.88,
+        detail: '두 날이 제멋대로 들어갑니다',
         icon: { art: 'dagger', twin: true, hw: 5.0, len: 0.54, guard: 'wing', gw: 13, gem: true } },
-      { name: '천살 단검',    dmg: 10668, rate: 81, reach: 116, color: 0x80cbc4,
+      { key: 'skyfang', name: '천살단검', dmg: 83, rate: 145, reach: 116, depth: 500,
+        forge: 'black', sheet: 11, color: 0x80cbc4,
+        detail: '가장 빠르고 가장 무겁게',
         icon: { art: 'dagger', hw: 5.0, len: 0.58, guard: 'ring', gw: 13, gem: true, notch: true } },
     ],
 

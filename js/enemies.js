@@ -10,17 +10,25 @@ function enemyDef(key) {
   return CFG.enemyTypes.find((t) => t.key === key) || CFG.enemyTypes[0];
 }
 
-// 층에 따른 체력 배수.
+// ── 적 체력은 층을 안 탑니다 ───────────────────────────────
 //
-// 무기 단계가 남아 있는 동안(hpTaperFrom 아래)에는 주인공도 곱으로 세지므로
-// 적도 곱으로 자랍니다. 마지막 무기를 든 뒤로는 주인공의 화력이 거의 평평해지니
-// 적의 증가율도 같이 꺾습니다. 안 그러면 넘을 수 없는 벽이 생깁니다 —
-// 1.022를 그대로 두면 500층 적은 175층의 1,180배가 됩니다.
-function enemyHpScale(floor) {
-  const e = CFG.enemy;
-  const knee = e.hpTaperFrom;
-  if (floor <= knee) return Math.pow(e.hpGrowth, floor);
-  return Math.pow(e.hpGrowth, knee) * Math.pow(e.hpGrowthLate, floor - knee);
+// 예전에는 층에 따라 **곱으로** 불어났습니다 (1.022^층). 무기가 열두 단계짜리
+// 사다리라 주인공도 곱으로 세졌으니 맞춰 놓은 것이었는데, 그 사다리를
+// 걷어내면서 같이 걷어냅니다.
+//
+// 남겨 두면 이렇게 됩니다. 무기가 서로 비슷비슷한 자루들이 되어 화력이
+// 평평해지는데 적만 계속 곱으로 자라면, 어느 층부터는 **아무리 잘 골라도
+// 안 죽는 벽**이 섭니다. 그건 어렵다기보다 답답합니다 — 실제로 그 말을
+// 들었습니다. "최종 무기를 업그레이드해도 적이 잘 죽지 않는다."
+//
+// 그래서 기는 것은 0층에서나 500층에서나 같은 체력입니다. 위층의 무게는
+// **누가 나오느냐**(거인·유령 같은 종류)와 **몇 마리냐**가 집니다 —
+// 그 둘은 이미 층을 따라 자라고 있습니다 (enemyTypes 의 창 · enemyCount).
+//
+// 이 함수는 자리를 지키려고 남깁니다. 보스처럼 아직 이 값을 부르는 곳이
+// 있고, 언젠가 "구간마다 한 번씩" 같은 계단을 넣는다면 여기가 그 자리입니다.
+function enemyHpScale() {
+  return 1;
 }
 
 function spawnEnemy(scene, x, y, floor, typeKey) {
@@ -94,6 +102,14 @@ function updateEnemies(scene, time, delta) {
 // 주인공이 멀면 발판 끝에서 돌아서며 순찰합니다. 그래야 올라가 보면 거기 있습니다.
 // 가까워지면 낭떠러지를 개의치 않고 쫓아오다가 그대로 떨어집니다.
 function groundStep(scene, e, player, time) {
+  // 밀려난 직후에는 잠깐 멈춰 섭니다 (전사의 넉백 — scene-game.js 의 knockBack).
+  // 이게 없으면 밀자마자 제자리로 걸어와서, 밀려나는 그림만 보이고 실제로
+  // 벌어지는 시간은 0입니다. **넉백의 값어치는 거리가 아니라 이 틈입니다.**
+  if (e.knockUntil && time < e.knockUntil) {
+    if (e.body.blocked.down) e.body.velocity.x = 0;
+    return;
+  }
+
   const near = Math.abs(player.y - e.y) < CFG.floorHeight * CFG.ground.chaseWithin;
   const dx = player.x - e.x;
 
@@ -185,6 +201,9 @@ function groundAhead(scene, e) {
 
 // ── 나는 적 ───────────────────────────────────────────────
 function airStep(scene, e, player, time) {
+  // 나는 것도 밀리면 잠깐 멎습니다. 위 groundStep 과 같은 이유입니다.
+  if (e.knockUntil && time < e.knockUntil) { e.body.velocity.set(0, 0); return; }
+
   const angle = Phaser.Math.Angle.Between(e.x, e.y, player.x, player.y);
   const dist = Phaser.Math.Distance.Between(e.x, e.y, player.x, player.y);
 
@@ -299,7 +318,7 @@ function spawnBoss(scene, floor, x, y) {
   e.body.setAllowGravity(false);
   e.body.setSize(e.width * 0.8, e.height * 0.8);
 
-  e.maxHp = Math.round(CFG.enemy.baseHp * enemyHpScale(floor) * CFG.boss.hpMult);
+  e.maxHp = Math.round(CFG.enemy.baseHp * enemyHpScale(floor) * (kind.hp || CFG.boss.hpMult));
   e.hp = e.maxHp;
   e.floor = floor;
   e.contactDamage = 0; // 위 주석 참고

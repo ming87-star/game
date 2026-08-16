@@ -37,7 +37,7 @@ const MEDAL_ITEMS = [
   },
   {
     key: 'tier', price: 4,
-    title: '한 단계 위', desc: '두 번째 무기를 들고 시작합니다',
+    title: '벼려 둔 자루', desc: '주머니의 두 번째 무기를 들고 시작합니다',
   },
 ];
 
@@ -79,17 +79,18 @@ function applyBoosts(scene, boosts) {
     applied.push('속도 한계 ×' + scene.weapon.speedCap.toFixed(1));
   }
 
-  // 무기 계승이 그다음입니다. 단계를 갈아 끼운 뒤에 강화를 얹어야
-  // 얹은 강화가 초기화되지 않습니다 (UP은 +1과 속도를 지웁니다).
+  // 무기 계승이 그다음입니다. 자루를 갈아 끼운 뒤에 강화를 얹어야
+  // 얹은 강화가 초기화되지 않습니다 (갈아타면 강화가 지워집니다).
   if (boosts.weapon) {
-    // 단계와 공격력 강화만 넘어옵니다. 공격 속도는 무기가 아니라 손에 붙는 것이라
-    // 판이 끝나면 사라져야 합니다 — 넘겨 주면 매 판 한계에서 시작하게 됩니다.
+    // 자루와 공격력 강화만 넘어옵니다. 공격 속도는 판이 끝나면 사라져야 합니다 —
+    // 넘겨 주면 매 판 한계에서 시작하게 됩니다.
     const w = boosts.weapon;
-    scene.weapon.tier = Math.min(scene.weapon.table.length - 1, w.tier);
+    scene.weapon.index = Math.min(scene.weapon.table.length - 1, w.index || 0);
     scene.weapon.plus = w.plus || 0;
     applied.push('계승  ' + scene.weapon.name);
   } else if (boosts.tier) {
-    scene.weapon.upgrade();
+    // 주머니의 둘째 자루 — 첫 자루의 만듦새 판입니다.
+    scene.weapon.index = Math.min(scene.weapon.table.length - 1, 1);
     applied.push(scene.weapon.name);
   }
 

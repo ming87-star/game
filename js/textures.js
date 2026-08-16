@@ -704,8 +704,16 @@ function buildWeaponIcons(scene) {
   const g = scene.make.graphics({ add: false });
 
   CLASSES.forEach((job) => {
-    job.weapons.forEach((w, tier) => {
-      const key = weaponIconKey(job.key, tier);
+    // **주머니를 통째로 굽습니다** (job.weapons 가 아니라 job.pool).
+    //
+    // 자루는 열둘이지만 만듦새까지 하면 스물넷입니다. 예전 코드가 자루만
+    // 돌았더니 열두 번째부터 텍스처가 없어서, 무기 칸과 HUD 와 갈아타기 창에
+    // **초록 X 상자**가 떴습니다 (Phaser 가 없는 텍스처에 놓는 그림입니다).
+    //
+    // 그림은 여기서 도형으로 지어지므로 자루를 늘리는 데 그림 파일이 한 장도
+    // 안 듭니다 — 만듦새는 날 색 한 줄(w.color)만 갈아 끼웁니다.
+    buildWeaponPool(job).forEach((w, index) => {
+      const key = weaponIconKey(job.key, index);
       if (scene.textures.exists(key)) return;
 
       g.clear();

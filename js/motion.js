@@ -209,8 +209,13 @@ class PlayerRig {
 // 시트를 같은 이름으로 올리니 buildWeaponIcons 가 "이미 있다"며 건너뛰었고,
 // 발판 위 UP 칸과 HUD 의 무기 그림 자리에 **주인공이 통째로 30×30 으로
 // 찌그러져** 들어앉았습니다. 텍스처 이름은 게임 전체가 함께 쓰는 이름표입니다.
+//
+// 자루 번호(base.sheet)를 씁니다. 주머니에는 만듦새까지 해서 스물넷이 있지만
+// 시트는 손으로 그린 열두 장뿐입니다 — **만듦새가 달라도 실루엣은 같은
+// 자루**이므로 원본의 시트를 그대로 빌립니다. 무쇠 장검과 장검은 색만 다릅니다.
 function sheetKey(job, weapon) {
-  return 'sheet-w-' + job.key + '-' + weapon.tier;
+  const n = weapon.base && weapon.base.sheet !== undefined ? weapon.base.sheet : 0;
+  return 'sheet-w-' + job.key + '-' + n;
 }
 
 // 지금 든 무기의 박자. 무기표의 `icon.art` 를 그대로 씁니다 —
