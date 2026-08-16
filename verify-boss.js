@@ -155,6 +155,52 @@ const check = (ok, label, got) => {
     '남은 체력 ' + (fought.hp * 100).toFixed(2) + '%');
   check(fought.shots > 0, '보스가 투사체나 졸개를 내보냄', fought.shots + '개');
 
+  // ── 잿비 — 약한 대신 피할 자리가 없는 공격 ──────────────
+  // 나머지 넷은 전부 "안전한 줄"이 있습니다. 이것 하나만 없습니다.
+  // 한 발씩 시차를 두고 나오고, 먼저 나온 것은 바닥에 닿아 사라집니다.
+  // 어느 한 순간을 재면 몇 발밖에 안 보이므로, 나오는 동안 모아서 셉니다.
+  const rain = await page.evaluate(async () => {
+    const s = window.__scene;
+    const r = CFG.boss.rain;
+    // 보스가 제 시계로 다른 패턴을 겹쳐 쏘면 그것까지 세어 버립니다.
+    // 재는 동안만 다음 차례를 멀리 밀어 둡니다.
+    s.boss.nextVolleyAt = s.time.now + 1e6;
+    s.enemyBullets.clear(true, true);
+    bossRain(s, s.boss);
+
+    const seen = [];
+    const until = Date.now() + r.warnMs + r.count * r.gapMs + 400;
+    while (Date.now() < until) {
+      s.enemyBullets.getChildren().forEach((b) => {
+        if (b.__counted) return;
+        b.__counted = true;
+        seen.push({ x: b.x, dmg: b.dmg, vy: b.body.velocity.y, fromBoss: !!b.fromBoss });
+      });
+      await new Promise((ok) => setTimeout(ok, 50));
+    }
+
+    // 세 줄 어디에 서 있어도 머리 위로 하나쯤은 지나가는가.
+    const covered = LANES.filter((l) =>
+      seen.some((b) => Math.abs(b.x - CFG.laneX[l]) < 70)).length;
+    const heavy = Math.round(CFG.boss.shotDamage * (1 + s.boss.floor * CFG.enemy.dmgPerFloor));
+    return {
+      n: seen.length, covered, heavy, want: r.count,
+      dmg: seen.length ? seen[0].dmg : 0,
+      // 잿비에는 fromBoss 를 안 붙입니다 — 도적의 회피가 온전히 통해야 합니다.
+      plainDodge: seen.every((b) => !b.fromBoss),
+      slower: seen.every((b) => b.vy < 620),
+    };
+  });
+  check(rain.n >= rain.want * 0.6, '잿비는 한 번에 여러 발이 쏟아짐',
+    `${rain.n}발 (설정 ${rain.want})`);
+  check(rain.covered === 3, '세 줄 어디에도 안전한 자리가 없음',
+    `${rain.covered}/3 줄이 덮임`);
+  check(rain.dmg > 0 && rain.dmg < rain.heavy * 0.5, '대신 한 발이 아주 가벼움',
+    `${rain.dmg} vs 내리꽂기 ${rain.heavy}`);
+  check(rain.slower, '내리꽂기보다 느리게 떨어짐 (보고 비킬 수 있게)');
+  check(rain.plainDodge, '회피가 온전히 통함 (자리로는 못 피하는 공격이므로)');
+  await page.evaluate(() => window.__scene.enemyBullets.clear(true, true));
+
   // 보스를 죽여 보고 길이 다시 열리는지 확인합니다.
   await page.evaluate(() => {
     const s = window.__scene;

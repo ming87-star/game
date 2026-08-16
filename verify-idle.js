@@ -380,7 +380,8 @@ const check = (ok, label, got) => {
   check(full.grew === 0, '유물이 꽉 차면 상자에서 유물이 안 나옴',
     `${full.n}개 보유 · 예순 번 열어 ${full.grew}개`);
 
-  // ── 7. 미믹 — 상자인 척했다가 밟으면 아픔 ──────────────
+  // ── 7. 미믹 — 상자인 척했다가 밟으면 일어서서 쫓아옴 ──────
+  // 밟는 순간 아프고 끝나는 것이 아닙니다. 밟은 뒤부터가 시작입니다.
   const mimic = await page.evaluate(() => {
     const s = window.__scene;
     const disguised = MIMIC_DISGUISES.includes(SLOT.TREASURE);
@@ -392,16 +393,56 @@ const check = (ok, label, got) => {
     // 들어와서 아무 의미가 없습니다. 맨몸으로 되돌리고 잽니다.
     s.armor = 0; s.dodge = 0;
     s.hp = s.maxHp;
-    const before = s.hp;
-    s.springMimic({ disguise: SLOT.TREASURE, x: s.player.x, y: s.player.y });
-    return { disguised, same, shown, before, after: s.hp };
+
+    const was = s.enemies.getChildren().filter((e) => e.isMimic).length;
+    s.springMimic({ disguise: SLOT.TREASURE, x: s.player.x, y: s.player.y - 40 });
+    const born = s.enemies.getChildren().filter((e) => e.isMimic);
+    const m = born[born.length - 1];
+    if (!m) return { disguised, same, shown, was, made: 0 };
+
+    // 보통 적 하나와 견줍니다 — 미믹은 단단해야 하고, 한 입은 작아야 합니다.
+    const plain = spawnEnemy(s, 50, s.player.y, s.floorIndex, 'crawler');
+    const ratio = plain ? m.maxHp / plain.maxHp : 0;
+    const bite = plain ? m.contactDamage / plain.contactDamage : 0;
+    if (plain) plain.destroy();
+
+    // 중력을 안 받아야 층을 가로질러 쫓아옵니다.
+    const flies = !m.body.allowGravity;
+
+    // 제 박자로 씹되, 물려도 무적 시간은 새로 걸리지 않아야 합니다.
+    const hp0 = s.hp;
+    s.lastHitAt = -9999;
+    m.nextBiteAt = 0;
+    s.mimicBite(m);          // 한 입
+    const hp1 = s.hp;
+    const invulnKept = s.lastHitAt < 0; // 물려도 무적을 얻지 않았는가
+    s.mimicBite(m);          // 곧바로 또 불러도 제 간격 전이라 안 들어감
+    const hp2 = s.hp;
+
+    m.destroy();
+    s.hp = s.maxHp;
+    return { disguised, same, shown, was, made: born.length - was,
+      ratio, bite, flies, hp0, hp1, hp2, invulnKept,
+      speed: CFG.mimic.speed, maxSpeed: CFG.enemy.maxSpeed };
   });
   check(mimic.disguised, '미믹이 보물상자인 척할 수 있음');
   check(mimic.same === 'item-treasure' && mimic.shown === 'item-fake-treasure',
     '드러나기 전엔 진짜 상자 그림, 드러나면 아가리',
     mimic.same + ' → ' + mimic.shown);
-  check(mimic.after < mimic.before, '밟으면 아픔',
-    `${mimic.before} → ${Math.round(mimic.after)}`);
+  check(mimic.made === 1, '밟으면 터지는 대신 한 마리가 일어섬',
+    `미믹 ${mimic.was}마리 → ${mimic.was + mimic.made}마리`);
+  check(mimic.ratio >= 3, '보통 적보다 훨씬 단단함',
+    `기는 것의 ${(mimic.ratio || 0).toFixed(1)}배`);
+  check(mimic.bite > 0 && mimic.bite < 1, '한 입은 보통 적보다 작음',
+    `기는 것의 ${(mimic.bite || 0).toFixed(2)}배`);
+  check(mimic.flies, '중력을 안 받아 층을 가로질러 쫓아옴');
+  check(mimic.speed > mimic.maxSpeed, '보통 적이 낼 수 없는 속도로 쫓아옴',
+    `${mimic.speed} > 보통 적 상한 ${mimic.maxSpeed}`);
+  check(mimic.hp1 < mimic.hp0, '붙어 있으면 물어뜯음',
+    `${mimic.hp0} → ${Math.round(mimic.hp1)}`);
+  check(mimic.hp2 === mimic.hp1, '제 간격 전에는 두 번 안 뭄',
+    `${Math.round(mimic.hp1)} → ${Math.round(mimic.hp2)}`);
+  check(mimic.invulnKept, '물려도 무적 시간을 얻지 않음 (미믹이 방패가 되지 않게)');
 
   console.log(bad ? `\n${bad}건 어긋남` : '\n새로 들어온 일곱 가지 모두 맞음');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');

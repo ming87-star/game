@@ -314,6 +314,134 @@ async function boot(browser, port, jobIndex) {
     return { swung: s.swings !== before, waves: s.bullets.getChildren().length };
   });
   check(!idle.swung && idle.waves === 0, '사거리 안에 아무도 없으면 휘두르지 않음');
+
+  // ── 먼 그림자 검 ───────────────────────────────────────
+  // 멀리 닿는 대신 끝이 무딥니다. 그리고 늘어난 팔이 아래층까지 내려가지
+  // 않아야 합니다 — 궁수와 같은 규칙(CFG.aimBelow)입니다.
+  const farblade = await warrior.evaluate(() => {
+    const s = window.__scene;
+    const clear = () => s.enemies.getChildren().slice().forEach((e) => e.destroy());
+    const put = (dx, dy) => {
+      const e = spawnEnemy(s, s.player.x + dx, s.player.y + dy, s.floorIndex, 'crawler');
+      if (e) { e.hp = e.maxHp = 1e9; e.body.setAllowGravity(false); e.body.velocity.set(0, 0); }
+      return e;
+    };
+    const hitFor = (e) => { // 한 번 휘둘러 이 놈이 얼마나 깎이는가
+      const before = e.hp;
+      s.lastSwingAt = -1e9;
+      s.swing(s.time.now + 99999);
+      return before - e.hp;
+    };
+
+    const relic = RELICS.find((r) => r.key === 'farblade');
+    // 마지막 무기로 올려 놓고 잽니다. 0단계 검은 사거리가 100 이라 1.5배를
+    // 해도 150 — 한 층(165)에 못 미쳐서 "아래를 안 친다"를 시험할 수가 없습니다.
+    // 아래층까지 팔이 닿는 것은 긴 무기에 유물을 얹었을 때뿐입니다.
+    s.weapon.tier = s.job.weapons.length - 1;
+    const baseReach = s.weapon.reach;
+
+    // 유물 없이: 거리와 상관없이 온전히 들어가야 합니다.
+    clear();
+    const near0 = put(10, 0);
+    const plainNear = hitFor(near0);
+    clear();
+    const far0 = put(Math.round(baseReach * 0.95), 0);
+    const plainFar = hitFor(far0);
+
+    // 유물을 들고: 사거리가 늘고, 먼 쪽이 확 무뎌집니다.
+    s.weapon.takeRelic(relic);
+    const longReach = s.weapon.reach;
+    clear();
+    const near1 = put(10, 0);
+    const relicNear = hitFor(near1);
+    clear();
+    const far1 = put(Math.round(longReach * 0.97), 0);
+    const relicFar = hitFor(far1);
+
+    // 한 층 아래의 적. 늘어난 사거리 안이지만 쳐서는 안 됩니다.
+    clear();
+    const below = put(0, CFG.floorHeight);
+    const reachesBelow = s.meleeDist(below) <= longReach;
+    const hitBelow = hitFor(below);
+    clear();
+    s.weapon.relics = s.weapon.relics.filter((r) => r.key !== 'farblade');
+
+    return { baseReach, longReach, plainNear, plainFar, relicNear, relicFar,
+      reachesBelow, hitBelow, floorGap: CFG.floorHeight, falloff: relic.falloff };
+  });
+  check(farblade.longReach > farblade.baseReach, '먼 그림자 검은 사거리를 늘림',
+    `${Math.round(farblade.baseReach)} → ${Math.round(farblade.longReach)}`);
+  check(farblade.plainFar === farblade.plainNear,
+    '유물이 없으면 거리와 상관없이 온전히 들어감',
+    `코앞 ${farblade.plainNear} · 끝 ${farblade.plainFar}`);
+  check(farblade.relicNear / farblade.plainNear > 0.9,
+    '유물을 들어도 코앞은 거의 그대로',
+    `${farblade.relicNear} / ${farblade.plainNear} = `
+    + (farblade.relicNear / farblade.plainNear).toFixed(2));
+  check(farblade.relicFar > 0 && farblade.relicFar / farblade.relicNear < farblade.falloff * 1.6,
+    '사거리 끝에서는 1할 언저리만 들어감',
+    `${farblade.relicFar} / ${farblade.relicNear} = `
+    + (farblade.relicFar / farblade.relicNear).toFixed(2));
+  check(farblade.reachesBelow && farblade.hitBelow === 0,
+    '늘어난 사거리 안이라도 아래층은 안 침',
+    `한 층 아래(${farblade.floorGap}) < 사거리 ${Math.round(farblade.longReach)}, 그래도 0`);
+
+  // ── 흡혈 망토 ──────────────────────────────────────────
+  // 준 피해에 비례하되, 한 대에 채우는 양에는 뚜껑이 있습니다.
+  // 뚜껑이 없으면 위층에서 한 방이 곧 완전 회복이 됩니다.
+  const leech = await warrior.evaluate(() => {
+    const s = window.__scene;
+    s.enemies.getChildren().slice().forEach((e) => e.destroy());
+    s.weapon.takeRelic(RELICS.find((r) => r.key === 'bloodcloak'));
+
+    const bite = (dmg) => {
+      const e = spawnEnemy(s, s.player.x + 400, s.player.y, s.floorIndex, 'crawler');
+      e.hp = e.maxHp = 1e9;
+      s.hp = 1;
+      s.hitEnemy(e, dmg);
+      e.destroy();
+      return s.hp - 1;
+    };
+
+    s.maxHp = 1000;
+    const small = bite(400);   // 뚜껑(3%=30) 아래: 400 × 2.5% = 10
+    const huge = bite(900000); // 뚜껑을 훌쩍 넘는 한 방
+    s.weapon.relics = s.weapon.relics.filter((r) => r.key !== 'bloodcloak');
+    s.hp = s.maxHp;
+    return { small, huge, cap: Math.round(1000 * CFG.lifestealCap) };
+  });
+  check(leech.small > 0 && leech.small < leech.cap, '작은 한 대는 비율대로 회복',
+    `${leech.small} (뚜껑 ${leech.cap})`);
+  check(leech.huge === leech.cap, '아무리 크게 때려도 한 대에 뚜껑까지만',
+    `${leech.huge} = ${leech.cap}`);
+
+  // ── 한 층에 도는 몬스터는 넷까지 ────────────────────────
+  // 새 종류가 하나 풀리면 가장 먼저 나왔던 하나가 물러납니다.
+  const kinds = await warrior.evaluate(() => {
+    let worst = 0;
+    let worstAt = 0;
+    const at = (f) => CFG.enemyTypes.filter((t) => typeWeight(t, f) > 0).map((t) => t.key);
+    for (let f = 0; f <= 1200; f++) {
+      const n = at(f).length;
+      if (n > worst) { worst = n; worstAt = f; }
+    }
+    // 실제로 뽑아 봐도 넷을 넘지 않아야 합니다 (typeWeight 만 맞고 뽑기가
+    // 새는 경우를 잡습니다 — 예전 pickEnemyType 의 마지막 줄이 그랬습니다).
+    const drawn = new Set();
+    for (let i = 0; i < 6000; i++) drawn.add(pickEnemyType(600));
+    // 첫 층의 코인벌레는 한참 위에서는 사라져야 합니다.
+    const early = at(0).includes('coinbug');
+    const late = at(600).includes('coinbug');
+    return { worst, worstAt, drawn: [...drawn], early, late, at600: at(600),
+      max: CFG.enemyWave.maxKinds };
+  });
+  check(kinds.worst <= kinds.max, '어느 층에서도 종류가 넷을 안 넘음',
+    `가장 많은 곳이 ${kinds.worstAt}층의 ${kinds.worst}종`);
+  check(kinds.drawn.length <= kinds.max,
+    '실제로 뽑아 봐도 넷까지', `600층에서 ${kinds.drawn.length}종: ${kinds.at600.join(',')}`);
+  check(kinds.early && !kinds.late, '초반 몬스터는 후반에 안 나옴',
+    `코인벌레 0층 ${kinds.early ? '있음' : '없음'} · 600층 ${kinds.late ? '있음' : '없음'}`);
+
   await warrior.close();
 
   // ── 궁수는 위만 쏜다 ───────────────────────────────────

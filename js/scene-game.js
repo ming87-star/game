@@ -979,6 +979,14 @@ class GameScene extends Phaser.Scene {
     // 상점을 나서도 바로 몰려오지는 않습니다. 위층 적은 실제로 올라설 때 깨어납니다.
     this.ambientAt = this.time.now + CFG.ambient.baseDelay;
 
+    // **박쥐 시계는 여기서 다시 겁니다 — 닿았을 때가 아니라 나설 때부터.**
+    // enterShop 에서만 되돌렸더니, 진열을 오래 들여다본 시간이 그대로 시계에
+    // 쌓여서 나오자마자 박쥐가 와 있었습니다. 상점은 한숨 돌리는 자리인데
+    // 고민한 값을 물리는 셈이었습니다. 서두르라는 재촉은 **오르는 동안**
+    // 하는 것이지 무엇을 살지 고르는 동안 하는 것이 아닙니다.
+    this.lastShopAt = this.time.now;
+    this.clearBats();
+
     // "계속 오르기"를 누른 그 탭이 상점이 닫힌 뒤 게임 입력으로 한 번 더 먹혀서
     // 곧바로 가운데로 뛰어 버립니다. 잠깐 입력을 막아 그 한 번을 흘립니다.
     this.tapBlockedUntil = this.time.now + 300;
@@ -1035,7 +1043,15 @@ class GameScene extends Phaser.Scene {
     const w = this.weapon;
     if (now - this.lastSwingAt < w.rate) return;
 
-    const hit = this.enemies.getChildren().filter((e) => this.targetable(e) && this.meleeDist(e) <= w.reach);
+    // 아래는 치지 않습니다 — 화살과 같은 규칙(CFG.aimBelow)입니다. 탑은 올라가는
+    // 곳이라 지나온 층을 향해 칼을 휘두르는 것은 시간을 버리는 일입니다.
+    //
+    // 맨손 사거리(가장 긴 것이 159)로는 한 층 아래(165)에 닿지 않아 이 줄은
+    // 아무 일도 하지 않습니다. 먼 그림자 검을 들어 사거리가 238이 됐을 때에만
+    // 뜻이 생깁니다 — 늘어난 팔이 아래층까지 내려가지 않게 잡아 줍니다.
+    const hit = this.enemies.getChildren().filter((e) => this.targetable(e) &&
+      e.y <= this.player.y + CFG.aimBelow &&
+      this.meleeDist(e) <= w.reach);
     if (!hit.length) return; // 허공에 휘두르지는 않습니다
 
     this.lastSwingAt = now;
@@ -1061,6 +1077,13 @@ class GameScene extends Phaser.Scene {
       this.after(lead, () => this.fireWave(angle, Math.round(w.dmg * wave)));
     }
 
+    // 먼 그림자 검을 들었으면 거리만큼 무뎌집니다. 코앞은 그대로, 사거리
+    // 끝에서는 falloff(10%)만. 유물이 없으면 falloff 가 1이라 아래 식은
+    // 거리에 상관없이 1을 돌려줍니다 — 있는 사람에게만 붙는 대가입니다.
+    const far = w.farFalloff;
+    const scaleAt = (e) => (far >= 1 || !w.reach ? 1 :
+      Phaser.Math.Clamp(1 - (1 - far) * (this.meleeDist(e) / w.reach), far, 1));
+
     hit.forEach((e) => {
       // 도적은 때리면서 주머니를 텁니다. 잡지 않아도 코인이 나옵니다.
       // 코인은 이제 확률로 나오므로 훔치는 것도 같은 확률을 탑니다.
@@ -1072,7 +1095,7 @@ class GameScene extends Phaser.Scene {
         this.stealFx(e.x, e.y - 10);
         this.dropCoin(e.x, e.y - 10, Math.round(w.stealAmount * CFG.coin.dropBonus));
       }
-      this.hitEnemy(e, w.dmg);
+      this.hitEnemy(e, Math.max(1, Math.round(w.dmg * scaleAt(e))));
     });
   }
 
@@ -1328,10 +1351,13 @@ class GameScene extends Phaser.Scene {
 
     // 흡혈 망토 — 실제로 깎은 만큼만 돌려받습니다. 남은 체력보다 큰 한 방을
     // 그대로 세면 마지막 일격에서 체력이 통째로 차오릅니다.
+    // 한 대에 채울 수 있는 양에는 뚜껑이 있습니다 — 아래층에서는 닿지도 않는
+    // 값이지만, 위층에서 한 방으로 가득 차는 것을 막는 것은 이 한 줄입니다.
     const leech = this.weapon.relicSum('lifesteal');
     if (leech > 0 && this.hp < this.maxHp) {
       const real = Math.min(before, dmg);
-      const gain = Math.max(1, Math.round(real * leech));
+      const cap = Math.max(1, Math.round(this.maxHp * CFG.lifestealCap));
+      const gain = Math.min(cap, Math.max(1, Math.round(real * leech)));
       this.hp = Math.min(this.maxHp, this.hp + gain);
     }
 
@@ -1541,9 +1567,18 @@ class GameScene extends Phaser.Scene {
         this.dodge = Math.max(0, this.dodge - CFG.dodge.perItem * 2);
         this.popup('가짜! 회피 ' + Math.round(this.dodge * 100) + '%', '#ff5252');
         break;
-      case SLOT.TREASURE:
-        this.springTrap(t.mimicTreasure, '가짜 상자!');
+      // 상자만은 갚아 주고 끝나지 않습니다 — **일어서서 쫓아옵니다.**
+      // 다른 가짜는 밟는 순간 한 번 손해를 보고 끝이지만, 이것은 밟은 뒤부터가
+      // 시작입니다. 그래서 여기서 잃는 체력은 첫 한 입뿐이고, 나머지는
+      // 달아나느냐 마느냐로 갈립니다.
+      case SLOT.TREASURE: {
+        this.popup('미믹!', '#ff5252');
+        this.cameras.main.shake(220, 0.010);
+        const mimic = spawnMimic(this, slot.x, slot.y - 26, this.floorIndex);
+        if (mimic) this.chompFx(mimic.x, mimic.y);
+        else this.springTrap(t.mimicTreasure, '가짜 상자!'); // 자리가 없으면 옛 방식대로
         return;
+      }
       default:
         this.springTrap(t.mimicHeal, '가짜!');
         return;
@@ -1756,11 +1791,55 @@ class GameScene extends Phaser.Scene {
     // 도둑 박쥐는 때리는 대신 채 갑니다.
     if (enemy.isBat && enemy.batKind === 'thief' && !enemy.fleeing) return this.batStealsCoins(enemy);
 
+    // 미믹은 무적 시간을 타지 않고 제 박자로 씹습니다. 한 입이 작은 대신
+    // 붙어 있는 동안 계속 들어가야 "물어뜯긴다"가 됩니다.
+    //
+    // 물려도 무적 시간은 새로 걸지 않습니다. 걸어 버리면 미믹에게 씹히는
+    // 동안 다른 적의 공격이 전부 막혀서, **쫓아오는 놈이 방패가 됩니다.**
+    if (enemy.isMimic) return this.mimicBite(enemy);
+
     if (this.time.now - this.lastHitAt < CFG.player.invulnMs) return;
     if (!enemy.contactDamage) return;
     this.hurt(enemy.contactDamage, enemy);
     // 무는 박쥐는 한 입 물고 달아납니다. 계속 붙어 다니면 그냥 적입니다.
     if (enemy.isBat) this.batFlees(enemy);
+  }
+
+  // 한 입. 무적 시간을 건드리지 않으므로 앞뒤로 값을 그대로 돌려놓습니다
+  // (함정의 `lastHitAt = -9999`과 같은 수법입니다 — 여기서는 반대로,
+  //  때린 뒤에 무적을 얻지 않게 하려는 것입니다).
+  mimicBite(mimic) {
+    if (this.time.now < mimic.nextBiteAt) return;
+    mimic.nextBiteAt = this.time.now + CFG.mimic.biteEvery;
+
+    const before = this.lastHitAt;
+    this.lastHitAt = -9999;
+    this.hurt(mimic.contactDamage, mimic);
+    if (!this.dead) this.lastHitAt = before;
+
+    this.chompFx(this.player.x, this.player.y);
+  }
+
+  // 씹는 표. 이빨 두 줄이 위아래에서 맞물립니다 — 짧고, 하얗고, 날카롭게.
+  // 그림 없이 도형으로 내는 몇 안 되는 것 중 하나인데, 이건 "이빨"이라기보다
+  // **물린 자국**이라서 세모 몇 개로도 거짓말이 되지 않습니다.
+  chompFx(x, y) {
+    const teeth = [];
+    for (let i = 0; i < 4; i++) {
+      const dx = -18 + i * 12;
+      teeth.push(this.add.triangle(x + dx, y - 16, 0, 0, 10, 0, 5, 13, 0xffffff)
+        .setDepth(14).setAlpha(0.95));
+      teeth.push(this.add.triangle(x + dx + 6, y + 16, 0, 13, 10, 13, 5, 0, 0xffffff)
+        .setDepth(14).setAlpha(0.95));
+    }
+    // 위아래가 가운데에서 맞물리며 사라집니다.
+    teeth.forEach((t, i) => {
+      this.tweens.add({
+        targets: t, y: t.y + (i % 2 ? -14 : 14), alpha: 0,
+        duration: CFG.mimic.chompMs, ease: 'Quad.in',
+        onComplete: () => t.destroy(),
+      });
+    });
   }
 
   onEnemyShotHit(player, bullet) {

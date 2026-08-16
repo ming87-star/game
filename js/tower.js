@@ -250,26 +250,51 @@ function enemyCountFor(index) {
   return Math.max(1, Math.min(cap, base + (Math.random() < 0.3 ? 1 : 0)));
 }
 
-// 한 종류의 등장 비중. 나온 뒤 서서히 흔해지고, 다음 종류가 풀리면 물러납니다.
+// 한 종류가 살아 있는 구간 [from, until).
+//
+// **한 층에 도는 종류는 넷을 넘지 않습니다** (CFG.enemyWave.maxKinds).
+// 목록에서 넷 뒤의 종류가 풀리는 층이 곧 이 종류가 물러나는 층입니다 —
+// 새 얼굴이 하나 들어오면 가장 먼저 나왔던 얼굴이 하나 빠지는 식입니다.
+//
+// 예전에는 열세 종류가 전부 남아서, 500층에서도 첫 층의 코인벌레가 섞여
+// 나왔습니다. 그러면 새 종류가 풀려도 만날 확률이 1/13이라 "새로운 것이
+// 나왔다"는 느낌이 없고, 화면에는 늘 잡동사니가 깔립니다.
+//
+// 목록 끝의 넷(쪼개지는 것·사수·급강하·유령)은 뒤가 없으므로 끝까지 남습니다.
+// 황금개구리는 애초에 이 목록에 없어서 이 규칙을 타지 않습니다 — 층과 상관없이
+// 아주 낮은 확률로 따로 나타납니다.
+function typeSpan(def) {
+  const list = CFG.enemyTypes;
+  const out = list[list.indexOf(def) + CFG.enemyWave.maxKinds];
+  return { from: def.from, until: out ? out.from : Infinity };
+}
+
+// 한 종류의 등장 비중. 나온 뒤 서서히 흔해지고, 물러날 때가 되면 옅어집니다.
 function typeWeight(def, index) {
-  if (index < def.from) return 0;
   const w = CFG.enemyWave;
+  const span = typeSpan(def);
+  if (index < span.from || index >= span.until) return 0;
 
   // 등장 직후엔 드물다가 rampFloors 층에 걸쳐 제 비중까지 올라옵니다.
   const ramp = Math.min(1, 0.3 + 0.7 * (index - def.from) / w.rampFloors);
 
-  // 다음 종류가 풀린 뒤부터 절반씩 줄어듭니다.
+  // 물러날 층이 정해져 있으므로 반감기가 아니라 **그 층까지 고르게** 옅어집니다.
+  // 다음 종류가 풀리는 순간부터 시작해서, 물러나는 층에서 정확히 0이 됩니다.
+  // 그래야 마지막 층에서 뚝 끊기지 않고 자연스럽게 자리를 내줍니다.
   const next = CFG.enemyTypes.find((t) => t.from > def.from);
-  const fade = next
-    ? Math.pow(0.5, Math.max(0, index - next.from) / w.fadeHalfLife)
+  const fade = next && span.until < Infinity && index > next.from
+    ? Math.max(0, 1 - (index - next.from) / (span.until - next.from))
     : 1;
 
-  return Math.max(w.minWeight, def.w0 * ramp * fade);
+  return Math.max(w.minWeight, def.w0 * ramp) * fade;
 }
 
 // 그 층에 나올 수 있는 적 종류 중 하나를 비중에 따라 고릅니다.
 function pickEnemyType(index) {
-  const pool = CFG.enemyTypes.filter((t) => index >= t.from);
+  // 비중이 0인 것은 아예 후보에서 뺍니다. 남겨 두면 아래 마지막 줄의
+  // 안전장치가 이미 물러난 종류를 집어 올릴 수 있습니다.
+  const pool = CFG.enemyTypes.filter((t) => typeWeight(t, index) > 0);
+  if (!pool.length) return CFG.enemyTypes[0].key;
   const weights = pool.map((t) => typeWeight(t, index));
   const total = weights.reduce((a, b) => a + b, 0);
 

@@ -83,6 +83,8 @@ function updateEnemies(scene, time, delta) {
 
     if (e.isBat) return batStep(scene, e, player, time);
     if (e.isBoss) return bossStep(scene, e, player, time);
+    if (e.isGoldFrog) return goldFrogStep(scene, e, player, time);
+    if (e.isMimic) return mimicStep(scene, e, player, time);
     if (e.def.ground) return groundStep(scene, e, player, time);
     return airStep(scene, e, player, time);
   });
@@ -331,8 +333,10 @@ function spawnGoldFrog(scene, x, y, floor) {
   const skin = scene.textures.exists('e-goldfrog') ? 'e-goldfrog' : 'e-hopper';
   const def = {
     key: 'goldfrog', name: '황금개구리', from: 0,
-    hp: g.hpScale, speed: g.speedScale, dmg: g.dmg, coin: 0,
-    scale: g.visualScale, ground: true, move: 'hop',
+    hp: g.hpScale, speed: 1, dmg: g.dmg, coin: 0,
+    // move 는 제 것을 씁니다 (goldFrogStep). 「뛰는 것」의 hop 을 물려 썼더니
+    // 발판을 넘겨 밟고 떨어져서, 나타나기만 하고 잡을 수가 없었습니다.
+    scale: g.visualScale, ground: true, move: 'goldfrog',
   };
 
   const e = scene.enemies.create(x, y, skin);
@@ -346,16 +350,142 @@ function spawnGoldFrog(scene, x, y, floor) {
   e.maxHp = Math.round((CFG.enemy.baseHp + floor * CFG.enemy.hpPerFloor)
     * enemyHpScale(floor) * g.hpScale);
   e.hp = e.maxHp;
-  e.speed = Math.min(CFG.enemy.maxSpeed,
-    (CFG.enemy.baseSpeed + floor * CFG.enemy.speedPerFloor) * g.speedScale);
+  e.speed = g.paceSpeed;
   e.floor = floor;
+  e.frogFloor = floor;                       // 지금 딛고 있는 층
+  e.frogClimbAt = scene.time.now + g.climbEvery;
   e.contactDamage = Math.round(g.dmg * (1 + floor * CFG.enemy.dmgPerFloor));
   e.coin = Math.round(g.coinBase * (1 + floor * g.coinPerFloor));
   e.phase = Math.random() * Math.PI * 2;
-  e.nextHopAt = scene.time.now + Math.random() * CFG.hop.interval;
 
   scene.tweens.add({ targets: e, scaleX: def.scale * 1.15, scaleY: def.scale * 0.85, duration: 260, yoyo: true, repeat: -1 });
   return e;
+}
+
+// ── 황금개구리의 움직임 ───────────────────────────────────
+// 발판 위를 서성이다가, 이따금 **바로 위층 발판으로** 뛰어오릅니다.
+//
+// 물리로 뛰게 하지 않습니다. 속도를 줘서 던지면 착지 지점이 그때그때
+// 달라지는데, 발판은 140 밖에 안 되고 조금만 어긋나면 그대로 떨어집니다
+// (그게 원래 버그였습니다). 갈 곳을 먼저 정하고 포물선으로 옮기면
+// **빗나갈 수가 없습니다.**
+function goldFrogStep(scene, e, player, time) {
+  const g = CFG.goldfrog;
+
+  // 뛰어오르는 중에는 트윈이 자리를 몹니다. 물리는 손대지 않습니다.
+  if (e.frogHopping) { e.body.velocity.set(0, 0); return; }
+
+  // 주인공을 한참 앞질러 갔으면 사라집니다. 안 쫓아온 사람을 위해 영영
+  // 매달아 둘 이유가 없고, 등장 한도만 차지합니다.
+  if (player.y - e.y > CFG.floorHeight * g.vanishAbove) { e.destroy(); return; }
+
+  const floor = scene.floors && scene.floors.get(e.frogFloor);
+  const slots = floor ? LANES.map((l) => floor.slots[l]).filter(Boolean) : [];
+  // reduce 에 null 을 씨앗으로 주면 첫 바퀴에서 그 null 의 x 를 읽어 터집니다.
+  // 빈 배열은 위에서 걸렀으므로 씨앗 없이 접습니다.
+  const here = slots.length
+    ? slots.reduce((a, b) => (Math.abs(b.x - e.x) < Math.abs(a.x - e.x) ? b : a))
+    : null;
+
+  // 딛고 선 발판을 못 찾으면(지나간 층이 정리됐을 때) 그냥 제자리를 지킵니다.
+  // 예전처럼 허공으로 뛰게 두면 그대로 떨어져 사라집니다.
+  if (!here) { e.body.velocity.x = 0; return; }
+
+  // 발판 안에서만 서성입니다. 가장자리에 닿으면 돌아섭니다.
+  const half = CFG.platformW / 2 - 16;
+  if (e.x < here.x - half) e.dir = 1;
+  if (e.x > here.x + half) e.dir = -1;
+  e.body.velocity.x = e.dir * g.paceSpeed;
+  e.setFlipX(e.dir < 0);
+
+  if (time < e.frogClimbAt) return;
+
+  // ── 위층으로 한 번 뛰어오릅니다 ──────────────────────
+  const up = scene.floors.get(e.frogFloor + 1);
+  const lanes = up && LANES.map((l) => up.slots[l]).filter(Boolean);
+  if (!lanes || !lanes.length) { e.frogClimbAt = time + g.climbEvery; return; }
+
+  // 가장 가까운 줄로 올라갑니다 — 옆으로 크게 튀면 화면 밖으로 나갑니다.
+  const to = lanes.reduce((a, b) => (Math.abs(b.x - e.x) < Math.abs(a.x - e.x) ? b : a));
+  const fromX = e.x;
+  const fromY = e.y;
+  const toX = to.x;
+  const toY = to.y - 26;
+
+  e.frogHopping = true;
+  e.frogClimbAt = time + g.climbEvery + g.climbMs;
+  e.body.setAllowGravity(false);
+  e.body.velocity.set(0, 0);
+  e.setFlipX(toX < fromX);
+
+  const arc = { t: 0 };
+  scene.tweens.add({
+    targets: arc, t: 1, duration: g.climbMs, ease: 'Linear',
+    onUpdate: () => {
+      if (!e.active) return;
+      e.x = Phaser.Math.Linear(fromX, toX, arc.t);
+      e.y = Phaser.Math.Linear(fromY, toY, arc.t) - Math.sin(Math.PI * arc.t) * g.climbArc;
+    },
+    onComplete: () => {
+      if (!e.active) return;
+      e.frogHopping = false;
+      e.frogFloor += 1;
+      e.floor = e.frogFloor;
+      e.body.setAllowGravity(true);
+    },
+  });
+}
+
+// ── 미믹 ──────────────────────────────────────────────────
+// 보물상자인 척하던 것이 밟히는 순간 일어섭니다 (js/scene-game.js 의 springMimic).
+// 황금개구리처럼 CFG.enemyTypes 에는 없습니다 — 파도에 섞이는 것이 아니라
+// 가짜 상자를 밟았을 때에만 나오는 것이라, 층별 종류 수(maxKinds)도 안 씁니다.
+function spawnMimic(scene, x, y, floor) {
+  if (scene.enemies.countActive(true) >= CFG.maxEnemies) return null;
+  const m = CFG.mimic;
+  // 상자 그림 그대로 일어섭니다. 이빨과 혀가 이미 그려져 있어서, 따로
+  // 몬스터를 그리는 것보다 **밟은 그 상자가 살아났다**가 더 잘 읽힙니다.
+  const skin = scene.textures.exists('item-fake-treasure') ? 'item-fake-treasure' : 'e-brute';
+  const def = {
+    key: 'mimic', name: '미믹', from: 0,
+    hp: m.hpScale, speed: 1, dmg: m.dmg, coin: 0,
+    scale: m.visualScale, ground: false, move: 'mimic',
+  };
+
+  const e = scene.enemies.create(x, y, skin);
+  e.setDepth(9); // 쫓아오는 것이 무엇에 가려서는 안 됩니다
+  e.setScale(def.scale);
+  e.body.setAllowGravity(false); // 층을 가로질러 따라 올라옵니다
+  e.def = def;
+  e.isMimic = true;
+  e.maxHp = Math.round((CFG.enemy.baseHp + floor * CFG.enemy.hpPerFloor)
+    * enemyHpScale(floor) * m.hpScale);
+  e.hp = e.maxHp;
+  e.speed = m.speed;
+  e.floor = floor;
+  e.contactDamage = Math.round(m.dmg * (1 + floor * CFG.enemy.dmgPerFloor));
+  e.nextBiteAt = 0;
+  e.coin = Math.round(m.coinBase * (1 + floor * m.coinPerFloor));
+  e.phase = Math.random() * Math.PI * 2;
+
+  // 씹는 동작. 세로로 눌렸다 펴지는 것이 **입을 닫았다 벌리는 것**으로 읽힙니다.
+  // 쫓아오는 내내 딱딱거리고 있어야 "먹으러 온다"가 됩니다.
+  scene.tweens.add({
+    targets: e, scaleY: def.scale * 0.62, scaleX: def.scale * 1.12,
+    duration: m.chompMs, yoyo: true, repeat: -1, ease: 'Quad.in',
+  });
+  return e;
+}
+
+// 곧장, 쉬지 않고, 층을 무시하고 옵니다. 발판도 낭떠러지도 상관하지 않습니다.
+function mimicStep(scene, e, player, time) {
+  // 달아나는 데 성공했으면 놓아줍니다. 붙잡지 못한 것을 영영 매달아 두면
+  // 등장 한도만 차지하고, 몇 층 위에서 뜬금없이 다시 나타납니다.
+  if (player.y - e.y > CFG.floorHeight * CFG.mimic.vanishAbove) { e.destroy(); return; }
+
+  const angle = Phaser.Math.Angle.Between(e.x, e.y, player.x, player.y);
+  scene.physics.velocityFromRotation(angle, e.speed, e.body.velocity);
+  e.setFlipX(player.x < e.x);
 }
 
 function bossStep(scene, e, player, time) {
@@ -384,11 +514,18 @@ function bossStep(scene, e, player, time) {
 // ── 보스의 공격 ───────────────────────────────────────────
 // 어느 패턴이든 규칙은 하나입니다: 한 번에 세 줄을 다 덮지 않습니다.
 // 다 덮으면 피하는 것이 아니라 그냥 맞는 것이고, 그건 실력이 낄 자리가 없습니다.
-const BOSS_PATTERNS = ['volley', 'sweep', 'slam', 'spray'];
+//
+// 딱 하나 예외가 잿비(rain)입니다. 저것만은 세 줄을 다 덮습니다 — 대신
+// 한 대가 3할밖에 안 아픕니다. 피할 수 없으면 가벼워야 한다는 뜻입니다.
+const BOSS_PATTERNS = ['volley', 'sweep', 'slam', 'rain', 'spray'];
+// 체력이 절반 넘게 남아 있는 동안 쓰는 것은 앞에서부터 이만큼입니다.
+// 잿비는 처음부터 나옵니다 — 어려운 패턴이 아니라 **숨 돌릴 패턴**이라서,
+// 뒤로 미루면 정작 힘든 후반에만 나오는 꼴이 됩니다.
+const BOSS_EARLY = 4;
 
 function bossVolley(scene, boss, player) {
   // 체력이 절반 아래로 내려가면 어려운 패턴도 섞습니다.
-  const pool = boss.hp / boss.maxHp > 0.5 ? BOSS_PATTERNS.slice(0, 3) : BOSS_PATTERNS;
+  const pool = boss.hp / boss.maxHp > 0.5 ? BOSS_PATTERNS.slice(0, BOSS_EARLY) : BOSS_PATTERNS;
   // 놈마다 즐겨 쓰는 것이 있습니다. 생김새가 알려 주는 위험과 하는 짓이
   // 맞아떨어져야 그림이 거짓말을 하지 않습니다.
   const favor = boss.kind && boss.kind.favor;
@@ -413,6 +550,8 @@ function bossVolley(scene, boss, player) {
     return;
   }
 
+  if (pattern === 'rain') return bossRain(scene, boss);
+
   if (pattern === 'spray') {
     // 흩뿌리기 — 한 줄에 세 발이 시차를 두고. 그 줄만 오래 위험합니다.
     const lane = LANES[Math.floor(Math.random() * LANES.length)];
@@ -428,6 +567,52 @@ function bossVolley(scene, boss, player) {
   const count = Math.random() < 0.45 ? 2 : 1;
   for (let i = 0; i < count; i++) {
     bossDrop(scene, boss, lanes.splice(Math.floor(Math.random() * lanes.length), 1)[0], 0);
+  }
+}
+
+// ── 잿비 ──────────────────────────────────────────────────
+// 줄을 고르는 공격이 아닙니다. 화면 폭 전체에 무작위로 떨어지므로 안전한
+// 자리가 없고, 대신 한 대가 3할밖에 안 아픕니다 (CFG.boss.rain).
+//
+// 예고도 줄이 아니라 **하늘 전체**입니다. 어디가 위험한지가 아니라
+// "지금부터 어디든 위험하다"를 알려야 하니까요.
+function bossRain(scene, boss) {
+  const r = CFG.boss.rain;
+  const top = boss.y + boss.displayHeight * 0.35;
+
+  const sky = scene.add.rectangle(CFG.width / 2, (top + scene.arenaY) / 2,
+    CFG.width, scene.arenaY - top, 0xff7043, 0.10).setDepth(5);
+  scene.tweens.add({ targets: sky, alpha: 0.26, duration: 200, yoyo: true, repeat: -1 });
+  scene.time.delayedCall(r.warnMs + r.count * r.gapMs, () => sky.destroy());
+
+  // 떨어질 자리는 **폭을 count 칸으로 나눠 한 칸에 하나씩**입니다.
+  // 순서만 섞습니다.
+  //
+  // 처음에는 x 를 통째로 무작위로 뽑았는데, 그러면 열네 발이 한쪽에 몰려서
+  // 반대쪽 한 줄이 통째로 비는 판이 이따금 나옵니다 (시험이 잡아냈습니다).
+  // 안전한 줄이 없다는 것이 이 패턴의 전부인데, 그게 확률에 맡겨져 있으면
+  // 안 됩니다. 자리는 고르게 두고 **언제 오는지**만 못 맞추게 합니다.
+  const band = (CFG.width - r.spread * 2) / r.count;
+  const spots = [];
+  for (let i = 0; i < r.count; i++) {
+    spots.push(Math.round(r.spread + band * (i + 0.5) + Phaser.Math.Between(-band / 3, band / 3)));
+  }
+  Phaser.Utils.Array.Shuffle(spots);
+
+  for (let i = 0; i < r.count; i++) {
+    scene.time.delayedCall(r.warnMs + i * r.gapMs, () => {
+      if (!boss.active || scene.dead || !scene.bossFight) return;
+      const x = spots[i];
+      const b = scene.enemyBullets.create(x, top, boss.shotKey || 'boss-shot');
+      b.body.setAllowGravity(false);
+      b.setDepth(9).setScale(r.scale);
+      b.bornAt = scene.time.now;
+      b.dmg = Math.round(CFG.boss.shotDamage * r.damageScale
+        * (1 + boss.floor * CFG.enemy.dmgPerFloor));
+      // fromBoss 를 안 붙입니다 — 자리로 못 피하는 공격이니 회피까지
+      // 깎으면 도적에게는 피할 방법이 하나도 안 남습니다 (위 CFG 주석).
+      b.body.velocity.set(0, r.speed);
+    });
   }
 }
 

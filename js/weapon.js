@@ -51,6 +51,16 @@ class Weapon {
   // 근접 — 이 거리 안의 적을 한 번에 모두 벱니다.
   get reach() { return (this.base.reach || 0) * this.relicMul('reachScale'); }
 
+  // 사거리 끝에서 남는 피해의 몫. 유물이 없으면 1 — 끝까지 온전히 들어갑니다.
+  //
+  // 더하기도 곱하기도 아닌 **가장 작은 값**을 씁니다. 감쇠는 여러 개를 겹쳐
+  // 들어도 가장 가혹한 것 하나로 정해지는 것이 읽기 쉽습니다. 두 개를 곱하면
+  // 유물 둘을 든 사람이 영문도 모르고 1%만 넣게 됩니다.
+  get farFalloff() {
+    return this.relics.reduce(
+      (a, r) => Math.min(a, r.falloff === undefined ? 1 : r.falloff), 1);
+  }
+
   // 원거리 — 한 발이 적 하나를 칩니다.
   get range() { return this.base.range || 0; }
   get shots() { return this.base.shots || 1; }
