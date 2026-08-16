@@ -459,6 +459,70 @@ async function boot(browser, port, jobIndex) {
     '보스가 내리꽂는 것에는 3분의 2만 통함',
     pc(bossDodge.boss) + ' (기대 ' + pc(0.6 * bossDodge.scale) + ')');
 
+  // ── 맞았을 때의 깜빡임이 쌓이지 않는가 ─────────────────
+  // 주인공이 **판이 갈수록 반투명해지는** 버그가 있었습니다. 깜빡임 트윈은
+  // 시작할 때의 알파를 기억했다가 yoyo 로 거기까지 돌아옵니다. 그래서 깜빡이는
+  // 도중에 또 맞으면 새 트윈이 지금의 흐릿한 값을 시작값으로 잡고, 1로는
+  // 영영 안 돌아옵니다. 한 대마다 조금씩 더 투명해진 채로 굳었습니다.
+  //   1 → 0.79 → 0.59 → 0.50 → 0.42 …
+  //
+  // 무적(1100ms)이 깜빡임(720ms)보다 길어 보통은 안 겹치는데, **함정이
+  // 무적을 무시합니다.** 함정은 101층부터 늘어나니 오를수록 흐려졌습니다.
+  //
+  // **시계로 재지 않습니다.** 이 검사는 창을 셋 띄워 놓고 도는데, 뒤에 있는
+  // 창은 브라우저가 프레임을 죄어서 1400ms 를 기다려도 게임 안에서는 몇
+  // 프레임밖에 안 흐릅니다. 트윈이 안 끝나 있는 것을 "안 돌아왔다"로 읽으면
+  // 없는 버그를 잡게 됩니다 (실제로 그렇게 헛돌았습니다).
+  // 대신 **굳지 않게 하는 성질 자체**를 봅니다 — 시계가 필요 없습니다.
+  const flash = await rogue.evaluate(async () => {
+    const s = window.__scene;
+    s.maxHp = 1e9; s.hp = 1e9;
+    s.dead = false; s.swallowing = false;
+    s.player.setAlpha(1);
+    // **회피를 꺼야 합니다.** 흘려 넘긴 대는 hurt 가 곧장 물러나서 깜빡임이
+    // 아예 안 생깁니다 (도적은 절반 넘게 흘립니다). 그걸 "1에서 안 시작했다"로
+    // 읽으면 없는 버그를 잡습니다 — 실제로 열 번 중 일곱 번이 그랬습니다.
+    s.dodge = 0;
+
+    const starts = [];
+    let most = 0;
+    for (let i = 0; i < 10; i++) {
+      s.springTrap(5, '시험');           // 함정은 무적을 무시합니다
+      // 막 시작한 깜빡임이 **1에서 출발**해야 합니다. 흐릿한 값에서 출발하면
+      // 거기로 되돌아가고, 그것이 굳음의 정체입니다.
+      starts.push(+s.hurtFlash.a.toFixed(3));
+      most = Math.max(most, s.tweens.getTweensOf(s.hurtFlash).length);
+      await new Promise((r) => setTimeout(r, 80)); // 깜빡임(720ms)이 끝나기 전에 또
+    }
+
+    // 걷어내면 알파가 되돌아와야 합니다.
+    s.clearHurtFlash();
+    const cleared = +s.player.alpha.toFixed(3);
+
+    // 깜빡임은 주인공 몸이 아니라 그릇에 걸려야 합니다. 몸에 걸면 앞선 것을
+    // 걷어낼 길이 killTweensOf(player) 뿐인데, 그러면 도적이 뛰며 도는 회전과
+    // 투기장의 좌우 이동까지 같이 죽습니다.
+    const onPlayer = s.tweens.getTweensOf(s.player).length;
+
+    // 그래서 실제로 안 죽는지도 봅니다.
+    s.player.setRotation(0);
+    const spin = s.tweens.add({ targets: s.player, rotation: Math.PI, duration: 4000 });
+    s.springTrap(5, '시험');
+    const spinAlive = s.tweens.getTweensOf(s.player).includes(spin);
+    spin.stop(); s.player.setRotation(0);
+    s.clearHurtFlash();
+
+    return { starts, most, cleared, spinAlive, onPlayer };
+  });
+  check(flash.starts.every((a) => a === 1),
+    '깜빡임은 언제나 알파 1에서 시작함 (흐릿한 값에서 출발하지 않음)',
+    '열 번 중 1이 아닌 것 ' + flash.starts.filter((a) => a !== 1).length + '개');
+  check(flash.most === 1, '깜빡임 트윈이 겹쳐 쌓이지 않음', '가장 많을 때 ' + flash.most + '개');
+  check(flash.cleared === 1, '걷어내면 알파가 1로 돌아옴', flash.cleared);
+  check(flash.spinAlive, '깜빡임이 다른 트윈(회전·이동)을 안 죽임');
+  check(flash.onPlayer === 0, '주인공 몸에는 깜빡임 트윈이 안 걸림 (그릇을 따로 흔듭니다)',
+    flash.onPlayer + '개');
+
   // ── 도적의 가죽 갑옷 ───────────────────────────────────
   // 회피만으로 버티게 했더니 운 나쁜 몇 대에 증발했습니다. 얇은 가죽을 한 겹
   // 깔아 바닥을 받칩니다. 위험한 곳은 셋입니다 —

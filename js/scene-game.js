@@ -123,6 +123,8 @@ class GameScene extends Phaser.Scene {
     this.markReach();
     this.announceBoosts();
 
+    this.hurtFlash = null; // 깜빡임을 흔드는 그릇 { a }. flashHurt 가 만듭니다
+
     // 너무 오래 멈춰 있으면 (js/config.js 의 CFG.idle).
     this.idleMs = 0;
     this.idleWarned = false;
@@ -1805,7 +1807,7 @@ class GameScene extends Phaser.Scene {
 
     this.cameras.main.shake(140, 0.008);
     this.popupHit(taken, blocked, worn);
-    this.tweens.add({ targets: this.player, alpha: 0.3, duration: 90, yoyo: true, repeat: 3 });
+    this.flashHurt();
 
     // 가시 갑옷 — 닿은 놈에게 돌려줍니다.
     const thorns = this.weapon.relicSum('thorns');
@@ -1834,10 +1836,55 @@ class GameScene extends Phaser.Scene {
       targets: ring, scale: 5, alpha: 0, duration: 460,
       ease: 'Cubic.out', onComplete: () => ring.destroy(),
     });
+    this.flashHurt(0.35, 110, 6);
+  }
+
+  // ── 맞았을 때의 깜빡임 ────────────────────────────────
+  // **트윈을 하나만 돌립니다.** 겹치면 주인공이 영영 반투명해집니다.
+  //
+  // 트윈은 시작할 때의 알파를 기억했다가 yoyo 로 거기까지 되돌아옵니다.
+  // 그래서 깜빡이는 도중에 또 맞으면, 새 트윈이 **지금의 흐릿한 알파**를
+  // 시작값으로 잡고 그 값으로 되돌아갑니다. 1로는 영영 안 돌아옵니다.
+  // 한 대 맞을 때마다 조금씩 더 투명해진 채로 굳습니다.
+  //
+  // 무적 시간(1100ms)이 깜빡임(720ms)보다 길어서 보통은 안 겹칩니다. 그런데
+  // **함정은 무적을 무시합니다** (springTrap 이 lastHitAt 을 지웁니다) —
+  // 함정은 101층부터 나오고 위로 갈수록 흔해지므로, 오를수록 흐려졌습니다.
+  //
+  // killTweensOf(player) 로 쓸어버리면 안 됩니다. 도적이 뛰며 도는 회전과
+  // 투기장의 좌우 이동도 같은 대상에 걸려 있어서, 같이 죽으면 주인공이
+  // 돌다 만 채로 굳거나 줄을 옮기다 멈춥니다. 이 트윈 하나만 붙들어 둡니다.
+  // **주인공이 아니라 딴 것을 흔듭니다.** 값 하나짜리 그릇(hurtFlash)을 두고,
+  // 그것을 흔들면서 그 값을 주인공의 알파에 옮겨 적습니다.
+  //
+  // 이 우회가 필요한 까닭: 앞선 깜빡임을 걷어내야 하는데,
+  //   · 트윈 손잡이를 들고 stop() 하는 길은 어긋났습니다. stop() 이 그 트윈의
+  //     onComplete 를 불러 버려서, **방금 새로 만든 손잡이를 지웁니다.**
+  //     그러면 다음 대에는 걷어낼 것을 못 찾고 둘이 겹칩니다
+  //   · killTweensOf(player) 로 쓸어버리는 길도 안 됩니다. 도적이 뛰며 도는
+  //     회전과 투기장의 좌우 이동이 같은 대상에 걸려 있어서, 같이 죽으면
+  //     주인공이 돌다 만 채로 굳거나 줄을 옮기다 멈춥니다
+  //
+  // 그릇을 따로 두면 **거기 걸린 것은 깜빡임뿐**이라 통째로 쓸어도 안전합니다.
+  flashHurt(low = 0.3, duration = 90, repeat = 3) {
+    const box = this.hurtFlash || (this.hurtFlash = { a: 1 });
+    this.tweens.killTweensOf(box);
+    box.a = 1;
+    this.player.setAlpha(1);
     this.tweens.add({
-      targets: this.player, alpha: 0.35, duration: 110, yoyo: true, repeat: 6,
-      onComplete: () => this.player.setAlpha(1),
+      targets: box, a: low, duration, yoyo: true, repeat,
+      onUpdate: () => { if (!this.dead && !this.swallowing) this.player.setAlpha(box.a); },
+      onComplete: () => { box.a = 1; if (!this.dead && !this.swallowing) this.player.setAlpha(1); },
     });
+  }
+
+  // 깜빡임을 걷고 알파를 되돌립니다. 판이 끝나는 자리에서 부릅니다 —
+  // 그냥 두면 사라지는 연출 위로 깜빡임이 끼어들어 알파를 도로 1로 올립니다.
+  clearHurtFlash() {
+    if (!this.hurtFlash) return;
+    this.tweens.killTweensOf(this.hurtFlash);
+    this.hurtFlash.a = 1;
+    this.player.setAlpha(1); // 걷었으면 되돌려 놓아야 합니다. 반쯤 흐린 채로 굳지 않게
   }
 
   // ── 코인 ──────────────────────────────────────────────
@@ -2342,6 +2389,7 @@ class GameScene extends Phaser.Scene {
     if (this.swallowing || this.dead) return;
     this.swallowing = true;
     this.clearShadowPool();
+    this.clearHurtFlash(); // 깜빡임이 남아 있으면 사라지는 도중에 알파를 되돌립니다
     this.physics.pause();
     this.cameras.main.shake(500, 0.01);
 
