@@ -17,6 +17,13 @@ const DPS_DISPLAY_DIV = 10;
 class Hud {
   constructor(scene) {
     this.scene = scene;
+
+    // 지난 프레임에 화면에 적은 값들. `update` 가 여기와 견주어 **달라진 것만**
+    // 다시 씁니다 (자세한 것은 update 위 주석). 아래 setBoss 가 벌써 이걸
+    // 쓰므로 무엇보다 먼저 세웁니다. 처음에는 비어 있어서 첫 프레임에
+    // 모든 줄이 한 번씩 채워집니다.
+    this.last = { relicList: [], bossOn: null, bossPct: -1 };
+
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
     const fixed = (o) => o.setScrollFactor(0).setDepth(100);
 
@@ -98,17 +105,34 @@ class Hud {
   }
 
   // 보스가 있으면 띠를 켜고, 없으면 통째로 숨깁니다.
+  //
+  // 이것도 매 프레임 불립니다 (update 안에서). 그래서 켜고 끄는 것은 상태가
+  // 바뀔 때만 하고, 띠는 남은 체력의 **퍼센트가 달라졌을 때만** 다시 씁니다 —
+  // 보스 체력은 한 대에 소수점 아래로 움직이는데 화면에 적히는 것은 정수라,
+  // 그대로 두면 초당 예순 번씩 같은 글자를 다시 그립니다.
   setBoss(boss) {
+    const L = this.last;
     const on = !!(boss && boss.active);
-    [this.bossBox, this.bossBar, this.bossName].forEach((o) => o.setVisible(on));
+    if (on !== L.bossOn) {
+      L.bossOn = on;
+      this.bossBox.setVisible(on);
+      this.bossBar.setVisible(on);
+      this.bossName.setVisible(on);
+      L.bossPct = -1; // 다시 켜질 때는 무조건 한 번 씁니다
+    }
     if (!on) return;
+
     const left = Math.max(0, boss.hp / boss.maxHp);
-    this.bossBar.width = 440 * left;
+    const pct = Math.ceil(left * 100);
+    this.bossBar.width = 440 * left; // 띠 길이는 매끄럽게 — 값 대입뿐이라 쌉니다
+    if (pct === L.bossPct && boss === L.boss) return;
+    L.bossPct = pct; L.boss = boss;
+
     // 체력이 닳을수록 보스가 몰아치므로, 띠 색도 같이 달아오릅니다.
     this.bossBar.fillColor = left > 0.5 ? 0xef5350 : left > 0.25 ? 0xff7043 : 0xffca28;
     // 이름은 놈마다 다릅니다 (CFG.boss.kinds).
     const name = (boss.def && boss.def.name) || '탑의 수문장';
-    this.bossName.setText(name + '   ' + Math.ceil(left * 100) + '%');
+    this.bossName.setText(name + '   ' + pct + '%');
   }
 
   // 그 방향에 실제로 발판이 있는지에 따라 밝기를 달리합니다.
@@ -139,23 +163,51 @@ class Hud {
     });
   }
 
+  // ── 매 프레임 도는 유일한 UI 코드입니다 ─────────────────
+  //
+  // **바뀐 값에만 손을 댑니다.** 예전에는 열한 줄을 조건 없이 다시 썼습니다.
+  // 화면에 보이는 것은 똑같았지만, 재 보니 이 함수 하나가 한 프레임에 0.32ms —
+  // 60fps 예산의 2%였고 다음으로 무거운 것(`swing`)의 2.6배였습니다.
+  // 이유가 둘이었습니다.
+  //
+  //   · **`setColor` 는 같은 색을 넣어도 글자 캔버스를 통째로 다시 그립니다.**
+  //     한 번에 17.7µs — 아무 일도 안 하는데 이 함수 비용의 절반이었습니다.
+  //     (`setText` 만 같은 글자를 걸러 줍니다. `setColor`·`setFontSize`·
+  //     `setStroke` 같은 것은 안 걸러 줍니다.)
+  //   · `setText` 가 걸러 주더라도 **넘길 글자를 만드는 일은 그대로** 일어납니다.
+  //     붙이기·`toFixed`·`map/join` 이 초당 수천 개의 짧은 문자열을 만들었다
+  //     버렸습니다. 기기가 느릴수록 이 쓰레기를 치우는 값이 큽니다.
+  //
+  // 그래서 아래는 전부 "이 값이 달라졌을 때만" 꼴입니다. 조건이 길어 보이지만
+  // **여기서는 그 반복이 요점입니다** — 값 하나를 빼먹으면 화면이 멎습니다.
+  // 캐시는 `this.last` 하나에 모읍니다.
   update() {
     const s = this.scene;
     const w = s.weapon;
+    const L = this.last;
 
-    this.hpBar.width = Math.max(0, 234 * (s.hp / s.maxHp));
-    this.hpBar.fillColor = s.hp > s.maxHp * 0.5 ? 0x66bb6a : s.hp > s.maxHp * 0.25 ? 0xffb74d : 0xef5350;
-    this.hpText.setText(Math.max(0, Math.ceil(s.hp)) + ' / ' + s.maxHp);
+    // ── 체력 ──────────────────────────────────────────
+    if (s.hp !== L.hp || s.maxHp !== L.maxHp) {
+      L.hp = s.hp; L.maxHp = s.maxHp;
+      this.hpBar.width = Math.max(0, 234 * (s.hp / s.maxHp));
+      this.hpBar.fillColor = s.hp > s.maxHp * 0.5 ? 0x66bb6a
+        : s.hp > s.maxHp * 0.25 ? 0xffb74d : 0xef5350;
+      this.hpText.setText(Math.max(0, Math.ceil(s.hp)) + ' / ' + s.maxHp);
+    }
 
-    // 방어력은 체력바에 붙은 띠로 보여 줍니다. 가득 차면 CFG.armor.max 입니다.
-    // 갑옷을 안 입는 직업은 그 자리에 회피를 보여 줍니다.
+    // ── 방어력, 또는 갑옷을 안 입는 직업에게는 회피 ────
+    // 가득 차면 CFG.armor.max 입니다.
     if (s.job.usesArmor) {
-      // 방어력은 막을 때마다 조금씩 닳습니다. 띠가 눈에 띄게 줄어들어야
-      // "채워 넣어야 하는 것"으로 읽힙니다.
-      this.armorBar.width = 234 * Math.min(1, s.armor / s.armorMax);
-      this.armorBar.fillColor = s.armor > 25 ? 0xb0bec5 : 0xff8a65;
-      this.armorText.setText('방어 ' + Math.round(s.armor) + '%');
-    } else {
+      if (s.armor !== L.armor || s.armorMax !== L.armorMax) {
+        L.armor = s.armor; L.armorMax = s.armorMax;
+        // 방어력은 막을 때마다 조금씩 닳습니다. 띠가 눈에 띄게 줄어들어야
+        // "채워 넣어야 하는 것"으로 읽힙니다.
+        this.armorBar.width = 234 * Math.min(1, s.armor / s.armorMax);
+        this.armorBar.fillColor = s.armor > 25 ? 0xb0bec5 : 0xff8a65;
+        this.armorText.setText('방어 ' + Math.round(s.armor) + '%');
+      }
+    } else if (s.dodge !== L.dodge || s.armor !== L.armor || s.dodgeMax !== L.dodgeMax) {
+      L.dodge = s.dodge; L.armor = s.armor; L.dodgeMax = s.dodgeMax;
       // 회피도 판 안에서 자랍니다 ('회' 아이템). 갑옷 띠 자리를 그대로 씁니다.
       this.armorBar.width = 234 * Math.min(1, s.dodge / (s.dodgeMax || 1));
       this.armorBar.fillColor = 0xce93d8;
@@ -167,40 +219,87 @@ class Hud {
 
     this.setBoss(s.boss);
 
-    this.floorText.setText(s.floorIndex + '층');
-    this.coinText.setText('◎ ' + s.coins);
-    this.medalText.setText(s.medals ? '🏅 ' + s.medals : '')
-      .setX(this.coinText.x - this.coinText.width - 16);
-
-    // 무기 이름 뒤에 강화 현황을 붙입니다. 없으면 표시하지 않습니다.
-    const icon = weaponIconKey(s.job.key, w.tier);
-    if (this.weaponIcon.texture.key !== icon) {
-      this.weaponIcon.setTexture(icon).setDisplaySize(34, 34);
+    if (s.floorIndex !== L.floor) {
+      L.floor = s.floorIndex;
+      this.floorText.setText(s.floorIndex + '층');
     }
-    this.weaponText.setText(w.name);
-    this.dpsText.setText('초당 ' + shortNum(Math.round(w.dps / DPS_DISPLAY_DIV)));
-    this.charmText.setText(s.charm ? '· 수호 부적' : '')
-      .setX(this.dpsText.x + this.dpsText.width + 12);
-    let x = this.weaponText.x + this.weaponText.width + 10;
 
+    // 메달은 코인 글자 너비에 붙으므로, 코인이 바뀌면 메달 자리도 다시 잡습니다.
+    if (s.coins !== L.coins || s.medals !== L.medals) {
+      const coinsChanged = s.coins !== L.coins;
+      L.coins = s.coins; L.medals = s.medals;
+      if (coinsChanged) this.coinText.setText('◎ ' + s.coins);
+      this.medalText.setText(s.medals ? '🏅 ' + s.medals : '')
+        .setX(this.coinText.x - this.coinText.width - 16);
+    }
+
+    // ── 무기 ──────────────────────────────────────────
+    if (w.tier !== L.tier) {
+      L.tier = w.tier;
+      const icon = weaponIconKey(s.job.key, w.tier);
+      if (this.weaponIcon.texture.key !== icon) {
+        this.weaponIcon.setTexture(icon).setDisplaySize(34, 34);
+      }
+      this.weaponText.setText(w.name);
+    }
+
+    const dps = Math.round(w.dps / DPS_DISPLAY_DIV);
+    if (dps !== L.dps) {
+      L.dps = dps;
+      this.dpsText.setText('초당 ' + shortNum(dps));
+      // 부적 글자는 초당 피해 글자 오른쪽에 붙습니다. 앞이 길어지면 같이 밀립니다.
+      L.charm = null;
+    }
+    if (!!s.charm !== L.charm) {
+      L.charm = !!s.charm;
+      this.charmText.setText(s.charm ? '· 수호 부적' : '')
+        .setX(this.dpsText.x + this.dpsText.width + 12);
+    }
+
+    // ── 강화 현황 — 무기 이름 뒤에 이어 붙습니다 ────────
+    // `+1`이 사라지면 `×1.30`이 그 자리로 당겨져야 하므로, 둘 중 하나만
+    // 바뀌어도 두 글자의 자리를 같이 다시 잡습니다.
     // 도적은 +1이 절반 값이라 실제 붙은 양을 그대로 적습니다 (+2.5 처럼).
     const shown = Number(w.plusValue.toFixed(1));
-    this.plusText.setText(shown ? '+' + shown : '').setX(x);
-    if (shown) x += this.plusText.width + 8;
-
     // 속도는 속(더하기)과 ×2(곱하기)가 섞여서 한계에서 잘립니다. 그래서 쌓은
     // 개수가 아니라 합쳐진 결과를 그대로 보여 줍니다. 한계에 닿았으면 그렇다고
     // 적어 줘야, 다음에 속을 보고 그냥 지나칠지 판단할 수 있습니다.
     const speed = w.speedMult;
-    this.multText.setText(speed > 1.001 ? '×' + speed.toFixed(2) + (w.speedCapped ? ' 한계' : '') : '')
-      .setColor(w.speedCapped ? '#ffb74d' : '#4fc3f7')
-      .setX(x);
+    const capped = w.speedCapped;
+    if (shown !== L.plus || speed !== L.speed || capped !== L.capped || w.tier !== L.boostTier) {
+      L.plus = shown; L.speed = speed; L.capped = capped; L.boostTier = w.tier;
 
-    // 유물은 여러 개를 겹쳐 듭니다. 이름을 다 적으면 줄이 넘치므로
-    // 아이콘을 나열하고 개수만 붙입니다. 자세한 것은 죽음 화면에서 봅니다.
-    this.relicText.setText(w.relics.length
-      ? w.relics.map((r) => r.icon).join(' ') + (w.relics.length > 2 ? '  ×' + w.relics.length : '')
-      : '');
+      let x = this.weaponText.x + this.weaponText.width + 10;
+      this.plusText.setText(shown ? '+' + shown : '').setX(x);
+      if (shown) x += this.plusText.width + 8;
+
+      this.multText
+        .setText(speed > 1.001 ? '×' + speed.toFixed(2) + (capped ? ' 한계' : '') : '')
+        .setX(x);
+      // 색은 한계에 닿았는지가 바뀔 때만 — 이 한 줄이 예전의 가장 비싼 곳이었습니다.
+      if (capped !== L.cappedColor) {
+        L.cappedColor = capped;
+        this.multText.setColor(capped ? '#ffb74d' : '#4fc3f7');
+      }
+    }
+
+    // ── 유물 ──────────────────────────────────────────
+    // 여러 개를 겹쳐 듭니다. 이름을 다 적으면 줄이 넘치므로 아이콘을 나열하고
+    // 개수만 붙입니다. 자세한 것은 죽음 화면에서 봅니다.
+    //
+    // 개수만 보면 안 됩니다. 꽉 찼을 때 하나를 버리고 하나를 받으면 **개수가
+    // 그대로**라, 화면에는 버린 유물의 아이콘이 남습니다. 그래서 하나하나를
+    // 대조합니다 — 바뀌었을 때만 복사하므로 평소에는 아무것도 안 만듭니다.
+    let relicsChanged = w.relics.length !== L.relicList.length;
+    for (let i = 0; !relicsChanged && i < w.relics.length; i++) {
+      if (L.relicList[i] !== w.relics[i]) relicsChanged = true;
+    }
+    if (relicsChanged) {
+      L.relicList = w.relics.slice();
+      this.relicText.setText(w.relics.length
+        ? w.relics.map((r) => r.icon).join(' ') + (w.relics.length > 2 ? '  ×' + w.relics.length : '')
+        : '');
+    }
   }
 
   fadeHint(delta) {

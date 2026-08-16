@@ -164,19 +164,30 @@ const check = (ok, label, got) => {
     const r = CFG.boss.rain;
     // 보스가 제 시계로 다른 패턴을 겹쳐 쏘면 그것까지 세어 버립니다.
     // 재는 동안만 다음 차례를 멀리 밀어 둡니다.
+    //
+    // **밀어 두는 것만으로는 모자랍니다.** 이미 나간 패턴은 예고(850ms)와
+    // 줄 사이 간격(320ms×2)만큼 뒤에 떨어지도록 delayedCall 로 예약돼 있어서,
+    // 곧바로 재면 그 늦둥이가 잿비에 섞여 들어옵니다 (한 발이 무겁고 빠르고
+    // fromBoss 가 붙어 있어서 셋 다 틀립니다). 예약된 것이 다 떨어질 때까지
+    // 기다렸다가 비우고 시작합니다.
     s.boss.nextVolleyAt = s.time.now + 1e6;
+    await new Promise((ok) => setTimeout(ok, 1600));
     s.enemyBullets.clear(true, true);
     bossRain(s, s.boss);
 
+    // **시간이 아니라 결과를 기다립니다.** 잿비는 게임 시계(delayedCall)를
+    // 타는데 여기서 재는 것은 벽시계라, 창을 시간으로 잡으면 게임이 조금만
+    // 느려져도 열넷 중 셋만 보고 창이 닫힙니다 (실제로 그랬습니다).
+    // 다 나올 때까지 기다리되, 안 나오면 매달리지 않게 뚜껑을 둡니다.
     const seen = [];
-    const until = Date.now() + r.warnMs + r.count * r.gapMs + 400;
-    while (Date.now() < until) {
+    const giveUp = Date.now() + 8000;
+    while (seen.length < r.count && Date.now() < giveUp) {
       s.enemyBullets.getChildren().forEach((b) => {
         if (b.__counted) return;
         b.__counted = true;
         seen.push({ x: b.x, dmg: b.dmg, vy: b.body.velocity.y, fromBoss: !!b.fromBoss });
       });
-      await new Promise((ok) => setTimeout(ok, 50));
+      await new Promise((ok) => setTimeout(ok, 40));
     }
 
     // 세 줄 어디에 서 있어도 머리 위로 하나쯤은 지나가는가.
