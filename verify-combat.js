@@ -502,6 +502,62 @@ async function boot(browser, port, jobIndex) {
     `은장 ${Math.round(roll.silverAcc * 100)}% · 원본 ${Math.round(roll.plainAcc * 100)}%`
     + ` · 흑철 ${Math.round(roll.blackAcc * 100)}%`);
 
+  // ── 만듦새는 초당 피해로 전부 같아야 합니다 ─────────────
+  //
+  // **이 검사가 만듦새 규칙의 파수꾼입니다.** forge.js 주석에 "수치는 서로
+  // 맞바꾼다"고 적어 놓고도 처음에 못 지켰습니다 — 은장 +4.6% · 무쇠 +3.7% ·
+  // 흑철 +1.1%. 한쪽이 초당 피해로 더 세면 그건 만듦새가 아니라 그냥 상위
+  // 무기이고, 그러면 무기를 주머니로 바꾼 뜻이 없어집니다.
+  //
+  // 수치를 만질 때마다 조용히 새는 자리라, 셈으로 못을 박아 둡니다.
+  const forges = await warrior.evaluate(() => {
+    const rows = [];
+    CLASSES.forEach((job) => {
+      const pool = buildWeaponPool(job);
+      const w = new Weapon(job, 0);
+      pool.filter((x) => x.forge !== 'plain').forEach((x) => {
+        const base = pool.find((b) => b.family === x.family && b.forge === 'plain');
+        rows.push({ job: job.name, forge: x.forge, name: x.name,
+          d: w.dpsOf(x, false) / w.dpsOf(base, false) - 1 });
+      });
+    });
+
+    const byForge = {};
+    rows.forEach((r) => (byForge[r.forge] = byForge[r.forge] || []).push(r.d));
+    const avg = {};
+    Object.keys(byForge).forEach((k) => {
+      avg[k] = byForge[k].reduce((a, b) => a + b, 0) / byForge[k].length;
+    });
+
+    // 정확도 천장(1.00)에 잘린 자루가 있으면 그 자루만 조용히 손해입니다 —
+    // 값은 치렀는데 덤을 다 못 받으니까요.
+    const clamped = [];
+    CLASSES.forEach((job) => buildWeaponPool(job).forEach((x) => {
+      const f = FORGES[x.forge];
+      if (!f.acc) return;
+      const fam = job.weapons.find((y) => y.key === x.family);
+      const raw = (fam.acc === undefined ? 0.92 : fam.acc) + f.acc;
+      if (raw > 1.0001) clamped.push(x.name + ' ' + raw.toFixed(2));
+    }));
+
+    const worst = rows.reduce((a, b) => (Math.abs(b.d) > Math.abs(a.d) ? b : a));
+    return { avg, clamped, worst, n: rows.length,
+      forges: Object.keys(byForge).map((k) => FORGES[k].prefix) };
+  });
+  const off = Object.entries(forges.avg).filter(([, v]) => Math.abs(v) > 0.01);
+  check(off.length === 0, '만듦새 넷이 초당 피해로 같음 (평균 ±1% 안)',
+    Object.entries(forges.avg).map(([k, v]) =>
+      (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%').join(' · ')
+    + ' — ' + forges.forges.join(' · '));
+  // 낱낱은 정수 반올림 때문에 조금 더 흔들립니다. 궁수는 화살 한 발이
+  // 16~53 이라 1이 어긋나면 그게 곧 2~6%입니다.
+  check(Math.abs(forges.worst.d) <= 0.03, '자루 하나하나도 ±3% 안 (반올림 몫)',
+    forges.worst.name + ' ' + (forges.worst.d >= 0 ? '+' : '')
+    + (forges.worst.d * 100).toFixed(1) + '% · ' + forges.n + '자루 중');
+  check(forges.clamped.length === 0,
+    '정확도 천장에 잘리는 자루가 없음 (값만 치르고 덤을 못 받는 자리)',
+    forges.clamped.join(', ') || '없음');
+
   // ── 전사의 기절 ─────────────────────────────────────────
   const stun = await warrior.evaluate(async () => {
     const s = window.__scene;
@@ -676,6 +732,13 @@ async function boot(browser, port, jobIndex) {
 
     // 겨누는 것과 별개로, 화살이 **실제로 나오기는 하는지**도 한 번은 봐야
     // 합니다. 겨누기만 하고 안 나가면 위 검사는 전부 통과해 버립니다.
+    //
+    // **여기서는 빗나가면 안 됩니다.** 빗나간 화살은 아예 안 만들어지므로
+    // (js/scene-game.js 의 shoot), 한 번만 쏘고 기다리면 정확도 92% 짜리
+    // 무기로는 열두 번에 한 번쯤 "안 나갔다"가 나옵니다 — 실제로 그렇게
+    // 한 번 터졌습니다. 빗나감은 따로 검사하므로 여기서만 주사위를 멈춥니다.
+    const realHits = s.weapon.hits;
+    s.weapon.hits = () => true;
     s.enemies.getChildren().forEach((x) => x.setActive(x === above).setVisible(x === above));
     s.subTarget = null;
     s.lastSubAt = -1e9;
@@ -687,6 +750,7 @@ async function boot(browser, port, jobIndex) {
       shots = s.bullets.getChildren().filter((b) => b.active).length;
     }
     s.enemies.getChildren().forEach((x) => x.setActive(true).setVisible(true));
+    s.weapon.hits = realHits;
 
     return {
       below: aimsAt(below), same: aimsAt(sameFloor),

@@ -198,8 +198,11 @@ const CLASSES = [
         forge: 'black', sheet: 8, color: 0xf48fb1, homing: true,
         detail: '네 곳을 쫓아갑니다',
         icon: { art: 'bow', big: true, arrows: 3 } },
+      // 정확도가 0.96 이었습니다. 은장(+6%p)이 붙으면 1.02 가 되어 천장(1.00)에
+      // 잘리고, 잘린 몫은 값만 치르고 못 받는 덤이 됩니다. 0.94 로 두면
+      // 은장 성좌궁이 정확히 1.00 — 「겨눈 곳을 놓치는 법이 없다」가 됩니다.
       { key: 'star', name: '성좌궁', dmg: 21, rate: 252, range: 430, shots: 4, depth: 400,
-        forge: 'silver', sheet: 9, color: 0xfff59d, acc: 0.96,
+        forge: 'silver', sheet: 9, color: 0xfff59d, acc: 0.94,
         detail: '겨눈 곳을 놓치는 법이 없습니다', homing: true,
         icon: { art: 'bow', recurve: true, big: true, arrows: 3 } },
       { key: 'abyss', name: '심연장궁', dmg: 23, rate: 244, range: 445, shots: 4, depth: 450,
