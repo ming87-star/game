@@ -1,5 +1,9 @@
 const STAND_OFFSET = CFG.platformH / 2 + 24; // 발판 위에 발이 닿는 높이
 
+// 화면 위쪽 알림(새 적 · 황금개구리)의 첫 줄 자리.
+// HUD 띠(0~140)와 보스 체력 띠(143~173) 아래여야 합니다.
+const NOTICE_TOP = 200;
+
 class GameScene extends Phaser.Scene {
   constructor() {
     super('game');
@@ -123,6 +127,13 @@ class GameScene extends Phaser.Scene {
     this.tapBlockedUntil = 0;
     this.dimmedFloor = -1;
     this.markReach();
+
+    // 한가운데 알림 줄 (pushNotice). **판이 시작될 때마다 비웁니다** —
+    // Phaser 가 장면 인스턴스를 다시 쓰므로, 안 비우면 지난 판에 밀려 있던
+    // 알림이 새 판에서 튀어나오고 이미 없어진 글자를 지우려 듭니다.
+    this.notices = [];
+    this.noticeParts = null;
+    this.noticeTimer = null;
     this.announceBoosts();
 
     this.hurtFlash = null; // 깜빡임을 흔드는 그릇 { a }. flashHurt 가 만듭니다
@@ -438,36 +449,108 @@ class GameScene extends Phaser.Scene {
     }
   }
 
+  // ── 한가운데 알림 ─────────────────────────────────────
+  //
+  // 알림은 **한 번에 하나만** 뜹니다.
+  //
+  // 알리는 자리가 여섯 군데입니다 — 새 적 · 황금개구리 · 메달 · 보스 ·
+  // 규칙(함정·박쥐) · 판 첫머리의 지니고 오른 것. 저마다 제 자리에 글자를
+  // 놓다 보니, 두 알림이 같은 순간에 뜨면 그대로 포개져서 아무것도 안 읽힙니다.
+  // 특히 새 적은 한 발판에 두 종류가 함께 깨어나는 일이 흔해서, 판 첫머리에
+  // '새로운 적' 두 장이 완전히 겹쳐 뭉개져 보였습니다.
+  //
+  // 자리를 옮겨 서로 피하게 하는 방법도 있지만, 알림이 하나 늘 때마다 여섯
+  // 군데를 다시 맞춰야 하고 언젠가 반드시 어긋납니다. 자리 대신 **차례**로
+  // 풉니다 — 앞 알림이 사라진 뒤에 다음 알림이 뜹니다.
+  pushNotice(spec) {
+    this.notices = this.notices || [];
+    // 앞질러야 하는 알림(보스)은 밀린 것을 걷어내고 바로 뜹니다.
+    // 보스가 내려앉는 장면과 글자가 어긋나면 무엇을 알리는지 모르게 됩니다.
+    if (spec.now) {
+      this.notices.length = 0;
+      this.clearNotice();
+    } else if (spec.merge) {
+      // 아직 안 뜬 같은 종류가 줄에 있으면 새 장을 만들지 않고 거기에 보탭니다.
+      const pending = this.notices.find((n) => n.key === spec.key);
+      if (pending) return spec.merge(pending);
+    }
+    this.notices.push(spec);
+  }
+
+  // 줄을 푸는 것은 **다음 프레임의 update 하나뿐입니다** (아래 update).
+  // 넣는 그 자리에서 바로 띄우면, 한 발판에서 두 종류가 같은 프레임에
+  // 깨어날 때 첫 장이 이미 떠 버려서 둘째가 합쳐질 자리를 못 찾습니다.
+  pumpNotices() {
+    if (this.dead) return;
+    if (this.noticeParts || !this.notices || !this.notices.length) return;
+    const spec = this.notices.shift();
+    this.noticeParts = spec.build(spec) || [];
+    // 글자를 치우는 것은 **줄이 맡습니다.** 알림마다 제가 만든 글자를 스스로
+    // 지우게 하면, 앞질러 걷어낼 때 무엇이 남았는지 알 길이 없습니다.
+    this.noticeTimer = this.time.delayedCall(spec.ms, () => {
+      this.noticeTimer = null;
+      this.clearNotice();
+      this.pumpNotices();
+    });
+  }
+
+  // 지금 떠 있는 알림을 걷어냅니다. 화면 전체를 덮는 창(유물·갈아타기)이
+  // 열릴 때도 씁니다 — 덮개 밑에 글자가 얼어붙은 채로 남기 때문입니다.
+  clearNotice() {
+    if (this.noticeTimer) { this.noticeTimer.remove(false); this.noticeTimer = null; }
+    if (this.noticeParts) {
+      this.noticeParts.forEach((o) => { this.tweens.killTweensOf(o); o.destroy(); });
+      this.noticeParts = null;
+    }
+  }
+
+  clearNotices() {
+    if (this.notices) this.notices.length = 0;
+    this.clearNotice();
+  }
+
+  // 알림 한 장을 띄웁니다. 글자들은 흐릿하게 떴다가 스스로 사라집니다.
+  showNotice(parts) {
+    parts.forEach((t) => {
+      t.setScrollFactor(0).setDepth(150).setAlpha(0);
+      this.tweens.add({ targets: t, alpha: 1, duration: 280, yoyo: true, hold: 1500 });
+    });
+    return parts;
+  }
+
   // 황금개구리가 나타났음을 알립니다 (js/enemies.js 의 spawnGoldFrog).
   announceGoldFrog() {
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
     const cx = CFG.width / 2;
-    const parts = [
-      this.add.text(cx, 168, '황금개구리가 나타났습니다', font(20, '#ffd54f')).setOrigin(0.5),
-      this.add.text(cx, 202, '🐸', font(38, '#ffd54f')).setOrigin(0.5),
-      this.add.text(cx, 238, '잡으면 코인을 왕창 줍니다', font(16, '#8794b5')).setOrigin(0.5),
-    ];
-    parts.forEach((t) => {
-      t.setScrollFactor(0).setDepth(150).setAlpha(0);
-      this.tweens.add({ targets: t, alpha: 1, duration: 260, yoyo: true, hold: 1500,
-        onComplete: () => t.destroy() });
-    });
+    this.pushNotice({ key: 'frog', ms: 2200, build: () => this.showNotice([
+      this.add.text(cx, NOTICE_TOP, '황금개구리가 나타났습니다', font(20, '#ffd54f')).setOrigin(0.5),
+      this.add.text(cx, NOTICE_TOP + 34, '🐸', font(38, '#ffd54f')).setOrigin(0.5),
+      this.add.text(cx, NOTICE_TOP + 70, '잡으면 코인을 왕창 줍니다', font(16, '#8794b5')).setOrigin(0.5),
+    ]) });
   }
 
   // 이 판에서 처음 나온 종류라면 이름을 띄웁니다.
   // 올라갈수록 새 적이 풀리는데, 알려주지 않으면 그냥 빨간 덩어리가 하나 늘 뿐입니다.
   announceEnemy(def) {
-    const label = this.add.text(CFG.width / 2, 168, '새로운 적', {
-      fontFamily: 'sans-serif', fontSize: '20px', color: '#8794b5',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(150);
-    const name = this.add.text(CFG.width / 2, 202, def.name, {
-      fontFamily: 'sans-serif', fontSize: '38px', color: '#ff8a80',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(150);
-
-    [label, name].forEach((t) => {
-      t.setAlpha(0);
-      this.tweens.add({ targets: t, alpha: 1, duration: 260, yoyo: true, hold: 1500,
-        onComplete: () => t.destroy() });
+    const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
+    const cx = CFG.width / 2;
+    this.pushNotice({
+      key: 'enemy', ms: 2200, names: [def.name],
+      // 한 발판에서 두 종류가 함께 깨어나는 일이 흔합니다. 그때는 알림을 두 번
+      // 띄우지 않고 이름만 나란히 붙입니다 — 어차피 같은 순간에 만난 적입니다.
+      merge: (n) => { if (!n.names.includes(def.name)) n.names.push(def.name); },
+      build: (n) => {
+        const name = this.add.text(cx, NOTICE_TOP + 34, n.names.join('   '),
+          font(38, '#ff8a80')).setOrigin(0.5);
+        // 이름이 여럿이면 화면 밖으로 나갑니다. 넘치는 만큼만 줄입니다.
+        const room = CFG.width - 48;
+        if (name.width > room) name.setScale(room / name.width);
+        return this.showNotice([
+          this.add.text(cx, NOTICE_TOP, n.names.length > 1 ? '새로운 적 ' + n.names.length + '종'
+            : '새로운 적', font(20, '#8794b5')).setOrigin(0.5),
+          name,
+        ]);
+      },
     });
   }
 
@@ -674,23 +757,26 @@ class GameScene extends Phaser.Scene {
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
     const cx = CFG.width / 2;
 
-    const veil = this.add.rectangle(cx, CFG.height / 2, CFG.width, CFG.height, 0x1a0033, 0)
-      .setScrollFactor(0).setDepth(140);
-    this.tweens.add({ targets: veil, alpha: 0.5, duration: 500, yoyo: true, hold: 1100,
-      onComplete: () => veil.destroy() });
+    // 보스는 기다리지 않습니다 — 내려앉는 장면과 글자가 붙어 있어야 합니다.
+    this.pushNotice({ key: 'boss', ms: 2500, now: true, build: () => {
+      const veil = this.add.rectangle(cx, CFG.height / 2, CFG.width, CFG.height, 0x1a0033, 0)
+        .setScrollFactor(0).setDepth(140);
+      this.tweens.add({ targets: veil, alpha: 0.5, duration: 500, yoyo: true, hold: 1100,
+        onComplete: () => veil.destroy() });
 
-    const parts = [
-      this.add.text(cx, 300, this.floorIndex + '층', font(22, '#ce93d8')).setOrigin(0.5),
-      this.add.text(cx, 348, bossKindFor(this.floorIndex).name, font(50, '#ffffff')).setOrigin(0.5),
-      this.add.text(cx, 400, '좌우로만 움직일 수 있습니다', font(20, '#e1bee7')).setOrigin(0.5),
-    ];
-    parts.forEach((t, i) => {
-      t.setScrollFactor(0).setDepth(150).setAlpha(0).setScale(i === 1 ? 1.4 : 1);
-      this.tweens.add({ targets: t, alpha: 1, scale: 1, duration: 420, ease: 'Back.out' });
-      this.tweens.add({ targets: t, alpha: 0, delay: 1900, duration: 400,
-        onComplete: () => t.destroy() });
-    });
-    this.cameras.main.shake(600, 0.006);
+      const parts = [
+        this.add.text(cx, 300, this.floorIndex + '층', font(22, '#ce93d8')).setOrigin(0.5),
+        this.add.text(cx, 348, bossKindFor(this.floorIndex).name, font(50, '#ffffff')).setOrigin(0.5),
+        this.add.text(cx, 400, '좌우로만 움직일 수 있습니다', font(20, '#e1bee7')).setOrigin(0.5),
+      ];
+      parts.forEach((t, i) => {
+        t.setScrollFactor(0).setDepth(150).setAlpha(0).setScale(i === 1 ? 1.4 : 1);
+        this.tweens.add({ targets: t, alpha: 1, scale: 1, duration: 420, ease: 'Back.out' });
+        this.tweens.add({ targets: t, alpha: 0, delay: 1900, duration: 400 });
+      });
+      this.cameras.main.shake(600, 0.006);
+      return parts;
+    } });
   }
 
   bossDefeated(boss) {
@@ -1353,6 +1439,9 @@ class GameScene extends Phaser.Scene {
       this.popup('+' + CFG.heal, '#a5d6a7');
       return;
     }
+    // 화면을 통째로 덮으므로 떠 있던 알림은 걷어냅니다. 안 걷으면 장면이
+    // 멈춘 동안 시계도 멈춰서, 덮개 밑에 글자가 얼어붙은 채로 남습니다.
+    this.clearNotices();
     this.scene.pause();
     this.scene.launch('swap', { from: this, entry });
   }
@@ -1594,31 +1683,21 @@ class GameScene extends Phaser.Scene {
     // 갑자기 120층에서 시작하면 무슨 일이 일어난 것인지 알 수가 없습니다.
     if (this.resume) {
       const left = CFG.continues.max - this.continues;
-      const parts = [
+      this.pushNotice({ key: 'resume', ms: 2300, build: () => this.showNotice([
         this.add.text(CFG.width / 2, 300, this.floorIndex + '층 상점에서 이어서',
           font(26, '#4dd0e1')).setOrigin(0.5),
         this.add.text(CFG.width / 2, 340,
           left > 0 ? '남은 이어하기 ' + left + '번' : '마지막 이어하기입니다',
           font(20, '#8794b5')).setOrigin(0.5),
-      ];
-      parts.forEach((t) => {
-        t.setScrollFactor(0).setDepth(150).setAlpha(0);
-        this.tweens.add({ targets: t, alpha: 1, duration: 300, yoyo: true, hold: 1700,
-          onComplete: () => t.destroy() });
-      });
+      ]) });
       return;
     }
 
     if (!this.boosts.length) return;
-    const parts = [
+    this.pushNotice({ key: 'boosts', ms: 2300, build: () => this.showNotice([
       this.add.text(CFG.width / 2, 300, '지니고 오른 것', font(20, '#8794b5')).setOrigin(0.5),
       this.add.text(CFG.width / 2, 340, this.boosts.join('   '), font(26, '#ffca28')).setOrigin(0.5),
-    ];
-    parts.forEach((t) => {
-      t.setScrollFactor(0).setDepth(150).setAlpha(0);
-      this.tweens.add({ targets: t, alpha: 1, duration: 300, yoyo: true, hold: 1700,
-        onComplete: () => t.destroy() });
-    });
+    ]) });
   }
 
   // ── 함정 ──────────────────────────────────────────────
@@ -1691,16 +1770,11 @@ class GameScene extends Phaser.Scene {
   // 만났을 때만은 유물처럼 크게 알려 줍니다.
   announceMedal() {
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
-    const parts = [
+    this.pushNotice({ key: 'medal', ms: 2300, build: () => this.showNotice([
       this.add.text(CFG.width / 2, 300, '메달을 주웠습니다', font(20, '#8794b5')).setOrigin(0.5),
       this.add.text(CFG.width / 2, 340, '🏅 +1', font(44, '#ffca28')).setOrigin(0.5),
       this.add.text(CFG.width / 2, 386, '죽어도 남습니다', font(20, '#ffe082')).setOrigin(0.5),
-    ];
-    parts.forEach((t) => {
-      t.setScrollFactor(0).setDepth(150).setAlpha(0);
-      this.tweens.add({ targets: t, alpha: 1, duration: 300, yoyo: true, hold: 1600,
-        onComplete: () => t.destroy() });
-    });
+    ]) });
   }
 
   // ── 유물 고르기 ───────────────────────────────────────
@@ -1716,6 +1790,7 @@ class GameScene extends Phaser.Scene {
 
     this.choosing = true;
     this.physics.pause();
+    this.clearNotices(); // 덮개 밑에 알림이 남지 않게
 
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
     const cx = CFG.width / 2;
@@ -2184,16 +2259,12 @@ class GameScene extends Phaser.Scene {
 
   announceGate(gate) {
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
-    this.gateUntil = this.time.now + 2400; // 글자가 다 사라질 때까지 다음 알림을 막습니다
-    const parts = gate.lines.map((line, i) =>
-      this.add.text(CFG.width / 2, 296 + i * 36,
-        line, font(i === gate.lines.length - 1 ? 19 : 26,
-          i === gate.lines.length - 1 ? '#8794b5' : gate.color)).setOrigin(0.5));
-    parts.forEach((t) => {
-      t.setScrollFactor(0).setDepth(150).setAlpha(0);
-      this.tweens.add({ targets: t, alpha: 1, duration: 300, yoyo: true, hold: 1800,
-        onComplete: () => t.destroy() });
-    });
+    this.gateUntil = this.time.now + 2400; // 글자가 다 사라질 때까지 다음 규칙을 막습니다
+    this.pushNotice({ key: 'gate', ms: 2400, build: () => this.showNotice(
+      gate.lines.map((line, i) =>
+        this.add.text(CFG.width / 2, 296 + i * 36,
+          line, font(i === gate.lines.length - 1 ? 19 : 26,
+            i === gate.lines.length - 1 ? '#8794b5' : gate.color)).setOrigin(0.5))) });
   }
 
 
@@ -2282,6 +2353,10 @@ class GameScene extends Phaser.Scene {
       t = this.add.text(0, 0, text, {
         fontFamily: 'sans-serif', fontSize: size + 'px', color,
       }).setOrigin(0.5).setDepth(120);
+      // 자리 시험(verify-layout.js)에게 "이건 흘러가는 글자"라고 알려 둡니다.
+      // 두 대를 잇달아 빗맞으면 「빗나감」 둘이 스치는데, 그건 자리를 잘못
+      // 잡은 것이 아니라 그 순간에 두 번 일어난 일입니다.
+      t.name = 'float';
     }
     t.setPosition(x, y);
 
@@ -2313,6 +2388,7 @@ class GameScene extends Phaser.Scene {
     if (this.dead) return;
     this.dead = true;
     this.hp = 0;
+    this.clearNotices(); // 죽음 화면 위에 알림이 떠 있으면 결과가 안 읽힙니다
     // 판을 넘어 남는 기록. 직업 해금이 여기에 기댑니다.
     const wasBest = Save.bestFloor;
     const opened = classesUnlockedBy(this.floorIndex, this.totalCoins);
@@ -2340,31 +2416,38 @@ class GameScene extends Phaser.Scene {
       '   코인 ' + this.totalCoins, font(22, '#b0bec5')).setOrigin(0.5));
     if (reason) add(this.add.text(cx, 164, reason, font(14, '#b39ddb')).setOrigin(0.5));
 
+    // 여기부터는 **줄이 있을 때만 자리를 씁니다.** 유물 줄은 유물을 하나도
+    // 안 들고 죽으면 안 나오는데, 예전에는 아랫줄이 268·278 로 못 박혀 있어서
+    // 유물을 들고 죽은 판에서만 「최고 기록」과 12px 겹쳤습니다.
+    let y = 268;
+
     // 들고 있던 유물. 어떤 조합으로 여기까지 왔는지가 다음 판의 계획이 됩니다.
     if (this.weapon.relics.length) {
-      add(this.add.text(cx, 268,
+      add(this.add.text(cx, y,
         this.weapon.relics.map((r) => r.icon + ' ' + r.name).join('   '),
         font(17, '#ffd54f')).setOrigin(0.5));
+      y += 32;
     }
 
     // 최고 기록과 다음 해금까지 남은 거리를 같이 보여 줍니다.
     // 죽을 때마다 "얼마나 왔는지"가 보여야 한 판 더 하게 됩니다.
-    add(this.add.text(cx, 278,
+    add(this.add.text(cx, y,
       this.floorIndex > wasBest ? '최고 기록 경신!' : '최고 기록 ' + Save.bestFloor + '층',
       font(22, this.floorIndex > wasBest ? '#ffd54f' : '#8794b5')).setOrigin(0.5));
+    y += 34;
 
     // 해금은 한 판 안에서 층과 코인을 함께 채워야 합니다. 이번 판이 어디까지 왔는지
     // 두 조건을 나란히 보여 줘야 "무엇이 모자랐는지"를 압니다.
     if (opened.length) {
-      add(this.add.text(cx, 314, opened.map((j) => j.name).join(' · ') + ' 해금!',
+      add(this.add.text(cx, y + 8, opened.map((j) => j.name).join(' · ') + ' 해금!',
         font(26, '#a5d6a7')).setOrigin(0.5));
     } else {
       const next = CLASSES.find((c) => (c.unlockFloor || c.unlockCoins) && !Save.data.unlocked[c.key]);
       if (next) {
-        add(this.add.text(cx, 310,
+        add(this.add.text(cx, y,
           next.name + ' 해금  ' + next.unlockFloor + '층 · 코인 ' + next.unlockCoins,
           font(18, '#8794b5')).setOrigin(0.5));
-        add(this.add.text(cx, 332, '이번 판  ' + this.floorIndex + '층 · 코인 ' + this.totalCoins,
+        add(this.add.text(cx, y + 24, '이번 판  ' + this.floorIndex + '층 · 코인 ' + this.totalCoins,
           font(18, this.floorIndex >= next.unlockFloor || this.totalCoins >= next.unlockCoins
             ? '#ffd54f' : '#4a5578')).setOrigin(0.5));
       }
@@ -2491,6 +2574,9 @@ class GameScene extends Phaser.Scene {
 
     // 상점과 유물 고르기 중에는 시간이 멈춘 셈 칩니다.
     if (this.shop.open || this.choosing) return;
+
+    // 한가운데 알림은 여기서만 풉니다 — 덮개가 걷힌 판 위에서만 뜹니다.
+    this.pumpNotices();
 
     this.updateItems(time);
     if (this.floorIndex > 0) this.hud.fadeHint(delta);
