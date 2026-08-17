@@ -17,7 +17,10 @@ function blankSave() {
     weapons: {},
     // 직전 판에서 손에 넣은 무기들 (얻은 순서). 죽음 화면의 계승이 여기 둘째를 씁니다.
     lastRun: { job: '', got: [] },
-    // 메달 상점에서 사 둔 것. 다음 판 시작 때 쓰이고 비워집니다.
+    // 메달 상점에서 산 것. **직업마다 영영 남습니다.**
+    //   { warrior: { hp: true, coins: true }, archer: {} }
+    perks: {},
+    // 다음 판에 딱 한 번 들고 갈 것. 지금은 무기 계승 하나뿐입니다.
     boosts: {},
     // 유물 도감. 한 번이라도 가져간 것은 여기 남습니다.
     relics: {},
@@ -128,7 +131,32 @@ const Save = {
     return { index: w.index, plus: w.plus };
   },
 
-  // ── 다음 판에 들고 갈 것 ──────────────────────────────
+  // ── 메달로 산 것 — **직업마다 영영 남습니다** ──────────
+  //
+  // 예전에는 한 판 쓰고 사라졌습니다 (takeBoosts 가 꺼내면서 비웠습니다).
+  // 그러면 메달 상점이 "매 판 다시 사는 곳"이 되어, 죽고 나서 남는 것이
+  // 숫자 몇 개뿐입니다. 메달 상점이 해야 하는 일은 그게 아닙니다 —
+  // **죽어도 다음 판이 지난 판보다 나아야** 또 켜게 됩니다.
+  //
+  // 직업마다 따로 쌓입니다. 전사로 산 것이 궁수에게 붙으면, 새 직업을 여는
+  // 것이 곧 다 갖춘 채로 시작하는 것이 되어 여는 재미가 없어집니다.
+  // (메달 자체는 하나의 주머니입니다 — 전사로 번 것으로 궁수 것을 사도 됩니다.)
+  perksFor(jobKey) {
+    return this.data.perks[jobKey] || (this.data.perks[jobKey] = {});
+  },
+
+  hasPerk(jobKey, key) {
+    return !!this.perksFor(jobKey)[key];
+  },
+
+  addPerk(jobKey, key) {
+    this.perksFor(jobKey)[key] = true;
+    this.flush();
+  },
+
+  // ── 다음 판에 딱 한 번 들고 갈 것 ──────────────────────
+  // 지금은 죽음 화면의 **무기 계승** 하나뿐입니다. 이건 영구가 아니라
+  // 일회성이 맞습니다 — 그 판에서 얻은 자루를 한 번 더 쓰는 것이니까요.
   setBoost(key, value) {
     this.data.boosts[key] = value;
     this.flush();

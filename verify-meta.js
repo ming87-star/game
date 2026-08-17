@@ -44,7 +44,7 @@ const check = (ok, label, got) => {
   };
   const base = () => ({
     bestFloor: 0, deaths: 0, runs: 0, bestCoins: 0, unlocked: {},
-    medals: 0, weapons: {}, boosts: {}, lastJob: 'warrior', sawStory: true,
+    medals: 0, weapons: {}, perks: {}, boosts: {}, lastJob: 'warrior', sawStory: true,
   });
   // 지금 실제로 돌아가는 장면. window.__scene은 넘어간 뒤에도 직전 장면을
   // 가리킨 채 남으므로 그것으로 판단하면 안 됩니다.
@@ -65,17 +65,41 @@ const check = (ok, label, got) => {
   const rows = await page.evaluate(() => window.__medal.rows.map((r) => ({ x: r.box.x, y: r.box.y })));
   await page.mouse.click(...at(rows[0].x, rows[0].y));
   await page.waitForTimeout(200);
-  check(Object.keys((await save()).boosts).length === 0, '메달 0개로는 아무것도 못 삼');
+  check(Object.keys((await save()).perks.warrior || {}).length === 0,
+    '메달 0개로는 아무것도 못 삼');
 
-  // ── 2. 메달로 산 것은 판이 시작되면 실제로 붙습니다 ────
-  await seed(Object.assign(base(), { medals: 5 }));
+  // ── 2. 메달로 산 것은 **영영 남습니다** ────────────────
+  //
+  // 예전에는 한 판 쓰고 비워졌습니다. 그러면 메달 상점이 매 판 거쳐 가는
+  // 절차가 되고, 죽고 나서 손에 남는 것이 없습니다.
+  await seed(Object.assign(base(), { medals: 9 }));
   await pickWarrior();
   await page.waitForTimeout(700);
-  await page.mouse.click(...at(rows[0].x, rows[0].y)); // 튼튼한 몸 (1메달)
+
+  const shop = await page.evaluate(() => ({
+    items: window.__medal.items.map((i) => ({ key: i.key, price: i.price })),
+    rows: window.__medal.rows.map((r) => ({ x: r.box.x, y: r.box.y })),
+  }));
+  const hpRow = shop.items.findIndex((i) => i.key === 'hp');
+  const hpPrice = shop.items[hpRow].price;
+
+  // 「벼려 둔 자루」는 뺐습니다 — 무기가 주머니가 되면서 "둘째 자루"라는 것이
+  // 더 좋은 것을 뜻하지 않게 됐습니다.
+  check(!shop.items.some((i) => i.key === 'tier'), '「벼려 둔 자루」는 진열에 없음',
+    shop.items.map((i) => i.key).join(', '));
+
+  await page.mouse.click(...at(shop.rows[hpRow].x, shop.rows[hpRow].y));
   await page.waitForTimeout(200);
   const afterBuy = await save();
-  check(afterBuy.medals === 4 && afterBuy.boosts.hp === true,
-    '메달을 쓰면 잔액이 줄고 예약됨', `메달 ${afterBuy.medals} · ${JSON.stringify(afterBuy.boosts)}`);
+  check(afterBuy.medals === 9 - hpPrice && afterBuy.perks.warrior.hp === true,
+    '메달을 쓰면 잔액이 줄고 그 직업에 붙음',
+    `메달 ${afterBuy.medals} · ${JSON.stringify(afterBuy.perks)}`);
+
+  // 같은 것을 또 눌러도 메달이 두 번 나가면 안 됩니다.
+  await page.mouse.click(...at(shop.rows[hpRow].x, shop.rows[hpRow].y));
+  await page.waitForTimeout(200);
+  check((await save()).medals === 9 - hpPrice, '이미 지닌 것은 두 번 안 팔림',
+    '메달 ' + (await save()).medals);
 
   const start = await page.evaluate(() => window.__medal.startAt);
   await page.mouse.click(...at(start.x, start.y));
@@ -84,10 +108,19 @@ const check = (ok, label, got) => {
     maxHp: window.__scene.maxHp, job: window.__scene.job.hp,
     boosts: window.__scene.boosts,
   }));
-  check(inGame.maxHp === inGame.job + 40, '체력 +40이 실제로 붙음',
+  check(inGame.maxHp === inGame.job + 25, '체력 +25가 실제로 붙음',
     `${inGame.job} → ${inGame.maxHp}`);
-  check(Object.keys((await save()).boosts).length === 0,
-    '산 것은 한 판 쓰고 비워짐 (일회성)');
+  check((await save()).perks.warrior.hp === true,
+    '판을 시작해도 안 사라짐 (영구)');
+
+  // **직업마다 따로 쌓입니다.** 전사로 산 것이 궁수에게 붙으면, 새 직업을
+  // 여는 것이 곧 다 갖춘 채로 시작하는 것이 되어 여는 재미가 없어집니다.
+  const perClass = await page.evaluate(() => ({
+    warrior: !!Save.hasPerk('warrior', 'hp'),
+    archer: !!Save.hasPerk('archer', 'hp'),
+  }));
+  check(perClass.warrior && !perClass.archer, '산 것은 그 직업에게만 붙음',
+    `전사 ${perClass.warrior} · 궁수 ${perClass.archer}`);
 
   // ── 3. 죽음 화면 — 메달 받기 ──────────────────────────
   // 판을 억지로 끝냅니다. 상점 두 번 들른 셈 치고 메달 3개를 쥐여 줍니다.
@@ -99,15 +132,18 @@ const check = (ok, label, got) => {
     return s.deathChoices.map((c) => ({ x: c.x, y: c.y }));
   }, medals);
 
+  // 값을 손으로 적지 않고 **죽기 직전 잔액**에서 셉니다. 진열 값이 바뀔
+  // 때마다 여기가 같이 틀리던 자리였습니다.
+  const beforeDeath = (await save()).medals;
   const choices = await die(3);
   check(choices.length === 3, '죽음 화면에 선택지 셋', choices.length);
 
   await page.mouse.click(...at(choices[0].x, choices[0].y)); // 1. 메달 받기
   await page.waitForTimeout(800);
   const afterMedal = await save();
-  check(await scene() === 'medal' && afterMedal.medals === 4 + 3,
+  check(await scene() === 'medal' && afterMedal.medals === beforeDeath + 3,
     '메달 받기 → 상점으로 가고 잔액에 더해짐',
-    `${await scene()} · 메달 ${afterMedal.medals}`);
+    `${await scene()} · 메달 ${beforeDeath} + 3 → ${afterMedal.medals}`);
 
   // ── 4. 무기 계승 ──────────────────────────────────────
   // 도감에 좋은 무기를 하나 심어 두고, 그것을 들고 다시 시작하는지 봅니다.

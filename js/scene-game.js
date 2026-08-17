@@ -47,7 +47,9 @@ class GameScene extends Phaser.Scene {
 
     // 메달 상점에서 사 둔 것과 계승해 온 무기를 여기서 한 번에 바릅니다.
     // 꺼내면 사라집니다 — 전부 이번 판에만 붙는 것들입니다.
-    this.boosts = applyBoosts(this, Save.takeBoosts());
+    // perks 는 이 직업이 메달로 사 둔 것 — **영영 지닌 것**입니다.
+    // boosts 는 이번 판에만 쓰는 것 (죽음 화면의 무기 계승 하나뿐).
+    this.boosts = applyBoosts(this, Save.perksFor(this.job.key), Save.takeBoosts());
     this.noteWeapon(); // 들고 시작한 것이 첫 번째
 
     // 보스 투기장. 여기 있는 동안은 위로 오르지 못하고 좌우로만 움직입니다.
@@ -1609,7 +1611,7 @@ class GameScene extends Phaser.Scene {
 
     if (!this.boosts.length) return;
     const parts = [
-      this.add.text(CFG.width / 2, 300, '메달 상점에서', font(20, '#8794b5')).setOrigin(0.5),
+      this.add.text(CFG.width / 2, 300, '지니고 오른 것', font(20, '#8794b5')).setOrigin(0.5),
       this.add.text(CFG.width / 2, 340, this.boosts.join('   '), font(26, '#ffca28')).setOrigin(0.5),
     ];
     parts.forEach((t) => {

@@ -45,7 +45,9 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
 
   await page.goto('http://localhost:' + port + '/', { waitUntil: 'networkidle' });
   // 잠긴 직업도 시험해야 하므로 해금을 미리 채워 두고 새로고침합니다.
-  // 메달은 MEDALS 로 넘겨서 "몇 번 죽은 뒤"의 상태도 재 볼 수 있습니다.
+  // 메달은 MEDALS 로 넘겨서 "몇 판 지난 뒤"의 상태도 재 볼 수 있습니다.
+  // 메달로 산 것은 이제 그 직업에게 영영 남으므로(js/medals.js), 이 값이 곧
+  // "판을 몇 번 거듭한 사람인가"입니다. 전부 사려면 26 이 듭니다.
   const medals = Number(process.env.MEDALS) || 0;
   // 씨앗을 주면 같은 탑이 다시 만들어집니다. 직업끼리 견줄 때는 반드시 주세요 —
   // 탑이 매번 다르면 직업 차이가 운에 묻힙니다.
@@ -53,7 +55,7 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
   if (seed) await page.evaluate((v) => window.localStorage.setItem('tower-seed', String(v)), seed);
   await page.evaluate((m) => window.localStorage.setItem('tower-climb-v1',
     JSON.stringify({ bestFloor: 0, deaths: 0, runs: 0, bestCoins: 0, medals: m,
-      weapons: {}, boosts: {}, unlocked: { archer: true, rogue: true }, sawStory: true })), medals);
+      weapons: {}, perks: {}, boosts: {}, unlocked: { archer: true, rogue: true }, sawStory: true })), medals);
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1000);
   await shot(page, '00-select.png');
