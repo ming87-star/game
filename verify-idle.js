@@ -56,6 +56,9 @@ const check = (ok, label, got) => {
   await page.waitForTimeout(600);
   const start = await page.evaluate(() => window.__medal.startAt);
   await page.mouse.click(...at(start.x, start.y));
+  // 메달 상점 다음은 무기 도감입니다. 잡혀 있는 자루를 그대로 들고 나갑니다.
+  await page.waitForTimeout(700);
+  await page.evaluate(() => window.__weaponbook && window.__weaponbook.leave());
   await page.waitForTimeout(900);
 
   // ── 설정이 빠지지 않았나 ───────────────────────────────
@@ -148,6 +151,9 @@ const check = (ok, label, got) => {
   await page.waitForTimeout(600);
   const start2 = await page.evaluate(() => window.__medal.startAt);
   await page.mouse.click(...at(start2.x, start2.y));
+  // 메달 상점 다음은 무기 도감입니다. 잡혀 있는 자루를 그대로 들고 나갑니다.
+  await page.waitForTimeout(700);
+  await page.evaluate(() => window.__weaponbook && window.__weaponbook.leave());
   await page.waitForTimeout(900);
 
   // 층이 바뀌면 시계가 0부터 다시 갑니다 — 천천히 노는 것에 값을 매기는 게

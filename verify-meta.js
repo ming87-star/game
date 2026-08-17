@@ -1,5 +1,5 @@
-// 메달과 무기 계승이 실제로 판을 넘어 이어지는지 브라우저에서 확인합니다.
-// 죽음 화면의 세 갈래는 서로 배타적이라, 고르지 않은 쪽은 확실히 사라져야 합니다.
+// 메달과 무기 도감이 실제로 판을 넘어 이어지는지 브라우저에서 확인합니다.
+// 죽음 화면의 두 갈래는 서로 배타적이라, 고르지 않은 쪽은 확실히 사라져야 합니다.
 const { chromium } = require('playwright');
 const http = require('http');
 const fs = require('fs');
@@ -44,7 +44,7 @@ const check = (ok, label, got) => {
   };
   const base = () => ({
     bestFloor: 0, deaths: 0, runs: 0, bestCoins: 0, unlocked: {},
-    medals: 0, weapons: {}, perks: {}, boosts: {}, lastJob: 'warrior', sawStory: true,
+    medals: 0, weapons: {}, perks: {}, startWeapon: {}, lastJob: 'warrior', sawStory: true,
   });
   // 지금 실제로 돌아가는 장면. window.__scene은 넘어간 뒤에도 직전 장면을
   // 가리킨 채 남으므로 그것으로 판단하면 안 됩니다.
@@ -54,6 +54,16 @@ const check = (ok, label, got) => {
 
   // 직업 카드를 눌러 메달 상점으로. 카드는 y 288부터 210 간격입니다.
   const pickWarrior = () => page.mouse.click(...at(270, 288));
+
+  // 메달 상점 → 무기 도감 → 판. 도감은 잡혀 있는 자루를 그대로 들고 나갑니다.
+  const climb = async () => {
+    const start = await page.evaluate(() => window.__medal.startAt);
+    await page.mouse.click(...at(start.x, start.y));
+    await page.waitForTimeout(800);
+    const take = await page.evaluate(() => window.__weaponbook.takeAt);
+    await page.mouse.click(...at(take.x, take.y));
+    await page.waitForTimeout(1000);
+  };
 
   // ── 1. 직업을 고르면 메달 상점을 거칩니다 ──────────────
   await seed(base());
@@ -101,9 +111,7 @@ const check = (ok, label, got) => {
   check((await save()).medals === 9 - hpPrice, '이미 지닌 것은 두 번 안 팔림',
     '메달 ' + (await save()).medals);
 
-  const start = await page.evaluate(() => window.__medal.startAt);
-  await page.mouse.click(...at(start.x, start.y));
-  await page.waitForTimeout(900);
+  await climb();
   const inGame = await page.evaluate(() => ({
     maxHp: window.__scene.maxHp, job: window.__scene.job.hp,
     boosts: window.__scene.boosts,
@@ -136,7 +144,10 @@ const check = (ok, label, got) => {
   // 때마다 여기가 같이 틀리던 자리였습니다.
   const beforeDeath = (await save()).medals;
   const choices = await die(3);
-  check(choices.length === 3, '죽음 화면에 선택지 셋', choices.length);
+  // 셋이었습니다. 가운데의 **무기 계승**은 무기 도감이 대신합니다 —
+  // 밑천이 죽은 판 하나가 아니라 여태 만난 것 전부가 되고, 값으로 메달을
+  // 버릴 이유도 없어졌습니다.
+  check(choices.length === 2, '죽음 화면에 선택지 둘', choices.length);
 
   await page.mouse.click(...at(choices[0].x, choices[0].y)); // 1. 메달 받기
   await page.waitForTimeout(800);
@@ -145,47 +156,64 @@ const check = (ok, label, got) => {
     '메달 받기 → 상점으로 가고 잔액에 더해짐',
     `${await scene()} · 메달 ${beforeDeath} + 3 → ${afterMedal.medals}`);
 
-  // ── 4. 무기 계승 ──────────────────────────────────────
-  // 도감에 좋은 무기를 하나 심어 두고, 그것을 들고 다시 시작하는지 봅니다.
+  // ── 4. 무기 도감 ──────────────────────────────────────
+  // 만난 자루만 고를 수 있고, 고른 것을 그대로 들고 판이 시작되는지 봅니다.
   await seed(Object.assign(base(), {
-    medals: 0, weapons: { warrior: { 3: { plus: 5, mult: 2 } } },
+    medals: 0, weapons: { warrior: { 0: {}, 3: {} } },
   }));
   await pickWarrior();
   await page.waitForTimeout(600);
-  await page.mouse.click(...at((await page.evaluate(() => window.__medal.startAt)).x,
-    (await page.evaluate(() => window.__medal.startAt)).y));
+  const startAt = await page.evaluate(() => window.__medal.startAt);
+  await page.mouse.click(...at(startAt.x, startAt.y));
   await page.waitForTimeout(900);
+  check(await scene() === 'weaponbook', '메달 상점 → 무기 도감으로 넘어감', await scene());
 
-  // 계승은 이제 무작위가 아니라 "이번 판에서 두 번째로 얻은 무기"로 고정입니다.
-  // 그러려면 이 판에서 무기를 두 번은 손에 넣어야 합니다.
-  await page.evaluate(() => {
-    const s = window.__scene;
-    s.weapon.swapTo(s.weapon.table[2]); s.noteWeapon();   // 둘째 무기
-    s.weapon.addPlus(); s.weapon.addPlus();
-    s.weapon.swapTo(s.weapon.table[4]); s.noteWeapon();   // 셋째 — 계승 대상이 아니어야 합니다
-    s.weapon.haste = 9;                   // 속도는 넘어가면 안 됩니다
+  const book = await page.evaluate(() => {
+    const b = window.__weaponbook;
+    return {
+      total: b.pool.length,
+      found: b.cells.filter((c) => c.has).map((c) => c.index),
+      locked: b.cells.find((c) => !c.has),
+      pick: b.cells.find((c) => c.index === 3),
+    };
   });
-  const choices2 = await die(2);
-  const rolled = await page.evaluate(() => window.__scene.deathCarry);
-  const got = await page.evaluate(() => window.__save.data.lastRun.got);
-  check(rolled && rolled.index === got[1].index,
-    '계승은 이번 판의 두 번째 무기로 고정',
-    `얻은 순서 ${got.map((w) => w.index).join('→')} · 계승 ${rolled && rolled.index}번 자루`);
-  await page.mouse.click(...at(choices2[1].x, choices2[1].y)); // 2. 무기 계승
+  check(book.total === 24 && book.found.join(',') === '0,3',
+    '만난 자루만 열려 있음', book.found.join(',') + ' / ' + book.total + '자루');
+
+  // 못 만난 칸을 눌러도 아무 일이 없어야 합니다.
+  await page.mouse.click(...at(book.locked.box.x, book.locked.box.y));
+  await page.waitForTimeout(150);
+  check(await page.evaluate(() => window.__weaponbook.picked) !== book.locked.index,
+    '못 만난 칸은 눌러도 안 잡힘');
+
+  await page.mouse.click(...at(book.pick.box.x, book.pick.box.y));
+  await page.waitForTimeout(200);
+  const take = await page.evaluate(() => window.__weaponbook.takeAt);
+  await page.mouse.click(...at(take.x, take.y));
   await page.waitForTimeout(1000);
   const carried = await page.evaluate(() => {
     const w = window.__scene.weapon;
     return { index: w.index, plus: w.plus, mult: w.mult, haste: w.haste, name: w.name };
   });
-  check(await scene() === 'game' && carried.index === rolled.index &&
-    carried.plus === rolled.plus,
-    '고른 무기를 그대로 들고 새 판이 시작됨',
-    `계승 ${JSON.stringify(rolled)} → ${carried.name} +${carried.plus}`);
-  // 공격 속도는 무기가 아니라 손에 붙는 것이라 판이 끝나면 사라져야 합니다.
-  check(carried.haste === 0 && carried.mult === 1,
-    '공격 속도는 계승되지 않음 (무기에 붙는 것이 아님)',
-    `속 ${carried.haste} · ×${carried.mult}`);
-  check((await save()).medals === 0, '계승을 고르면 그 판의 메달은 버려짐', (await save()).medals);
+  check(await scene() === 'game' && carried.index === 3,
+    '고른 자루를 그대로 들고 판이 시작됨', carried.name + ' (' + carried.index + '번)');
+  // 강화는 안 딸려 옵니다. 도감이 넘기는 것은 **자루 하나**뿐입니다 —
+  // 강화까지 넘기면 도감이 매 판 공짜 밑천이 됩니다.
+  check(carried.plus === 0 && carried.haste === 0 && carried.mult === 1,
+    '강화는 안 딸려 옴 (자루만)', `+${carried.plus} 속${carried.haste} ×${carried.mult}`);
+  check((await save()).startWeapon.warrior === 3, '고른 자루가 저장에 남음 (다음에 잡혀 있게)');
+
+  // 만나면 도감에 적힙니다. **갈아타지 않고 그냥 둬도** 적혀야 합니다 —
+  // 창이 떴다는 것은 그 자루를 만났다는 뜻입니다.
+  await page.evaluate(() => {
+    const s = window.__scene;
+    s.offerWeapon(s.weapon.table[7]);
+  });
+  await page.waitForTimeout(700);
+  await page.evaluate(() => window.__swap.choose(false));
+  await page.waitForTimeout(500);
+  check((await save()).weapons.warrior['7'] !== undefined,
+    '그냥 두기로 해도 만난 것으로 적힘');
 
   // ── 5. 이어서 진행하기 ────────────────────────────────
   // 상점에 한 번도 안 닿았으면 고를 수 없어야 합니다.
@@ -197,9 +225,9 @@ const check = (ok, label, got) => {
     s.gameOver();
     return s.deathChoices.length;
   });
-  check(noShop === 3, '상점에 안 닿았어도 선택지는 셋 (세 번째는 잠김)', noShop);
+  check(noShop === 2, '상점에 안 닿았어도 선택지는 둘 (둘째는 잠김)', noShop);
   const stuck = await page.evaluate(() => {
-    const c = window.__scene.deathChoices[2];
+    const c = window.__scene.deathChoices[1];
     return { x: c.x, y: c.y };
   });
   await page.mouse.click(...at(stuck.x, stuck.y));
@@ -228,7 +256,7 @@ const check = (ok, label, got) => {
     medals: window.__save.medals, continues: window.__scene.continues,
   }));
   const c3 = await page.evaluate(() => {
-    const c = window.__scene.deathChoices[2];
+    const c = window.__scene.deathChoices[1];
     return { x: c.x, y: c.y };
   });
   await page.mouse.click(...at(c3.x, c3.y));
@@ -272,7 +300,7 @@ const check = (ok, label, got) => {
     s.resumePoint.continues = s.continues;
     s.medals = 3;
     s.gameOver();
-    const box = s.deathChoices[2];
+    const box = s.deathChoices[1];
     return { max: CFG.continues.max, x: box.x, y: box.y };
   });
   await page.mouse.click(...at(limit.x, limit.y));
@@ -343,7 +371,7 @@ const check = (ok, label, got) => {
   check([rec.fullHp, rec.capped, rec.tooPoor, rec.hurt, rec.sold].every((r) => r.length <= 1),
     '표는 늘 한 칸에만 붙음');
 
-  console.log(bad ? `\n${bad}건 어긋남` : '\n메달·계승 흐름 모두 맞음');
+  console.log(bad ? `\n${bad}건 어긋남` : '\n메달·도감 흐름 모두 맞음');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
   await browser.close();
   server.close();

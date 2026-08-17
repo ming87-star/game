@@ -82,10 +82,15 @@ const check = (ok, label, got) => {
   const medal = await page.evaluate(() => (window.__medal ? window.__medal.startAt : null));
   check(!!medal, '직업을 고르면 메달 상점으로', medal ? JSON.stringify(medal) : '안 넘어감');
 
-  // 3. 「탑에 오르기」 → 실제로 판이 시작되는가
+  // 3. 「무기 고르기」 → 무기 도감 → 실제로 판이 시작되는가
   //    여기가 핵심입니다. 장면이 안 뜨면 버튼이 안 먹는 것처럼 보입니다.
   if (medal) {
     await page.mouse.click(medal.x, medal.y);
+    await page.waitForTimeout(900);
+    const book = await page.evaluate(() => (window.__weaponbook
+      ? window.__weaponbook.takeAt : null));
+    check(!!book, '메달 상점에서 무기 도감으로', book ? JSON.stringify(book) : '안 넘어감');
+    if (book) await page.mouse.click(book.x, book.y);
     await page.waitForTimeout(1600);
   }
   const started = await page.evaluate(() => ({

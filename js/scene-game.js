@@ -14,6 +14,9 @@ class GameScene extends Phaser.Scene {
     Save.setJob(this.job.key);
     // 「이어서 진행하기」로 들어왔으면 직전 상점을 나서던 자리를 그대로 물려받습니다.
     this.resume = (data && data.resume) || null;
+    // 무기 도감에서 골라 온 자루의 번호 (js/scene-weaponbook.js).
+    // 이어서 진행하기로 들어올 때는 그 판의 자루를 그대로 쓰므로 무시됩니다.
+    this.startWeapon = (data && data.weaponIndex !== undefined) ? data.weaponIndex : null;
   }
 
   // 그려 둔 그림을 먼저 굽습니다. create 의 buildTextures 는 이미 있는 키를
@@ -41,20 +44,22 @@ class GameScene extends Phaser.Scene {
     // 회피도 판 안에서 자랍니다 (갑옷을 안 입는 직업의 '회' 아이템).
     this.dodge = this.job.dodge || 0;
     this.dodgeMax = this.job.dodgeMax || this.dodge;
-    // 이번 판에서 손에 넣은 무기를 얻은 순서대로. 죽음 화면의 계승이 둘째를 씁니다.
-    this.gotWeapons = [];
     this.coins = 0;
     this.totalCoins = 0;
     this.kills = 0;
     this.medals = 0; // 이번 판에 번 메달. 죽을 때 받을지 말지 고릅니다.
+    this.medalBand = 0; // 메달을 받은 가장 깊은 100층 띠 (checkMedalFloor)
     this.charm = false; // 수호 부적 — 상점에서만 삽니다. 쓰러질 때 한 번 버팁니다
 
-    // 메달 상점에서 사 둔 것과 계승해 온 무기를 여기서 한 번에 바릅니다.
-    // 꺼내면 사라집니다 — 전부 이번 판에만 붙는 것들입니다.
-    // perks 는 이 직업이 메달로 사 둔 것 — **영영 지닌 것**입니다.
-    // boosts 는 이번 판에만 쓰는 것 (죽음 화면의 무기 계승 하나뿐).
-    this.boosts = applyBoosts(this, Save.perksFor(this.job.key), Save.takeBoosts());
-    this.noteWeapon(); // 들고 시작한 것이 첫 번째
+    // 도감에서 골라 온 자루. 고르지 않았으면 그 직업의 첫 자루입니다
+    // (js/scene-weaponbook.js). 강화는 안 딸려 옵니다 — 자루만 넘어옵니다.
+    if (this.startWeapon !== null && this.weapon.table[this.startWeapon]) {
+      this.weapon.index = this.startWeapon;
+    }
+
+    // 메달 상점에서 사 둔 것을 바릅니다. **직업마다 영영 지닌 것**입니다.
+    this.boosts = applyBoosts(this, Save.perksFor(this.job.key));
+    this.noteWeapon(); // 들고 시작한 자루도 도감에 적힙니다
 
     // 보스 투기장. 여기 있는 동안은 위로 오르지 못하고 좌우로만 움직입니다.
     this.bossFight = false;
@@ -175,7 +180,9 @@ class GameScene extends Phaser.Scene {
       coins: this.coins, totalCoins: this.totalCoins,
       kills: this.kills,
       continues: this.continues,
-      gotWeapons: this.gotWeapons.map((g) => ({ index: g.index, plus: g.plus })),
+      // 이번 판에서 이미 메달을 받은 가장 깊은 띠. 안 챙기면 이어서 진행할
+      // 때마다 그 아래 100층들을 다시 지나며 메달이 또 들어옵니다.
+      medalBand: this.medalBand,
       seenTypes: [...this.seenTypes],
       gatesShown: [...this.gatesShown],
       weapon: {
@@ -198,7 +205,7 @@ class GameScene extends Phaser.Scene {
     this.coins = r.coins;
     this.totalCoins = r.totalCoins;
     this.kills = r.kills;
-    this.gotWeapons = r.gotWeapons.map((g) => ({ index: g.index, plus: g.plus }));
+    this.medalBand = r.medalBand || Math.floor(r.floor / CFG.medal.per);
     this.seenTypes = new Set(r.seenTypes);
     // 이미 본 알림은 다시 안 띄웁니다. 150층 상점에서 이어서 시작하는데
     // "이제 함정이 섞입니다"가 또 뜨면 새 소식이 아니라 잡음입니다.
@@ -591,7 +598,7 @@ class GameScene extends Phaser.Scene {
       if (this.shop.open) return; // 상점 버튼은 상점이 직접 받습니다
       if (this.time.now < this.tapBlockedUntil) return;
       // 죽은 뒤에는 아무 데나 눌러 다시 시작할 수 없습니다. 무엇을 가져갈지
-      // 세 갈래 중 하나를 골라야 하고, 그 버튼들이 직접 입력을 받습니다.
+      // 갈래 중 하나를 골라야 하고, 그 버튼들이 직접 입력을 받습니다.
       if (this.dead) return;
 
       // 일시정지 단추. 화면 전체가 이동 입력을 받으므로, 단추에 따로
@@ -689,6 +696,7 @@ class GameScene extends Phaser.Scene {
         // (그냥 두면 죽은 뒤에 회복 아이템을 먹어 체력이 되살아납니다)
         if (this.dead) return;
         this.floorIndex = next.index;
+        this.checkMedalFloor();
         this.checkFloorGates();
         this.lane = slot.lane;
         // 층이 바뀌었으니 "가만히 있는 것"의 시계도 다시 0부터입니다.
@@ -1039,11 +1047,9 @@ class GameScene extends Phaser.Scene {
     this.enemyBullets.clear(true, true);
     this.subTarget = null;
 
-    // 상점에 닿는 것 자체가 메달 수입입니다. 즉 "얼마나 높이 올라갔나"가 곧
-    // 다음 판의 밑천이 됩니다. 큰 상점은 두 개.
-    const gain = isBigShopFloor(this.floorIndex) ? CFG.medal.perBigShop : CFG.medal.perShop;
-    this.medals += gain;
-    this.popup('🏅 +' + gain, '#ffca28');
+    // 메달은 여기서 안 줍니다 — **100층마다 층에 걸려 있습니다**
+    // (아래 checkMedalFloor). 상점 도착에 걸려 있던 시절에는 200·400층이
+    // 상점이 아니라 투기장이라 그 판이 조용히 건너뛰어졌습니다.
 
     // 큰 상점은 도착만 해도 체력을 돌려줍니다. 화면에서 바로 알 수 있게 띄웁니다.
     this.bigShopHeal = 0;
@@ -1427,23 +1433,35 @@ class GameScene extends Phaser.Scene {
     });
   }
 
-  // ── 필드에서 무기를 만났을 때 ─────────────────────────
+  // ── 무기를 만났을 때 ──────────────────────────────────
   // **판을 멈추고 고릅니다.** 갈아타면 쌓아 둔 강화가 전부 날아가므로,
   // 지나가면서 저절로 바뀌어서는 안 되는 결정입니다.
-  offerWeapon(entry) {
+  //
+  // 상점의 무기 칸도 이 문을 지납니다 (js/shop.js 의 buy). 예전에는 상점에서만
+  // 곧장 갈아탔습니다 — "값을 치르고 고르는 자리니 또 묻는 것은 같은 질문을
+  // 두 번 하는 셈"이라고 여겼는데, 실제로는 **상점 쪽이 더 물어봐야 하는
+  // 자리**였습니다. 필드에서는 잃는 것이 강화뿐이지만 상점에서는 코인까지
+  // 함께 나가는데, 진열의 한 줄만 보고는 두 자루를 견줄 수가 없습니다.
+  //
+  // opts.price 가 있으면 값을 함께 적고, opts.done 은 고른 뒤에 부릅니다.
+  offerWeapon(entry, opts) {
+    const o = opts || {};
     if (!entry) return;
     // 이미 든 자루와 같으면 고를 것이 없습니다. 회복으로 대신합니다 —
     // 밟았는데 아무 일도 안 일어나면 밟은 사람은 버그로 읽습니다.
     if (entry.index === this.weapon.index) {
       this.hp = Math.min(this.maxHp, this.hp + CFG.heal);
       this.popup('+' + CFG.heal, '#a5d6a7');
+      if (o.done) o.done(false);
       return;
     }
+    this.noteWeapon(entry); // 만난 것은 그 자리에서 도감에 적힙니다
+    this.swapDone = o.done || null;
     // 화면을 통째로 덮으므로 떠 있던 알림은 걷어냅니다. 안 걷으면 장면이
     // 멈춘 동안 시계도 멈춰서, 덮개 밑에 글자가 얼어붙은 채로 남습니다.
     this.clearNotices();
     this.scene.pause();
-    this.scene.launch('swap', { from: this, entry });
+    this.scene.launch('swap', { from: this, entry, price: o.price });
   }
 
   // 갈아타기 창이 「바꾼다」를 누르면 여기로 돌아옵니다.
@@ -1757,13 +1775,14 @@ class GameScene extends Phaser.Scene {
     this.cameras.main.shake(120, 0.006);
   }
 
-  // 무기를 손에 넣을 때마다 부릅니다. 죽음 화면의 계승은 여기 둘째를 씁니다.
-  // 같은 단계를 두 번 세지 않도록, 단계가 실제로 바뀌었을 때만 적습니다.
-  noteWeapon() {
-    const w = this.weapon;
-    const last = this.gotWeapons[this.gotWeapons.length - 1];
-    if (last && last.index === w.index) return;
-    this.gotWeapons.push({ index: w.index, plus: w.plus });
+  // 무기를 손에 넣거나 만날 때마다 부릅니다. **도감에 「만났다」고 적습니다**
+  // (js/scene-weaponbook.js). 다음 판에 들고 오를 수 있는 것은 여기 적힌 것뿐입니다.
+  //
+  // 갈아타지 않아도 적습니다 — 창이 떴다는 것은 그 자루를 만났다는 뜻이고,
+  // 그때 그냥 두기로 한 것이 다음 판에 그것을 못 쓸 이유는 아닙니다.
+  noteWeapon(entry) {
+    const w = entry || this.weapon;
+    Save.findWeapon(this.job.key, w.index);
   }
 
   // 지도에 떨어진 메달. 상점에서 받는 것과 값은 같지만 만나는 일이 거의 없어서,
@@ -1910,10 +1929,14 @@ class GameScene extends Phaser.Scene {
     }
 
     const key = rollChestLoot(this);
-    applyShopEffect(this, key);
     this.popup(SHOP_ITEMS[key].title, '#ffd54f');
-    this.hud.update();
     this.treasureFx(slot.x, slot.y, false);
+    // 상자에서 자루가 나왔으면 그것도 견주어 보고 고릅니다 (값은 없습니다).
+    // 이펙트를 먼저 터뜨리고 창을 띄웁니다 — 창이 뜨면 판이 멈춰서 그동안
+    // 이펙트가 얼어붙는데, 창을 닫는 순간 남은 몫이 마저 흘러갑니다.
+    if (key === 'upgrade') return this.offerWeapon(this.shopWeapon);
+    applyShopEffect(this, key);
+    this.hud.update();
   }
 
   // 화면을 가득 채우는 화려한 이펙트. 유물이 들어 있었으면 황금빛입니다 —
@@ -2247,6 +2270,24 @@ class GameScene extends Phaser.Scene {
   // 앞 층을 건너뛰면 밀린 알림이 한꺼번에 조건을 만족합니다. 그때 글자가
   // 그대로 포개져서 아무것도 안 읽힙니다. 밀린 것은 다음 층으로 미룹니다 —
   // 규칙은 어차피 알린 뒤에야 켜지므로, 한 층 늦는 것이 겹쳐 읽히는 것보다 낫습니다.
+  // ── 메달은 100층마다 하나 ──────────────────────────────
+  //
+  // **버는 길은 오르는 것 하나뿐입니다.** 예전에는 상점에 닿을 때마다 줬는데
+  // (50층 하나 · 100층 둘) 메달 상점이 영구 해금으로 바뀌면서 값이 달라졌습니다 —
+  // 한 직업을 다 여는 데 스물여섯인데 400층 한 판에 여섯이 들어오면 며칠 만에
+  // 다 열리고, 그러면 죽어도 또 켤 이유가 없어집니다.
+  //
+  // **띠로 셉니다** (층 ÷ 100). 층 번호를 그대로 보고 「100의 배수면 준다」로
+  // 하면 이어서 진행하기로 100층에 되돌아왔을 때 또 받습니다. 이번 판에서
+  // 가장 깊이 지난 띠를 기억해 두면 되돌아와도 다시 안 줍니다.
+  checkMedalFloor() {
+    const band = Math.floor(this.floorIndex / CFG.medal.per);
+    if (band <= this.medalBand) return;
+    this.medalBand = band;
+    this.medals += CFG.medal.amount;
+    this.popup('🏅 +' + CFG.medal.amount, '#ffca28');
+  }
+
   checkFloorGates() {
     if (this.time.now < (this.gateUntil || 0)) return;
     const gate = this.floorGates().find((g) =>
@@ -2398,10 +2439,8 @@ class GameScene extends Phaser.Scene {
     // 사람을 끊어 놓습니다.
     this.justOpened = opened.map((job) => job.key);
     Save.finishRun(this.floorIndex, this.totalCoins);
-    // 죽을 때 들고 있던 무기도 도감에 남깁니다 (구경용).
+    // 죽을 때 들고 있던 자루의 상태를 도감에 남깁니다.
     this.weapon.record();
-    // 그리고 이번 판에 손에 넣은 순서를 남깁니다 — 다음 판의 계승이 여기 둘째를 씁니다.
-    Save.setLastRun(this.job.key, this.gotWeapons);
     this.physics.pause();
     this.enemies.getChildren().forEach((e) => e.setTint(0x555555));
 
@@ -2457,18 +2496,19 @@ class GameScene extends Phaser.Scene {
   }
 
   // ── 죽고 나서 무엇을 가져갈까 ─────────────────────────
-  // 셋 중 하나만 고릅니다. 메달을 받지 않으면 이번 판에 번 메달은 사라집니다.
-  // 그래서 "무기 계승"과 "이어서 진행"에는 값이 붙습니다 — 고민이 생기는 자리입니다.
+  // **둘 중 하나입니다.** 메달을 받지 않으면 이번 판에 번 메달은 사라지므로,
+  // 「이어서 진행」에는 그만큼의 값이 붙습니다 — 거기서 고민이 생깁니다.
   // 잃는 것은 버튼에 그대로 적어 둡니다. 모르고 눌러서 잃으면 그건 함정입니다.
   //
-  // 세 번째는 원래 「직업 바꾸기」였습니다. 그런데 메달을 받고 메달 상점에 가면
-  // 거기에 「직업 다시 고르기」가 있습니다 — 메달을 통째로 버려 가며 직업을
-  // 바꿀 이유가 없었으니, 값을 치를 값어치가 있는 것으로 바꿨습니다.
+  // 예전에는 셋이었습니다. 가운데가 **무기 계승** — 직전 판에서 두 번째로
+  // 얻은 자루를 메달을 버리고 한 번 더 쓰는 것이었습니다. 그 자리는 이제
+  // **무기 도감**이 대신합니다 (js/scene-weaponbook.js). 판을 시작하기 전에
+  // 만나 본 자루 중에서 고르는 편이 훨씬 낫습니다 — 무엇을 들고 오를지가
+  // 죽은 판의 운이 아니라 **모아 온 것 전부**에서 나오고, 값으로 메달을
+  // 버릴 이유도 없습니다.
+  //
   // 죽음 화면을 떠나는 유일한 문. 이번 판에 누군가가 열렸으면 그 만남을
   // 먼저 보여 주고, 끝나면 원래 가려던 곳으로 이어 줍니다 (js/scene-meet.js).
-  //
-  // 세 갈래가 저마다 scene.start 를 부르던 것을 여기 하나로 모았습니다 —
-  // 갈래마다 따로 챙기면 언젠가 한 곳을 빠뜨립니다.
   leaveDeath(key, data) {
     if (this.justOpened && this.justOpened.length) {
       const jobs = this.justOpened;
@@ -2481,11 +2521,6 @@ class GameScene extends Phaser.Scene {
   buildDeathChoices(add, font, cx) {
     const earned = this.medals;
     const cost = earned ? '이번 판 메달 ' + earned + '개를 버립니다' : '이번 판에 번 메달은 없습니다';
-    // 계승할 무기는 이번 판에서 **두 번째로 손에 넣은 것**으로 고정입니다.
-    // 예전에는 도감에서 아무거나 뽑았는데, 운 좋게 좋은 것이 뜬 판은 시작부터
-    // 밸런스가 무너졌습니다. 둘째로 고정하면 값어치가 늘 같습니다.
-    const carry = Save.carryWeapon(this.job.key);
-    this.deathCarry = carry; // 자동 시험에서 "고른 것"과 "들고 시작한 것"을 맞춰 보는 통로
 
     // 이어서 진행하기 — 상점에 한 번은 닿아야 하고, 판마다 두 번까지입니다.
     const left = CFG.continues.max - this.continues;
@@ -2499,7 +2534,7 @@ class GameScene extends Phaser.Scene {
         ? '이어서 진행은 한 판에 ' + CFG.continues.max + '번까지입니다'
         : cost + '   ·   남은 횟수 ' + left + '번';
 
-    add(this.add.text(cx, 386, '무엇을 가져갈까', font(24, '#ffffff')).setOrigin(0.5));
+    add(this.add.text(cx, 470, '무엇을 가져갈까', font(24, '#ffffff')).setOrigin(0.5));
 
     const choice = (y, color, title, sub, enabled, onPick) => {
       const box = add(this.add.rectangle(cx, y, 450, 104,
@@ -2515,22 +2550,13 @@ class GameScene extends Phaser.Scene {
 
     this.deathChoices = [
       // 1 — 번 메달을 받고 상점으로. 쌓아 둔 메달도 여기서만 쓸 수 있습니다.
-      choice(470, 0xffca28, '🏅 메달 ' + earned + '개 받기',
+      choice(570, 0xffca28, '🏅 메달 ' + earned + '개 받기',
         '메달 상점으로 갑니다  (가진 메달 ' + Save.medals + ')', true, () => {
           Save.addMedals(earned);
           this.leaveDeath('medal', { jobKey: this.job.key, earned });
         }),
 
-      // 2 — 도감에서 무작위로 뽑힌 한 자루. 무엇이 나왔는지 보고 고릅니다.
-      //     좋은 것이 뜨면 메달을 버릴 값어치가 있고, 아니면 1번이 낫습니다.
-      choice(590, 0xff8a65,
-        carry ? this.carryName(carry) + ' 들고 다시' : '계승할 무기 없음',
-        carry ? cost : '이번 판에 무기를 두 번은 손에 넣어야 합니다', !!carry, () => {
-          Save.setBoost('weapon', carry);
-          this.leaveDeath('game', { jobKey: this.job.key });
-        }),
-
-      // 3 — 마지막으로 들른 상점을 나서던 자리로. 무기도 유물도 코인도 그대로입니다.
+      // 2 — 마지막으로 들른 상점을 나서던 자리로. 무기도 유물도 코인도 그대로입니다.
       //     값은 이번 판에 번 메달 전부, 그리고 판마다 두 번뿐이라는 것.
       choice(710, 0x4dd0e1, resumeTitle, resumeSub, canResume, () => {
         this.leaveDeath('game', {
@@ -2539,22 +2565,6 @@ class GameScene extends Phaser.Scene {
         });
       }),
     ];
-
-    // 계승할 무기의 그림. 이름 옆에 붙여 두면 다음 판 HUD에 뜰 그림과 같아서,
-    // 무엇을 들고 시작하는지가 고르는 자리에서 이미 보입니다.
-    if (carry) {
-      const idx = Math.min(this.weapon.table.length - 1, carry.index || 0);
-      add(this.add.image(cx - 178, 590, weaponIconKey(this.job.key, idx))
-        .setDisplaySize(46, 46));
-    }
-  }
-
-  // 계승할 무기를 사람이 읽을 이름으로. 공격 속도는 넘어가지 않으므로 적지 않습니다 —
-  // 속도는 무기가 아니라 손에 붙는 것입니다.
-  carryName(carry) {
-    const table = this.weapon.table;
-    const base = table[Math.min(table.length - 1, carry.index || 0)];
-    return base.name + (carry.plus ? ' +' + carry.plus : '');
   }
 
   // ── 매 프레임 ─────────────────────────────────────────

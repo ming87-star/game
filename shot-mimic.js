@@ -21,6 +21,10 @@ const server = http.createServer((req, res) => {
   await page.mouse.click(270 * 0.75, 278 * 0.75); await page.waitForTimeout(600);
   const st = await page.evaluate(() => window.__medal.startAt);
   await page.mouse.click(st.x * 0.75, st.y * 0.75); await page.waitForTimeout(900);
+  // 메달 상점 다음은 무기 도감입니다. 잡혀 있는 자루를 그대로 들고 나갑니다.
+  await page.waitForTimeout(700);
+  await page.evaluate(() => window.__weaponbook && window.__weaponbook.leave());
+  await page.waitForTimeout(900);
 
   // 바로 위 층(2층 안 → 드러남)과 네 층 위(아직 안 드러남)에 각각 진짜/가짜를 놓습니다.
   await page.evaluate(() => {

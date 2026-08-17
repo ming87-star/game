@@ -50,10 +50,7 @@ function applyShopEffect(scene, key) {
     // 지도에서는 하나씩, 상점에서는 뭉치로. 그것이 상점의 값어치입니다.
     case 'plus': for (let i = 0; i < CFG.shop.bundle.plus; i++) s.weapon.addPlus(); break;
     case 'haste': for (let i = 0; i < CFG.shop.bundle.haste; i++) s.weapon.addHaste(); break;
-    // 상점의 무기 칸. 진열을 펼칠 때 굴려 둔 자루로 곧장 갈아탑니다 —
-    // 상점은 이미 판이 멈춰 있고 값을 치르고 고르는 자리라, 여기서 또
-    // 갈아탈지 묻는 창을 띄우면 같은 질문을 두 번 하는 셈입니다.
-    case 'upgrade': if (s.weapon.swapTo(s.shopWeapon)) s.noteWeapon(); break;
+    // 상점의 무기 칸은 여기 없습니다 — 아래 buy 가 갈아타기 창으로 넘깁니다.
     case 'heal': s.hp = s.maxHp; break;
     case 'maxhp':
       s.maxHp += CFG.shop.maxhpGain;
@@ -330,6 +327,29 @@ class Shop {
   buy(offer) {
     const s = this.scene;
     if (offer.sold || s.coins < offer.price) return;
+
+    // ── 무기만은 견주어 보고 삽니다 ──────────────────────
+    //
+    // 예전에는 여기서 곧장 갈아탔습니다. "상점은 값을 치르고 고르는 자리이니
+    // 또 묻는 것은 같은 질문을 두 번 하는 셈"이라고 여겼는데, 거꾸로였습니다 —
+    // **상점 쪽이 더 물어봐야 하는 자리**입니다. 필드에서는 강화만 잃지만
+    // 여기서는 코인까지 함께 나가는데, 진열의 한 줄로는 두 자루를 견줄 수가
+    // 없습니다. 필드와 같은 창을 띄웁니다 (js/scene-swap.js).
+    //
+    // **코인은 「산다」를 눌렀을 때만 나갑니다.** 먼저 빼 두고 되돌리는 길도
+    // 있지만, 되돌리기를 한 군데라도 빠뜨리면 사지도 않은 값을 물게 됩니다.
+    if (offer.key === 'upgrade') {
+      s.offerWeapon(s.shopWeapon, {
+        price: offer.price,
+        done: (took) => {
+          if (!took) return;
+          s.coins -= offer.price;
+          offer.sold = true;
+          this.refresh();
+        },
+      });
+      return;
+    }
 
     s.coins -= offer.price;
     offer.sold = true;

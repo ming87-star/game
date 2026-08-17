@@ -731,5 +731,27 @@ function buildWeaponIcons(scene) {
     });
   });
 
+  // ── 아직 못 만난 자루 ──────────────────────────────────
+  // 도감의 빈칸입니다 (js/scene-weaponbook.js). 그림을 아예 안 놓으면
+  // 빈칸이 그냥 빈 상자라 "여기 뭔가 들어올 자리"라는 것이 안 읽힙니다.
+  // 물음표 하나로 두되, 만난 자루의 그림보다 확실히 어둡게 그립니다.
+  if (!scene.textures.exists('w-unknown')) {
+    g.clear();
+    const c = ICON.size / 2;
+    const q = ICON.size * 0.2;
+    g.lineStyle(ICON.weight * 1.8, 0x5a6790, 1);
+    // 위쪽 갈고리와 아래로 내려오는 획, 그리고 점 하나.
+    g.beginPath();
+    g.arc(c, c - q * 0.75, q * 0.9, Math.PI * 0.95, Math.PI * 0.3, false);
+    g.strokePath();
+    g.beginPath();
+    g.moveTo(c + q * 0.64, c - q * 0.36);
+    g.lineTo(c, c + q * 0.45);
+    g.strokePath();
+    g.fillStyle(0x5a6790, 1);
+    g.fillCircle(c, c + q * 1.3, ICON.weight * 1.6);
+    g.generateTexture('w-unknown', ICON.size, ICON.size);
+  }
+
   g.destroy();
 }

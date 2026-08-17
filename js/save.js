@@ -12,16 +12,17 @@ function blankSave() {
     bestFloor: 0, deaths: 0, runs: 0, bestCoins: 0,
     unlocked: {},
     medals: 0,
-    // 직업별 무기 도감. { warrior: { 2: { plus: 6, mult: 2 } } }
-    // 단계마다 "가장 좋았던 상태"만 남깁니다. 유물 도감처럼 구경하는 용도입니다.
+    // 직업별 무기 도감. { warrior: { 2: { plus: 6, mult: 2, haste: 3 } } }
+    // **여기 적힌 것이 곧 "만나 본 자루"입니다** — 판을 시작하기 전에 이 중에서
+    // 하나를 골라 들고 오릅니다 (js/scene-weaponbook.js). 값은 그 자루를
+    // 가장 잘 벼렸던 상태로, 도감에 구경거리로 적힙니다.
     weapons: {},
-    // 직전 판에서 손에 넣은 무기들 (얻은 순서). 죽음 화면의 계승이 여기 둘째를 씁니다.
-    lastRun: { job: '', got: [] },
+    // 직업마다 마지막으로 골라 들고 오른 자루. 매번 같은 것으로 오르는
+    // 사람에게 다시 고르게 하면 그건 고르기가 아니라 절차입니다.
+    startWeapon: {},
     // 메달 상점에서 산 것. **직업마다 영영 남습니다.**
     //   { warrior: { hp: true, coins: true }, archer: {} }
     perks: {},
-    // 다음 판에 딱 한 번 들고 갈 것. 지금은 무기 계승 하나뿐입니다.
-    boosts: {},
     // 유물 도감. 한 번이라도 가져간 것은 여기 남습니다.
     relics: {},
     lastJob: 'warrior',
@@ -96,7 +97,46 @@ const Save = {
   },
 
   // ── 무기 도감 ─────────────────────────────────────────
-  // 들었던 무기를 자루별로 기록합니다. 같은 자루를 다시 들었을 때는
+  // 만난 적 있는 자루를 적어 둡니다. **적히는 순간 다음 판에 들고 오를 수
+  // 있게 됩니다** — 그것이 이 기록의 가장 큰 쓰임입니다.
+  //
+  // 「만났다」는 손에 쥔 것만이 아니라 **갈아타기 창이 떴다**는 것도 셉니다.
+  // 그 자리에서 그냥 두기로 한 것이, 다음 판에 그 자루를 못 쓸 이유는 아닙니다.
+  findWeapon(jobKey, index) {
+    const book = this.data.weapons[jobKey] || (this.data.weapons[jobKey] = {});
+    if (book[index]) return false;
+    book[index] = { plus: 0, mult: 1, haste: 0 };
+    this.flush();
+    return true;
+  },
+
+  // **첫 자루는 언제나 만난 것으로 칩니다.** 처음 켠 사람의 도감이 통째로
+  // 비어 있으면 「무엇을 들고 오를까」에 고를 것이 하나도 없습니다 —
+  // 그 판을 시작하면 어차피 손에 쥐게 되는 자루라, 비워 둘 이유가 없습니다.
+  foundWeapons(jobKey) {
+    const book = this.data.weapons[jobKey] || (this.data.weapons[jobKey] = {});
+    if (!book[0]) book[0] = { plus: 0, mult: 1, haste: 0 };
+    return book;
+  },
+
+  hasWeapon(jobKey, index) {
+    return !!this.foundWeapons(jobKey)[index];
+  },
+
+  // 도감에서 골라 둔 자루. 없으면 그 직업의 첫 자루(0)입니다 —
+  // 첫 자루는 언제나 만난 것이라 빈손으로 오르는 판이 없습니다.
+  startWeapon(jobKey) {
+    const at = this.data.startWeapon || (this.data.startWeapon = {});
+    return at[jobKey] || 0;
+  },
+
+  setStartWeapon(jobKey, index) {
+    const at = this.data.startWeapon || (this.data.startWeapon = {});
+    at[jobKey] = index || 0;
+    this.flush();
+  },
+
+  // 들었던 무기의 상태를 자루별로 기록합니다. 같은 자루를 다시 들었을 때는
   // 더 좋았던 쪽만 남깁니다 — "가장 잘 벼렸던 상태"가 그 뜻입니다.
   // 좋고 나쁨은 공격력×속도로 견줍니다.
   recordWeapon(jobKey, index, plus, mult, haste) {
@@ -109,26 +149,6 @@ const Save = {
       book[index] = { plus, mult, haste };
       this.flush();
     }
-  },
-
-  // 방금 끝난 판에서 손에 넣은 무기들을 얻은 순서대로 적어 둡니다.
-  setLastRun(jobKey, got) {
-    this.data.lastRun = { job: jobKey, got: got.slice() };
-    this.flush();
-  },
-
-  // 계승할 무기 — 직전 판에서 "두 번째로 얻은" 것.
-  //
-  // 예전에는 도감에서 아무거나 뽑았습니다. 그러면 운 좋게 좋은 무기가 뜬 판은
-  // 시작부터 밸런스가 무너졌습니다. 둘째로 고정하면 계승의 값어치가 늘 같습니다 —
-  // 직전 판에서 얼마나 빨리 무기를 갈아탔는지가 그대로 다음 판의 밑천이 됩니다.
-  //
-  // 공격 속도는 넘기지 않습니다. 속도는 무기가 아니라 손에 붙는 것이니까요.
-  carryWeapon(jobKey) {
-    const run = this.data.lastRun;
-    if (!run || run.job !== jobKey || !run.got || run.got.length < 2) return null;
-    const w = run.got[1];
-    return { index: w.index, plus: w.plus };
   },
 
   // ── 메달로 산 것 — **직업마다 영영 남습니다** ──────────
@@ -152,22 +172,6 @@ const Save = {
   addPerk(jobKey, key) {
     this.perksFor(jobKey)[key] = true;
     this.flush();
-  },
-
-  // ── 다음 판에 딱 한 번 들고 갈 것 ──────────────────────
-  // 지금은 죽음 화면의 **무기 계승** 하나뿐입니다. 이건 영구가 아니라
-  // 일회성이 맞습니다 — 그 판에서 얻은 자루를 한 번 더 쓰는 것이니까요.
-  setBoost(key, value) {
-    this.data.boosts[key] = value;
-    this.flush();
-  },
-
-  // 판이 시작될 때 한 번만 꺼내 씁니다. 꺼내면 사라집니다 — 일회성이니까요.
-  takeBoosts() {
-    const boosts = this.data.boosts;
-    this.data.boosts = {};
-    this.flush();
-    return boosts;
   },
 
   setJob(key) {

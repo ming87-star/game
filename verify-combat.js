@@ -46,6 +46,9 @@ async function boot(browser, port, jobIndex) {
   await page.waitForTimeout(600);
   const start = await page.evaluate(() => window.__medal.startAt);
   await page.mouse.click(...at(start.x, start.y));
+  // 메달 상점 다음은 무기 도감입니다. 잡혀 있는 자루를 그대로 들고 나갑니다.
+  await page.waitForTimeout(700);
+  await page.evaluate(() => window.__weaponbook && window.__weaponbook.leave());
   await page.waitForTimeout(900);
   return page;
 }

@@ -66,8 +66,11 @@ function medalItemsFor(job) {
 // 산 것을 실제 상태에 바릅니다. 판이 시작될 때 한 번 불립니다.
 // scene은 GameScene입니다 — maxHp·hp·armor·coins·weapon이 이미 준비된 뒤여야 합니다.
 //
-// perks 는 그 직업이 **영영 지닌 것**, boosts 는 이번 판에만 쓰는 것(무기 계승)입니다.
-function applyBoosts(scene, perks, boosts) {
+// perks 는 그 직업이 메달로 사 둔 것 — **영영 지닌 것**입니다. 예전에는
+// 여기에 「이번 판에만 붙는 것」(죽음 화면의 무기 계승) 한 갈래가 더
+// 있었는데, 그 자리는 무기 도감이 대신합니다 — 들고 오를 자루는 판이
+// 시작되기 전에 이미 정해져서 넘어옵니다 (js/scene-weaponbook.js).
+function applyBoosts(scene, perks) {
   const applied = [];
 
   if (perks.hp) {
@@ -96,17 +99,6 @@ function applyBoosts(scene, perks, boosts) {
   if (perks.speedcap) {
     scene.weapon.capBonus = CFG.speedCapBonus;
     applied.push('속도 한계 ×' + scene.weapon.speedCap.toFixed(2));
-  }
-
-  // 무기 계승이 그다음입니다. 자루를 갈아 끼운 뒤에 강화를 얹어야
-  // 얹은 강화가 초기화되지 않습니다 (갈아타면 강화가 지워집니다).
-  if (boosts.weapon) {
-    // 자루와 공격력 강화만 넘어옵니다. 공격 속도는 판이 끝나면 사라져야 합니다 —
-    // 넘겨 주면 매 판 한계에서 시작하게 됩니다.
-    const w = boosts.weapon;
-    scene.weapon.index = Math.min(scene.weapon.table.length - 1, w.index || 0);
-    scene.weapon.plus = w.plus || 0;
-    applied.push('계승  ' + scene.weapon.name);
   }
 
   if (perks.plus) {

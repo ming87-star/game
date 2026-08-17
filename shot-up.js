@@ -24,6 +24,10 @@ const server=http.createServer((req,res)=>{
  await page.mouse.click(270,278+row*200); await page.waitForTimeout(500);
  const st=await page.evaluate(()=>window.__medal.startAt);
  await page.mouse.click(st.x,st.y); await page.waitForTimeout(1200);
+  // 메달 상점 다음은 무기 도감입니다. 잡혀 있는 자루를 그대로 들고 나갑니다.
+  await page.waitForTimeout(700);
+  await page.evaluate(() => window.__weaponbook && window.__weaponbook.leave());
+  await page.waitForTimeout(900);
  // 판에 실제로 놓인 UP 칸을 찾아 카메라를 그리로 옮깁니다.
  const out=await page.evaluate(()=>{
    const s=window.__scene;

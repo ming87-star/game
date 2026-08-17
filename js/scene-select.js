@@ -73,6 +73,13 @@ class SelectScene extends Phaser.Scene {
 
     box.on('pointerover', () => box.setStrokeStyle(2, job.color));
     box.on('pointerout', () => box.setStrokeStyle(2, 0x3f4a78));
+
+    // 그 직업의 무기 도감을 몇 자루나 채웠는지. 카드 오른쪽 아래에 붙습니다 —
+    // 고르기 전에 "저쪽은 아직 넷뿐이네"가 보여야 그것도 고르는 이유가 됩니다.
+    const pool = buildWeaponPool(job);
+    const found = pool.filter((w) => Save.hasWeapon(job.key, w.index)).length;
+    this.add.text(cx + 205, y + 62, '무기 ' + found + ' / ' + pool.length,
+      font(17, '#8794b5')).setOrigin(1, 0);
     // 직업을 고르면 곧장 탑이 아니라 메달 상점을 거칩니다.
     // 쌓아 둔 메달로 이번 판의 시작 상태를 손보는 자리입니다.
     box.on('pointerdown', () => this.scene.start('medal', { jobKey: job.key }));

@@ -84,6 +84,13 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
     await shot(page, '01-medal-after.png');
     await page.mouse.click(...at(medalShop.start.x, medalShop.start.y));
   }
+  await page.waitForTimeout(900);
+
+  // 메달 상점 다음은 무기 도감입니다. 만나 본 자루 중에서 하나를 골라
+  // 들고 오릅니다 — 자동 플레이는 잡혀 있는 것(마지막에 고른 것)을 그대로 씁니다.
+  await shot(page, '01b-weaponbook.png');
+  const book = await page.evaluate(() => window.__weaponbook && window.__weaponbook.takeAt);
+  if (book) await page.mouse.click(...at(book.x, book.y));
   await page.waitForTimeout(1000);
   await shot(page, '02-start.png');
 

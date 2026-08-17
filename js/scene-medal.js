@@ -65,9 +65,11 @@ class MedalScene extends Phaser.Scene {
     const btnY = CFG.height - 96;
     const btn = this.add.rectangle(cx, btnY, 420, 66, 0x3949ab)
       .setStrokeStyle(2, 0x9fa8da).setInteractive({ useHandCursor: true });
-    this.add.text(cx, btnY, '탑에 오르기', font(30, '#ffffff')).setOrigin(0.5);
+    // **탑에 바로 오르지 않습니다.** 다음이 무기 도감입니다 — 만나 본 자루
+    // 중에서 무엇을 들고 오를지 고르는 자리 (js/scene-weaponbook.js).
+    this.add.text(cx, btnY, '무기 고르기', font(30, '#ffffff')).setOrigin(0.5);
     this.startAt = { x: cx, y: btnY };
-    btn.on('pointerdown', () => this.scene.start('game', { jobKey: this.job.key }));
+    btn.on('pointerdown', () => this.scene.start('weaponbook', { jobKey: this.job.key }));
 
     const backY = CFG.height - 34;
     const back = this.add.text(cx, backY, '직업 다시 고르기', font(20, '#8794b5'))

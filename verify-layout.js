@@ -145,9 +145,34 @@ const PROBE = `(() => {
   });
   await look('메달 상점 — 전부 지님', 250);
 
-  // ── 판 ─────────────────────────────────────────────────
+  // ── 무기 도감 ───────────────────────────────────────────
+  // 전설 줄이 자루마다 한 줄에서 세 줄까지라, 아래 만듦새 줄과 수치 줄이
+  // 밀려 겹치기 쉬운 자리입니다. **전설이 가장 긴 자루**를 골라서 봅니다.
   const start = await page.evaluate(() => window.__medal.startAt);
   await page.mouse.click(...at(start.x, start.y));
+  await look('무기 도감 — 처음 켠 판 (하나만 만남)', 900);
+
+  await page.evaluate(() => {
+    const b = window.__weaponbook;
+    b.pool.forEach((w) => Save.findWeapon(b.job.key, w.index));
+    window.__game.scene.start('weaponbook', { jobKey: b.job.key });
+  });
+  await look('무기 도감 — 스물넷 다 만남', 900);
+
+  const longest = await page.evaluate(() => {
+    const b = window.__weaponbook;
+    const w = b.pool.reduce((a, x) =>
+      ((x.lore || '').length + (x.detail || '').length
+        > (a.lore || '').length + (a.detail || '').length ? x : a));
+    const c = b.cells.find((x) => x.index === w.index);
+    return { x: c.box.x, y: c.box.y, name: w.name };
+  });
+  await page.mouse.click(...at(longest.x, longest.y));
+  await look('무기 도감 — 전설이 가장 긴 자루 (' + longest.name + ')', 400);
+
+  // ── 판 ─────────────────────────────────────────────────
+  await page.evaluate(() => window.__weaponbook.leave());
+  await page.waitForTimeout(900);
   // 판이 시작되면 「지니고 오른 것」이 한가운데에 뜹니다. 그동안에도 봅니다.
   await look('판 시작 — 지니고 오른 것', 900);
   await look('판 시작 2초 뒤', 1400);
