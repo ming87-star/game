@@ -407,6 +407,45 @@ function buildTextures(scene) {
   g.fillCircle(5, 5, 5);
   bake('spark', 10, 10);
 
+  // ── 보스 전리품 ───────────────────────────────────────
+  // **그림 파일을 안 씁니다.** 무기 일흔두 자루와 같은 방식으로 도형에서
+  // 짓습니다 (아래 buildWeaponIcons). 전리품은 화면에서 아주 작게 도는
+  // 물건이라 그림 한 장을 새로 뜰 값어치가 없습니다 — 주인공 키의 1/10 이면
+  // 5px 쯤이고, 그 크기에서 살아남는 것은 **윤곽과 색 두 단**뿐입니다.
+  //
+  // 넉넉한 크기(40px)로 구워 두고 쓸 때 줄입니다. 반대로 하면 계단이 집니다.
+
+  // 감시하는 눈 — 수문장의 눈. 흰자 · 붉은 홍채 · 검은 눈동자 · 흰 반짝임.
+  g.clear();
+  g.fillStyle(0xfff8e1, 1);
+  g.fillCircle(20, 20, 18);
+  g.fillStyle(0xff5252, 1);
+  g.fillCircle(20, 20, 11);
+  g.fillStyle(0x7f0000, 1);
+  g.fillCircle(20, 20, 6);
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(15, 14, 4);
+  bake('trophy-eye', 40, 40);
+
+  // 그 뒤에 까는 옅은 빛. **빛은 눈이 아닙니다** — 크기는 시킨 대로 두고
+  // 어두운 벽에서 5px 짜리가 묻히지 않게만 합니다.
+  g.clear();
+  for (let i = 6; i >= 1; i--) {
+    g.fillStyle(0xff8a80, 0.06);
+    g.fillCircle(24, 24, i * 4);
+  }
+  bake('trophy-eye-glow', 48, 48);
+
+  // 눈이 쏘는 것. 화살이 아니라 **눈빛**이라 촉도 깃도 없습니다.
+  g.clear();
+  g.fillStyle(0xff8a80, 0.35);
+  g.fillCircle(8, 8, 8);
+  g.fillStyle(0xffcdd2, 1);
+  g.fillCircle(8, 8, 4.5);
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(8, 8, 2);
+  bake('trophy-bolt', 16, 16);
+
   g.destroy();
 
   buildWeaponIcons(scene);

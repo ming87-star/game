@@ -292,6 +292,42 @@ const check = (ok, label, got) => {
     `이번 판 ${resumed.medals} · 잔액 ${(await save()).medals}`);
   check(resumed.continues === 1, '이어하기 횟수가 하나 올라감', resumed.continues);
 
+  // ── 보스 전리품은 **안 따라옵니다** ────────────────────
+  // 300층에서 죽어 250층 상점에서 이어 하면, 200층 보스에게서 얻은 눈이
+  // 사라져야 합니다. 되돌아온 자리는 그 보스보다 아래가 아니지만 — 아래여도
+  // 위여도 마찬가지입니다. **넘어선 값은 되감기와 함께 되감깁니다.**
+  // 유물이 되살아나는 것과 여기가 갈립니다 (유물은 판 안에서 얻은 것입니다).
+  const trophyRun = await page.evaluate(async () => {
+    const s = window.__scene;
+    s.dead = false;
+    s.floorIndex = 250;
+    s.snapshotAtShop();          // 250층 상점을 나선 셈
+    s.trophies.take(TROPHIES.eye);
+    s.trophies.take(TROPHIES.eye);
+    const before = s.trophies.count;
+    s.floorIndex = 300;          // 300층까지 올라가다가
+    s.medals = 1;
+    s.continues = 0;
+    s.resumePoint.continues = 0;
+    s.gameOver();
+    const c = s.deathChoices[1];
+    // 버튼에 값이 적혀 있어야 합니다 — 모르고 눌러서 잃으면 함정입니다.
+    const said = s.children.list.filter((o) => o.type === 'Text')
+      .map((o) => o.text).some((t) => t.includes('전리품'));
+    return { before, said, x: c.x, y: c.y };
+  });
+  check(trophyRun.said, '이어하기 버튼에 「전리품을 잃는다」가 적힘');
+  await page.mouse.click(...at(trophyRun.x, trophyRun.y));
+  await page.waitForTimeout(1200);
+  const afterTrophy = await page.evaluate(() => ({
+    floor: window.__scene.floorIndex,
+    count: window.__scene.trophies.count,
+    eyes: window.__scene.trophies.eyes.length,
+  }));
+  check(afterTrophy.floor === 250 && afterTrophy.count === 0 && afterTrophy.eyes === 0,
+    '300층에서 죽어 250층에서 이어 하면 전리품이 사라짐',
+    trophyRun.before + '개 → ' + afterTrophy.count + '개 · ' + afterTrophy.floor + '층');
+
   // 두 번째까지는 되고, 세 번째는 잠겨야 합니다.
   const limit = await page.evaluate(() => {
     const s = window.__scene;

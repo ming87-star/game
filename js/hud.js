@@ -22,7 +22,7 @@ class Hud {
     // 다시 씁니다 (자세한 것은 update 위 주석). 아래 setBoss 가 벌써 이걸
     // 쓰므로 무엇보다 먼저 세웁니다. 처음에는 비어 있어서 첫 프레임에
     // 모든 줄이 한 번씩 채워집니다.
-    this.last = { relicList: [], bossOn: null, bossPct: -1 };
+    this.last = { relicList: [], trophies: 0, bossOn: null, bossPct: -1 };
 
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
     const fixed = (o) => o.setScrollFactor(0).setDepth(100);
@@ -342,11 +342,16 @@ class Hud {
     for (let i = 0; !relicsChanged && i < w.relics.length; i++) {
       if (L.relicList[i] !== w.relics[i]) relicsChanged = true;
     }
-    if (relicsChanged) {
+    // 보스 전리품도 같은 줄에 붙습니다. 눈은 주인공 둘레를 돌고 있어 화면에
+    // 이미 보이지만, **몇 개인지**는 도는 것만 봐서는 안 세집니다.
+    const trophies = s.trophies ? s.trophies.count : 0;
+    if (relicsChanged || trophies !== L.trophies) {
       L.relicList = w.relics.slice();
-      this.relicText.setText(w.relics.length
-        ? w.relics.map((r) => r.icon).join(' ') + (w.relics.length > 2 ? '  ×' + w.relics.length : '')
-        : '');
+      L.trophies = trophies;
+      const marks = w.relics.map((r) => r.icon);
+      if (w.relics.length > 2) marks.push('×' + w.relics.length);
+      if (trophies) marks.push('👁' + (trophies > 1 ? '×' + trophies : ''));
+      this.relicText.setText(marks.join(' '));
     }
   }
 

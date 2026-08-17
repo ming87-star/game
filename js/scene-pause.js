@@ -67,6 +67,9 @@ class PauseScene extends Phaser.Scene {
     if (w.shots > 1) rows.splice(3, 0, ['한 번에', w.shots + '곳']);
     if (boosts.length) rows.push(['강화', boosts.join('   ')]);
     if (w.relics.length) rows.push(['유물', w.relics.map((r) => r.icon + ' ' + r.name).join('  ')]);
+    // 전리품은 자루에도 유물에도 안 붙는 따로 난 줄입니다 — 보스를 넘어선
+    // 값이고, 이어서 진행하면 사라집니다 (js/trophies.js).
+    if (s.trophies && s.trophies.count) rows.push(['전리품', s.trophies.label()]);
 
     const height = 116 + rows.length * 28;
     this.add.rectangle(cx, top + height / 2, panelW, height, 0x161b2e)

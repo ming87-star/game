@@ -215,7 +215,15 @@ const check = (ok, label, got) => {
   check(rain.plainDodge, '회피가 온전히 통함 (자리로는 못 피하는 공격이므로)');
   await page.evaluate(() => window.__scene.enemyBullets.clear(true, true));
 
+  // 눈의 값들은 CFG 에서 읽어 둡니다 — 손으로 적으면 CFG 를 만질 때마다
+  // 여기가 같이 틀립니다.
+  const [CFG_EYE_SCALE, CFG_EYE_RATE, CFG_EYE_SHARE] = await page.evaluate(() =>
+    [CFG.trophy.eye.scale, CFG.trophy.eye.rate, CFG.trophy.eye.dpsShare]);
+
   // 보스를 죽여 보고 길이 다시 열리는지 확인합니다.
+  // 메달은 **죽이기 직전 잔액**과 견줍니다 — 200층까지 오르는 동안 층에서
+  // 하나가 들어와 있어서, 0인지 보면 층 규칙을 잡게 됩니다.
+  const medalsBefore = await page.evaluate(() => window.__scene.medals);
   await page.evaluate(() => {
     const s = window.__scene;
     s.hitEnemy(s.boss, s.boss.maxHp * 2);
@@ -223,14 +231,78 @@ const check = (ok, label, got) => {
   await page.waitForTimeout(700);
   const after = await page.evaluate(() => {
     const s = window.__scene;
+    const eye = s.trophies.eyes[0];
     return {
       fight: s.bossFight,
       above: Array.from(s.floors.keys()).filter((i) => i > 200).length,
       medals: s.medals,
+      trophies: s.trophies.count,
+      label: s.trophies.label(),
+      // 눈은 주인공 키의 1/10 (CFG.trophy.eye.scale).
+      ratio: eye ? eye.displayHeight / s.player.displayHeight : 0,
     };
   });
   check(!after.fight && after.above > 0, '보스를 잡으면 길이 다시 열림', after.above + '층 생성');
-  check(after.medals >= 3, '보스 보상 메달', after.medals);
+
+  // ── 보상은 메달이 아니라 전리품입니다 ──────────────────
+  // 메달은 100층마다 층에서 나오는 것 하나로 모았습니다. 보스가 더 얹으면
+  // 그 규칙이 규칙이 아니게 됩니다.
+  check(after.medals === medalsBefore, '보스는 메달을 안 줌 (메달은 100층마다 층에서)',
+    medalsBefore + ' → ' + after.medals);
+  check(after.trophies === 1, '대신 전리품을 하나 줌', after.label);
+  check(Math.abs(after.ratio - CFG_EYE_SCALE) < 0.02,
+    '눈은 주인공 키의 1/10', after.ratio.toFixed(3));
+
+  // **주인공을 따라 돕니다.** 한 바퀴 도는 동안의 자리를 모아서 봅니다 —
+  // 한 순간만 재면 타원의 위아래에서는 주인공과 거의 겹칩니다.
+  const orbit = await page.evaluate(async () => {
+    const s = window.__scene;
+    const xs = [];
+    const ys = [];
+    for (let i = 0; i < 24; i++) {
+      xs.push(s.trophies.eyes[0].x - s.player.x);
+      ys.push(s.trophies.eyes[0].y - s.player.y);
+      await new Promise((r) => setTimeout(r, CFG.trophy.eye.spinMs / 24));
+    }
+    return {
+      wide: Math.round(Math.max(...xs) - Math.min(...xs)),
+      tall: Math.round(Math.max(...ys) - Math.min(...ys)),
+      r: CFG.trophy.eye.orbitR, ry: CFG.trophy.eye.orbitRy,
+    };
+  });
+  check(orbit.wide > orbit.r * 1.5 && orbit.tall > orbit.ry,
+    '주인공을 둘레로 한 바퀴 돎 (타원)', orbit.wide + '×' + orbit.tall + 'px');
+
+  // 스스로 쏩니다. 사람이 하는 일이 없어야 **보조**입니다.
+  // **날아가는 것을 세면 안 됩니다.** 눈빛은 맞는 순간 사라지므로, 재는
+  // 그 찰나에 하늘에 몇 개 떠 있느냐는 운에 달립니다. 쏜 횟수를 셉니다.
+  const bolt = await page.evaluate(async () => {
+    const s = window.__scene;
+    const e = spawnEnemy(s, s.player.x + 100, s.player.y - 20, 60, 'walker');
+    if (e) { e.hp = 99999; e.maxHp = 99999; }
+    const real = s.fireEyeBolt.bind(s);
+    let n = 0;
+    s.fireEyeBolt = (...a) => { n++; return real(...a); };
+    await new Promise((r) => setTimeout(r, CFG.trophy.eye.rate * 2.5));
+    s.fireEyeBolt = real;
+    return { shots: n, dmg: s.trophies.boltDamage(), dps: s.weapon.dps };
+  });
+  check(bolt.shots > 0, '눈이 스스로 쏨', bolt.shots + '발');
+  // 세기는 지금 든 자루의 초당 피해에 매답니다. 고정값이면 아래층에서는
+  // 주인공보다 세고 위층에서는 있으나 마나가 됩니다.
+  const share = bolt.dmg * 1000 / CFG_EYE_RATE / bolt.dps;
+  check(Math.abs(share - CFG_EYE_SHARE) < 0.03,
+    '세기가 주인공 초당 피해에 비례', (share * 100).toFixed(0) + '%');
+
+  // 한도 — 넷째 보스부터는 더 안 쌓입니다.
+  const cap = await page.evaluate(() => {
+    const s = window.__scene;
+    const got = [];
+    for (let i = 0; i < 4; i++) got.push(s.trophies.take(TROPHIES.eye));
+    return { got, eyes: s.trophies.eyes.length, max: CFG.trophy.maxEyes };
+  });
+  check(cap.eyes === cap.max && cap.got[cap.max] === false,
+    '눈은 ' + cap.max + '개까지만 쌓임', cap.eyes + '개 · ' + JSON.stringify(cap.got));
 
   // ── 유물 고르기 ────────────────────────────────────────
   const relic = await page.evaluate(() => {

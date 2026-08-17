@@ -49,6 +49,9 @@ class GameScene extends Phaser.Scene {
     this.kills = 0;
     this.medals = 0; // 이번 판에 번 메달. 죽을 때 받을지 말지 고릅니다.
     this.medalBand = 0; // 메달을 받은 가장 깊은 100층 띠 (checkMedalFloor)
+    // 보스를 잡아 얻은 것 (js/trophies.js). **이어서 진행하면 사라집니다** —
+    // 아래 snapshotAtShop 에 안 들어갑니다.
+    this.trophies = new Trophies(this);
     this.charm = false; // 수호 부적 — 상점에서만 삽니다. 쓰러질 때 한 번 버팁니다
 
     // 도감에서 골라 온 자루. 고르지 않았으면 그 직업의 첫 자루입니다
@@ -798,15 +801,25 @@ class GameScene extends Phaser.Scene {
 
     const healed = Math.min(Math.round(this.maxHp * CFG.boss.heal), this.maxHp - Math.round(this.hp));
     this.hp += healed;
-    this.medals += CFG.boss.medals;
     this.dropCoin(boss.x, boss.y, CFG.boss.coin, true);
+
+    // ── 메달이 아니라 전리품입니다 ─────────────────────
+    // 메달은 100층마다 층에서 나오는 것 하나로 모았습니다. 보스가 셋을 더
+    // 얹으면 그 규칙이 규칙이 아니게 됩니다. 그리고 어렵게 넘어선 값이
+    // **다음 판에나 오는 화폐**인 것도 이상했습니다 — 그 자리에서 손에
+    // 잡히는 것이어야 합니다 (js/trophies.js).
+    const trophy = trophyForBoss(boss.kind);
+    const got = this.trophies.take(trophy);
 
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
     const cx = CFG.width / 2;
     const parts = [
       this.add.text(cx, 320, '수문장을 쓰러뜨렸습니다', font(30, '#ffd54f')).setOrigin(0.5),
-      this.add.text(cx, 366, '🏅 +' + CFG.boss.medals +
-        (healed ? '    체력 +' + healed : ''), font(24, '#a5d6a7')).setOrigin(0.5),
+      this.add.text(cx, 366,
+        (got ? trophy.icon + ' ' + trophy.name : '전리품은 이미 가득합니다')
+        + (healed ? '    체력 +' + healed : ''),
+        font(24, got ? '#ffcdd2' : '#8794b5')).setOrigin(0.5),
+      this.add.text(cx, 404, got ? trophy.detail : '', font(18, '#a5d6a7')).setOrigin(0.5),
     ];
     parts.forEach((t) => {
       t.setScrollFactor(0).setDepth(150).setAlpha(0);
@@ -1501,6 +1514,25 @@ class GameScene extends Phaser.Scene {
       Phaser.Math.Angle.Between(x, y, target.x, target.y), CFG.arrowSpeed, b.body.velocity);
   }
 
+  // 따라다니는 눈이 쏘는 것 (js/trophies.js). 화살과 같은 주머니를 쓰므로
+  // 맞았을 때의 처리(onBulletHit)와 유물의 튕김이 그대로 붙습니다. 다만
+  // **화살이 아닙니다** — 돌지도 않고 궤적도 안 남깁니다. 눈빛이니까요.
+  fireEyeBolt(x, y, target, dmg) {
+    const b = this.bullets.create(x, y, 'trophy-bolt');
+    b.body.setAllowGravity(false);
+    b.body.setSize(10, 10);
+    b.setDepth(9);
+    b.isArrow = false;
+    b.dmg = dmg;
+    b.bounce = 0;
+    b.from = target;   // 걸어다니는 적을 스쳐 지나가지 않게 조금 따라갑니다
+    b.homing = false;
+    b.bornAt = this.time.now;
+    this.physics.velocityFromRotation(
+      Phaser.Math.Angle.Between(x, y, target.x, target.y),
+      CFG.trophy.eye.speed, b.body.velocity);
+  }
+
   // 화살이 지나간 자리에 흐릿한 선을 남깁니다. 궤적이 보여야 어디서 어디로
   // 날아갔는지 읽히고, 원거리 전투가 "공이 날아다니는 것"으로 보이지 않습니다.
   trailArrow(b, time) {
@@ -1707,6 +1739,12 @@ class GameScene extends Phaser.Scene {
         this.add.text(CFG.width / 2, 340,
           left > 0 ? '남은 이어하기 ' + left + '번' : '마지막 이어하기입니다',
           font(20, '#8794b5')).setOrigin(0.5),
+        // 보스 전리품은 안 따라옵니다. 되돌아온 자리가 그 보스보다 아래라면
+        // 아직 넘어서지 않은 것이니, 넘어선 값을 들고 있을 수는 없습니다.
+        // 화면에 안 적으면 "눈이 사라졌다"가 버그로 읽힙니다.
+        this.add.text(CFG.width / 2, 374,
+          this.resume.hadTrophy ? '보스에게서 얻은 것은 두고 옵니다' : '',
+          font(17, '#ff8a80')).setOrigin(0.5),
       ]) });
       return;
     }
@@ -2528,11 +2566,15 @@ class GameScene extends Phaser.Scene {
     const resumeTitle = this.resumePoint
       ? this.resumePoint.floor + '층 상점에서 이어서'
       : '이어서 진행할 자리 없음';
+    // 전리품도 값에 넣어 적습니다. 되돌아가는 자리가 그 보스보다 아래라
+    // 안 따라오는데, 버튼에 안 적으면 모르고 눌러서 잃게 됩니다.
+    const loses = [cost];
+    if (this.trophies.count) loses.push('보스 전리품 ' + this.trophies.count + '개');
     const resumeSub = !this.resumePoint
       ? '상점에 한 번은 닿아야 합니다'
       : left <= 0
         ? '이어서 진행은 한 판에 ' + CFG.continues.max + '번까지입니다'
-        : cost + '   ·   남은 횟수 ' + left + '번';
+        : loses.join(' · ') + '   ·   남은 횟수 ' + left + '번';
 
     add(this.add.text(cx, 470, '무엇을 가져갈까', font(24, '#ffffff')).setOrigin(0.5));
 
@@ -2561,7 +2603,10 @@ class GameScene extends Phaser.Scene {
       choice(710, 0x4dd0e1, resumeTitle, resumeSub, canResume, () => {
         this.leaveDeath('game', {
           jobKey: this.job.key,
-          resume: { ...this.resumePoint, continues: this.continues + 1 },
+          // hadTrophy 는 되살릴 값이 아니라 **알려 줄 값**입니다. 전리품은
+          // 안 따라오는데, 들고 있던 사람에게 말없이 없애면 버그로 읽힙니다.
+          resume: { ...this.resumePoint, continues: this.continues + 1,
+            hadTrophy: this.trophies.count > 0 },
         });
       }),
     ];
@@ -2626,6 +2671,7 @@ class GameScene extends Phaser.Scene {
     this.rig.setWeapon(this.job, this.weapon);
     this.rig.sync();
 
+    this.trophies.update(time);
     this.updateBats(time);
     this.updateIdle(delta);
 
