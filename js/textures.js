@@ -446,6 +446,83 @@ function buildTextures(scene) {
   g.fillCircle(8, 8, 2);
   bake('trophy-bolt', 16, 16);
 
+  // 불집게 — 집힌 적 위에 겹칩니다. 몸을 가리지 않아야 하므로 **가운데를
+  // 비운 두 갈래**로 그립니다. 꽉 찬 그림이면 무엇이 집혔는지 안 보입니다.
+  g.clear();
+  g.lineStyle(5, 0xff7043, 1);
+  // 왼쪽 갈래
+  g.beginPath();
+  g.moveTo(9, 6);
+  g.lineTo(4, 24);
+  g.lineTo(13, 42);
+  g.strokePath();
+  // 오른쪽 갈래
+  g.beginPath();
+  g.moveTo(39, 6);
+  g.lineTo(44, 24);
+  g.lineTo(35, 42);
+  g.strokePath();
+  // 달군 끝. 집게가 뜨겁다는 것이 이 두 점입니다.
+  g.fillStyle(0xffca28, 1);
+  g.fillCircle(9, 6, 4);
+  g.fillCircle(39, 6, 4);
+  g.fillStyle(0xffe082, 1);
+  g.fillCircle(13, 42, 3);
+  g.fillCircle(35, 42, 3);
+  bake('trophy-claw', 48, 48);
+
+  // 깨어난 알 — 초록 덩이에 눈 둘. 눈(5px 붉은 점)과 확실히 갈리게
+  // 크기도 색도 멀리 벌려 둡니다.
+  g.clear();
+  g.fillStyle(0x33691e, 1);
+  g.fillCircle(20, 21, 17);
+  g.fillStyle(0x9ccc65, 1);
+  g.fillCircle(20, 20, 15);
+  g.fillStyle(0xc5e1a5, 1);
+  g.fillCircle(15, 14, 5);           // 윗면 밝은 곳
+  g.fillStyle(0x1b5e20, 1);
+  g.fillCircle(14, 22, 3.4);         // 눈 둘
+  g.fillCircle(26, 22, 3.4);
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(13, 21, 1.3);
+  g.fillCircle(25, 21, 1.3);
+  bake('trophy-hatch', 40, 42);
+
+  // 갈라진 가면 — 창백한 흰보라. **머리보다 크게 씌워 덮습니다**
+  // (js/trophies.js 의 wearMask). 가운데 금 하나가 이 놈의 얼굴입니다.
+  g.clear();
+  g.fillStyle(0x4a3a5c, 1);
+  g.fillRoundedRect(4, 3, 40, 46, 12);
+  g.fillStyle(0xe1bee7, 1);
+  g.fillRoundedRect(6, 5, 36, 42, 11);
+  g.fillStyle(0xf3e5f5, 1);
+  g.fillRoundedRect(9, 8, 14, 18, 6);   // 왼쪽 위 밝은 면
+  // 갈라진 금 — 이마에서 턱까지 비뚤게
+  g.lineStyle(2.4, 0x6a4c7a, 1);
+  g.beginPath();
+  g.moveTo(25, 4);
+  g.lineTo(21, 18);
+  g.lineTo(26, 30);
+  g.lineTo(22, 48);
+  g.strokePath();
+  // 눈 구멍 둘
+  g.fillStyle(0x2e2038, 1);
+  g.fillEllipse(17, 22, 9, 6);
+  g.fillEllipse(32, 22, 9, 6);
+  // 꿰맨 입
+  g.lineStyle(1.8, 0x6a4c7a, 1);
+  g.beginPath();
+  g.moveTo(15, 37);
+  g.lineTo(34, 37);
+  g.strokePath();
+  for (let i = 0; i < 4; i++) {
+    g.beginPath();
+    g.moveTo(17 + i * 5, 33);
+    g.lineTo(17 + i * 5, 41);
+    g.strokePath();
+  }
+  bake('trophy-mask', 48, 52);
+
   g.destroy();
 
   buildWeaponIcons(scene);

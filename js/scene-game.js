@@ -814,7 +814,10 @@ class GameScene extends Phaser.Scene {
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
     const cx = CFG.width / 2;
     const parts = [
-      this.add.text(cx, 320, '수문장을 쓰러뜨렸습니다', font(30, '#ffd54f')).setOrigin(0.5),
+      // 다섯이 저마다 다른 놈이므로 이름도 그 놈 것을 적습니다. 「수문장」으로
+      // 못 박아 두었더니 알주머니를 잡고도 수문장을 잡았다고 떴습니다.
+      this.add.text(cx, 320, ((boss.kind && boss.kind.name) || '수문장')
+        + '을(를) 쓰러뜨렸습니다', font(30, '#ffd54f')).setOrigin(0.5),
       this.add.text(cx, 366,
         (got ? trophy.icon + ' ' + trophy.name : '전리품은 이미 가득합니다')
         + (healed ? '    체력 +' + healed : ''),
@@ -2102,6 +2105,16 @@ class GameScene extends Phaser.Scene {
     }
 
     this.lastHitAt = this.time.now;
+
+    // ── 갈라진 가면 — 한 대를 통째로 막습니다 ───────────
+    // **방어력보다 먼저 봅니다.** 나중에 보면 방어력이 깎은 뒤의 몫만 막게
+    // 되어, 두꺼운 갑옷을 입은 사람에게는 가면이 거의 아무것도 안 하게
+    // 됩니다. 가면은 "덜 맞는 것"이 아니라 "그 한 대가 없던 일이 되는 것"입니다.
+    //
+    // 회피 뒤에 두는 것은 맞습니다 — 흘려 넘긴 대는 애초에 가면이 나설 일이
+    // 없고, 나서면 공짜로 얻은 회피에 가면을 하나 버리는 셈이 됩니다.
+    if (this.trophies.blockWithMask()) return;
+
     // 방어력만큼 덜 맞습니다. 아무리 두꺼워도 한 대는 아프도록 최소 1은 들어갑니다.
     const taken = Math.max(1, Math.round(amount * (1 - this.armor / 100)));
     const blocked = Math.max(0, amount - taken);

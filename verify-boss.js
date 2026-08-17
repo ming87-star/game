@@ -217,8 +217,8 @@ const check = (ok, label, got) => {
 
   // 눈의 값들은 CFG 에서 읽어 둡니다 — 손으로 적으면 CFG 를 만질 때마다
   // 여기가 같이 틀립니다.
-  const [CFG_EYE_SCALE, CFG_EYE_RATE, CFG_EYE_SHARE] = await page.evaluate(() =>
-    [CFG.trophy.eye.scale, CFG.trophy.eye.rate, CFG.trophy.eye.dpsShare]);
+  const [CFG_EYE_SCALE, CFG_EYE_RATE, CFG_EYE_SHARE, CFG_HATCH_N] = await page.evaluate(() =>
+    [CFG.trophy.eye.scale, CFG.trophy.eye.rate, CFG.trophy.eye.dpsShare, CFG.trophy.hatch.count]);
 
   // 보스를 죽여 보고 길이 다시 열리는지 확인합니다.
   // 메달은 **죽이기 직전 잔액**과 견줍니다 — 200층까지 오르는 동안 층에서
@@ -285,7 +285,8 @@ const check = (ok, label, got) => {
     s.fireEyeBolt = (...a) => { n++; return real(...a); };
     await new Promise((r) => setTimeout(r, CFG.trophy.eye.rate * 2.5));
     s.fireEyeBolt = real;
-    return { shots: n, dmg: s.trophies.boltDamage(), dps: s.weapon.dps };
+    return { shots: n, dmg: s.trophies.share(CFG.trophy.eye.dpsShare, CFG.trophy.eye.rate),
+      dps: s.weapon.dps };
   });
   check(bolt.shots > 0, '눈이 스스로 쏨', bolt.shots + '발');
   // 세기는 지금 든 자루의 초당 피해에 매답니다. 고정값이면 아래층에서는
@@ -303,6 +304,151 @@ const check = (ok, label, got) => {
   });
   check(cap.eyes === cap.max && cap.got[cap.max] === false,
     '눈은 ' + cap.max + '개까지만 쌓임', cap.eyes + '개 · ' + JSON.stringify(cap.got));
+
+  // ── 나머지 넷 ──────────────────────────────────────────
+  // 다섯이 저마다 **다른 일**을 해야 합니다. 넷이 같은 일을 하면 그건 하나를
+  // 네 번 받은 것과 같습니다.
+  //
+  // **시계로 재면 안 됩니다.** 이 검사들은 창을 셋 띄워 놓고 도는데, 뒤에
+  // 있는 창은 브라우저가 프레임을 죄어서 벽시계 1초가 게임 안에서 얼마인지
+  // 알 수 없습니다. 그래서 전부 **결과가 나올 때까지** 기다립니다.
+  const seedRow = (gap) => page.evaluate((gap) => {
+    const s = window.__scene;
+    s.bossFight = false;
+    if (s.boss) { s.boss.destroy(); s.boss = null; }
+    s.enemies.getChildren().slice().forEach((e) => e.destroy());
+    s.hp = s.maxHp = 1e9;
+    // **주인공의 칼을 꺼 둡니다.** 전사는 사거리 안을 매번 베고 기절까지 걸어서,
+    // 안 끄면 전리품이 한 일과 칼이 한 일이 뒤섞여 아무것도 못 잽니다.
+    s.weapon.hits = () => false;
+    s.trophies.reset();
+    window.__mark = [];
+    for (let i = 0; i < 6; i++) {
+      const e = spawnEnemy(s, s.player.x + gap + i * 40, s.player.y - 16, 620, 'crawler');
+      if (e) { e.hp = e.maxHp = 1e6; window.__mark.push(e); }
+    }
+    return window.__mark.length;
+  }, gap);
+
+  check(await page.evaluate(() => CFG.boss.kinds.every((k) => trophyForBoss(k))
+      && new Set(CFG.boss.kinds.map((k) => trophyForBoss(k).key)).size === 5),
+    '보스 다섯이 저마다 다른 것을 내놓음',
+    (await page.evaluate(() => CFG.boss.kinds.map((k) => trophyForBoss(k).name).join(' · '))));
+
+  // 꿰뚫는 눈길 — **늘어선 여럿을 한 번에**. 가장 가까운 놈을 겨누면 각이
+  // 가팔라져 멀리 있는 놈이 선 밖으로 밀려나므로, 가장 많이 꿰뚫는 쪽을 고릅니다.
+  await seedRow(150);
+  const gaze = await page.evaluate(async () => {
+    const s = window.__scene;
+    s.trophies.take(TROPHIES.gaze);
+    s.trophies.gazeAt = 0;
+    const start = window.__mark.map((e) => e.hp);
+    for (let i = 0; i < 80; i++) {
+      const now = window.__mark.map((e) => (e.active ? e.hp : 0));
+      const hit = start.filter((h, k) => now[k] < h).length;
+      if (hit) return { hit, all: start.length };
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return { hit: 0, all: start.length };
+  });
+  check(gaze.hit >= 3, '눈길은 한 번에 여럿을 꿰뚫음', gaze.hit + '/' + gaze.all + '마리');
+
+  // 불집게 — 둘레의 적을 한꺼번에 집습니다. **한도가 있어야** 합니다.
+  await seedRow(150);
+  const claw = await page.evaluate(async () => {
+    const s = window.__scene;
+    window.__mark.forEach((e, i) => {
+      const a = (Math.PI * 2 * i) / 6;
+      e.setPosition(s.player.x + Math.cos(a) * 90, s.player.y + Math.sin(a) * 50);
+    });
+    s.trophies.take(TROPHIES.claw);
+    s.trophies.clawAt = 0;
+    const start = window.__mark.map((e) => e.hp);
+    let held = 0;
+    for (let i = 0; i < 80; i++) {
+      // 집게가 잡은 것만 셉니다 (clawUntil). 기절만 보면 칼이 건 것과 섞입니다.
+      held = Math.max(held, window.__mark.filter((e) => e.clawUntil > s.time.now).length);
+      const now = window.__mark.map((e) => (e.active ? e.hp : 0));
+      const burned = start.filter((h, k) => now[k] < h).length;
+      if (burned >= CFG.trophy.claw.max) {
+        return { held, burned, max: CFG.trophy.claw.max, all: start.length };
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return { held, burned: 0, max: CFG.trophy.claw.max, all: start.length };
+  });
+  check(claw.held === claw.max, '집게는 둘레의 적을 한도까지만 붙잡음',
+    claw.held + '/' + claw.all + '마리 (한도 ' + claw.max + ')');
+  check(claw.burned >= claw.max, '붙잡힌 것이 탐', claw.burned + '마리');
+
+  // 깨어난 알 — 셋이 튀어다니며 갉습니다. **자리가 바뀌어야** 튀는 것입니다.
+  await seedRow(180);
+  const hatch = await page.evaluate(async () => {
+    const s = window.__scene;
+    s.trophies.take(TROPHIES.hatch);
+    const start = window.__mark.map((e) => e.hp);
+    const p1 = [];
+    for (let i = 0; i < 80; i++) {
+      if (!p1.length && s.trophies.hatchlings.length) {
+        s.trophies.hatchlings.forEach((b) => p1.push(Math.round(b.x) + ',' + Math.round(b.y)));
+      }
+      const now = window.__mark.map((e) => (e.active ? e.hp : 0));
+      const gnawed = start.filter((h, k) => now[k] < h).length;
+      const p2 = s.trophies.hatchlings.map((b) => Math.round(b.x) + ',' + Math.round(b.y));
+      if (gnawed > 0 && p1.filter((v, k) => v !== p2[k]).length === p1.length) {
+        return { n: s.trophies.hatchlings.length, gnawed, moved: p1.length,
+          attached: s.trophies.hatchlings.filter((b) => b.target).length };
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return { n: s.trophies.hatchlings.length, gnawed: 0, moved: 0, attached: 0 };
+  });
+  check(hatch.n === CFG_HATCH_N, '알은 ' + CFG_HATCH_N + '마리', hatch.n + '마리');
+  check(hatch.gnawed > 0 && hatch.moved === hatch.n, '셋이 튀어다니며 갉음',
+    hatch.gnawed + '마리를 갉음 · 붙어 있는 것 ' + hatch.attached);
+
+  // 붙어 있던 놈이 쓰러질 때가 되면 놓고 옮겨 붙습니다 — 어차피 죽을 놈을
+  // 마저 갉는 것은 버리는 피해입니다.
+  const moved = await page.evaluate(async () => {
+    const s = window.__scene;
+    const b = s.trophies.hatchlings.find((x) => x.target);
+    if (!b) return { ok: false, why: '붙은 것이 없음' };
+    const was = b.target;
+    was.hp = was.maxHp * 0.1;
+    for (let i = 0; i < 40; i++) {
+      if (b.target !== was) return { ok: true };
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return { ok: false, why: '안 옮김' };
+  });
+  check(moved.ok, '쓰러질 놈은 놓고 다른 놈에게 옮겨 붙음', moved.why);
+
+  // 갈라진 가면 — 한 대를 **통째로** 막고 깨졌다가 다시 생깁니다.
+  const mask = await page.evaluate(async () => {
+    const s = window.__scene;
+    s.trophies.reset();
+    s.trophies.take(TROPHIES.mask);
+    s.dodge = 0;
+    s.armor = 50;              // 방어력이 있어도 **통째로** 막아야 합니다
+    s.hp = s.maxHp = 1000;
+    const worn = !!s.trophies.mask;
+    s.hurt(300);
+    const blocked = { hp: s.hp, mask: !!s.trophies.mask };
+    s.hurt(300);               // 두 번째는 그대로 맞습니다
+    const second = s.hp;
+    s.trophies.maskAt = s.time.now + 100;   // 재생 시각을 앞당겨서 봅니다
+    let back = false;
+    for (let i = 0; i < 40 && !back; i++) {
+      back = !!s.trophies.mask;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return { worn, blocked, second, back, regenMs: CFG.trophy.mask.regenMs };
+  });
+  check(mask.worn, '가면을 쓰고 있음');
+  check(mask.blocked.hp === 1000 && !mask.blocked.mask,
+    '한 대를 통째로 막고 깨짐 (방어력이 있어도)', '체력 1000 → ' + mask.blocked.hp);
+  check(mask.second < 1000, '깨진 뒤에는 그대로 맞음', '체력 → ' + mask.second);
+  check(mask.back, (mask.regenMs / 1000) + '초 뒤 다시 생김');
 
   // ── 유물 고르기 ────────────────────────────────────────
   const relic = await page.evaluate(() => {

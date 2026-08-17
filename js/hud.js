@@ -350,7 +350,8 @@ class Hud {
       L.trophies = trophies;
       const marks = w.relics.map((r) => r.icon);
       if (w.relics.length > 2) marks.push('×' + w.relics.length);
-      if (trophies) marks.push('👁' + (trophies > 1 ? '×' + trophies : ''));
+      // 전리품은 종류마다 다른 표입니다 (js/trophies.js 의 marks).
+      if (trophies) marks.push(s.trophies.marks());
       this.relicText.setText(marks.join(' '));
     }
   }
