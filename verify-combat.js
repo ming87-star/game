@@ -326,16 +326,16 @@ async function boot(browser, port, jobIndex) {
       if (e) {
         e.hp = e.maxHp = 1e9;
         e.body.setAllowGravity(false); e.body.velocity.set(0, 0);
-        e.__x = e.x; e.__y = e.y;      // 넉백으로 밀리므로 제자리를 적어 둡니다
+        e.__x = e.x; e.__y = e.y;      // 자리를 적어 둡니다 (되돌려 가며 여러 번 잽니다)
       }
       return e;
     };
     // 한 번 휘둘러 이 놈이 얼마나 깎이는가. 주사위를 멈춰 뒀으므로 몇 번을
-    // 재도 같은 값이 나옵니다 — 넉백으로 밀린 자리만 되돌려 주면 됩니다.
+    // 재도 같은 값이 나옵니다 — 잰 뒤 자리만 되돌려 주면 됩니다.
     const hitFor = (e, n = 8) => {
       const before = e.hp;
       for (let i = 0; i < n; i++) {
-        e.x = e.__x; e.y = e.__y;      // 넉백으로 밀린 자리를 되돌립니다
+        e.x = e.__x; e.y = e.__y;      // 자리를 되돌립니다
         s.lastSwingAt = -1e9;
         s.swing(s.time.now + 99999);
       }
@@ -502,12 +502,12 @@ async function boot(browser, port, jobIndex) {
     `은장 ${Math.round(roll.silverAcc * 100)}% · 원본 ${Math.round(roll.plainAcc * 100)}%`
     + ` · 흑철 ${Math.round(roll.blackAcc * 100)}%`);
 
-  // ── 전사의 넉백 ─────────────────────────────────────────
-  const knock = await warrior.evaluate(async () => {
+  // ── 전사의 기절 ─────────────────────────────────────────
+  const stun = await warrior.evaluate(async () => {
     const s = window.__scene;
     s.weapon.index = 0; s.weapon.plus = 0;
-    // 여기서 볼 것은 밀려나는 거리이지 얼마나 깎였느냐가 아닙니다.
-    // 빗나가면 안 밀리므로(그게 맞습니다) 재는 동안만 주사위를 멈춥니다.
+    // 여기서 볼 것은 멎느냐이지 얼마나 깎였느냐가 아닙니다.
+    // 빗나가면 안 걸리므로(그게 맞습니다) 재는 동안만 주사위를 멈춥니다.
     const realRoll = s.weapon.rollDamage;
     const realHits = s.weapon.hits;
     s.weapon.rollDamage = function () { return this.dmg; };
@@ -521,19 +521,42 @@ async function boot(browser, port, jobIndex) {
       return e;
     };
 
-    // 코앞의 놈을 한 번 치면 뒤로 밀려나야 합니다.
     const e = put(12);
-    const before = e.x - s.player.x;
+    const x0 = e.x;
     s.lastSwingAt = -1e9;
     s.swing(s.time.now + 99999);
-    const after = e.x - s.player.x;
-    const stunned = e.knockUntil > s.time.now;
+    const now = s.time.now;
 
-    // **밀려나도 사거리 안에 남아야 합니다.** 밖으로 밀면 다음 대가 허공을
-    // 가르고, 적이 걸어 돌아올 때까지 아무 일도 안 일어납니다.
-    const stillInReach = s.meleeDist(e) <= s.weapon.reach;
+    // **자리는 그대로여야 합니다.** 밀어내면 좁은 발판에서 떨어집니다 —
+    // 그게 밀어내기를 걷어낸 까닭입니다.
+    const moved = Math.abs(e.x - x0);
+    const stunned = e.stunUntil > now;
+    const leaning = Math.abs(e.angle) > 1; // 멎었다는 표
 
-    // 열 번을 연달아 쳐도 계속 맞아야 합니다 (밀려 나가 버리지 않는가).
+    // 멎은 동안에는 걷지 않습니다.
+    groundStep(s, e, s.player, now + 10);
+    const frozen = e.body.velocity.x === 0;
+
+    // **회복 시간이 없으면 스턴이 아니라 전원 스위치입니다.**
+    // 공격 주기(215~315ms)가 스턴(480ms)보다 짧아서, 때릴 때마다 다시
+    // 걸면 사거리 안의 적은 영영 안 깨어납니다. 스턴이 풀린 직후에
+    // 곧바로 다시 걸리는지 봅니다 — 걸리면 안 됩니다.
+    const okAt = e.stunOkAt;
+    const justAfter = e.stunUntil + 20;
+    s.time.now = justAfter;               // 스턴이 막 풀린 시점
+    s.lastSwingAt = -1e9;
+    s.swing(justAfter + 99999);
+    const reStunnedTooSoon = e.stunUntil > justAfter;
+
+    // 회복 시간이 지난 뒤에는 다시 걸려야 합니다.
+    const later = okAt + 20;
+    s.time.now = later;
+    s.lastSwingAt = -1e9;
+    s.swing(later + 99999);
+    const reStunnedLater = e.stunUntil > later;
+
+    // 열 번을 연달아 쳐도 계속 맞아야 합니다 (자리를 안 옮기니 당연하지만,
+    // 여기가 밀어내기 시절에 깨지던 자리라 그대로 지킵니다).
     let landed = 0;
     for (let i = 0; i < 10; i++) {
       const hp = e.hp;
@@ -541,33 +564,36 @@ async function boot(browser, port, jobIndex) {
       s.swing(s.time.now + 99999);
       if (e.hp < hp) landed++;
     }
-
-    // 밀린 동안에는 제자리에 멎어 있어야 합니다 — 그게 버는 시간입니다.
-    e.knockUntil = s.time.now + 9999;
-    groundStep(s, e, s.player, s.time.now);
-    const frozen = e.body.velocity.x === 0;
     e.destroy();
 
-    // 보스는 안 밀립니다. 몸이 투기장을 덮고 있어서 밀리면 그림이 깨집니다.
-    const bossPushed = (() => {
-      const b = { active: true, isBoss: true, x: 100, body: { allowGravity: false, velocity: { x: 0 } } };
-      s.knockBack(b);
-      return b.x !== 100;
+    // 보스는 안 걸립니다. 얼려 두고 때리면 보스전이 성립하지 않습니다.
+    const bossStunned = (() => {
+      const b = { active: true, isBoss: true, body: { velocity: { x: 0 } } };
+      s.stunEnemy(b);
+      return !!b.stunUntil;
     })();
+
+    // 궁수·도적은 아예 안 겁니다 — 전사만의 것입니다.
+    const rogueHas = !!classByKey('rogue').stun;
+    const archerHas = !!classByKey('archer').stun;
 
     s.weapon.rollDamage = realRoll;
     s.weapon.hits = realHits;
-    return { before, after, stunned, stillInReach, landed, frozen, bossPushed,
-      half: CFG.platformW * CFG.knockback.share, reach: s.weapon.reach };
+    return { moved, stunned, leaning, frozen, reStunnedTooSoon, reStunnedLater,
+      landed, bossStunned, rogueHas, archerHas,
+      ms: CFG.stun.ms, recover: CFG.stun.recoverMs };
   });
-  check(knock.after > knock.before, '전사가 휘두르면 적이 뒤로 밀려남',
-    `${Math.round(knock.before)}px → ${Math.round(knock.after)}px`);
-  check(knock.after - knock.before > knock.half * 0.5,
-    '발판 절반 언저리는 밀려남', `${Math.round(knock.after - knock.before)}px (발판 절반 ${knock.half})`);
-  check(knock.stunned && knock.frozen, '밀린 동안에는 다가오지 않음 (버는 시간)');
-  check(knock.stillInReach && knock.landed === 10,
-    '밀려나도 사거리 안 — 연달아 쳐도 계속 맞음', `열 번 중 ${knock.landed}번`);
-  check(!knock.bossPushed, '보스는 안 밀림');
+  check(stun.stunned, '전사가 휘두르면 적이 기절함', stun.ms + 'ms');
+  check(stun.moved < 1, '**자리는 그대로** — 밀지 않으니 발판에서 안 떨어짐',
+    Math.round(stun.moved) + 'px 움직임');
+  check(stun.leaning, '멎었다는 것이 보임 (몸이 기움)');
+  check(stun.frozen, '기절한 동안에는 다가오지 않음 (버는 시간)');
+  check(!stun.reStunnedTooSoon, '풀리자마자 다시 안 걸림 (전원 스위치가 되지 않게)',
+    '회복 ' + stun.recover + 'ms');
+  check(stun.reStunnedLater, '회복 시간이 지나면 다시 걸림');
+  check(stun.landed === 10, '연달아 쳐도 계속 맞음', '열 번 중 ' + stun.landed + '번');
+  check(!stun.bossStunned, '보스는 안 걸림');
+  check(!stun.rogueHas && !stun.archerHas, '전사만의 것 (궁수·도적은 안 걺)');
 
   // ── 한 층에 도는 몬스터는 넷까지 ────────────────────────
   // 새 종류가 하나 풀리면 가장 먼저 나왔던 하나가 물러납니다.

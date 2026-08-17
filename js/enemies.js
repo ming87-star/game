@@ -102,10 +102,9 @@ function updateEnemies(scene, time, delta) {
 // 주인공이 멀면 발판 끝에서 돌아서며 순찰합니다. 그래야 올라가 보면 거기 있습니다.
 // 가까워지면 낭떠러지를 개의치 않고 쫓아오다가 그대로 떨어집니다.
 function groundStep(scene, e, player, time) {
-  // 밀려난 직후에는 잠깐 멈춰 섭니다 (전사의 넉백 — scene-game.js 의 knockBack).
-  // 이게 없으면 밀자마자 제자리로 걸어와서, 밀려나는 그림만 보이고 실제로
-  // 벌어지는 시간은 0입니다. **넉백의 값어치는 거리가 아니라 이 틈입니다.**
-  if (e.knockUntil && time < e.knockUntil) {
+  // 기절해 있는 동안은 제자리에 멎습니다 (전사 — scene-game.js 의 stunEnemy).
+  // **전사가 버는 시간이 통째로 이 몇 줄입니다.**
+  if (e.stunUntil && time < e.stunUntil) {
     if (e.body.blocked.down) e.body.velocity.x = 0;
     return;
   }
@@ -201,8 +200,8 @@ function groundAhead(scene, e) {
 
 // ── 나는 적 ───────────────────────────────────────────────
 function airStep(scene, e, player, time) {
-  // 나는 것도 밀리면 잠깐 멎습니다. 위 groundStep 과 같은 이유입니다.
-  if (e.knockUntil && time < e.knockUntil) { e.body.velocity.set(0, 0); return; }
+  // 나는 것도 기절하면 그 자리에 멎습니다. 위 groundStep 과 같은 이유입니다.
+  if (e.stunUntil && time < e.stunUntil) { e.body.velocity.set(0, 0); return; }
 
   const angle = Phaser.Math.Angle.Between(e.x, e.y, player.x, player.y);
   const dist = Phaser.Math.Distance.Between(e.x, e.y, player.x, player.y);
@@ -498,6 +497,9 @@ function spawnMimic(scene, x, y, floor) {
 
 // 곧장, 쉬지 않고, 층을 무시하고 옵니다. 발판도 낭떠러지도 상관하지 않습니다.
 function mimicStep(scene, e, player, time) {
+  // 미믹도 기절합니다. 쫓기는 쪽에서는 이게 유일하게 숨 돌리는 틈입니다.
+  if (e.stunUntil && time < e.stunUntil) { e.body.velocity.set(0, 0); return; }
+
   // 달아나는 데 성공했으면 놓아줍니다. 붙잡지 못한 것을 영영 매달아 두면
   // 등장 한도만 차지하고, 몇 층 위에서 뜬금없이 다시 나타납니다.
   if (player.y - e.y > CFG.floorHeight * CFG.mimic.vanishAbove) { e.destroy(); return; }

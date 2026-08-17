@@ -1078,8 +1078,7 @@ class GameScene extends Phaser.Scene {
     const scaleAt = (e) => (far >= 1 || !w.reach ? 1 :
       Phaser.Math.Clamp(1 - (1 - far) * (this.meleeDist(e) / w.reach), far, 1));
 
-    // 한 놈이라도 맞았으면 밀어냅니다 (전사의 넉백). 빗나간 놈은 안 밀립니다.
-    let landed = 0;
+    // 빗나간 놈은 안 걸립니다 (전사의 기절).
 
     hit.forEach((e) => {
       // **정확도를 적마다 굴립니다.** 한 번 굴려 전부에 적용하면, 광역
@@ -1097,11 +1096,10 @@ class GameScene extends Phaser.Scene {
         this.stealFx(e.x, e.y - 10);
         this.dropCoin(e.x, e.y - 10, Math.round(w.stealAmount * CFG.coin.dropBonus));
       }
-      landed++;
       // 공격력은 적마다 새로 굴립니다. 한 번 굴려 나눠 주면 범위가 있는 뜻이
       // 반으로 줄어듭니다 — 화면에 뜨는 숫자 여럿이 늘 똑같아집니다.
-      this.hitEnemy(e, Math.max(1, Math.round(w.rollDamage() * scaleAt(e))), e);
-      this.knockBack(e);
+      this.hitEnemy(e, Math.max(1, Math.round(w.rollDamage() * scaleAt(e))));
+      this.stunEnemy(e);
     });
   }
 
@@ -1295,46 +1293,50 @@ class GameScene extends Phaser.Scene {
     this.floatText(enemy.x, enemy.y - 18, '빗나감', '#78909c', 15, 26, 420);
   }
 
-  // ── 넉백 ──────────────────────────────────────────────
-  // 전사가 휘두르면 적이 **발판 절반쯤** 뒤로 밀려납니다.
+  // ── 기절 ──────────────────────────────────────────────
+  // 전사가 휘두르면 적이 **그 자리에서 잠깐 멎습니다** (CFG.stun).
   //
-  // 전사는 원래 "버티고 서서 막는" 직업이었는데, 버티기만으로는 다른 둘과
-  // 저울이 안 맞았습니다. 궁수는 멈출 필요가 없고 도적은 흘려 넘기는데,
-  // 전사는 맞으면서 때리는 것 말고는 할 수 있는 일이 없었습니다.
+  // 처음에는 밀어냈습니다. 발판이 140밖에 안 되는데 절반씩 밀어내니
+  // **가장자리에서 맞은 놈이 그대로 떨어져 버렸습니다.** 자리를 옮기는 것은
+  // 이 게임의 좁은 발판과 안 맞습니다. 얻으려던 것은 거리가 아니라 **시간**이니,
+  // 자리는 그대로 두고 시간만 뺏습니다.
   //
-  // 밀어내는 것은 **시간을 버는 방어**입니다. 밀려난 놈이 다시 붙는 데
-  // 걸리는 그 짧은 동안이 전사가 얻는 몫입니다. 그 대신 공격 속도 한계를
-  // 낮췄습니다 (1.65 → CFG 참고) — 밀어내면서 빠르기까지 하면 발판 위에
-  // 아무도 못 올라옵니다.
-  //
-  // 밀린 놈은 잠깐 제 걸음을 멈춥니다 (knockUntil). 안 그러면 밀자마자
-  // 제자리로 걸어와서, 밀려나는 그림만 보이고 실제로는 아무 일도 안 일어납니다.
-  knockBack(enemy) {
-    const k = CFG.knockback;
-    const power = this.job.knockback || 0;
-    if (!power || !enemy.active || enemy.isBoss || enemy.body.allowGravity === undefined) return;
+  // **한 번 걸린 놈은 깨어난 뒤 recoverMs 동안 다시 안 걸립니다.**
+  // 이게 없으면 스턴이 아니라 전원 스위치입니다 — 공격 주기(215~315ms)가
+  // 스턴(480ms)보다 짧아서, 때릴 때마다 다시 걸면 사거리 안의 적은 영영
+  // 안 깨어납니다. 뺏는 것이지 없애는 것이 아니어야 합니다.
+  stunEnemy(enemy) {
+    const c = CFG.stun;
+    const power = this.job.stun || 0;
+    if (!power || !enemy.active || enemy.isBoss || enemy.isGoldFrog) return;
+    const now = this.time.now;
+    if (now < (enemy.stunOkAt || 0)) return;
 
-    // 덩치가 클수록 덜 밀립니다. 거인이 코인벌레와 똑같이 날아가면
-    // "크다"는 것이 그림에만 있고 손에는 없습니다.
-    const heft = 1 / (enemy.def && enemy.def.scale ? Math.max(0.6, enemy.def.scale) : 1);
-    const push = CFG.platformW * k.share * power * heft;
-    const dx = Math.sign(enemy.x - this.player.x) || (this.facing || 1);
+    const ms = c.ms * power;
+    enemy.stunUntil = now + ms;
+    enemy.stunOkAt = now + ms + c.recoverMs;
+    if (enemy.body) enemy.body.velocity.x = 0;
+    this.stunFx(enemy, ms);
+  }
 
-    // ── **밀되 제 칼이 닿는 데까지만** ──────────────────
-    //
-    // 처음에는 그냥 밀었습니다. 그랬더니 첫 대에 적이 사거리 밖으로 나가고,
-    // 다음 대는 허공을 향해 나가지도 않고, 적이 걸어 돌아올 때까지 아무 일도
-    // 안 일어났습니다. **공격 속도가 통째로 뜻을 잃었습니다** — 한 대 치고
-    // 800ms 를 기다리는 직업이 되니, 속을 아무리 주워도 화력이 그대로입니다.
-    //
-    // 밀어서 놓치면 밀 이유가 없습니다. 넉백은 적을 **내 몸에서** 떼어
-    // 놓으려는 것이지 **내 칼에서** 떼어 놓으려는 것이 아닙니다.
-    // 그래서 사거리 안쪽 끝까지만 밀어냅니다 — 계속 때리면서, 계속 못 닿게.
-    const keep = this.weapon.reach * k.keepInReach;
-    const gap = Math.min(Math.abs(enemy.x - this.player.x) + push, Math.max(push, keep));
-    enemy.x = this.player.x + gap * dx;
-    enemy.knockUntil = this.time.now + k.stunMs;
-    enemy.body.velocity.x = 0;
+  // 멎었다는 것이 **보여야** 합니다.
+  //
+  // 밀어낼 때는 자리가 바뀌니 눈에 그냥 보였는데, 자리를 안 옮기니 가만히
+  // 서 있는 것과 구분이 안 됩니다. 맞을 때 나는 흰 번쩍임은 60ms 짜리라
+  // 480ms 를 알려 주지 못합니다.
+  //
+  // 그래서 **몸을 기울입니다.** 휘청하고 기울었다가 스턴이 풀릴 즈음 천천히
+  // 바로 섭니다 — 기울어져 있는 동안이 곧 못 움직이는 동안입니다.
+  // 도형을 새로 만들지 않으므로 값도 거의 안 듭니다 (트윈 하나).
+  stunFx(enemy, ms) {
+    this.tweens.killTweensOf(enemy, 'angle');
+    const lean = (Math.random() < 0.5 ? -1 : 1) * CFG.stun.lean;
+    enemy.setAngle(lean);
+    this.tweens.add({
+      targets: enemy, angle: 0, duration: ms, ease: 'Sine.in',
+      // 죽어서 사라진 뒤에 각도를 건드리면 터집니다.
+      onComplete: () => { if (enemy.active) enemy.setAngle(0); },
+    });
   }
 
   // ── 필드에서 무기를 만났을 때 ─────────────────────────
