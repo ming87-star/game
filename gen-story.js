@@ -47,10 +47,20 @@ const STYLE = [
 ].join(' ');
 
 // 제목 글자용. 컷씬 화풍과 겹치는 것은 색뿐입니다.
+// 제목 글자는 **배경이 비쳐야** 합니다. 그런데 이 모델은 알파를 안 내놓습니다 —
+// "transparent background" 라고 시켰더니 회색 판때기를 그려 왔고, 그대로 쓰면
+// 타이틀 그림 위에 회색 상자가 얹힙니다.
+//
+// 스프라이트 쪽에서 쓰던 길을 그대로 씁니다 (gen-sprite.js) — **순수 마젠타**
+// 위에 그리게 하고 굽는 자리에서 걷어냅니다. 이 그림의 팔레트(남색·보라·흰빛)에
+// 없는 색이라 글자와 섞일 일이 없습니다.
 const LETTER_STYLE = [
   '@SHAPE@',
-  'Transparent background (PNG/WebP alpha) — no backdrop, no scenery, no frame, no border.',
-  'Flat artwork on nothing: only the lettering and the small mark.',
+  'The background is one completely flat, uniform, pure magenta #FF00FF chroma key screen.',
+  'Every single pixel that is not the lettering or the small mark must be exactly that',
+  'same magenta — no gradient, no texture, no vignette, no panel, no card, no frame,',
+  'no border, and NO SHADOW of any kind behind or under the letters.',
+  'Flat artwork on plain magenta: only the lettering and the small mark.',
   'No characters, no tower, no props, no watermark, no signature.',
   'No Latin letters and no words other than the two Korean lines given.',
 ].join(' ');
@@ -145,10 +155,14 @@ const SCENES = [
       '(5) a cracked pale mask worn over his face, over the helmet, slightly larger than his',
       'head, a fracture running across it.',
       'The far background falls away into an enormous dark drop — he is very high up.',
-      'COMPOSITION IS CRITICAL: place the knight and the fighting in the MIDDLE BAND of the',
-      'tall frame. The TOP QUARTER must be dark, simple and almost empty — only distant',
-      'tower depth and haze, nothing important — because a title will sit there. The BOTTOM',
-      'SIXTH must also stay dark and quiet, because a line of text sits there too.',
+      'COMPOSITION IS CRITICAL, and it matters more than the action does.',
+      'The TOP 30% OF THE FRAME MUST BE EMPTY: nothing but dark, plain, out-of-focus tower',
+      'wall and haze. NOTHING may reach up into that band — no sword tip, no raised arm,',
+      'no crest, no beam, no lightning, no sparks, no floating eyeball, no monster hand.',
+      'Keep that band dark and low-contrast so pale text laid over it stays readable.',
+      'Push the knight and the whole fight DOWN into the middle band of the tall frame,',
+      'and draw him smaller than you would like so that everything fits below the empty top.',
+      'The BOTTOM SIXTH must also stay dark and quiet, because a line of text sits there too.',
       'Energetic, kinetic, thrilling: this is the frame that says what this game is.',
     ].join(' '),
   },
@@ -161,13 +175,14 @@ const SCENES = [
     name: 'title-logo',
     refs: [],
     noHero: true,
+    chroma: true,       // 마젠타를 걷어내고 알파로 (아래 bake)
     style: LETTER_STYLE,
     head: 'Hand-lettered Korean game title logo artwork.',
     shape: 'Wide horizontal composition, roughly 5:2, the lettering filling the frame.',
     aspect: 5 / 2,
     scene: [
-      'Korean hand-lettered game title logo, two lines, centred, on a fully transparent',
-      'background (alpha channel, no backdrop of any kind).',
+      'Korean hand-lettered game title logo, two lines, centred, on a flat pure magenta',
+      '#FF00FF chroma key background (it will be keyed out later).',
       'Line 1, smaller and dimmer, muted blue-grey: 오늘도 탑을 오르는 나는',
       'Line 2, much larger and brighter, near-white with a faint violet edge light:',
       '무슨 생각을 해야 하나',
@@ -184,6 +199,8 @@ const SCENES = [
       'muted blue-grey #8794B5. Dark, calm, weighty.',
       'No other objects, no characters, no tower, no background scenery, no frame,',
       'no watermark, no Latin text, no extra words.',
+      'FINAL REMINDER: everything behind and around the lettering is flat pure magenta',
+      '#FF00FF. Not grey. Not navy. Not a checkerboard. Not a card or a panel. Magenta.',
     ].join(' '),
   },
 
@@ -245,6 +262,32 @@ function pickImage(json) {
   return out[0] || null;
 }
 
+// 모델에게 **처음부터 그 비율로** 시킵니다.
+//
+// 예전에는 무엇을 그리든 1:1 로 받아 놓고 굽는 자리에서 잘랐습니다. 컷씬은
+// 어차피 정사각형이라 아무 일도 없었는데, 세로 9:16 짜리 타이틀 배경이
+// 들어오면서 문제가 드러났습니다 — 정사각형으로 그린 그림에서 가운데 세로
+// 띠만 남기면 좌우가 반쯤 잘려 나가고, 무엇보다 **"위 1/4 을 비워라"가
+// 무의미해집니다.** 모델은 정사각형 안에서 위를 비운 것이지 9:16 안에서
+// 비운 것이 아니니까요.
+//
+// API 가 받는 비율은 정해져 있습니다. 원하는 비율에서 가장 가까운 것을
+// 고르고, 남는 차이만 굽는 자리에서 잘라 냅니다 (5:2 는 21:9 로 받아 조금만
+// 다듬으면 됩니다).
+const API_RATIOS = [
+  ['1:1', 1], ['2:3', 2 / 3], ['3:2', 3 / 2], ['3:4', 3 / 4], ['4:3', 4 / 3],
+  ['4:5', 4 / 5], ['5:4', 5 / 4], ['9:16', 9 / 16], ['16:9', 16 / 9], ['21:9', 21 / 9],
+];
+function apiRatio(aspect) {
+  const want = aspect || 1;
+  let best = API_RATIOS[0];
+  // 비율은 곱셈으로 멀어지므로 로그 거리로 잽니다 — 2배와 0.5배가 같은 거리입니다.
+  API_RATIOS.forEach((r) => {
+    if (Math.abs(Math.log(r[1] / want)) < Math.abs(Math.log(best[1] / want))) best = r;
+  });
+  return best[0];
+}
+
 async function generate(scene) {
   const parts = [];
   // 참조를 먼저 넣어야 지시문이 그 그림을 가리킵니다.
@@ -263,7 +306,7 @@ async function generate(scene) {
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY },
       body: JSON.stringify({
         contents: [{ parts }],
-        generationConfig: { imageConfig: { aspectRatio: '1:1' } },
+        generationConfig: { imageConfig: { aspectRatio: apiRatio(scene.aspect) } },
       }),
     });
 
@@ -285,8 +328,8 @@ const QUALITY_STEPS = [0.94, 0.9, 0.86, 0.82, 0.78, 0.72, 0.66, 0.58, 0.5];
 // aspect 는 가로÷세로입니다. 컷씬은 1 (정사각형), 타이틀 배경은 9/16,
 // 제목 글자는 5/2 — **모델이 시킨 비율로 안 주는 일이 흔해서** 여기서
 // 가운데를 잘라 맞춥니다. 안 맞추면 화면에서 늘어나거나 잘립니다.
-async function bake(oven, pngBuffer, outName, aspect) {
-  const baked = await oven.evaluate(async ({ b64, size, max, steps, ar }) => {
+async function bake(oven, pngBuffer, outName, aspect, chroma) {
+  const baked = await oven.evaluate(async ({ b64, size, max, steps, ar, key }) => {
     const img = new Image();
     await new Promise((res, rej) => {
       img.onload = res; img.onerror = () => rej(new Error('그림을 못 읽었습니다'));
@@ -304,16 +347,37 @@ async function bake(oven, pngBuffer, outName, aspect) {
     const ctx = canvas.getContext('2d');
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(img, sx, sy, cw, ch, 0, 0, canvas.width, canvas.height);
+
+    // 마젠타를 걷어냅니다. 거리에 따라 서서히 지워야 글자 가장자리가 톱니가
+    // 안 됩니다. 지우고 나면 남은 반투명 화소에 분홍 기운이 남으므로,
+    // 초록을 빨강·파랑 중 작은 쪽까지 끌어올려 그 기운을 뺍니다.
+    if (key) {
+      const TOL = 110, FEATHER = 70;
+      const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const p2 = d.data;
+      for (let i = 0; i < p2.length; i += 4) {
+        const dist = Math.hypot(p2[i] - 255, p2[i + 1], p2[i + 2] - 255);
+        if (dist < TOL) { p2[i + 3] = 0; continue; }
+        if (dist < TOL + FEATHER) p2[i + 3] = Math.round(p2[i + 3] * (dist - TOL) / FEATHER);
+        const lo = Math.min(p2[i], p2[i + 2]);
+        if (p2[i + 1] < lo) p2[i + 1] = lo;
+      }
+      ctx.putImageData(d, 0, 0);
+    }
+
     const sizeOf = (u) => Math.floor((u.length - u.indexOf(',') - 1) * 0.75);
     let last = null;
     for (const q of steps) {
       const url = canvas.toDataURL('image/webp', q);
-      last = { url, q, bytes: sizeOf(url), w: img.width, h: img.height };
+      last = { url, q, bytes: sizeOf(url), w: img.width, h: img.height,
+        // 실제로 나간 크기. 예전에는 늘 SIZE×SIZE 라고 찍어서, 세로 그림을
+        // 정사각형으로 구운 줄 알고 한참 헤맸습니다.
+        outW: canvas.width, outH: canvas.height };
       if (last.bytes <= max) return last;
     }
     return last;
   }, { b64: pngBuffer.toString('base64'), size: SIZE, max: MAX_BYTES, steps: QUALITY_STEPS,
-    ar: aspect || 1 });
+    ar: aspect || 1, key: !!chroma });
 
   const body = baked.url.slice(baked.url.indexOf(',') + 1);
   fs.writeFileSync(path.join(OUT, outName), Buffer.from(body, 'base64'));
@@ -361,9 +425,9 @@ async function bake(oven, pngBuffer, outName, aspect) {
     try {
       const png = await generate({ ...scene, refs });
       fs.writeFileSync(path.join(RAW, scene.name + '.png'), png);
-      const baked = await bake(oven, png, scene.name + '.webp', scene.aspect);
+      const baked = await bake(oven, png, scene.name + '.webp', scene.aspect, scene.chroma);
       const over = baked.bytes > MAX_BYTES ? '  ← 상한 초과' : '';
-      console.log(`${baked.w}×${baked.h} → ${SIZE}×${SIZE} · 화질 ${baked.q} · ` +
+      console.log(`${baked.w}×${baked.h} → ${baked.outW}×${baked.outH} · 화질 ${baked.q} · ` +
                   `${Math.round(baked.bytes / 1024)}KB${over}`);
       made.push({ name: scene.name + '.webp', kb: Math.round(baked.bytes / 1024) });
     } catch (e) {
