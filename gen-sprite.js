@@ -318,6 +318,43 @@ const SUBJECTS = [
     what: 'A forging hammer alone, its head at the upper left and its handle pointing down to the '
         + 'lower right, nothing else.' },
 
+  // ── 상점 주인 (ART.md 8.9절) ─────────────────────────────
+  //
+  // 한 사람을 **두 장**으로 그립니다. 크기가 같아 헷갈리기 쉬운데 쓰임이
+  // 정반대입니다.
+  //
+  //   shop-keeper  상점 **화면** 안에 서는 초상. 1배로 굽습니다 (152×192 그대로).
+  //                화면에서 190px 이라 얼굴이 또렷해야 합니다
+  //   shop-npc     상점 **발판** 위에 서는 작은 사람. 4배로 굽습니다 (→ 38×48).
+  //                38px 로 줄어들면 남는 것은 붉은 두건과 금색 주머니뿐입니다
+  //
+  // 둘 다 `style` 로 **이미 그려 놓은 기사와 기는 것을 물립니다.** 이게
+  // 8.9절이 가장 세게 못박은 것입니다 — 발판 위에서 적들과 나란히 서므로,
+  // 그림체가 다르면 「저건 적인가」를 한 박자 늦게 판단하게 됩니다. 상점
+  // 발판은 안전한 자리라 그 한 박자가 가장 나쁩니다.
+  //
+  // 색은 금/호박/따뜻한 갈색입니다. 이 게임에서 금색이 곧 「돈」이고
+  // (코인·메달·가격표·상점 발판이 전부 #FFCA28 계열), 덤으로 주인공 셋의
+  // 붉은색·초록·보라와 안 겹칩니다. 도적이 후드에 얼굴 가리개라 주인은
+  // **얼굴이 보이는** 쪽으로 갑니다.
+  { name: 'shop-keeper', group: 'shop', w: 152, h: 192, scale: 1, anchor: 'bottom',
+    style: ['player-warrior', 'e-crawler'], facing: 'front',
+    what: 'A friendly merchant who has set up a stall inside a dark tower — seen from the front, '
+        + 'from the waist up and a little above. He wears a red headwrap or bandana and his face '
+        + 'is clearly visible and cheerful, the face of a trader mid-sale. Fingerless leather '
+        + 'gloves, several pouches on his belt, and he is holding up a fat coin purse in one hand '
+        + 'to show it. Warm browns and gold. Gold #FFCA28, warm brown #8D6E63, red wrap #C62828. '
+        + 'His face must read clearly: this drawing stands 190 pixels tall in a shop window.' },
+  { name: 'shop-npc', group: 'shop', w: 38, h: 48, anchor: 'bottom',
+    style: ['player-warrior', 'e-crawler'], facing: 'left',
+    what: 'The same merchant, FULL BODY, standing and facing LEFT. A red headwrap, warm brown '
+        + 'clothes, a fat gold coin purse held at his side, pouches on his belt. '
+        + 'CRITICAL: this shrinks to 38 pixels tall in the game, so draw it with big simple '
+        + 'shapes and only two or three flat tones — no small patterns, no fine trim, no tiny '
+        + 'buckles. The RED HEADWRAP and the GOLD PURSE are the only two things that survive at '
+        + 'that size, so make both large and unmistakable. '
+        + 'Gold #FFCA28, warm brown #8D6E63, red wrap #C62828.' },
+
   // ── 날아가는 것과 이펙트 (ART.md 6절) ────────────────────
   // 코드가 회전시켜 쓰므로 전부 오른쪽을 향합니다.
   //
@@ -403,12 +440,24 @@ const BG_OPAQUE = [
   'edge to edge with no margin, no border, no vignette and no background behind it.',
 ].join(' ');
 
+// 공통 문장(STYLE)이 "facing right" 라고 못박고 있습니다. 대부분은 그게 맞지만
+// 상점 주인처럼 **왼쪽을 봐야 하는** 것도 있습니다. 앞의 문장과 뒤의 문장이
+// 서로 싸우면 모델은 가운데를 고릅니다 — 실제로 정면을 보고 나왔습니다.
+// 그래서 방향은 **맨 끝에 한 번 더** 못박습니다.
+const FACING = {
+  left: 'FINAL REMINDER — DIRECTION: this character faces LEFT, in profile, looking towards the '
+      + 'left edge of the image. Ignore any earlier instruction that says facing right.',
+  front: 'FINAL REMINDER — DIRECTION: this character faces the viewer, straight on. '
+       + 'Ignore any earlier instruction that says side view or facing right.',
+};
+
 function promptFor(s) {
   const parts = [s.what];
   if (s.group === 'boss') parts.push(BOSS_RULES);
   parts.push(STYLE);
   parts.push(s.bg === 'none' || s.bg === 'opaque' ? BG_OPAQUE : BG);
   parts.push(FORBID);
+  if (s.facing && FACING[s.facing]) parts.push(FACING[s.facing]);
   return parts.join('\n\n');
 }
 
@@ -443,14 +492,43 @@ function refOf(subject) {
   return fs.existsSync(f) ? fs.readFileSync(f).toString('base64') : null;
 }
 
+// 어떤 그림은 **다른 놈과 그림체가 같아야** 합니다. 실루엣이 아니라 붓이
+// 같아야 하는 것입니다 — 상점 주인이 그렇습니다. 판 위에서 적들과 나란히
+// 서므로, 그림체가 다르면 「저건 적인가」를 한 박자 늦게 판단하게 됩니다
+// (ART.md 8.9절). 말로 "3등신 · 두꺼운 외곽선" 이라고 적어도 모델은 제 결로
+// 그립니다. 이미 그려 놓은 것을 **물려야** 합니다.
+const STYLE_RULE = [
+  'The attached images are STYLE REFERENCES from this same game — a hero and a monster',
+  'that already exist. They are NOT the character you are drawing: do not copy their',
+  'costume, their colours, their weapon or their pose.',
+  'Copy the DRAWING STYLE exactly: the same chunky three-head chibi proportions, the same',
+  'big head to small body ratio, the same thick dark outline weight, the same flat cel',
+  'shading in three or four hard steps with no soft gradients, the same low saturation,',
+  'the same amount of detail. Put your drawing next to them and they must look like they',
+  'were painted by the same hand for the same game.',
+].join(' ');
+
+function stylesOf(subject) {
+  if (!subject.style) return [];
+  return subject.style
+    .map((n) => path.join(OUT, n + '.png'))
+    .filter((f) => fs.existsSync(f))
+    .map((f) => fs.readFileSync(f).toString('base64'));
+}
+
 async function generate(subject) {
   // 보스는 가로로 넓적하고 나머지는 거의 정사각형입니다. 비율을 맞춰 달라고
   // 해야 모델이 여백을 덜 만듭니다.
   const ratio = subject.w / subject.h > 1.2 ? '4:3' : '1:1';
   const ref = refOf(subject);
+  const styles = stylesOf(subject);
   const parts = [];
   if (ref) parts.push({ inlineData: { mimeType: 'image/png', data: ref } });
-  parts.push({ text: promptFor(subject) + (ref ? '\n\n' + SHAPE_RULE : '') });
+  styles.forEach((b) => parts.push({ inlineData: { mimeType: 'image/png', data: b } }));
+  const rules = [];
+  if (ref) rules.push(SHAPE_RULE);
+  if (styles.length) rules.push(STYLE_RULE);
+  parts.push({ text: promptFor(subject) + (rules.length ? '\n\n' + rules.join('\n\n') : '') });
   const res = await fetch(
     'https://generativelanguage.googleapis.com/v1beta/models/' +
       encodeURIComponent(MODEL) + ':generateContent',
@@ -596,7 +674,10 @@ async function keyOut(oven, png, subject) {
       fs.writeFileSync(path.join(OUT, s.name + '.png'), Buffer.from(body, 'base64'));
       const thin = cut.fill < 55 ? `  ← 상자를 ${cut.fill}% 밖에 못 채웠습니다` : '';
       console.log(`받음 ${cut.src.w}×${cut.src.h} → 잘라서 ${cut.trimmed.w}×${cut.trimmed.h} ` +
-                  `→ ${s.w * BAKE_SCALE}×${s.h * BAKE_SCALE}${thin}`);
+                  // 배수를 항목이 따로 정할 수 있으므로(shop-keeper 는 1배)
+                  // 여기서도 그 값을 써야 합니다. BAKE_SCALE 을 박아 두었더니
+                  // 실제로는 152×192 로 나온 것을 608×768 이라고 찍었습니다.
+                  `→ ${s.w * (s.scale || BAKE_SCALE)}×${s.h * (s.scale || BAKE_SCALE)}${thin}`);
     } catch (e) {
       console.log('실패 — ' + e.message);
     }
