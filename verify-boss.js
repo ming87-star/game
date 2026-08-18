@@ -245,6 +245,34 @@ const check = (ok, label, got) => {
     s.hitEnemy(s.boss, s.boss.maxHp * 2);
   });
   await page.waitForTimeout(700);
+
+  // ── 판이 멈추고 한 장이 펼쳐집니다 ─────────────────────
+  // 보스를 넘은 자리는 지나가면서 읽게 두면 안 되는 자리라, 알림 두 줄이
+  // 아니라 창 하나로 바꿨습니다 (js/scene-trophy.js). 그래서 **여기서부터
+  // 판은 멈춰 있습니다** — 아래에서 재려는 전리품은 update 가 도는 동안에만
+  // 일하므로, 창을 안 닫으면 그 뒤가 전부 「아무 일도 안 일어났다」가 됩니다.
+  const shown = await page.evaluate(() => {
+    const s = window.__scene;
+    const w = window.__trophy;
+    return {
+      up: !!(w && w.scene && w.scene.isActive('trophy')),
+      paused: !s.scene.isActive('game'),
+      name: w && w.trophy ? w.trophy.name : '',
+    };
+  });
+  check(shown.up && shown.paused, '전리품은 판을 멈추고 한 장으로 알림',
+    (shown.name || '창이 없음') + ' · 판 멈춤 ' + shown.paused);
+
+  await page.evaluate(() => window.__trophy.close());
+  await page.waitForTimeout(200);
+  const closed = await page.evaluate(() => {
+    const s = window.__scene;
+    return { live: s.scene.manager.getScenes(true).map((x) => x.scene.key).join(','),
+      trophies: s.trophies.count };
+  });
+  check(closed.live.includes('game') && !closed.live.includes('trophy'),
+    '창을 닫으면 판이 다시 흐름', '살아 있는 장면 ' + closed.live);
+
   const after = await page.evaluate(() => {
     const s = window.__scene;
     const eye = s.trophies.eyes[0];

@@ -23,5 +23,5 @@ window.__game = new Phaser.Game({
   // 일시정지와 무기 갈아타기는 탑 위에 겹쳐 띄웁니다 — 혼자 시작되는 화면이
   // 아니라 맨 뒤에 둡니다.
   scene: [StoryScene, SelectScene, MedalScene, RelicBookScene, WeaponBookScene,
-    MeetScene, GameScene, PauseScene, SwapScene],
+    MeetScene, GameScene, PauseScene, SwapScene, TrophyScene],
 });

@@ -811,25 +811,6 @@ class GameScene extends Phaser.Scene {
     const trophy = trophyForBoss(boss.kind);
     const got = this.trophies.take(trophy);
 
-    const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
-    const cx = CFG.width / 2;
-    const parts = [
-      // 다섯이 저마다 다른 놈이므로 이름도 그 놈 것을 적습니다. 「수문장」으로
-      // 못 박아 두었더니 알주머니를 잡고도 수문장을 잡았다고 떴습니다.
-      this.add.text(cx, 320, ((boss.kind && boss.kind.name) || '수문장')
-        + '을(를) 쓰러뜨렸습니다', font(30, '#ffd54f')).setOrigin(0.5),
-      this.add.text(cx, 366,
-        (got ? trophy.icon + ' ' + trophy.name : '전리품은 이미 가득합니다')
-        + (healed ? '    체력 +' + healed : ''),
-        font(24, got ? '#ffcdd2' : '#8794b5')).setOrigin(0.5),
-      this.add.text(cx, 404, got ? trophy.detail : '', font(18, '#a5d6a7')).setOrigin(0.5),
-    ];
-    parts.forEach((t) => {
-      t.setScrollFactor(0).setDepth(150).setAlpha(0);
-      this.tweens.add({ targets: t, alpha: 1, duration: 300, yoyo: true, hold: 1800,
-        onComplete: () => t.destroy() });
-    });
-
     // 길이 다시 열립니다.
     for (let i = this.floorIndex; i <= this.floorIndex + 7; i++) this.addFloor(i);
     this.armItems();
@@ -837,6 +818,26 @@ class GameScene extends Phaser.Scene {
     // 방금 싸움이 끝났으니 박쥐 시계도 다시 갑니다.
     this.lastShopAt = this.time.now;
     this.cameras.main.shake(300, 0.01);
+
+    // ── 판을 멈추고 보여 줍니다 ────────────────────────
+    // 예전에는 흐릿하게 떴다 사라지는 알림 두 줄이었습니다. 그런데 이건 판에서
+    // 가장 큰 벽을 넘은 자리이고, 손에 들어오는 것도 이 판에 하나뿐인 물건입니다.
+    // **지나가면서 읽게 하면 안 되는 것**입니다 — 무엇을 얻었는지도, 그것이
+    // 무슨 일을 하는지도 모른 채 다음 발판으로 뛰게 됩니다.
+    //
+    // 갈아타기 창과 같은 규칙입니다 (js/scene-swap.js): 결정이나 값어치가
+    // 걸린 자리는 판을 멈추고 한 장을 펼칩니다.
+    this.clearNotices();
+    this.scene.pause();
+    this.scene.launch('trophy', {
+      from: this, boss: boss.kind, trophy, got, healed,
+    });
+  }
+
+  // 전리품 창이 닫히면 여기로 돌아옵니다.
+  closeTrophy() {
+    // 창을 누른 그 탭이 판이 다시 흐른 뒤 점프로 한 번 더 먹히는 것을 막습니다.
+    this.tapBlockedUntil = this.time.now + 300;
   }
 
   land(slot) {

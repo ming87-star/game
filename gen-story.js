@@ -1,9 +1,9 @@
-// 「탑 오르기」 이야기 컷씬 여섯 장을 만듭니다.
+// 이야기 컷씬 여덟 장을 만듭니다.
 //
-//   GEMINI_API_KEY=... node gen-story.js            여섯 장 전부
+//   GEMINI_API_KEY=... node gen-story.js            여덟 장 전부
 //   GEMINI_API_KEY=... node gen-story.js story-3    한 장만 다시
 //
-// 앞 그림을 뒤 그림의 참조로 물립니다. 텍스트 프롬프트만으로는 여섯 장에서
+// 앞 그림을 뒤 그림의 참조로 물립니다. 텍스트 프롬프트만으로는 여덟 장에서
 // 같은 사람을 유지할 수 없기 때문입니다. 다만 바로 앞 장만 물리면 조금씩
 // 어긋난 것이 쌓이므로, **story-1 을 기준으로 늘 함께 붙이고** 거기에 바로
 // 앞 장을 더합니다 — 기준점 하나와 흐름 하나.
@@ -22,11 +22,15 @@ const MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image';
 const SIZE = 1024;
 const MAX_BYTES = 400 * 1024;
 
-// ── 여섯 장에 글자 하나 안 바꾸고 붙는 두 덩어리 ──────────────
-// 이게 여섯 장을 한 세계로 묶는 유일한 장치입니다. 장면마다 조금씩 고치면
+// ── 여덟 장에 글자 하나 안 바꾸고 붙는 두 덩어리 ──────────────
+// 이게 여덟 장을 한 세계로 묶는 유일한 장치입니다. 장면마다 조금씩 고치면
 // 이야기가 아니라 그림 모음이 됩니다.
+// 첫 줄만 장면이 바꿔 낄 수 있습니다 (scene.head). 여덟 장 중 일곱은 조용한
+// 컷인데 다섯째만 싸움이라, 여기에 「calm」이 박혀 있으면 그 한 장이 늘
+// 얌전하게 나옵니다. 나머지는 글자 하나 안 바꾸고 그대로 붙습니다.
+const HEAD = 'Dark, calm fantasy illustration — a cutscene still for a vertical mobile game.';
+
 const STYLE = [
-  'Dark, calm fantasy illustration — a cutscene still for a vertical mobile game.',
   'Setting: the inside of a cold dark-blue stone tower.',
   'Muted palette anchored on deep navy #141A2E and #1D2542, low saturation,',
   'moody cinematic lighting with one clear light source, soft rim light.',
@@ -93,6 +97,60 @@ const SCENES = [
       'A moment of resolve — he has decided to climb.',
     ].join(' '),
   },
+  // ── 다섯째 컷 — 후반 전투 ─────────────────────────────
+  // 앞의 넷과 성격이 다릅니다. 넷은 조용한 컷이고 이것만 **움직이는 컷**입니다.
+  // 보스 다섯을 넘고 얻은 전리품을 전부 몸에 붙인 채 싸우는 한 순간입니다
+  // (js/trophies.js 의 다섯 가지가 그대로 그림에 있어야 합니다 — 화면에서
+  // 실제로 도는 것들이라, 여기서 처음 보는 물건이 섞이면 판에서 못 알아봅니다).
+  {
+    name: 'story-5',
+    refs: ['story-1', 'story-4'],
+    head: 'Dark, high-energy action fantasy illustration — a climactic cutscene still '
+      + 'for a vertical mobile game.',
+    scene: [
+      'A dynamic action shot: the knight fighting high up inside the tower, mid-combat,',
+      'body twisted into a full sword swing, cloth and crest streaming, sparks and embers',
+      'flying, a shockwave of light along the blade. Low dramatic camera angle looking',
+      'slightly up at him. Around him five or six monstrous silhouettes close in from the',
+      'dark; two are being flung backwards by the blow.',
+      'He is carrying the spoils taken from the bosses he has beaten, all visible at once:',
+      '(1) three small floating eyeballs orbiting around him, each about one tenth of his',
+      'height, trailing faint violet light, one of them firing a thin bolt;',
+      '(2) a wide beam of pale piercing light lancing out past his shoulder through a row',
+      'of enemies;',
+      '(3) a pair of huge red-hot iron tongs, glowing like they came straight out of a forge,',
+      'clamped around a monster beside him, that monster burning;',
+      '(4) three small hatchling creatures, freshly broken out of their eggs, bounding along',
+      'the floor at his feet and biting at the enemies;',
+      '(5) a cracked pale mask worn over his face, over the helmet, slightly larger than his',
+      'head, a fracture running across it.',
+      'The far background falls away into an enormous dark drop — he is very high up.',
+      'Energetic, kinetic, thrilling: the single most exciting frame of the whole story.',
+    ].join(' '),
+  },
+
+  // ── 메인 이미지 ──────────────────────────────────────
+  // 마지막 컷(제목)의 바탕입니다. 그래서 **위쪽 삼분의 일이 비어 있어야**
+  // 합니다 — 로고가 거기에 섭니다 (js/scene-story.js showLogo).
+  // 앞의 다섯이 사건이라면 이것은 물음입니다. 움직임이 아니라 멈춤을 그립니다.
+  {
+    name: 'key-art',
+    refs: ['story-1', 'story-2'],
+    scene: [
+      'Key art for the title screen. The knight stands alone and small on a narrow broken',
+      'stone platform in the lower half of the frame, seen from behind and slightly below,',
+      'sword hanging loose at his side, head tilted back, looking up.',
+      'Above him the tower shaft opens into enormous depth: tier after tier of ledges,',
+      'arches and hanging chains receding upward into blackness, no ceiling and no top in',
+      'sight, a single faint pale light impossibly far above.',
+      'The upper third of the image must be simple, dark and almost empty — quiet negative',
+      'space with nothing important in it, so that a title can sit there.',
+      'Not a fight. Not a heroic pose. A pause: someone very small who has stopped to look',
+      'up at how far it still goes, and is thinking about it.',
+      'Still, vast, lonely and beautiful.',
+    ].join(' '),
+  },
+
   {
     name: 'meet-archer',
     refs: ['story-1', 'story-4'],
@@ -127,7 +185,7 @@ function promptFor(s) {
   if (s.refs.length) parts.push(REF_NOTE);
   parts.push(s.scene);
   parts.push(HERO);
-  parts.push(STYLE);
+  parts.push((s.head || HEAD) + ' ' + STYLE);
   return parts.join('\n\n');
 }
 
@@ -215,6 +273,24 @@ async function bake(oven, pngBuffer, outName) {
 }
 
 (async () => {
+  // ── 프롬프트만 뽑기 ──────────────────────────────────
+  // 키가 없는 자리에서도 **그림을 다른 데서 그려 올 수는 있어야** 합니다.
+  // 붙는 것(참조·주인공·화풍)까지 다 합쳐서 그대로 붙여 쓸 수 있는 한 덩어리로
+  // 뱉습니다 — 여기 적힌 것과 다른 글로 그리면 여덟 장이 한 세계가 아니게 됩니다.
+  //
+  //   node gen-story.js --prompt              여덟 장 전부
+  //   node gen-story.js --prompt story-5      한 장만
+  if (process.argv.includes('--prompt')) {
+    const pick = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+    const list = pick.length ? SCENES.filter((s) => pick.includes(s.name)) : SCENES;
+    list.forEach((s, i) => {
+      if (i) console.log('\n' + '─'.repeat(70) + '\n');
+      console.log('### ' + s.name + (s.refs.length ? '   참조: ' + s.refs.join(' · ') : ''));
+      console.log('\n' + promptFor(s));
+    });
+    return;
+  }
+
   if (!KEY) { console.error('GEMINI_API_KEY 가 없습니다'); process.exit(1); }
   fs.mkdirSync(RAW, { recursive: true });
   fs.mkdirSync(OUT, { recursive: true });
@@ -247,7 +323,7 @@ async function bake(oven, pngBuffer, outName) {
     }
   }
 
-  // ── 여섯 장을 한 판에 ────────────────────────────────────
+  // ── 여덟 장을 한 판에 ────────────────────────────────────
   // 한 장씩 보면 다 그럴듯한데, 늘어놓으면 인물이 딴사람이 되었거나
   // 밝기가 튀는 것이 그때 보입니다.
   const all = SCENES.map((s) => s.name + '.webp')

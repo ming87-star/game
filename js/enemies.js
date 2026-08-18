@@ -38,6 +38,33 @@ function coinDropChance(floor) {
   return Math.max(c.minChance, c.dropChance / (1 + Math.max(0, floor) * c.taperPerFloor));
 }
 
+// ── 잃은 마릿수만큼 한 마리가 커집니다 ───────────────────
+//
+// 한 발판의 마릿수를 넷에서 멈춰 세웠습니다 (CFG.enemyCount.capMax). 일곱이
+// 진을 치면 어느 줄로 가든 둘러싸여서 **고를 것이 없어지기** 때문입니다 —
+// 피하는 길도, 기다릴 자리도 안 생깁니다.
+//
+// 그런데 마릿수만 줄이면 후반이 통째로 헐거워집니다. 그래서 **줄인 만큼 한
+// 마리에 되돌려 줍니다.** 예전대로라면 몇 마리였을지를 지금 마릿수로 나눈
+// 값이 그대로 배수입니다.
+//
+//   450층: 예전 일곱 → 지금 넷,  한 마리가 ×1.75
+//
+// **체력·공격력·코인 셋 다** 이 배수를 탑니다. 그래야 한 발판의 총량이 정확히
+// 그대로 남습니다 — 잡는 데 걸리는 시간도, 맞는 양도, 버는 코인도. 바뀌는
+// 것은 그것이 **몇 덩이로 나뉘어 오느냐**뿐입니다.
+//
+// 예전에 걷어낸 hpGrowth(1.022^층)와는 다릅니다. 그것은 끝없이 곱으로 자라서
+// 어느 층부터 안 죽는 벽이 섰습니다. 이 배수는 마릿수 상한이 멎는 자리에서
+// 같이 멎습니다 (1.75).
+function enemyCrowdScale(floor) {
+  const c = CFG.enemyCount;
+  const shops = Math.floor(Math.max(0, floor) / CFG.shopEvery);
+  const want = Math.min(c.crowdMax, Math.floor(c.capBase + shops * c.capPerShop));
+  const now = Math.min(c.capMax, want);
+  return Math.max(1, want / Math.max(1, now));
+}
+
 function enemyHpScale() {
   return 1;
 }
@@ -60,15 +87,21 @@ function spawnEnemy(scene, x, y, floor, typeKey) {
   }
 
   e.def = def;
+  // 마릿수를 줄인 만큼 한 마리가 커집니다 (위 enemyCrowdScale).
+  const crowd = enemyCrowdScale(floor);
+  e.crowdScale = crowd;
   e.maxHp = Math.round((CFG.enemy.baseHp + floor * CFG.enemy.hpPerFloor)
-    * enemyHpScale(floor) * def.hp);
+    * enemyHpScale(floor) * crowd * def.hp);
   e.hp = e.maxHp;
   e.speed = Math.min(
     CFG.enemy.maxSpeed,
     (CFG.enemy.baseSpeed + floor * CFG.enemy.speedPerFloor) * def.speed);
   e.floor = floor;
-  e.contactDamage = Math.round(def.dmg * (1 + floor * CFG.enemy.dmgPerFloor));
-  e.coin = def.coin;
+  // 공격력과 코인도 같은 배수를 탑니다. 셋이 함께 커져야 한 발판의 총량이
+  // 그대로 남습니다 — 하나만 키우면 「덜 아픈데 안 죽는」 놈이 되거나
+  // 「가난해진」 발판이 됩니다.
+  e.contactDamage = Math.round(def.dmg * (1 + floor * CFG.enemy.dmgPerFloor) * crowd);
+  e.coin = Math.round(def.coin * crowd);
   e.phase = Math.random() * Math.PI * 2;
   e.nextShotAt = scene.time.now + CFG.enemyShot.interval * (0.5 + Math.random());
   e.nextHopAt = scene.time.now + Math.random() * CFG.hop.interval;

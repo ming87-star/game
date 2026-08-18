@@ -281,6 +281,34 @@ const PROBE = `(() => {
   await page.mouse.click(...at(270, 620));
   await look('보스 층 — 체력 띠와 HUD', 3800);
 
+  // ── 보스를 넘고 나서 뜨는 창 ───────────────────────────
+  // 판을 멈추고 펼치는 한 장이라 줄이 많습니다 (이름·하는 일·전설·경고).
+  // **가장 나쁜 경우를 봅니다**: 회복 줄이 붙고, 전설이 두 줄로 접히고,
+  // 한도가 차서 「이미 가득」 줄까지 함께 뜨는 판.
+  const openTrophy = (bossKey, trophyKey, got, healed) => page.evaluate((d) => {
+    const s = window.__scene;
+    s.bossFight = false;
+    s.scene.pause();
+    s.scene.launch('trophy', {
+      from: s,
+      boss: CFG.boss.kinds.find((k) => k.key === d.bossKey),
+      trophy: TROPHIES[d.trophyKey],
+      got: d.got, healed: d.healed,
+    });
+  }, { bossKey, trophyKey, got, healed });
+  const closeTrophy = async () => {
+    await page.evaluate(() => window.__trophy.close());
+    await page.waitForTimeout(400);
+  };
+
+  await openTrophy('boss-phantom', 'mask', false, 120);
+  await look('보스 전리품 창 — 회복 줄 + 한도까지 참', 600);
+  await closeTrophy();
+
+  await openTrophy('boss-warden', 'eye', true, 0);
+  await look('보스 전리품 창 — 첫 보스', 600);
+  await closeTrophy();
+
   // ── 죽음 화면 ──────────────────────────────────────────
   // 두 갈래를 다 봅니다. 유물 줄은 있을 때만 자리를 쓰므로, 유물을 들고
   // 죽은 판과 빈손으로 죽은 판의 아래쪽 줄 자리가 서로 다릅니다.

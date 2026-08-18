@@ -36,7 +36,7 @@ const safe = (js) => js.replace(/<\/script>/gi, '<\\/script>');
 const css = read('css/game.css');
 const js = SCRIPTS.map((f) => `/* ${f} */\n${safe(read(f))}`).join('\n;\n');
 
-const fragment = `<title>탑 오르기</title>
+const fragment = `<title>오늘도 탑을 오르는 나는 무슨 생각을 해야하나</title>
 <style>
 ${css}
 </style>

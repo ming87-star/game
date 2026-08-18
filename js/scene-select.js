@@ -12,14 +12,21 @@ class SelectScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#0d1120');
     this.add.rectangle(cx, CFG.height / 2, 500, CFG.height, 0x141a2e);
 
-    this.add.text(cx, 88, '탑 오르기', font(52, '#ffffff')).setOrigin(0.5);
+    // 제목이 문장이라 로고로 세웁니다 (js/logo.js). 밋밋한 한 줄로 두면
+    // 스물두 자가 화면 너비에 안 들어가고, 억지로 줄이면 아무 데서도 안 읽힙니다.
+    // 여기서는 **탑 표시를 뺍니다** (mark: false). 카드 셋이 화면을 거의 다
+    // 쓰는 자리라, 표시가 52px 을 먹으면 「직업을 고르세요」가 첫 카드 밑으로
+    // 밀려 들어갑니다. 표시는 자리가 넉넉한 오프닝 제목 컷에서 봅니다.
+    const logo = drawLogo(this, cx, 24, { scale: 0.75, mark: false });
 
     const best = Save.bestFloor;
-    this.add.text(cx, 140, best ? '최고 기록  ' + best + '층   ·   ' + Save.deaths + '번 도전'
-      : '직업을 고르세요', font(21, '#8794b5')).setOrigin(0.5);
-    this.add.text(cx, 174, '가진 메달  🏅 ' + Save.medals, font(20, '#ffca28')).setOrigin(0.5);
+    this.add.text(cx, logo.bottom + 18, best
+      ? '최고 기록  ' + best + '층   ·   ' + Save.deaths + '번 도전'
+      : '직업을 고르세요', font(20, '#8794b5')).setOrigin(0.5, 0);
+    this.add.text(cx, logo.bottom + 46, '가진 메달  🏅 ' + Save.medals,
+      font(19, '#ffca28')).setOrigin(0.5, 0);
 
-    CLASSES.forEach((job, i) => this.buildCard(job, cx, 278 + i * 200, best));
+    CLASSES.forEach((job, i) => this.buildCard(job, cx, 292 + i * 200, best));
 
     // 아래 두 자리 — 유물 도감과 이야기. 둘 다 판을 **시작하지 않는** 곳이라
     // 나란히 두고, 판을 시작하는 직업 카드와는 떨어뜨려 놓습니다.

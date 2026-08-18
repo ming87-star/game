@@ -4,6 +4,8 @@
 //   node bake-story.js --full   원본 크기 그대로 굽습니다
 //
 //   art/story-1..4.webp   오프닝 네 컷 (낱장 넷 — 권장)
+//   art/story-5.webp      다섯째 컷 — 후반 전투 (낱장만)
+//   art/key-art.webp      메인 이미지 — 마지막 제목 컷의 바탕
 //   art/story.webp        오프닝 2×2 한 장 (자를 자리를 코드가 찾습니다)
 //   art/meet-archer.webp  궁수를 만나는 컷
 //   art/meet-rogue.webp   도적을 만나는 컷
@@ -49,8 +51,11 @@ const FULL = process.argv.includes('--full');
 // 시키면 칸 사이에 여백이나 테두리를 멋대로 넣기 일쑤인데, 그러면 잘린 자리에
 // 흰 띠가 남습니다. 낱장이면 그 문제가 아예 없습니다.
 // 둘 다 있으면 낱장이 이깁니다 (js/scene-story.js).
-const WANT = ['story', 'story-1', 'story-2', 'story-3', 'story-4',
-  'meet-archer', 'meet-rogue'];
+//
+// 다섯째 컷(후반 전투)과 메인 이미지는 **낱장으로만** 옵니다 —
+// 2×2 한 장에는 넷까지밖에 안 들어갑니다.
+const WANT = ['story', 'story-1', 'story-2', 'story-3', 'story-4', 'story-5',
+  'key-art', 'meet-archer', 'meet-rogue'];
 
 // 넷 중 먼저 찾은 것을 씁니다. webp 가 같은 화질에서 가장 가볍습니다.
 const EXTS = ['.webp', '.jpg', '.jpeg', '.png'];
@@ -142,6 +147,7 @@ async function shrinkAll(names) {
     'const STORY_ART = ' + JSON.stringify(found, null, 0) + ';\n');
 
   const outKb = Math.round(fs.statSync(OUT).size / 1024);
+  // 2×2 한 장으로 메울 수 있는 것은 앞의 넷까지입니다.
   const cuts = [1, 2, 3, 4].filter((i) => found['story-' + i]).length;
   console.log(`\njs/storydata.js  ${outKb}KB  (${Object.keys(found).length}장)`);
   console.log(cuts === 4 ? '오프닝: 낱장 넷을 씁니다 (자르지 않음)'
