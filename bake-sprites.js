@@ -69,6 +69,24 @@ const WANT = [
 //                흰색으로 다시 뽑아야 붙일 수 있습니다.
 //   벽·발판·주인공  art/*.svg 가 원본이고 assets/ 쪽은 그 미리보기입니다
 //                (주인공의 SVG 는 화면에 안 나옵니다 — 물리 몸 껍데기입니다).
+// ── 카드에 서는 초상화 셋 ──────────────────────────────────
+//
+// assets/player-*.png 는 **판에 나오는 그림이 아닙니다.** 판 위의 주인공은
+// 조각 리그(art/p-*.svg)로 짓고, art/player-*.svg 는 38×48 짜리 물리 몸
+// 껍데기입니다. 이 PNG 셋은 그와 별개로 그려 둔 온전한 초상화인데 여태
+// 아무 데도 안 붙어 있었습니다 — 직업 고르기 카드가 그 자리입니다.
+//
+// 그래서 **두 가지를 비켜 갑니다.**
+//   · 이름을 face- 로 바꿉니다. player- 로 두면 「판 위의 주인공」과
+//     같은 이름이 되어, 나중에 누가 어느 쪽을 부르는지 헷갈립니다
+//   · 4로 안 나눕니다. 판 위의 적들은 32px 로 서지만 이건 카드에서
+//     140px 로 섭니다 — 4로 나누면 38×48 이 되어 세 배로 늘려 뭉갭니다
+const PORTRAITS = [
+  { key: 'face-warrior', from: 'player-warrior' },
+  { key: 'face-archer', from: 'player-archer' },
+  { key: 'face-rogue', from: 'player-rogue' },
+];
+
 const ON_PURPOSE = new Set([
   'coin', 'slash', 'spark', 'wave', 'bullet', 'enemy-bullet', 'arrow', 'arrow-trail',
   'wall', 'plat', 'plat-shop', 'plat-boss',
@@ -86,7 +104,15 @@ const ON_PURPOSE = new Set([
     if (fs.existsSync(path.join(ART, key + '.svg'))) { skipped.push(key); continue; }
     const png = path.join(ASSETS, key + '.png');
     if (!fs.existsSync(png)) { missing.push(key); continue; }
-    jobs.push({ key, png });
+    jobs.push({ key, png, div: SCALE });
+  }
+
+  // 초상화는 WANT 를 안 탑니다 — 같은 이름의 SVG 가 있어서 위 규칙에
+  // 걸리고, 배율도 다릅니다.
+  for (const { key, from } of PORTRAITS) {
+    const png = path.join(ASSETS, from + '.png');
+    if (fs.existsSync(png)) jobs.push({ key, png, div: 1 });
+    else missing.push(key);
   }
 
   const out = {};
@@ -98,7 +124,7 @@ const ON_PURPOSE = new Set([
     });
     const page = await browser.newPage();
 
-    for (const { key, png } of jobs) {
+    for (const { key, png, div } of jobs) {
       const uri = 'data:image/png;base64,' + fs.readFileSync(png).toString('base64');
       const r = await page.evaluate(async ([src, div, q]) => {
         const img = new Image();
@@ -111,7 +137,7 @@ const ON_PURPOSE = new Set([
         g.imageSmoothingQuality = 'high';
         g.drawImage(img, 0, 0, c.width, c.height);
         return { uri: c.toDataURL('image/webp', q), w: c.width, h: c.height, from: img.width };
-      }, [uri, SCALE, QUALITY]);
+      }, [uri, div, QUALITY]);
 
       out[key] = { w: r.w, h: r.h, uri: r.uri };
       const was = Math.round(fs.statSync(png).size / 1024);
