@@ -57,6 +57,10 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
     JSON.stringify({ bestFloor: 0, deaths: 0, runs: 0, bestCoins: 0, medals: m,
       weapons: {}, perks: {}, boosts: {}, unlocked: { archer: true, rogue: true }, sawStory: true })), medals);
   await page.reload({ waitUntil: 'networkidle' });
+  // 켜면 타이틀 화면이 먼저 섭니다 (js/scene-title.js). 사람처럼 한 번 지납니다.
+  await page.waitForFunction(() => window.__title && window.__title.ready,
+    null, { timeout: 8000 });
+  await page.evaluate(() => window.__title.go());
   await page.waitForTimeout(1000);
   await shot(page, '00-select.png');
   if (seed) {

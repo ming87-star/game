@@ -111,9 +111,26 @@ const PROBE = `(() => {
 
   await page.goto('http://localhost:' + port + '/', { waitUntil: 'networkidle' });
 
-  // ── 오프닝 ──────────────────────────────────────────────
+  // 켜면 **타이틀 화면이 가장 먼저** 섭니다 (js/scene-title.js). 새로 켤 때마다
+  // 한 번씩 지나야 합니다 — 안 지나면 아래의 「오프닝」도 「직업 고르기」도
+  // 사실은 타이틀 화면을 재게 되고, 타이틀에는 글자가 셋뿐이라 **무엇을 재도
+  // 늘 통과합니다.** 조용히 어긋나는 종류의 어긋남입니다.
+  const enter = async () => {
+    await page.waitForFunction(() => window.__title && window.__title.ready,
+      null, { timeout: 8000 });
+    await page.evaluate(() => window.__title.go());
+    await page.waitForTimeout(500);
+  };
+
+  // ── 타이틀 ──────────────────────────────────────────────
   await seed({});
   await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForFunction(() => window.__title && window.__title.ready,
+    null, { timeout: 8000 });
+  await look('타이틀 화면', 200);
+
+  // ── 오프닝 ──────────────────────────────────────────────
+  await enter();
   await look('오프닝 첫 컷', 1300);
   for (let i = 0; i < 3; i++) { await page.mouse.click(...at(270, 500)); await page.waitForTimeout(450); }
   await look('오프닝 마지막 컷', 300);
@@ -123,10 +140,12 @@ const PROBE = `(() => {
   await seed({ sawStory: true, unlocked: { archer: true, rogue: true },
     medals: 40, bestFloor: 412, deaths: 7, runs: 9, bestCoins: 3100 });
   await page.reload({ waitUntil: 'networkidle' });
+  await enter();
   await look('직업 고르기 — 셋 다 열림', 900);
 
   await seed({ sawStory: true, medals: 40 });
   await page.reload({ waitUntil: 'networkidle' });
+  await enter();
   await look('직업 고르기 — 전사만 열림', 900);
 
   // ── 유물 도감 ───────────────────────────────────────────

@@ -44,6 +44,11 @@ const check = (ok, label, got) => {
     weapons: {}, boosts: {}, relics: {}, unlocked: {}, lastJob: 'warrior', sawStory: true,
   })));
   await page.reload({ waitUntil: 'networkidle' });
+  // 켜면 타이틀 화면이 먼저 섭니다 (js/scene-title.js). 사람처럼 한 번 지납니다 —
+  // 안 지나면 아래가 전부 타이틀 화면 위에서 헛돕니다.
+  await page.waitForFunction(() => window.__title && window.__title.ready,
+    null, { timeout: 8000 });
+  await page.evaluate(() => window.__title.go());
   await page.waitForTimeout(700);
 
   // 직업 → 메달 상점 → 탑
@@ -356,7 +361,14 @@ const check = (ok, label, got) => {
   // **시계로 재면 안 됩니다.** 이 검사들은 창을 셋 띄워 놓고 도는데, 뒤에
   // 있는 창은 브라우저가 프레임을 죄어서 벽시계 1초가 게임 안에서 얼마인지
   // 알 수 없습니다. 그래서 전부 **결과가 나올 때까지** 기다립니다.
-  const seedRow = (gap) => page.evaluate((gap) => {
+  //
+  // **freeze 를 주면 여섯이 그 자리에 못 박힙니다.** 기는 놈은 초당 210px 로
+  // 달려드는데, 눈길은 겨누고 나서 460ms 뒤에 터집니다. 그동안 여섯은 한 줄을
+  // 버리고 주인공에게 몰리고, 둘은 아예 발판에서 떨어집니다 — 재려던 것은
+  // 「한 줄을 꿰뚫는가」인데 실제로 재고 있던 것은 「460ms 동안 얼마나
+  // 흩어지는가」였습니다. 그래서 프레임이 조금만 달라져도 4/6 이었다가
+  // 2/6 이 됐습니다. 칼을 꺼 두는 것과 같은 까닭입니다.
+  const seedRow = (gap, freeze) => page.evaluate(([gap, freeze]) => {
     const s = window.__scene;
     s.bossFight = false;
     if (s.boss) { s.boss.destroy(); s.boss = null; }
@@ -369,10 +381,14 @@ const check = (ok, label, got) => {
     window.__mark = [];
     for (let i = 0; i < 6; i++) {
       const e = spawnEnemy(s, s.player.x + gap + i * 40, s.player.y - 16, 620, 'crawler');
-      if (e) { e.hp = e.maxHp = 1e6; window.__mark.push(e); }
+      if (e) {
+        e.hp = e.maxHp = 1e6;
+        if (freeze) { e.speed = 0; e.body.velocity.set(0, 0); }
+        window.__mark.push(e);
+      }
     }
     return window.__mark.length;
-  }, gap);
+  }, [gap, freeze]);
 
   check(await page.evaluate(() => CFG.boss.kinds.every((k) => trophyForBoss(k))
       && new Set(CFG.boss.kinds.map((k) => trophyForBoss(k).key)).size === 5),
@@ -381,7 +397,7 @@ const check = (ok, label, got) => {
 
   // 꿰뚫는 눈길 — **늘어선 여럿을 한 번에**. 가장 가까운 놈을 겨누면 각이
   // 가팔라져 멀리 있는 놈이 선 밖으로 밀려나므로, 가장 많이 꿰뚫는 쪽을 고릅니다.
-  await seedRow(150);
+  await seedRow(150, true);
   const gaze = await page.evaluate(async () => {
     const s = window.__scene;
     s.trophies.take(TROPHIES.gaze);

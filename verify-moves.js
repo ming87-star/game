@@ -18,6 +18,11 @@ const server = http.createServer((req, res) => {
   await page.evaluate(() => window.localStorage.setItem('tower-climb-v1',
     JSON.stringify({ sawStory: true })));
   await page.reload({ waitUntil: 'networkidle' });
+  // 켜면 타이틀 화면이 먼저 섭니다 (js/scene-title.js). 사람처럼 한 번 지납니다 —
+  // 안 지나면 아래가 전부 타이틀 화면 위에서 헛돕니다.
+  await page.waitForFunction(() => window.__title && window.__title.ready,
+    null, { timeout: 8000 });
+  await page.evaluate(() => window.__title.go());
   await page.waitForTimeout(700);
   await page.mouse.click(270 * .75, 278 * .75); await page.waitForTimeout(600);
   const st = await page.evaluate(() => window.__medal.startAt);

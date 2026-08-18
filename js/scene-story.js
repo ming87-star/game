@@ -32,13 +32,7 @@ class StoryScene extends Phaser.Scene {
     // 데이터 URI라 네트워크를 타지 않습니다. 이미 구웠으면 다시 굽지 않습니다.
     // 낱장 넷과 2×2 한 장, 둘 다 받습니다 (bake-story.js 위쪽 참고).
     loadStoryArt(this, 'story');
-    // 2×2 한 장에는 넷까지만 들어갑니다. 다섯째(후반 전투)는 **낱장**으로만
-    // 옵니다 — 한 장에 다섯을 우겨넣으면 사분면 자르기가 무너집니다.
-    const cuts = ((CFG.story && CFG.story.panels) || []).length;
-    for (let i = 1; i <= cuts; i++) loadStoryArt(this, 'story-' + i);
-    // 마지막 제목 컷의 바탕이 되는 **메인 이미지**. 아직 없어도 돌아갑니다 —
-    // 그때는 어두운 바탕에 로고만 섭니다 (아래 show).
-    loadStoryArt(this, 'key-art');
+    for (let i = 1; i <= 4; i++) loadStoryArt(this, 'story-' + i);
   }
 
   create() {
@@ -131,12 +125,6 @@ class StoryScene extends Phaser.Scene {
     if (!p) return this.finish();
     this.at = n;
 
-    // ── 제목 컷 ────────────────────────────────────────
-    // 마지막은 만화가 아니라 **제목**입니다. 앞의 넷이 「또 1층」에서 끝나므로,
-    // 그 자리에서 제목이 뜨면 제목이 곧 그 사람의 물음이 됩니다.
-    if (p.logo) return this.showLogo(p);
-    this.hideLogo();
-
     const cut = this.cutKeys && this.cutKeys[n];
     if (cut) {
       // 낱장 — 자르지 않고 그대로 액자에 맞춥니다.
@@ -145,9 +133,7 @@ class StoryScene extends Phaser.Scene {
         .setDisplaySize(this.frameW, this.frameW * (src.height / src.width))
         .setPosition(this.frameX, this.frameY);
       this.placeholder.setText('');
-    } else if (this.sheet && n < 4) {
-      // 2×2 한 장에서 잘라 쓰는 것은 앞의 넷뿐입니다. 다섯째를 여기로
-      // 흘리면 없는 사분면(row 2)을 잘라서 빈 칸이 나옵니다.
+    } else if (this.sheet) {
       this.art.setVisible(true).setTexture('story');
       this.placeholder.setText('');
       // 왼위 → 오른위 → 왼아래 → 오른아래
@@ -193,48 +179,6 @@ class StoryScene extends Phaser.Scene {
   next() {
     if (this.at >= this.panels.length - 1) return this.finish();
     this.show(this.at + 1);
-  }
-
-  // ── 제목 컷 ────────────────────────────────────────────
-  // 액자 자리에 **메인 이미지**를 깔고 그 위에 로고를 세웁니다.
-  // 그림이 아직 없으면 어두운 바탕에 로고만 섭니다 — 글과 넘김은 그대로라,
-  // 그림이 붙기 전에도 흐름을 확인할 수 있습니다 (이 장면의 다른 컷과 같은 규칙).
-  showLogo(p) {
-    if (this.art) this.art.setVisible(false);
-    if (this.placeholder) this.placeholder.setText('');
-    this.titleText.setVisible(false);
-    this.bodyText.setText((p.lines || []).join('\n'));
-    this.dots.forEach((d, i) => d.setFillStyle(0xffffff, i === this.at ? 0.8 : 0.18));
-    this.skipLabel.setText('시작하기');
-
-    if (this.logoParts) return;   // 한 번만 짓습니다
-    this.logoParts = [];
-    const cx = this.frameX;
-
-    // 메인 이미지가 있으면 액자를 채우고, 위쪽을 어둡게 덮어 글자가 뜨게 합니다.
-    if (this.textures.exists('key-art')) {
-      const src = this.textures.get('key-art').getSourceImage();
-      const img = this.add.image(cx, this.frameY, 'key-art')
-        .setDisplaySize(this.frameW, this.frameW * (src.height / src.width));
-      this.logoParts.push(img);
-      this.logoParts.push(this.add.rectangle(cx, this.frameY, this.frameW, this.frameW, 0x0d1120, 0.45));
-    }
-
-    // 메인 이미지가 있으면 위쪽 삼분의 일에, 없으면 액자 한가운데에 세웁니다.
-    // 빈 액자의 위쪽에 붙여 두면 아래가 통째로 비어 만들다 만 화면으로 보입니다.
-    const hasArt = this.textures.exists('key-art');
-    const probe = drawLogo(this, -9999, 0, { scale: 0.95, width: this.frameW });
-    const h = probe.height;
-    probe.parts.forEach((o) => o.destroy());
-    const at = hasArt ? this.frameY - this.frameW * 0.34 : this.frameY - h / 2;
-    const logo = drawLogo(this, cx, at, { scale: 0.95, width: this.frameW });
-    this.logoParts.push(...logo.parts);
-  }
-
-  hideLogo() {
-    if (!this.logoParts) return;
-    this.logoParts.forEach((o) => o.destroy());
-    this.logoParts = null;
   }
 
   finish() {

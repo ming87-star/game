@@ -52,6 +52,22 @@ const check = (ok, label, got) => {
   // 1. 시작 화면
   check(await page.evaluate(() => !!window.__game), '합친 파일이 켜짐');
 
+  // 1-1. 타이틀 — **켜면 가장 먼저 서는 화면입니다.** 매번 섭니다.
+  //      제목이 뜨고, 「터치해서 계속하기」가 깜빡이고, 누르면 넘어갑니다.
+  //      여기가 막히면 게임에 아예 못 들어갑니다.
+  const title = await page.evaluate(() => (window.__title
+    ? { live: window.__game.scene.getScenes(true).map((s) => s.scene.key).join(','),
+      hint: window.__title.hint.text } : null));
+  check(title && title.live === 'title', '켜면 타이틀 화면이 가장 먼저',
+    title ? title.live : '안 나옴');
+  check(!!title && title.hint === '터치해서 계속하기', '「터치해서 계속하기」가 적힘',
+    title ? title.hint : '');
+
+  // 다 뜰 때까지 기다립니다 — 시계가 아니라 **다 떴다는 표시**를 봅니다.
+  await page.waitForFunction(() => window.__title && window.__title.ready, null, { timeout: 8000 });
+  await page.mouse.click(270, 500);
+  await page.waitForTimeout(800);
+
   // 1-2. 오프닝 — **처음 켠 사람이 실제로 보는 첫 화면입니다.**
   //      다른 검사는 전부 sawStory 를 켜 놓고 건너뛰므로, 여기서 한 번은
   //      진짜로 지나가 봐야 합니다. 여기가 막히면 새 사람은 게임을 못 켭니다.

@@ -30,16 +30,29 @@ const MAX_BYTES = 400 * 1024;
 // 얌전하게 나옵니다. 나머지는 글자 하나 안 바꾸고 그대로 붙습니다.
 const HEAD = 'Dark, calm fantasy illustration — a cutscene still for a vertical mobile game.';
 
+// 컷씬은 정사각형입니다 (액자가 정사각형이라). 타이틀 배경만 화면을 통째로
+// 덮으므로 세로로 깁니다 — scene.shape 로 바꿔 낍니다.
+const SHAPE = 'Square 1:1 composition, one single unified scene.';
+
 const STYLE = [
   'Setting: the inside of a cold dark-blue stone tower.',
   'Muted palette anchored on deep navy #141A2E and #1D2542, low saturation,',
   'moody cinematic lighting with one clear light source, soft rim light.',
   'Painterly game illustration with clean readable shapes.',
-  'Square 1:1 composition, one single unified scene.',
+  '@SHAPE@',
   'Absolutely no text, no letters, no numbers, no speech bubbles, no subtitles, no captions,',
   'no watermark, no signature, no logo, no border, no frame, no vignette frame,',
   'no comic panels, no panel divisions, no split screen, no collage.',
   'Avoid bright white or light backgrounds.',
+].join(' ');
+
+// 제목 글자용. 컷씬 화풍과 겹치는 것은 색뿐입니다.
+const LETTER_STYLE = [
+  '@SHAPE@',
+  'Transparent background (PNG/WebP alpha) — no backdrop, no scenery, no frame, no border.',
+  'Flat artwork on nothing: only the lettering and the small mark.',
+  'No characters, no tower, no props, no watermark, no signature.',
+  'No Latin letters and no words other than the two Korean lines given.',
 ].join(' ');
 
 const HERO = [
@@ -97,16 +110,23 @@ const SCENES = [
       'A moment of resolve — he has decided to climb.',
     ].join(' '),
   },
-  // ── 다섯째 컷 — 후반 전투 ─────────────────────────────
-  // 앞의 넷과 성격이 다릅니다. 넷은 조용한 컷이고 이것만 **움직이는 컷**입니다.
-  // 보스 다섯을 넘고 얻은 전리품을 전부 몸에 붙인 채 싸우는 한 순간입니다
+  // ── 타이틀 화면 배경 ─────────────────────────────────
+  // 켜면 가장 먼저 서는 화면입니다. 컷씬이 아니라 **화면을 통째로 덮는**
+  // 그림이라 혼자만 세로로 깁니다 (9:16).
+  //
+  // 보스 다섯을 넘고 전리품을 전부 붙인 채 싸우는 한 순간입니다
   // (js/trophies.js 의 다섯 가지가 그대로 그림에 있어야 합니다 — 화면에서
   // 실제로 도는 것들이라, 여기서 처음 보는 물건이 섞이면 판에서 못 알아봅니다).
+  //
+  // **위아래를 비워야 합니다.** 위쪽에 제목이 서고 아래쪽에 「터치해서
+  // 계속하기」가 섭니다. 이 한 가지가 어긋나면 아무리 잘 그려도 못 씁니다.
   {
-    name: 'story-5',
+    name: 'title-art',
     refs: ['story-1', 'story-4'],
-    head: 'Dark, high-energy action fantasy illustration — a climactic cutscene still '
+    head: 'Dark, high-energy action fantasy illustration — the title screen background '
       + 'for a vertical mobile game.',
+    shape: 'Tall vertical 9:16 composition that fills a phone screen, one single unified scene.',
+    aspect: 9 / 16,
     scene: [
       'A dynamic action shot: the knight fighting high up inside the tower, mid-combat,',
       'body twisted into a full sword swing, cloth and crest streaming, sparks and embers',
@@ -125,29 +145,45 @@ const SCENES = [
       '(5) a cracked pale mask worn over his face, over the helmet, slightly larger than his',
       'head, a fracture running across it.',
       'The far background falls away into an enormous dark drop — he is very high up.',
-      'Energetic, kinetic, thrilling: the single most exciting frame of the whole story.',
+      'COMPOSITION IS CRITICAL: place the knight and the fighting in the MIDDLE BAND of the',
+      'tall frame. The TOP QUARTER must be dark, simple and almost empty — only distant',
+      'tower depth and haze, nothing important — because a title will sit there. The BOTTOM',
+      'SIXTH must also stay dark and quiet, because a line of text sits there too.',
+      'Energetic, kinetic, thrilling: this is the frame that says what this game is.',
     ].join(' '),
   },
 
-  // ── 메인 이미지 ──────────────────────────────────────
-  // 마지막 컷(제목)의 바탕입니다. 그래서 **위쪽 삼분의 일이 비어 있어야**
-  // 합니다 — 로고가 거기에 섭니다 (js/scene-story.js showLogo).
-  // 앞의 다섯이 사건이라면 이것은 물음입니다. 움직임이 아니라 멈춤을 그립니다.
+  // ── 제목 글자 ────────────────────────────────────────
+  // 그림이 없으면 코드가 글꼴로 짓습니다 (js/logo.js). 글꼴로 찍은 제목은
+  // 무게가 없습니다 — 획 끝이 고르고, 자간이 기계적이고, 무엇보다 이 게임의
+  // 것으로 안 보입니다. **사람도 탑도 없는 그림**이라 규칙이 통째로 다릅니다.
   {
-    name: 'key-art',
-    refs: ['story-1', 'story-2'],
+    name: 'title-logo',
+    refs: [],
+    noHero: true,
+    style: LETTER_STYLE,
+    head: 'Hand-lettered Korean game title logo artwork.',
+    shape: 'Wide horizontal composition, roughly 5:2, the lettering filling the frame.',
+    aspect: 5 / 2,
     scene: [
-      'Key art for the title screen. The knight stands alone and small on a narrow broken',
-      'stone platform in the lower half of the frame, seen from behind and slightly below,',
-      'sword hanging loose at his side, head tilted back, looking up.',
-      'Above him the tower shaft opens into enormous depth: tier after tier of ledges,',
-      'arches and hanging chains receding upward into blackness, no ceiling and no top in',
-      'sight, a single faint pale light impossibly far above.',
-      'The upper third of the image must be simple, dark and almost empty — quiet negative',
-      'space with nothing important in it, so that a title can sit there.',
-      'Not a fight. Not a heroic pose. A pause: someone very small who has stopped to look',
-      'up at how far it still goes, and is thinking about it.',
-      'Still, vast, lonely and beautiful.',
+      'Korean hand-lettered game title logo, two lines, centred, on a fully transparent',
+      'background (alpha channel, no backdrop of any kind).',
+      'Line 1, smaller and dimmer, muted blue-grey: 오늘도 탑을 오르는 나는',
+      'Line 2, much larger and brighter, near-white with a faint violet edge light:',
+      '무슨 생각을 해야 하나',
+      'Reproduce the Korean characters EXACTLY as written above — do not invent, alter,',
+      'reorder or add any glyph. Hangul syllable blocks must stay correctly formed.',
+      'The lettering is brush-drawn but controlled and highly legible: slightly irregular',
+      'stroke ends, a little weight variation, faint wear and grit as if carved into cold',
+      'stone and then lit from one side. Not a computer font, but not messy either.',
+      'A single thin horizontal rule under line 2, violet #7E6BC4, slightly frayed.',
+      'Above the lettering, small and centred, a simple mark: four stacked horizontal bars',
+      'forming a ziggurat — widest at the bottom, each one narrower and brighter going up,',
+      'from deep navy to pale violet.',
+      'Palette: navy #141A2E, violet #7E6BC4 and #B39DDB, near-white #FFFFFF,',
+      'muted blue-grey #8794B5. Dark, calm, weighty.',
+      'No other objects, no characters, no tower, no background scenery, no frame,',
+      'no watermark, no Latin text, no extra words.',
     ].join(' '),
   },
 
@@ -184,8 +220,13 @@ function promptFor(s) {
   const parts = [];
   if (s.refs.length) parts.push(REF_NOTE);
   parts.push(s.scene);
-  parts.push(HERO);
-  parts.push((s.head || HEAD) + ' ' + STYLE);
+  // 사람이 안 나오는 그림에는 주인공 문장을 안 붙입니다 — 붙이면 글자만
+  // 그려 달라고 해 놓고 기사를 그려 넣습니다.
+  if (!s.noHero) parts.push(HERO);
+  // 화풍 덩어리를 통째로 바꿔 끼우는 장면도 있습니다 (제목 글자). 컷씬용
+  // STYLE 에는 「글자 금지 · 로고 금지 · 배경은 돌탑 안」이 박혀 있어서,
+  // 글자를 그려 달라는 그림에 붙이면 **요청문이 스스로와 싸웁니다.**
+  parts.push((s.head || HEAD) + ' ' + (s.style || STYLE).replace('@SHAPE@', s.shape || SHAPE));
   return parts.join('\n\n');
 }
 
@@ -241,22 +282,28 @@ async function generate(scene) {
 // 이 그림들은 어두운 면이 대부분이라 거기서 제일 먼저 티가 납니다.
 const QUALITY_STEPS = [0.94, 0.9, 0.86, 0.82, 0.78, 0.72, 0.66, 0.58, 0.5];
 
-async function bake(oven, pngBuffer, outName) {
-  const baked = await oven.evaluate(async ({ b64, size, max, steps }) => {
+// aspect 는 가로÷세로입니다. 컷씬은 1 (정사각형), 타이틀 배경은 9/16,
+// 제목 글자는 5/2 — **모델이 시킨 비율로 안 주는 일이 흔해서** 여기서
+// 가운데를 잘라 맞춥니다. 안 맞추면 화면에서 늘어나거나 잘립니다.
+async function bake(oven, pngBuffer, outName, aspect) {
+  const baked = await oven.evaluate(async ({ b64, size, max, steps, ar }) => {
     const img = new Image();
     await new Promise((res, rej) => {
       img.onload = res; img.onerror = () => rej(new Error('그림을 못 읽었습니다'));
       img.src = 'data:image/png;base64,' + b64;
     });
-    // 정사각형으로 맞춥니다. 모델이 1:1 로 안 주면 가운데를 잘라 냅니다.
-    const side = Math.min(img.width, img.height);
-    const sx = (img.width - side) / 2;
-    const sy = (img.height - side) / 2;
+    // 원본에서 ar 비율의 가장 큰 칸을 가운데로 잘라 냅니다.
+    let cw = img.width;
+    let ch = Math.round(cw / ar);
+    if (ch > img.height) { ch = img.height; cw = Math.round(ch * ar); }
+    const sx = (img.width - cw) / 2;
+    const sy = (img.height - ch) / 2;
     const canvas = document.createElement('canvas');
-    canvas.width = size; canvas.height = size;
+    canvas.width = ar >= 1 ? size : Math.round(size * ar);
+    canvas.height = ar >= 1 ? Math.round(size / ar) : size;
     const ctx = canvas.getContext('2d');
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+    ctx.drawImage(img, sx, sy, cw, ch, 0, 0, canvas.width, canvas.height);
     const sizeOf = (u) => Math.floor((u.length - u.indexOf(',') - 1) * 0.75);
     let last = null;
     for (const q of steps) {
@@ -265,7 +312,8 @@ async function bake(oven, pngBuffer, outName) {
       if (last.bytes <= max) return last;
     }
     return last;
-  }, { b64: pngBuffer.toString('base64'), size: SIZE, max: MAX_BYTES, steps: QUALITY_STEPS });
+  }, { b64: pngBuffer.toString('base64'), size: SIZE, max: MAX_BYTES, steps: QUALITY_STEPS,
+    ar: aspect || 1 });
 
   const body = baked.url.slice(baked.url.indexOf(',') + 1);
   fs.writeFileSync(path.join(OUT, outName), Buffer.from(body, 'base64'));
@@ -313,7 +361,7 @@ async function bake(oven, pngBuffer, outName) {
     try {
       const png = await generate({ ...scene, refs });
       fs.writeFileSync(path.join(RAW, scene.name + '.png'), png);
-      const baked = await bake(oven, png, scene.name + '.webp');
+      const baked = await bake(oven, png, scene.name + '.webp', scene.aspect);
       const over = baked.bytes > MAX_BYTES ? '  ← 상한 초과' : '';
       console.log(`${baked.w}×${baked.h} → ${SIZE}×${SIZE} · 화질 ${baked.q} · ` +
                   `${Math.round(baked.bytes / 1024)}KB${over}`);

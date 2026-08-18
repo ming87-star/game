@@ -40,6 +40,11 @@ const check = (ok, label, got) => {
     await page.goto('http://localhost:' + port + '/', { waitUntil: 'networkidle' });
     await page.evaluate((d) => window.localStorage.setItem('tower-climb-v1', JSON.stringify(d)), data);
     await page.reload({ waitUntil: 'networkidle' });
+    // 켜면 타이틀 화면이 먼저 섭니다 (js/scene-title.js). 사람처럼 한 번 지납니다 —
+    // 안 지나면 아래가 전부 타이틀 화면 위에서 헛돕니다.
+    await page.waitForFunction(() => window.__title && window.__title.ready,
+      null, { timeout: 8000 });
+    await page.evaluate(() => window.__title.go());
     await page.waitForTimeout(700);
   };
   const base = () => ({

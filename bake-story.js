@@ -4,8 +4,8 @@
 //   node bake-story.js --full   원본 크기 그대로 굽습니다
 //
 //   art/story-1..4.webp   오프닝 네 컷 (낱장 넷 — 권장)
-//   art/story-5.webp      다섯째 컷 — 후반 전투 (낱장만)
-//   art/key-art.webp      메인 이미지 — 마지막 제목 컷의 바탕
+//   art/title-art.webp    타이틀 화면 배경 — 후반 전투 (세로 9:16)
+//   art/title-logo.webp   제목 글자를 그린 것 (없으면 글꼴로 짓습니다)
 //   art/story.webp        오프닝 2×2 한 장 (자를 자리를 코드가 찾습니다)
 //   art/meet-archer.webp  궁수를 만나는 컷
 //   art/meet-rogue.webp   도적을 만나는 컷
@@ -52,10 +52,11 @@ const FULL = process.argv.includes('--full');
 // 흰 띠가 남습니다. 낱장이면 그 문제가 아예 없습니다.
 // 둘 다 있으면 낱장이 이깁니다 (js/scene-story.js).
 //
-// 다섯째 컷(후반 전투)과 메인 이미지는 **낱장으로만** 옵니다 —
-// 2×2 한 장에는 넷까지밖에 안 들어갑니다.
-const WANT = ['story', 'story-1', 'story-2', 'story-3', 'story-4', 'story-5',
-  'key-art', 'meet-archer', 'meet-rogue'];
+// 타이틀 화면의 두 장은 규격이 다릅니다 (아래 SPEC).
+//   title-art   화면을 덮는 세로 그림 (9:16)
+//   title-logo  제목 글자를 그린 것 (가로로 긴 · 배경이 비침)
+const WANT = ['story', 'story-1', 'story-2', 'story-3', 'story-4',
+  'title-art', 'title-logo', 'meet-archer', 'meet-rogue'];
 
 // 넷 중 먼저 찾은 것을 씁니다. webp 가 같은 화질에서 가장 가볍습니다.
 const EXTS = ['.webp', '.jpg', '.jpeg', '.png'];

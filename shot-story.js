@@ -24,12 +24,19 @@ const server = http.createServer((req, res) => {
   // 처음 켠 사람 그대로 — 오프닝이 저절로 나와야 합니다.
   await page.evaluate(() => window.localStorage.removeItem('tower-climb-v1'));
   await page.reload({ waitUntil: 'networkidle' });
+
+  // 켜면 타이틀 화면이 먼저 섭니다. 여기도 한 장 찍어 둡니다 —
+  // **사람이 가장 먼저 보는 화면**이라 어긋나면 가장 크게 어긋납니다.
+  await page.waitForFunction(() => window.__title && window.__title.ready,
+    null, { timeout: 8000 });
+  await page.screenshot({ path: path.join(ROOT, 'shots/story-title.png') });
+  await page.evaluate(() => window.__title.go());
   await page.waitForTimeout(900);
 
   const n = await page.evaluate(() => (window.__story ? window.__story.panels.length : 0));
   if (!n) { console.log('오프닝이 안 나왔습니다'); process.exit(1); }
 
-  const names = [];
+  const names = ['story-title.png'];
   for (let i = 0; i < n; i++) {
     if (i) { await page.mouse.click(270, 400); await page.waitForTimeout(320); }
     const f = 'story-' + (i + 1) + '.png';
@@ -75,17 +82,17 @@ const server = http.createServer((req, res) => {
   names.push('story-meet-2.png');
 
   const b64 = (f) => 'data:image/png;base64,' + fs.readFileSync(path.join(ROOT, 'shots', f)).toString('base64');
-  const titles = ['1컷 (왼위)', '2컷 (오른위)', '3컷 (왼아래)', '4컷 (오른아래)', '시작 화면',
-    '죽음 — 해금', '만남 · 궁수', '만남 · 도적'];
-  const sheet = await browser.newPage({ viewport: { width: 1140, height: 1030 } });
+  const titles = ['타이틀', '1컷 (왼위)', '2컷 (오른위)', '3컷 (왼아래)', '4컷 (오른아래)',
+    '시작 화면', '죽음 — 해금', '만남 · 궁수', '만남 · 도적'];
+  const sheet = await browser.newPage({ viewport: { width: 1412, height: 1030 } });
   await sheet.setContent(`<style>html,body{margin:0;background:#0d1120;font-family:sans-serif;color:#8794b5}
     .row{display:flex;gap:12px;padding:10px 12px}figure{margin:0}
     img{width:260px;border:1px solid #2a3252;border-radius:5px;display:block}
     figcaption{text-align:center;font-size:14px;padding-top:5px}</style>
-    <div class="row">${names.slice(0, 4).map((f, i) =>
+    <div class="row">${names.slice(0, 5).map((f, i) =>
       `<figure><img src="${b64(f)}"><figcaption>${titles[i]}</figcaption></figure>`).join('')}</div>
-    <div class="row">${names.slice(4).map((f, i) =>
-      `<figure><img src="${b64(f)}"><figcaption>${titles[i + 4]}</figcaption></figure>`).join('')}</div>`);
+    <div class="row">${names.slice(5).map((f, i) =>
+      `<figure><img src="${b64(f)}"><figcaption>${titles[i + 5]}</figcaption></figure>`).join('')}</div>`);
   await sheet.waitForTimeout(300);
   await sheet.screenshot({ path: path.join(ROOT, 'shots/story-sheet.png') });
 

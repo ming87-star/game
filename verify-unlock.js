@@ -43,6 +43,11 @@ const server = http.createServer((req, res) => {
     await page.evaluate(() => window.localStorage.setItem('tower-climb-v1',
       JSON.stringify({ sawStory: true })));
     await page.reload({ waitUntil: 'networkidle' });
+    // 켜면 타이틀 화면이 먼저 섭니다 (js/scene-title.js). 사람처럼 지나갑니다 —
+    // 다 뜰 때까지 기다렸다가 한 번 누릅니다.
+    await page.waitForFunction(() => window.__title && window.__title.ready,
+      null, { timeout: 8000 });
+    await page.evaluate(() => window.__title.go());
     await page.waitForTimeout(700);
     const locked = await page.evaluate(() =>
       CLASSES.map((j) => j.key + (classUnlocked(j) ? ':열림' : ':잠김')).join(' '));
