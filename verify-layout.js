@@ -269,7 +269,8 @@ const PROBE = `(() => {
   await page.evaluate(() => {
     const sh = window.__scene.shop;
     if (!sh.bubbleText) return;
-    const longest = CFG.keeperLines.reduce((a, b) => (b.length > a.length ? b : a));
+    const longest = Object.values(CFG.keeperLines).flat()
+      .reduce((a, b) => (b.length > a.length ? b : a));
     sh.bubbleTimer.remove();
     sh.bubbleText.setAlpha(1).setText(longest);
   });

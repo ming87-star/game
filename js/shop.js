@@ -332,7 +332,8 @@ class Shop {
       const ky = top + rowsEnd + 12 + h;
       add(s.add.image(kx, ky, 'shop-keeper').setDisplaySize(w, h).setOrigin(0.5, 1));
       this.keeperAt = { x: Math.round(kx), y: Math.round(ky) };
-      this.buildBubble(cx + L.width / 2 - 22, kx + w / 2 + 12, ky - h + 10, ky - 24);
+      this.buildBubble(cx + L.width / 2 - 22, kx + w / 2 + 12, ky - h + 10, ky - 24,
+        floorIndex, big);
     }
 
     const btn = add(s.add.rectangle(cx, btnY, 420, 62, 0x3949ab)
@@ -342,6 +343,48 @@ class Shop {
     btn.on('pointerdown', () => this.close());
 
     this.refresh();
+  }
+
+  // ── 어느 말을 꺼낼까 ───────────────────────────────────
+  //
+  // 한 판에 상점을 **스무 번 가까이** 지나므로(50층마다, 보스 층만 빼고),
+  // 한 주머니에서 무작위로 뽑으면 800층에서 「처음이시죠?」가 나옵니다.
+  // 그 한 줄이 여태 쌓아 온 것을 통째로 무너뜨립니다.
+  //
+  // 그래서 **층이 묶음을 고릅니다.** 어디서나 하는 말(any)에 그 자리의 말을
+  // 얹습니다 — 처음에는 반갑고, 중반에는 얼버무리고, 위로 갈수록 주인도
+  // 낯설어합니다. 되풀이를 숨기는 대신 되풀이를 이야기로 씁니다.
+  keeperPool(floorIndex, big) {
+    const K = CFG.keeperLines || {};
+    const band = floorIndex <= CFG.shopEvery ? 'first'
+      : floorIndex <= 150 ? 'early'
+        : floorIndex <= 450 ? 'mid'
+          : floorIndex <= 750 ? 'deep' : 'top';
+    return {
+      band: [].concat(K[band] || [], big ? (K.big || []) : []),
+      any: (K.any || []).slice(),
+    };
+  }
+
+  // ── 두 주머니를 번갈아 ─────────────────────────────────
+  //
+  // 그냥 합쳐서 섞으면 **어디서나 하는 말이 그 자리의 말을 밀어냅니다.**
+  // 950층에서 다섯 마디를 이어 들었더니 전부 「값은 매번 달라요」 같은
+  // 어디서나 말이었습니다 — 층을 갈라 둔 값이 사라집니다 (열둘 대 여덟이라
+  // 확률상 그렇게 됩니다).
+  //
+  // 그래서 한 마디 걸러 한 마디씩 그 자리의 말이 나오게 엮습니다. 각각을
+  // 따로 섞으므로 순서는 매번 다르고, **같은 말이 한 바퀴 안에 두 번
+  // 나오지는 않습니다.**
+  weaveLines(pool) {
+    const A = Phaser.Utils.Array.Shuffle(pool.band.slice());
+    const B = Phaser.Utils.Array.Shuffle(pool.any.slice());
+    const out = [];
+    for (let i = 0; i < Math.max(A.length, B.length); i++) {
+      if (i < A.length) out.push(A[i]);
+      if (i < B.length) out.push(B[i]);
+    }
+    return out;
   }
 
   // ── 주인의 말풍선 ──────────────────────────────────────
@@ -355,10 +398,11 @@ class Shop {
   // 그래서 **읽든 말든 괜찮아야 합니다.** 누르면 넘어가는 것도 아니고,
   // 다 읽어야 다음이 나오는 것도 아닙니다. 상점의 알맹이는 진열이고
   // 말풍선은 그 옆에서 혼자 흘러갑니다.
-  buildBubble(right, left, top, bottom) {
+  buildBubble(right, left, top, bottom, floorIndex, big) {
     const s = this.scene;
-    const lines = (CFG.keeperLines || []).slice();
-    if (!lines.length) return;
+    const pool = this.keeperPool(floorIndex, big);
+    if (!pool.band.length && !pool.any.length) return;
+    this.bubblePool = pool;
     const add = (o) => { this.parts.push(o.setScrollFactor(0).setDepth(302)); return o; };
 
     const w = right - left;
@@ -392,9 +436,9 @@ class Shop {
       fontFamily: 'sans-serif', fontSize: '17px', color: '#dfe4f5',
     }).setOrigin(0.5).setAlign('center').setWordWrapWidth(w - 26).setLineSpacing(5));
 
-    // 순서를 섞어 두고 앞에서부터 꺼내 씁니다. 매번 무작위로 뽑으면 같은 말이
+    // 엮어 두고 앞에서부터 꺼내 씁니다. 매번 무작위로 뽑으면 같은 말이
     // 연달아 두 번 나오는 일이 생기는데, 그러면 고장으로 보입니다.
-    this.bubbleBag = Phaser.Utils.Array.Shuffle(lines);
+    this.bubbleBag = this.weaveLines(pool);
     this.bubbleAt = 0;
     this.sayNext(false);
     this.bubbleTimer = s.time.addEvent({
@@ -405,7 +449,7 @@ class Shop {
   sayNext(fade) {
     if (!this.bubbleText) return;
     if (this.bubbleAt >= this.bubbleBag.length) {
-      this.bubbleBag = Phaser.Utils.Array.Shuffle(this.bubbleBag);
+      this.bubbleBag = this.weaveLines(this.bubblePool);
       this.bubbleAt = 0;
     }
     const line = this.bubbleBag[this.bubbleAt++];
