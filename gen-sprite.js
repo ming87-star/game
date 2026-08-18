@@ -337,23 +337,97 @@ const SUBJECTS = [
   // (코인·메달·가격표·상점 발판이 전부 #FFCA28 계열), 덤으로 주인공 셋의
   // 붉은색·초록·보라와 안 겹칩니다. 도적이 후드에 얼굴 가리개라 주인은
   // **얼굴이 보이는** 쪽으로 갑니다.
+  //
+  // 사람 설정은 손님이 준 그림에서 왔습니다 — 두건을 쓴 젊은 여자 상인.
+  // **그림체는 그것을 따라가지 않습니다.** 받은 그림은 실사 비례의 애니풍이고,
+  // 여기 붙는 것은 3등신 판 그림체입니다. 그래서 `style` 로 물리는 것은
+  // 여전히 기사와 기는 것입니다 — 설정은 말로, 붓은 그림으로.
   { name: 'shop-keeper', group: 'shop', w: 152, h: 192, scale: 1, anchor: 'bottom',
     style: ['player-warrior', 'e-crawler'], facing: 'front',
-    what: 'A friendly merchant who has set up a stall inside a dark tower — seen from the front, '
-        + 'from the waist up and a little above. He wears a red headwrap or bandana and his face '
-        + 'is clearly visible and cheerful, the face of a trader mid-sale. Fingerless leather '
-        + 'gloves, several pouches on his belt, and he is holding up a fat coin purse in one hand '
-        + 'to show it. Warm browns and gold. Gold #FFCA28, warm brown #8D6E63, red wrap #C62828. '
-        + 'His face must read clearly: this drawing stands 190 pixels tall in a shop window.' },
+    what: 'A cheerful YOUNG WOMAN merchant who has set up a stall inside a dark tower — seen from '
+        + 'the front, from the waist up and a little above. '
+        + 'She wears a rust-red bandana tied at the back over long dark hair, with one thin braid '
+        + 'falling in front of her shoulder. A cream off-white shirt with the sleeves rolled up to '
+        + 'the elbow, a brown leather vest over it with a buckled strap across the chest, '
+        + 'fingerless brown leather gloves and wrist wraps, small brass earrings. '
+        + 'A wide leather belt with a big brass buckle, several small pouches and bottles on it, '
+        + 'and a satchel with a tassel hanging at her hip. '
+        + 'She is holding up a fat MONEY SACK in one hand to show it off — a soft cloth bag '
+        + 'gathered at the neck and tied shut with a drawstring cord, round and bulging with '
+        + 'coins, with the cloth puckering into folds above the knot. '
+        + 'It is NOT a hard clasp purse: no metal frame, no snap clasp, no hinge, no buckle, '
+        + 'no stiff leather wallet — just cloth and a cord. '
+        + 'She is smiling with her mouth open — bright and mid-sale. '
+        + 'Warm browns, cream and brass gold. Gold #FFCA28, warm brown #8D6E63, '
+        + 'rust bandana #B04A3A, cream #E8DCC0. '
+        + 'Her face must read clearly: this drawing stands 190 pixels tall in a shop window.' },
   { name: 'shop-npc', group: 'shop', w: 38, h: 48, anchor: 'bottom',
-    style: ['player-warrior', 'e-crawler'], facing: 'left',
-    what: 'The same merchant, FULL BODY, standing and facing LEFT. A red headwrap, warm brown '
-        + 'clothes, a fat gold coin purse held at his side, pouches on his belt. '
-        + 'CRITICAL: this shrinks to 38 pixels tall in the game, so draw it with big simple '
-        + 'shapes and only two or three flat tones — no small patterns, no fine trim, no tiny '
-        + 'buckles. The RED HEADWRAP and the GOLD PURSE are the only two things that survive at '
-        + 'that size, so make both large and unmistakable. '
-        + 'Gold #FFCA28, warm brown #8D6E63, red wrap #C62828.' },
+    same: 'shop-keeper', facing: 'left',
+    what: 'The shop keeper from the attached picture, drawn FULL BODY from head to feet, '
+        + 'standing and turned to the LEFT. Same face, same rust-red bandana over long dark '
+        + 'hair, same cream shirt and brown leather vest, same belt with pouches. '
+        + 'She holds her round cloth money sack, tied with a drawstring, down at her side. '
+        + 'HER FACE MUST BE DRAWN — turned left in three-quarter view with her eyes, eyebrows, '
+        + 'nose and smiling mouth all clearly visible. Never a blank face, never her back to us. '
+        + 'CRITICAL: this shrinks to 38 pixels tall in the game, so use big simple shapes and '
+        + 'only two or three flat tones — no small patterns, no fine trim, no tiny buckles. '
+        + 'The RUST-RED BANDANA, the dark hair and the MONEY SACK are the only things that '
+        + 'survive at that size, so make all three large and unmistakable. '
+        + 'Gold #FFCA28, warm brown #8D6E63, rust bandana #B04A3A, cream #E8DCC0.' },
+
+
+  // ── 상점 배경 (ART.md 8.9절) ─────────────────────────────
+  //
+  // 발판 **뒤**에 깔립니다 (깊이 -3 — 벽과 발판 사이). 920×300 으로 그려서
+  // 2로 나눕니다 → 460×150.
+  //
+  // 세 가지가 자리를 정합니다.
+  //   · **가운데를 비웁니다.** 거기에 「상 점」 글자가 이미 서 있습니다.
+  //     밝거나 어수선하면 글자가 묻힙니다 (타이틀 배경과 같은 규칙)
+  //   · 아래 끝이 **반듯한 가로선**이어야 발판 윗변에 붙습니다
+  //   · 위쪽은 아무것도 안 그립니다. 마젠타가 걷히면서 저절로 사라지므로
+  //     다음 층 발판과 맞닿아도 경계가 안 보입니다
+  //
+  // 사람은 안 넣습니다 — 주인은 shop-npc 로 따로 서고, 둘이 겹치면 발판
+  // 오른쪽에 사람이 둘이 됩니다.
+  { name: 'shop-back', group: 'shop', w: 460, h: 150, scale: 2, anchor: 'bottom',
+    // 사람을 자로 씁니다. 상자가 150px 인데 주인은 48px 이라, 수레가 상자를
+    // 꽉 채우면 사람 키의 세 배가 됩니다 — 실제로 그렇게 나왔습니다.
+    // 상자 150px 에 62% → 93px. 주인이 48px 이니 수레가 사람의 두 배쯤입니다.
+    ratio: '21:9', tol: 112, tall: 0.62, style: ['shop-npc', 'player-warrior', 'e-crawler'],
+    what: 'A travelling pedlar\'s stall set up inside a dark stone tower — NO PEOPLE anywhere, '
+        + 'just the cart and the goods. A very wide, low, horizontal scene. '
+        + 'SCALE IS THE MOST IMPORTANT THING HERE. One of the attached pictures is a merchant '
+        + 'standing. In the game she stands right next to this cart, and she is only ONE THIRD '
+        + 'of the height of this image. Draw everything to her size: '
+        + 'the cart WHEELS come up to her knee, the CART BED is at her waist, the top of the '
+        + 'AWNING is just above her head, and the CRATES are stacked no higher than her chest. '
+        + 'A handcart one person pulls — not a wagon, not a caravan. '
+        + 'THE TOP HALF OF THE IMAGE IS THEREFORE MOSTLY EMPTY, and that is correct. '
+        + 'THE WIDTH IS DIVIDED INTO FIVE EQUAL BANDS AND EACH BAND IS SPOKEN FOR: '
+        + 'BAND 1 and BAND 2 (the left 40%): a wooden handcart with two big spoked wheels and '
+        + 'long pull handles resting on the ground, a striped cloth awning on bent poles above '
+        + 'it, the cart bed piled with wares — rolled rugs, sacks, bottles, a brass scale. '
+        + 'The whole cart, awning and handles included, must fit inside these two bands. '
+        + 'BAND 3 (the exact middle 20%): COMPLETELY EMPTY. Nothing at all. Not one crate, not '
+        + 'one rope, not one glow — this is where a sign goes, and anything drawn here ruins it. '
+        + 'BAND 4 (60% to 80%): a few stacked wooden crates and a barrel on the ground, a coil '
+        + 'of rope, and one small lantern hanging from a hook. Its light is WARM AMBER ORANGE '
+        + '(#FFCA28 fading to #FF8F00) — never pink, never magenta, never violet. '
+        + 'BAND 5 (the right 20%): COMPLETELY EMPTY. Nothing at all — a person will stand here. '
+        + 'The empty bands are the SAME FLAT PURE MAGENTA as the background, because the magenta '
+        + 'is keyed out to transparency later. Do NOT fill them with black. Do NOT draw a dark '
+        + 'panel, a board, a backdrop, a wall, a curtain, a shadow or a gradient behind anything. '
+        + 'There is no wall in this picture — the cart and the crates sit on plain magenta with '
+        + 'nothing behind them at all. '
+        + 'Everything rests on one straight flat ground line along the very BOTTOM edge of the '
+        + 'image: the wheels, the crates and the barrel all touch that line and nothing hangs '
+        + 'below it. Nothing floats. Keep everything low and small — remember the merchant is '
+        + 'only one third of the image height and nothing here towers over her. '
+        + 'Warm worn browns and dull brass, low saturation, lit by the lantern. '
+        + 'Wood #8D6E63, brass #FFCA28, faded cloth #B04A3A. '
+        + 'NOTHING in the artwork may be pink, magenta or violet — those are the key colour and '
+        + 'will be erased. Glows, cloth and shadows all stay warm brown, amber or grey.' },
 
   // ── 날아가는 것과 이펙트 (ART.md 6절) ────────────────────
   // 코드가 회전시켜 쓰므로 전부 오른쪽을 향합니다.
@@ -508,6 +582,27 @@ const STYLE_RULE = [
   'were painted by the same hand for the same game.',
 ].join(' ');
 
+// 같은 **사람**을 두 장으로 그릴 때 씁니다. 실루엣을 베끼는 `like` 와도,
+// 붓만 베끼는 `style` 과도 다릅니다 — 여기서는 얼굴과 옷차림이 같아야 하고
+// 자세와 잡은 크기는 달라야 합니다 (하나는 상반신, 하나는 전신).
+const PERSON_RULE = [
+  'The attached image is the SAME PERSON, already drawn. Keep her identity exactly: the same',
+  'face and hairstyle, the same eyes and eyebrows and smile, the same headwrap, the same shirt',
+  'and vest and belt and pouches, the same colours, the same drawing style and outline weight.',
+  'Someone must look at the two pictures and say "that is her".',
+  'WHAT CHANGES: the framing and the pose only.',
+  'THE ATTACHED PICTURE IS CROPPED AT THE WAIST. YOURS IS NOT. Draw her ENTIRE body:',
+  'head, torso, hips, both legs, and both BOOTS with the FEET fully inside the picture,',
+  'standing upright. The bottom edge of your image sits just below the soles of her boots.',
+  'If you cut her off at the waist or the thighs the drawing is unusable.',
+].join(' ');
+
+function sameOf(subject) {
+  if (!subject.same) return null;
+  const f = path.join(OUT, subject.same + '.png');
+  return fs.existsSync(f) ? fs.readFileSync(f).toString('base64') : null;
+}
+
 function stylesOf(subject) {
   if (!subject.style) return [];
   return subject.style
@@ -519,14 +614,20 @@ function stylesOf(subject) {
 async function generate(subject) {
   // 보스는 가로로 넓적하고 나머지는 거의 정사각형입니다. 비율을 맞춰 달라고
   // 해야 모델이 여백을 덜 만듭니다.
-  const ratio = subject.w / subject.h > 1.2 ? '4:3' : '1:1';
+  // 대개는 정사각형이나 4:3 이면 됩니다. 그런데 상점 배경처럼 **아주 가로로 긴**
+  // 그림은 4:3 으로 받으면 모델이 그 안에 맞춰 그리고, 그걸 3:1 상자에 넣느라
+  // 위아래가 통째로 잘립니다. 그런 것은 항목이 직접 비율을 고릅니다.
+  const ratio = subject.ratio || (subject.w / subject.h > 1.2 ? '4:3' : '1:1');
   const ref = refOf(subject);
+  const same = sameOf(subject);
   const styles = stylesOf(subject);
   const parts = [];
   if (ref) parts.push({ inlineData: { mimeType: 'image/png', data: ref } });
+  if (same) parts.push({ inlineData: { mimeType: 'image/png', data: same } });
   styles.forEach((b) => parts.push({ inlineData: { mimeType: 'image/png', data: b } }));
   const rules = [];
   if (ref) rules.push(SHAPE_RULE);
+  if (same) rules.push(PERSON_RULE);
   if (styles.length) rules.push(STYLE_RULE);
   parts.push({ text: promptFor(subject) + (rules.length ? '\n\n' + rules.join('\n\n') : '') });
   const res = await fetch(
@@ -550,7 +651,7 @@ async function generate(subject) {
 // ── 마젠타를 걷어내고, 재서 자르고, 상자에 맞춰 넣기 ────────
 // 이 셋을 브라우저 canvas 안에서 한 번에 합니다.
 async function keyOut(oven, png, subject) {
-  return oven.evaluate(async ({ b64, w, h, scale, chroma, tol, anchor, fit, keep, tile }) => {
+  return oven.evaluate(async ({ b64, w, h, scale, chroma, tol, anchor, fit, keep, tile, tall }) => {
     const img = new Image();
     await new Promise((res, rej) => {
       img.onload = res; img.onerror = () => rej(new Error('못 읽었습니다'));
@@ -619,7 +720,13 @@ async function keyOut(oven, png, subject) {
     const bw = w * scale, bh = h * scale;
     // fit:'stretch' 는 비율을 버리고 상자를 꽉 채웁니다. 결이 길이 방향으로
     // 고른 띠(발판)에만 씁니다 — 사람에게 쓰면 뚱뚱해집니다.
-    const k = fit === 'stretch' ? null : Math.min(bw / sw, bh / sh);
+    //
+    // `tall` 은 **상자를 꽉 채우지 말라**는 뜻입니다 (0.62 면 높이의 62%).
+    // 배경처럼 옆에 사람이 같이 서는 그림에 씁니다 — 안 그러면 모델이 아무리
+    // 작게 그려도 여기서 상자 높이에 맞춰 늘려 버려서, 수레가 사람 키의 세 배가
+    // 됩니다. 실제로 두 번 그렇게 나왔고, 프롬프트로는 못 고칩니다.
+    const k = fit === 'stretch' ? null
+      : (tall ? (bh * tall) / sh : Math.min(bw / sw, bh / sh));
     const dw = k === null ? bw : Math.round(sw * k);
     const dh = k === null ? bh : Math.round(sh * k);
     const dx = Math.round((bw - dw) / 2);
@@ -637,10 +744,12 @@ async function keyOut(oven, png, subject) {
       fill: Math.round((dw * dh) / (bw * bh) * 100),
     };
   }, { b64: png.toString('base64'), w: subject.w, h: subject.h,
-       scale: subject.scale || BAKE_SCALE, chroma: CHROMA, tol: TOLERANCE,
+       // 마젠타를 걷는 범위. 기본은 78 인데, 따뜻한 빛무리가 있는 그림은
+       // 그 언저리가 분홍으로 남습니다 — 그런 항목만 넓혀 씁니다.
+       scale: subject.scale || BAKE_SCALE, chroma: CHROMA, tol: subject.tol || TOLERANCE,
        anchor: subject.anchor || 'center',
        fit: subject.fit || 'contain', keep: subject.bg === 'none' || subject.bg === 'opaque',
-       tile: subject.tile || 'none' });
+       tile: subject.tile || 'none', tall: subject.tall || 0 });
 }
 
 (async () => {

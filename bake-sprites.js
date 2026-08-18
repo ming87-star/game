@@ -101,6 +101,9 @@ const ON_PURPOSE = new Set([
   'coin', 'slash', 'spark', 'wave', 'bullet', 'enemy-bullet', 'arrow', 'arrow-trail',
   'wall', 'plat', 'plat-shop', 'plat-boss',
   'player-warrior', 'player-archer', 'player-rogue',
+  // 처음에 그렸던 남자 상인. 상점 주인은 여자로 갔지만 그림은 멀쩡하므로
+  // 이름만 바꿔 남겨 둡니다 — 나중에 다른 사람으로 쓸 자리가 있을 겁니다.
+  'shop-keeper-man', 'shop-npc-man',
 ]);
 
 (async () => {
@@ -179,7 +182,10 @@ const ON_PURPOSE = new Set([
   }
 
   // assets/ 에 그림이 있는데 WANT 에 이름이 없으면 그것도 안 들어갑니다.
-  const listed = new Set(WANT);
+  // 초상화(PORTRAITS)는 WANT 를 안 타지만 분명히 쓰이고 있습니다. 그 원본
+  // 이름까지 세어 줘야 「목록에 없다」고 잘못 알리지 않습니다 —
+  // 실제로 shop-keeper 를 두고 그렇게 알렸습니다.
+  const listed = new Set(WANT.concat(PORTRAITS.map((q) => q.from)));
   const orphan = fs.readdirSync(ASSETS)
     .filter((f) => f.endsWith('.png'))
     .map((f) => f.slice(0, -4))
