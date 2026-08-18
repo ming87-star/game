@@ -27,6 +27,17 @@ function enemyDef(key) {
 //
 // 이 함수는 자리를 지키려고 남깁니다. 보스처럼 아직 이 값을 부르는 곳이
 // 있고, 언젠가 "구간마다 한 번씩" 같은 계단을 넣는다면 여기가 그 자리입니다.
+// 그 층에서 적이 코인을 흘릴 확률. **층이 깊어질수록 내려갑니다** (CFG.coin).
+//
+// 체력과는 반대 방향입니다. 체력은 층을 따라 안 자라고(위 enemyHpScale) 대신
+// 마릿수와 종류가 자라는데, **그 둘이 그대로 수입이 되어 버리는 것**을 여기서
+// 되돌립니다. "센 놈이 많이 준다"는 규칙은 그대로 남습니다 — 줄이는 것은
+// 마릿수가 곱으로 붙는 몫입니다.
+function coinDropChance(floor) {
+  const c = CFG.coin;
+  return Math.max(c.minChance, c.dropChance / (1 + Math.max(0, floor) * c.taperPerFloor));
+}
+
 function enemyHpScale() {
   return 1;
 }

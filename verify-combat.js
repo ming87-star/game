@@ -1061,6 +1061,57 @@ async function boot(browser, port, jobIndex) {
     '한계에 닿으면 지도의 +1 도 그렇다고 적고 망치를 안 내리침',
     pickup.said.join(' / ') + ' · 망치 ' + pickup.forged + '번');
 
+  // ── 후반의 물가 ────────────────────────────────────────
+  // 코인 드랍률이 층을 따라 내려가는지. 안 그러면 후반에 코인이 넘칩니다 —
+  // 마릿수(2→7)와 종류값(2→14)이 **둘 다 곱으로** 붙는데 드랍률이 그대로면
+  // 한 층의 수입이 열네 배로 자라고, 상점 값은 그보다 느리게 오릅니다.
+  const money = await cap.evaluate(() => {
+    const s = window.__scene;
+    const at = (f) => coinDropChance(f);
+    // 한 층이 실제로 내놓는 코인의 기댓값 — 마릿수 × 종류값 × 드랍률.
+    const capAt = (f) => Math.min(CFG.enemyCount.capMax,
+      CFG.enemyCount.capBase + Math.floor(f / CFG.shopEvery) * CFG.enemyCount.capPerShop);
+    const avgCoin = (f) => {
+      const open = CFG.enemyTypes.filter((t) => f >= t.from);
+      const win = open.slice(-Math.min(CFG.enemyWave.maxKinds, open.length));
+      return win.reduce((a, t) => a + t.coin, 0) / win.length;
+    };
+    const income = (f, chance) => capAt(f) * avgCoin(f) * chance * CFG.coin.dropBonus;
+    const basket = (f) => {
+      const n = Math.floor(f / CFG.shopEvery) - 1;
+      return ['plus', 'haste', 'armor'].reduce((a, k) => {
+        const p = CFG.shop.prices[k];
+        return a + Math.round((p.base + p.perShop * n) * Math.pow(CFG.shop.priceGrowth, n));
+      }, 0);
+    };
+    const ratio = (f, taper) => income(f, taper ? at(f) : CFG.coin.dropChance) * 50 / basket(f);
+    return {
+      d0: at(0), d100: at(100), d400: at(400), d900: at(900),
+      base: CFG.coin.dropChance, min: CFG.coin.minChance,
+      // 「구간 수입 ÷ 상점 한 바구니」가 앞뒤로 얼마나 벌어지나
+      wasEarly: ratio(50, false), wasLate: ratio(400, false),
+      nowEarly: ratio(50, true), nowLate: ratio(400, true),
+    };
+  });
+  check(money.d0 === money.base, '0층에서는 그대로', money.d0);
+  check(money.d100 < money.d0 && money.d400 < money.d100,
+    '층이 깊어질수록 코인 드랍률이 내려감',
+    '0층 ' + money.d0 + ' → 100층 ' + money.d100.toFixed(2) + ' → 400층 ' + money.d400.toFixed(2));
+  // **바닥이 있어야 합니다.** 끝없이 내려가면 아주 깊은 층에서는 잡아도 거의
+  // 아무것도 안 나와서, 싸우는 일 자체가 값을 잃습니다.
+  check(money.d900 === money.min, '바닥에서 멎음 (끝없이 내려가지 않음)',
+    '900층 ' + money.d900);
+  // 이 검사의 알맹이입니다 — 앞뒤의 벌어짐이 실제로 좁혀졌는가.
+  const wasGap = money.wasLate / money.wasEarly;
+  const nowGap = money.nowLate / money.nowEarly;
+  check(nowGap < wasGap * 0.75,
+    '후반이 앞부분보다 부유해지는 정도가 크게 줄어듦',
+    '고치기 전 ' + wasGap.toFixed(2) + '배 → 지금 ' + nowGap.toFixed(2) + '배');
+  // 그렇다고 앞부분을 건드리면 안 됩니다. 여기는 불만이 없던 자리입니다.
+  check(money.nowEarly > money.wasEarly * 0.9,
+    '앞부분(50층)은 거의 그대로',
+    Math.round(money.nowEarly / money.wasEarly * 100) + '%');
+
   await cap.close();
 
   console.log(bad ? `\n${bad}건 어긋남` : '\n공격 성격 모두 맞음');

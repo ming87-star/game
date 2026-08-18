@@ -1203,12 +1203,17 @@ class GameScene extends Phaser.Scene {
       if (!w.hits()) return this.missFx(e);
 
       // 도적은 때리면서 주머니를 텁니다. 잡지 않아도 코인이 나옵니다.
-      // 코인은 이제 확률로 나오므로 훔치는 것도 같은 확률을 탑니다.
+      // 코인은 확률로 나오므로 훔치는 것도 **같은 확률**을 탑니다 — 층을 따라
+      // 내려가는 것까지 같습니다 (js/enemies.js 의 coinDropChance).
+      //
+      // 여기를 안 맞추면 후반 물가 손질이 도적만 비켜 갑니다. 도적은 근접이라
+      // 사거리 안을 한 번에 다 때리는데, 그러면 훔치는 횟수가 **마릿수에 그대로
+      // 비례**합니다 — 줄이려던 바로 그 곱입니다.
       //
       // 보스는 털 수 없습니다. 몸이 커서 늘 사거리 안에 있는 데다 오래 때리는
       // 상대라, 훔치기가 되면 보스 층이 통째로 도적의 금광이 됩니다.
       if (!e.isBoss && w.stealChance > 0 && Math.random() < w.stealChance &&
-          Math.random() < CFG.coin.dropChance) {
+          Math.random() < coinDropChance(e.floor)) {
         this.stealFx(e.x, e.y - 10);
         this.dropCoin(e.x, e.y - 10, Math.round(w.stealAmount * CFG.coin.dropBonus));
       }
@@ -1630,7 +1635,7 @@ class GameScene extends Phaser.Scene {
     // 낮은 확률로 나온 것을 잡았는데 또 확률에 걸려 빈손이면 실망만 남습니다.
     if (enemy.isGoldFrog) {
       this.dropCoin(enemy.x, enemy.y, enemy.coin, true);
-    } else if (enemy.coin > 0 && Math.random() < CFG.coin.dropChance) {
+    } else if (enemy.coin > 0 && Math.random() < coinDropChance(enemy.floor)) {
       // 모든 적이 코인을 흘리지는 않습니다. 대신 나올 때는 그만큼 더 줍니다.
       this.dropCoin(enemy.x, enemy.y, Math.round(enemy.coin * CFG.coin.dropBonus));
     }

@@ -223,6 +223,22 @@ const check = (ok, label, got) => {
   // 보스를 죽여 보고 길이 다시 열리는지 확인합니다.
   // 메달은 **죽이기 직전 잔액**과 견줍니다 — 200층까지 오르는 동안 층에서
   // 하나가 들어와 있어서, 0인지 보면 층 규칙을 잡게 됩니다.
+  //
+  // **죽지 않게 먼저 받쳐 둡니다.** 여기까지 오는 동안 보스가 내리꽂는 것을
+  // 그대로 맞고 서 있었기 때문에, 열 번에 서너 번은 이 자리에서 이미 죽어
+  // 있었습니다. 죽으면 update 가 첫 줄에서 물러나므로 **전리품이 한 줄도 안
+  // 돕니다** — 그런데 화면에는 오류가 안 나서, 아래 여덟 가지가 전부 「아무
+  // 일도 안 일어났다」로 조용히 어긋났습니다. 재려는 것은 보스를 견디는
+  // 능력이 아니라 전리품이 하는 일입니다.
+  const survived = await page.evaluate(() => {
+    const s = window.__scene;
+    const was = s.dead;
+    s.dead = false;
+    s.hp = s.maxHp = 1e9;
+    return !was;
+  });
+  check(true, '보스 층에서 전리품을 재기 전에 받쳐 둠',
+    survived ? '멀쩡히 서 있었음' : '이미 죽어 있어 되살림');
   const medalsBefore = await page.evaluate(() => window.__scene.medals);
   await page.evaluate(() => {
     const s = window.__scene;
