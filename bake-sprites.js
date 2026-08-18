@@ -66,7 +66,20 @@ const WANT = [
 // 4로 안 나누는 것들. 기본은 4배로 그려 온다는 약속이지만(위 SCALE),
 // 그리는 쪽에서 1840px 짜리 가로 그림을 뽑기가 어렵습니다. 배경은 2배로
 // 받습니다 — 920×300 → 460×150.
-const DIV = { 'shop-back': 2 };
+const DIV = { 'shop-back': 1 };
+
+// ── 투명한 여백을 잘라 내는 것들 ───────────────────────────
+//
+// 상점 배경은 920×300 으로 왔는데 **그림이 실제로 든 칸은 610×186** 이었습니다
+// (위쪽 38%가 통째로 비어 있습니다). 그대로 460 폭에 맞추면 그림은 305px 밖에
+// 안 되어, 발판(460) 옆에서 작아 보입니다 — 처음 붙였을 때 그랬습니다.
+//
+// 여백을 잘라 내면 **그림이 곧 칸**이 되어, 부르는 쪽에서 「발판 너비에 맞춰라」
+// 한 줄로 끝납니다. 다음에 여백이 다른 그림이 와도 저절로 맞습니다.
+//
+// 사람이나 적에게는 안 씁니다 — 그쪽은 발치가 칸 바닥에 맞춰져 있어야
+// 발판 위에 제대로 섭니다.
+const TRIM = new Set(['shop-back']);
 
 // assets/ 에 있지만 **일부러** 안 굽는 것들. 여기 없으면 아래에서
 // "그려는 놨는데 목록에 없다"고 알려 줍니다.
@@ -117,7 +130,7 @@ const ON_PURPOSE = new Set([
     if (fs.existsSync(path.join(ART, key + '.svg'))) { skipped.push(key); continue; }
     const png = path.join(ASSETS, key + '.png');
     if (!fs.existsSync(png)) { missing.push(key); continue; }
-    jobs.push({ key, png, div: DIV[key] || SCALE });
+    jobs.push({ key, png, div: DIV[key] || SCALE, trim: TRIM.has(key) });
   }
 
   // 초상화는 WANT 를 안 탑니다 — 같은 이름의 SVG 가 있어서 위 규칙에
@@ -137,20 +150,41 @@ const ON_PURPOSE = new Set([
     });
     const page = await browser.newPage();
 
-    for (const { key, png, div } of jobs) {
+    for (const { key, png, div, trim } of jobs) {
       const uri = 'data:image/png;base64,' + fs.readFileSync(png).toString('base64');
-      const r = await page.evaluate(async ([src, div, q]) => {
+      const r = await page.evaluate(async ([src, div, q, trim]) => {
         const img = new Image();
         await new Promise((ok, no) => { img.onload = ok; img.onerror = no; img.src = src; });
+
+        // 자를 칸. 기본은 그림 전체입니다.
+        let sx = 0; let sy = 0; let sw = img.width; let sh = img.height;
+        if (trim) {
+          const m = document.createElement('canvas');
+          m.width = img.width; m.height = img.height;
+          const mg = m.getContext('2d');
+          mg.drawImage(img, 0, 0);
+          const px = mg.getImageData(0, 0, img.width, img.height).data;
+          let L = img.width; let R = -1; let T = img.height; let B = -1;
+          for (let y = 0; y < img.height; y++) {
+            for (let x = 0; x < img.width; x++) {
+              if (px[(y * img.width + x) * 4 + 3] > 16) {
+                if (x < L) L = x; if (x > R) R = x;
+                if (y < T) T = y; if (y > B) B = y;
+              }
+            }
+          }
+          if (R >= L && B >= T) { sx = L; sy = T; sw = R - L + 1; sh = B - T + 1; }
+        }
+
         const c = document.createElement('canvas');
-        c.width = Math.round(img.width / div);
-        c.height = Math.round(img.height / div);
+        c.width = Math.round(sw / div);
+        c.height = Math.round(sh / div);
         const g = c.getContext('2d');
         g.imageSmoothingEnabled = true;
         g.imageSmoothingQuality = 'high';
-        g.drawImage(img, 0, 0, c.width, c.height);
+        g.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
         return { uri: c.toDataURL('image/webp', q), w: c.width, h: c.height, from: img.width };
-      }, [uri, div, QUALITY]);
+      }, [uri, div, QUALITY, !!trim]);
 
       out[key] = { w: r.w, h: r.h, uri: r.uri };
       const was = Math.round(fs.statSync(png).size / 1024);

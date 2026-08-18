@@ -295,7 +295,13 @@ class GameScene extends Phaser.Scene {
       // 발판 끝이 가려져서 어디를 밟는 자리인지가 흐려집니다.
       if (slot.kind === SLOT.SHOP) {
         if (hasArt('shop-back')) {
+          // **발판 너비에 맞춥니다.** 그림은 구울 때 투명한 여백을 잘라
+          // 냈으므로(bake-sprites.js 의 TRIM) 칸이 곧 그림입니다 — 처음에는
+          // 안 자르고 얹었더니 460 칸 안에서 그림이 305px 밖에 안 됐습니다.
+          const a = artSize('shop-back');
+          const bw = w * (CFG.shopBackScale || 1);
           floor.views.push(this.add.image(slot.x, slot.y - CFG.platformH / 2, 'shop-back')
+            .setDisplaySize(bw, bw * (a.h / a.w))
             .setOrigin(0.5, 1).setDepth(-3));
         }
         // 주인은 **발판 오른쪽 끝**에 섭니다. 한가운데에 두면 「상 점」 글자와

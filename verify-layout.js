@@ -263,6 +263,17 @@ const PROBE = `(() => {
     s.shop.show(100);
   });
   await look('상점 — 큰 상점', 500);
+
+  // 주인의 말풍선. **몇 초마다 말이 바뀌므로** 가장 긴 말을 넣고 재 봅니다 —
+  // 무작위로 흘러가는 것을 그냥 찍으면 짧은 말이 걸린 판만 보게 됩니다.
+  await page.evaluate(() => {
+    const sh = window.__scene.shop;
+    if (!sh.bubbleText) return;
+    const longest = CFG.keeperLines.reduce((a, b) => (b.length > a.length ? b : a));
+    sh.bubbleTimer.remove();
+    sh.bubbleText.setAlpha(1).setText(longest);
+  });
+  await look('상점 — 주인의 말이 가장 길 때', 300);
   await page.evaluate(() => window.__scene.shop.close());
   await page.waitForTimeout(400);
 

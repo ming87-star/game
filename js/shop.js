@@ -17,6 +17,21 @@ const SHOP_LAYOUT = {
   bonusRoom: 34,   // 그 줄이 들어갈 만큼 패널을 키웁니다
 };
 
+// ── 상점 주인이 서는 자리 ──────────────────────────────────
+//
+// 처음에는 진열 아래 빈 자리에 세웠는데, 그 빈 자리는 **세 칸짜리 상점에만**
+// 있었습니다. 다섯 칸이 서는 상점에서는 3~5번 칸이 주인 위에 그대로 덮였습니다.
+//
+// 두 갈래를 만들어 견줬습니다. 패널을 위로 올려 **바깥**에 세우는 쪽은,
+// 960px 중 패널이 760 을 쓰는 터라 남는 자리가 160 뿐이라 주인이 테두리를
+// 밟거나 잘렸습니다 — 억지로 넣은 티가 났습니다.
+//
+// 그래서 **진열을 촘촘하게 줄이고 그 자리를 냅니다.** 값은 글자가 3px
+// 작아지는 것뿐이고, 그 대가로 주인이 이 화면의 일부가 됩니다.
+//
+// 칸 하나가 96 → 74 로 줄고 사이도 좁아집니다.
+const TIGHT = { rowH: 74, rowGap: 78, name: 23, desc: 16, price: 22, nameY: -16, descY: 10 };
+
 // ── 지도와 무엇이 다른가 ────────────────────────────────
 // 지도의 아이템을 대폭 줄이고 나니, 상점이 성장의 주된 통로가 됐습니다.
 // 그러면 상점이 "지도에서 못 주운 것을 돈으로 메우는 곳"에 그쳐서는 안 됩니다.
@@ -262,8 +277,25 @@ class Shop {
     const L = SHOP_LAYOUT;
     const big = isBigShopFloor(floorIndex);
     const shift = big ? L.bonusRoom : 0;
-    const height = L.height + shift;
+
+    // 주인이 서면 진열을 촘촘하게 줄입니다. 그림이 없으면 예전 그대로입니다.
+    const hasKeeper = s.textures.exists('shop-keeper');
+    const tight = hasKeeper;
+    this.tight = tight;
+
+    // 촘촘하게 줄이면 칸마다 22px 씩 벌어 옵니다. 다섯 칸이면 88px —
+    // 거기에 주인이 섭니다.
+    const rowGap = tight ? TIGHT.rowGap : L.rowGap;
+    const rows = this.offers.length;
+    const rowsEnd = L.rowY + shift + (rows - 1) * rowGap + (tight ? TIGHT.rowH : 96) / 2;
+    const keeperH = 150;
+    const keeperRoom = tight ? keeperH + 24 : 0;
+    const buttonY = tight ? rowsEnd + keeperRoom + 46 : L.buttonY + shift;
+    const height = tight ? buttonY + 62 : L.height + shift;
+
     const top = CFG.height / 2 - height / 2;
+    this.panelTop = top;
+    this.panelH = height;
 
     add(s.add.rectangle(cx, CFG.height / 2, CFG.width, CFG.height, 0x000000, 0.72));
     add(s.add.rectangle(cx, CFG.height / 2, L.width, height, 0x1b2138)
@@ -283,22 +315,24 @@ class Shop {
     this.coinLabel = add(s.add.text(cx, top + L.coinY + shift, '', font(22, '#ffd54f')).setOrigin(0.5, 0));
 
     this.rows = this.offers.map((offer, i) =>
-      this.buildRow(offer, cx, top + L.rowY + shift + i * L.rowGap));
+      this.buildRow(offer, cx, top + L.rowY + shift + i * rowGap));
 
-    const btnY = top + L.buttonY + shift;
+    const btnY = top + buttonY;
 
     // ── 상점 주인 ──────────────────────────────────────
-    // 진열 세 칸과 「계속 오르기」 사이가 통째로 비어 있습니다. 주인이 거기
-    // 섭니다 — 값을 치르는 화면에 값을 받는 사람이 하나도 없었습니다.
-    //
-    // 왼쪽 끝에 세웁니다. 한가운데에 두면 가격표와 단추 사이를 갈라 놓아
-    // 「고르고 → 누른다」가 한 줄로 안 읽힙니다. 그림이 없으면 그냥 빕니다.
-    if (s.textures.exists('shop-keeper')) {
+    // 값을 치르는 화면에 값을 받는 사람이 하나도 없었습니다.
+    if (hasKeeper) {
       const src = s.textures.get('shop-keeper').getSourceImage();
-      const h = 190;
+      const h = keeperH;
       const w = h * (src.width / src.height);
-      add(s.add.image(cx - L.width / 2 + 28 + w / 2, btnY - 46, 'shop-keeper')
-        .setDisplaySize(w, h).setOrigin(0.5, 1));
+      // 왼쪽 끝에 세웁니다. 한가운데에 두면 가격표와 단추 사이를 갈라 놓아
+      // 「고르고 → 누른다」가 한 줄로 안 읽힙니다. 그리고 오른쪽이 비어야
+      // 말풍선이 설 자리가 생깁니다 (아래).
+      const kx = cx - L.width / 2 + 26 + w / 2;
+      const ky = top + rowsEnd + 12 + h;
+      add(s.add.image(kx, ky, 'shop-keeper').setDisplaySize(w, h).setOrigin(0.5, 1));
+      this.keeperAt = { x: Math.round(kx), y: Math.round(ky) };
+      this.buildBubble(cx + L.width / 2 - 22, kx + w / 2 + 12, ky - h + 10, ky - 24);
     }
 
     const btn = add(s.add.rectangle(cx, btnY, 420, 62, 0x3949ab)
@@ -310,6 +344,84 @@ class Shop {
     this.refresh();
   }
 
+  // ── 주인의 말풍선 ──────────────────────────────────────
+  //
+  // 주인의 오른쪽 빈 자리에 섭니다. 몇 초마다 한 마디씩 바뀝니다.
+  //
+  // **말은 정보를 안 줍니다.** 무엇이 이득인지는 「추천」 표와 가격이 이미
+  // 말합니다. 이 자리가 하는 일은 다릅니다 — 이 탑에 장사를 하러 들어온
+  // 사람이 하나 있고, 그 사람은 다음에도 여기 있다는 것.
+  //
+  // 그래서 **읽든 말든 괜찮아야 합니다.** 누르면 넘어가는 것도 아니고,
+  // 다 읽어야 다음이 나오는 것도 아닙니다. 상점의 알맹이는 진열이고
+  // 말풍선은 그 옆에서 혼자 흘러갑니다.
+  buildBubble(right, left, top, bottom) {
+    const s = this.scene;
+    const lines = (CFG.keeperLines || []).slice();
+    if (!lines.length) return;
+    const add = (o) => { this.parts.push(o.setScrollFactor(0).setDepth(302)); return o; };
+
+    const w = right - left;
+    const h = bottom - top;
+    const cxb = left + w / 2;
+    const cyb = top + h / 2;
+
+    // 둥근 네모 하나와 왼쪽으로 뻗은 꼬리. 꼬리가 없으면 그냥 글상자라,
+    // 누가 하는 말인지가 안 읽힙니다.
+    const g = add(s.add.graphics());
+    g.fillStyle(0x2b3350, 0.95);
+    g.lineStyle(2, 0x5c6bc0, 1);
+    g.fillRoundedRect(left, top, w, h, 12);
+    g.strokeRoundedRect(left, top, w, h, 12);
+    const tailY = top + h * 0.62;
+    g.fillStyle(0x2b3350, 0.95);
+    g.beginPath();
+    g.moveTo(left + 1, tailY - 11);
+    g.lineTo(left - 13, tailY);
+    g.lineTo(left + 1, tailY + 11);
+    g.closePath();
+    g.fillPath();
+    g.lineStyle(2, 0x5c6bc0, 1);
+    g.beginPath();
+    g.moveTo(left + 1, tailY - 11);
+    g.lineTo(left - 13, tailY);
+    g.lineTo(left + 1, tailY + 11);
+    g.strokePath();
+
+    this.bubbleText = add(s.add.text(cxb, cyb, '', {
+      fontFamily: 'sans-serif', fontSize: '17px', color: '#dfe4f5',
+    }).setOrigin(0.5).setAlign('center').setWordWrapWidth(w - 26).setLineSpacing(5));
+
+    // 순서를 섞어 두고 앞에서부터 꺼내 씁니다. 매번 무작위로 뽑으면 같은 말이
+    // 연달아 두 번 나오는 일이 생기는데, 그러면 고장으로 보입니다.
+    this.bubbleBag = Phaser.Utils.Array.Shuffle(lines);
+    this.bubbleAt = 0;
+    this.sayNext(false);
+    this.bubbleTimer = s.time.addEvent({
+      delay: 4600, loop: true, callback: () => this.sayNext(true),
+    });
+  }
+
+  sayNext(fade) {
+    if (!this.bubbleText) return;
+    if (this.bubbleAt >= this.bubbleBag.length) {
+      this.bubbleBag = Phaser.Utils.Array.Shuffle(this.bubbleBag);
+      this.bubbleAt = 0;
+    }
+    const line = this.bubbleBag[this.bubbleAt++];
+    if (!fade) { this.bubbleText.setText(line); return; }
+    // 글자가 툭 바뀌면 눈이 그쪽으로 끌려갑니다. 진열을 보는 중이라면
+    // 그건 방해입니다 — 옅어졌다 짙어지게 해서 곁눈에만 걸리게 합니다.
+    this.scene.tweens.add({
+      targets: this.bubbleText, alpha: 0, duration: 260,
+      onComplete: () => {
+        if (!this.bubbleText || !this.bubbleText.scene) return;
+        this.bubbleText.setText(line);
+        this.scene.tweens.add({ targets: this.bubbleText, alpha: 1, duration: 260 });
+      },
+    });
+  }
+
   buildRow(offer, cx, y) {
     const s = this.scene;
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
@@ -318,7 +430,8 @@ class Shop {
     const info = SHOP_ITEMS[offer.key];
     const title = offer.key === 'upgrade' && s.shopWeapon ? s.shopWeapon.name : info.title;
 
-    const box = add(s.add.rectangle(cx, y, 420, 96, 0x232b47)
+    const T = this.tight ? TIGHT : null;
+    const box = add(s.add.rectangle(cx, y, 420, T ? T.rowH : 96, 0x232b47)
       .setStrokeStyle(2, 0x3f4a78).setInteractive({ useHandCursor: true }));
 
     // 다음 무기만은 그림을 같이 답니다. 값을 치르고 사는 것이 무엇인지
@@ -330,16 +443,20 @@ class Shop {
       left += 48;
     }
 
-    const name = add(s.add.text(left, y - 26, title, font(26, '#ffffff')));
-    const desc = add(s.add.text(left, y + 8, info.desc, font(18, '#8794b5')));
-    const price = add(s.add.text(cx + 190, y, '◎ ' + offer.price, font(24, '#ffd54f')).setOrigin(1, 0.5));
+    const name = add(s.add.text(left, y + (T ? T.nameY : -26), title,
+      font(T ? T.name : 26, '#ffffff')));
+    const desc = add(s.add.text(left, y + (T ? T.descY : 8), info.desc,
+      font(T ? T.desc : 18, '#8794b5')));
+    const price = add(s.add.text(cx + 190, y, '◎ ' + offer.price,
+      font(T ? T.price : 24, '#ffd54f')).setOrigin(1, 0.5));
 
     // 「추천」 표. 자리와 켜고 끄는 것은 refresh 가 정합니다 — 무엇이 이득인지는
     // 하나 살 때마다 바뀌고(공격력을 사면 다음엔 맷집이 아쉬워집니다), 코인이
     // 줄면 못 사게 되는 것도 생기기 때문입니다.
-    const recBg = add(s.add.rectangle(0, y - 24, 54, 24, 0x2e7d32)
+    const recY = y + (T ? T.nameY - 2 : -24);
+    const recBg = add(s.add.rectangle(0, recY, 54, 24, 0x2e7d32)
       .setStrokeStyle(1, 0xa5d6a7).setVisible(false));
-    const rec = add(s.add.text(0, y - 24, '추천', font(16, '#c8e6c9'))
+    const rec = add(s.add.text(0, recY, "추천", font(16, "#c8e6c9"))
       .setOrigin(0.5).setVisible(false));
 
     box.on('pointerdown', () => this.buy(offer));
@@ -440,6 +557,10 @@ class Shop {
   }
 
   close() {
+    // 시계를 안 끄면 창이 닫힌 뒤에도 계속 돌면서 이미 지워진 글상자를
+    // 건드립니다. 다음 상점에서 두 벌이 겹쳐 돌기도 합니다.
+    if (this.bubbleTimer) { this.bubbleTimer.remove(); this.bubbleTimer = null; }
+    this.bubbleText = null;
     this.parts.forEach((p) => p.destroy());
     this.parts = [];
     this.rows = [];
