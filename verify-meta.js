@@ -177,7 +177,8 @@ const check = (ok, label, got) => {
       pick: b.cells.find((c) => c.index === 3),
     };
   });
-  check(book.total === 24 && book.found.join(',') === '0,3',
+  // 자루 열둘 × 만듦새 둘 + 무명(無名) 하나 = 스물다섯.
+  check(book.total === 25 && book.found.join(',') === '0,3',
     '만난 자루만 열려 있음', book.found.join(',') + ' / ' + book.total + '자루');
 
   // 못 만난 칸을 눌러도 아무 일이 없어야 합니다.

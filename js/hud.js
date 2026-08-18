@@ -22,7 +22,7 @@ class Hud {
     // 다시 씁니다 (자세한 것은 update 위 주석). 아래 setBoss 가 벌써 이걸
     // 쓰므로 무엇보다 먼저 세웁니다. 처음에는 비어 있어서 첫 프레임에
     // 모든 줄이 한 번씩 채워집니다.
-    this.last = { relicList: [], trophies: 0, bossOn: null, bossPct: -1 };
+    this.last = { relicList: [], trophies: 0, plusCapped: null, bossOn: null, bossPct: -1 };
 
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
     const fixed = (o) => o.setScrollFactor(0).setDepth(100);
@@ -301,16 +301,24 @@ class Hud {
     // 바뀌어도 두 글자의 자리를 같이 다시 잡습니다.
     // 도적은 +1이 절반 값이라 실제 붙은 양을 그대로 적습니다 (+2.5 처럼).
     const shown = Number(w.plusValue.toFixed(1));
+    // 공격력도 한계에 닿습니다 (자루마다 다릅니다 — 보통 열, 무명은 서른).
+    // 닿았다고 적어 줘야, 다음에 +1 을 보고 그냥 지나칠지 판단할 수 있습니다.
+    const plusCapped = w.plusCapped;
     // 속도는 속(더하기)과 ×2(곱하기)가 섞여서 한계에서 잘립니다. 그래서 쌓은
     // 개수가 아니라 합쳐진 결과를 그대로 보여 줍니다. 한계에 닿았으면 그렇다고
     // 적어 줘야, 다음에 속을 보고 그냥 지나칠지 판단할 수 있습니다.
     const speed = w.speedMult;
     const capped = w.speedCapped;
-    if (shown !== L.plus || speed !== L.speed || capped !== L.capped || w.index !== L.boostIndex) {
+    if (shown !== L.plus || speed !== L.speed || capped !== L.capped
+        || plusCapped !== L.plusCapped || w.index !== L.boostIndex) {
       L.plus = shown; L.speed = speed; L.capped = capped; L.boostIndex = w.index;
 
       let x = this.weaponText.x + this.weaponText.width + 10;
-      this.plusText.setText(shown ? '+' + shown : '').setX(x);
+      this.plusText.setText(shown ? '+' + shown + (plusCapped ? ' 한계' : '') : '').setX(x);
+      if (plusCapped !== L.plusCapped) {
+        L.plusCapped = plusCapped;
+        this.plusText.setColor(plusCapped ? '#ffb74d' : '#ffd54f');
+      }
       if (shown) x += this.plusText.width + 8;
 
       this.multText

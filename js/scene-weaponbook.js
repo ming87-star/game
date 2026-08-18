@@ -20,16 +20,19 @@
 // (js/save.js 의 findWeapon). 그 자리에서 그냥 두기로 한 것이 다음 판에
 // 그 자루를 못 쓸 이유는 아닙니다.
 
+// 스물다섯 칸 — 자루 열둘 × 만듦새 둘, 그리고 만듦새가 없는 무명(無名) 하나.
+// 넷씩 여섯 줄이었는데 스물넷이 스물다섯이 되면서 딱 한 칸이 넘쳤습니다.
+// 다섯씩 다섯 줄이면 정확히 맞고, 격자가 74px 짧아져서 아래 판에 자리도 남습니다.
 const BOOK_LAYOUT = {
-  cols: 4,
-  rows: 6,
-  cellW: 116,
+  cols: 5,
+  rows: 5,
+  cellW: 100,
   cellH: 74,
   gridTop: 196,
   // 고른 자루를 펼쳐 놓는 자리. 격자 아래에 붙습니다.
-  // 마지막 줄의 상자가 636 에서 끝나므로 640 부터입니다.
-  panelTop: 640,
-  panelH: 172,
+  // 마지막 줄의 상자가 562 에서 끝나므로 572 부터입니다.
+  panelTop: 572,
+  panelH: 200,
 };
 
 class WeaponBookScene extends Phaser.Scene {
@@ -71,7 +74,9 @@ class WeaponBookScene extends Phaser.Scene {
       this.browse ? '한 번이라도 만난 자루가 여기 남습니다'
         : '만난 자루 중 하나를 들고 오릅니다', font(17, '#8794b5')).setOrigin(0.5);
     // 깊은 자루가 뒤쪽입니다. 순서가 곧 "언제쯤 만나는가"라는 것을 적어 둡니다.
-    this.add.text(cx, 160, '왼쪽 위에서 오른쪽 아래로 갈수록 깊은 층의 자루입니다',
+    // 맨 끝의 무명(無名)만은 예외라 그것도 적어 둡니다 — 안 적으면 마지막
+    // 칸이 가장 깊은 자루로 읽혀서, 맨몸이 약한 것이 버그로 보입니다.
+    this.add.text(cx, 160, '오른쪽 아래로 갈수록 깊은 자루 · 맨 끝은 예외입니다',
       font(15, '#5c6890')).setOrigin(0.5);
 
     // ── 스물넷을 격자로 ─────────────────────────────────
@@ -148,6 +153,7 @@ class WeaponBookScene extends Phaser.Scene {
       detail: this.add.text(cx, top + 54, '', font(14, '#6b7599')).setOrigin(0.5, 0),
       // 수치는 판 밑변에 붙입니다. 위가 몇 줄이 되든 자리가 안 흔들립니다.
       stat: this.add.text(cx, top + L.panelH - 12, '', font(16, '#8794b5')).setOrigin(0.5, 1),
+      cap: this.add.text(cx, top + L.panelH - 34, '', font(15, '#ffb74d')).setOrigin(0.5, 1),
     };
   }
 
@@ -172,6 +178,10 @@ class WeaponBookScene extends Phaser.Scene {
       + '   ' + (w.range ? '사정거리 ' : '사거리 ') + Math.round(w.range || w.reach || 0)
       + '   주기 ' + w.rate + 'ms'
       + (w.shots > 1 ? '   ' + w.shots + '곳' : ''));
+    // 한계가 남다른 자루는 그것이 그 자루의 전부입니다. 수치 줄 위에 따로 적습니다.
+    const cap = w.plusMax || CFG.plusMax;
+    p.cap.setText(cap === CFG.plusMax ? '' : '공격력 한계  +' + cap
+      + '   (다른 자루는 +' + CFG.plusMax + ')');
 
     this.takeLabel.setText(this.browse ? '이 자루로 정해 두기' : w.name + ' 들고 오르기');
   }

@@ -90,7 +90,10 @@ function applyShopEffect(scene, key) {
 // (시험이 이걸 잡아냈습니다 — 스무 번 열어 세 번이 빈손이었습니다.)
 function rollChestLoot(scene) {
   const s = scene;
-  const pool = ['maxhp', 'cap', 'plus']; // 이 셋은 한계가 없어 언제나 값이 움직입니다
+  const pool = ['maxhp', 'cap']; // 이 둘은 한계가 없어 언제나 값이 움직입니다
+  // 공격력도 열(무명은 서른)에서 멎습니다. 닿았으면 후보에서 뺍니다 —
+  // 화면을 가득 채우는 이펙트를 터뜨려 놓고 아무 일도 안 일어나면 놀림입니다.
+  if (!s.weapon.plusCapped) pool.push('plus');
   if (!s.weapon.speedCapped) pool.push('haste');
   if (s.hp < s.maxHp) pool.push('heal');
   if (s.job.usesArmor) {
@@ -137,8 +140,12 @@ function powerAfter(s, key) {
   switch (key) {
     case 'plus': {
       // 공격력은 밑값에 비례합니다. 붙는 양만큼 비율로 밀어 줍니다.
-      const before = 1 + w.plusValue * CFG.plusStep;
-      const after = 1 + (w.plusValue + c.bundle.plus * (s.job.plusScale || 1)) * CFG.plusStep;
+      // **한계를 넘겨서 세면 안 됩니다.** +9 에서 뭉치(셋)를 사면 실제로는
+      // 하나만 붙는데, 셋으로 세면 추천 표가 헛것을 가리킵니다.
+      const room = Math.max(0, w.plusMax - w.plus);
+      const gain = Math.min(c.bundle.plus, room) * (s.job.plusScale || 1);
+      const before = 1 + w.plusValue * w.plusStep;
+      const after = 1 + (w.plusValue + gain) * w.plusStep;
       dps = dps * after / before;
       break;
     }
@@ -388,6 +395,8 @@ class Shop {
       // 속도가 이미 한계라면 사도 헛돈입니다. 사기 전에 알려 줘야 합니다.
       if (offer.key === 'haste' && s.weapon.speedCapped) {
         desc.setText('공격 속도가 이미 한계입니다').setColor('#ff8a80');
+      } else if (offer.key === 'plus' && s.weapon.plusCapped) {
+        desc.setText('공격력이 이미 한계입니다 (+' + s.weapon.plusMax + ')').setColor('#ff8a80');
       } else if (offer.key === 'upgrade') {
         const w = s.weapon;
         // **초당 피해가 얼마나 달라지는지를 먼저 적습니다.** 그것이 사는 이유이자

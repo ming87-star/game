@@ -361,10 +361,16 @@ async function boot(browser, port, jobIndex) {
     const undoStub = () => { s.weapon.rollDamage = realRoll; s.weapon.hits = realHits; };
 
     const relic = RELICS.find((r) => r.key === 'farblade');
-    // 마지막 무기로 올려 놓고 잽니다. 0단계 검은 사거리가 100 이라 1.5배를
+    // **가장 긴 자루**로 올려 놓고 잽니다. 첫 검은 사거리가 100 이라 1.5배를
     // 해도 150 — 한 층(165)에 못 미쳐서 "아래를 안 친다"를 시험할 수가 없습니다.
     // 아래층까지 팔이 닿는 것은 긴 무기에 유물을 얹었을 때뿐입니다.
-    s.weapon.index = s.weapon.table.length - 1;
+    //
+    // 예전에는 주머니의 **마지막 칸**을 썼습니다. 그때는 그것이 가장 긴
+    // 자루였지만, 무명(無名)이 맨 끝에 붙으면서 아니게 됐습니다 — 사거리 96 인
+    // 자루로 재고 있었으니 유물을 얹어도 한 층에 못 닿아, 이 검사가 조용히
+    // 아무것도 안 재고 있었습니다. 이름표가 아니라 **값으로** 고릅니다.
+    s.weapon.index = s.weapon.table.reduce(
+      (a, b) => ((b.reach || b.range || 0) > (a.reach || a.range || 0) ? b : a)).index;
     const baseReach = s.weapon.reach;
 
     // 유물 없이: 거리와 상관없이 온전히 들어가야 합니다.
@@ -496,7 +502,7 @@ async function boot(browser, port, jobIndex) {
     Math.abs((roll.boosted[0] / roll.bare[0]) - (roll.boosted[1] / roll.bare[1])) < 0.02,
     '강화는 범위의 위아래를 같은 비율로 밀어 올림',
     `${roll.bare.join('~')} → ${roll.boosted.join('~')}`);
-  check(roll.pool === 24, '주머니에 자루가 스물넷 (열둘 × 만듦새 둘)', roll.pool + '자루');
+  check(roll.pool === 25, '주머니에 자루가 스물다섯 (열둘 × 만듦새 둘 + 무명)', roll.pool + '자루');
   check(roll.silverWidth < roll.blackWidth,
     '은장은 한 대가 고르고 흑철은 들쭉날쭉',
     `은장 ±${(roll.silverWidth * 50).toFixed(0)}% · 흑철 ±${(roll.blackWidth * 50).toFixed(0)}%`);
@@ -940,6 +946,122 @@ async function boot(browser, port, jobIndex) {
     leather.hasDodgeSlot ? '회피 나옴 · 방어구 안 나옴' : '회피가 안 나옵니다');
 
   await rogue.close();
+
+  // 손으로 적으면 CFG 를 만질 때마다 여기가 같이 틀립니다.
+  const CFG_PLUS_MAX = 10;
+
+  // ── 공격력 강화의 한계 ─────────────────────────────────
+  //
+  // 한계가 없던 시절에는 「한 자루를 오래 들고 다니며 계속 벼리기」가 늘
+  // 옳았습니다. 갈아타면 강화가 날아가니까요 — 그래서 갈아타기 창이
+  // 물어보는 것이 사실은 물어보는 것이 아니었습니다.
+  const cap = await boot(browser, port, 0);
+
+  const limits = await cap.evaluate(() => {
+    const s = window.__scene;
+    const w = s.weapon;
+    const out = {};
+
+    // 보통 자루 — 열에서 멎습니다. addPlus 는 붙었으면 true, 한계면 false.
+    w.index = 0; w.plus = 0;
+    let took = 0;
+    for (let i = 0; i < 20; i++) if (w.addPlus()) took++;
+    out.plain = { took, plus: w.plus, max: w.plusMax, capped: w.plusCapped };
+
+    // 무명(無名) — 서른까지.
+    const nameless = w.table.find((x) => x.family === 'nameless');
+    out.hasNameless = !!nameless;
+    if (!nameless) return out;
+    w.index = nameless.index; w.plus = 0;
+    took = 0;
+    for (let i = 0; i < 40; i++) if (w.addPlus()) took++;
+    out.nameless = { name: w.name, took, plus: w.plus, max: w.plusMax };
+
+    // 곡선 — **맨몸이 가장 약하고, +25 에서 최강(+10 한계)을 앞지릅니다.**
+    const best = w.table.reduce((x, y) => (w.dpsOf(y, false) > w.dpsOf(x, false) ? y : x));
+    w.index = best.index; w.plus = CFG.plusMax;
+    const ceiling = w.dps;
+    w.index = nameless.index;
+    const at = (n) => { w.plus = n; return w.dps; };
+    out.curve = {
+      best: best.name, ceiling: Math.round(ceiling),
+      // 주머니에서 맨몸이 가장 약한가
+      weakest: w.table.every((x) => w.dpsOf(x, false) >= w.dpsOf(nameless, false)),
+      p10: Math.round(at(10) / ceiling * 100),
+      p24: Math.round(at(24) / ceiling * 100),
+      p25: Math.round(at(25) / ceiling * 100),
+      p30: Math.round(at(30) / ceiling * 100),
+    };
+
+    // 보물상자 — 한계에 닿으면 공격력이 후보에서 빠집니다. 화면을 가득 채우는
+    // 이펙트를 터뜨려 놓고 아무 일도 안 일어나면 그건 보상이 아니라 놀림입니다.
+    w.index = 0;
+    const roll = (n) => {
+      const seen = new Set();
+      for (let i = 0; i < 400; i++) seen.add(rollChestLoot(s));
+      return seen;
+    };
+    w.plus = 0;
+    out.chestFree = roll().has('plus');
+    w.plus = CFG.plusMax;
+    out.chestCapped = roll().has('plus');
+
+    // 상점의 힘 셈 — 한계를 넘겨서 세면 추천 표가 헛것을 가리킵니다.
+    out.gainCapped = powerAfter(s, 'plus') / powerNow(s) - 1;
+    w.plus = CFG.plusMax - 1;
+    out.gainOne = powerAfter(s, 'plus') / powerNow(s) - 1;
+    w.plus = 0;
+    out.gainFull = powerAfter(s, 'plus') / powerNow(s) - 1;
+    return out;
+  });
+
+  check(limits.plain.took === limits.plain.max && limits.plain.capped,
+    '보통 자루는 +' + limits.plain.max + '에서 멎음',
+    limits.plain.took + '개 붙고 멈춤');
+  check(limits.hasNameless, '주머니에 무명(無名)이 있음');
+  check(limits.nameless && limits.nameless.took === 30 && limits.nameless.max === 30,
+    '무명은 +30까지 받음',
+    limits.nameless && limits.nameless.name + ' → +' + limits.nameless.plus);
+  check(limits.curve.weakest, '무명은 맨몸이 주머니에서 가장 약함');
+  check(limits.curve.p10 < 60, '+10 까지는 오히려 뒤처짐',
+    '최강(+' + CFG_PLUS_MAX + ' 한계) 대비 ' + limits.curve.p10 + '%');
+  // **여기가 이 자루의 전부입니다.** 스물넷에서는 아직 못 미치고 스물다섯에서
+  // 넘어야 합니다 — 넘는 자리가 흐려지면 「인내」라는 성격이 사라집니다.
+  check(limits.curve.p24 < 100 && limits.curve.p25 >= 100,
+    '+25 에서 가장 강한 자루가 됨',
+    '+24 ' + limits.curve.p24 + '% → +25 ' + limits.curve.p25 + '% (' + limits.curve.best + ' +'
+      + CFG_PLUS_MAX + ' = ' + limits.curve.ceiling + ')');
+  check(limits.curve.p30 > limits.curve.p25, '+30 에서 가장 높음', limits.curve.p30 + '%');
+
+  check(limits.chestFree && !limits.chestCapped,
+    '한계에 닿으면 보물상자가 공격력을 안 줌',
+    '여유 ' + limits.chestFree + ' · 한계 ' + limits.chestCapped);
+  check(Math.abs(limits.gainCapped) < 0.001,
+    '한계에 닿으면 상점의 이득 셈도 0', Math.round(limits.gainCapped * 1000) / 10 + '%');
+  check(limits.gainOne > 0 && limits.gainOne < limits.gainFull,
+    '하나만 남았으면 뭉치(셋)를 사도 하나만 셈',
+    Math.round(limits.gainOne * 1000) / 10 + '% < ' + Math.round(limits.gainFull * 1000) / 10 + '%');
+
+  // 지도의 +1 — 한계면 망치도 안 내리칩니다.
+  const pickup = await cap.evaluate(() => {
+    const s = window.__scene;
+    s.weapon.index = 0; s.weapon.plus = CFG.plusMax;
+    const said = [];
+    const real = s.popup.bind(s);
+    s.popup = (t, c) => { said.push(t); return real(t, c); };
+    let forged = 0;
+    const realFx = s.forgeFx.bind(s);
+    s.forgeFx = (...a) => { forged++; return realFx(...a); };
+    const slot = { taken: false, expired: false, kind: SLOT.PLUS, x: s.player.x, y: s.player.y };
+    s.land(slot);
+    s.popup = real; s.forgeFx = realFx;
+    return { said, forged, plus: s.weapon.plus };
+  });
+  check(pickup.said.some((t) => t.includes('한계')) && pickup.forged === 0,
+    '한계에 닿으면 지도의 +1 도 그렇다고 적고 망치를 안 내리침',
+    pickup.said.join(' / ') + ' · 망치 ' + pickup.forged + '번');
+
+  await cap.close();
 
   console.log(bad ? `\n${bad}건 어긋남` : '\n공격 성격 모두 맞음');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');

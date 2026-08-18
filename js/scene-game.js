@@ -844,9 +844,15 @@ class GameScene extends Phaser.Scene {
       slot.taken = true;
       switch (slot.kind) {
         case SLOT.PLUS:
-          this.weapon.addPlus();
-          this.forgeFx(slot.x, slot.y - 38);
-          this.popup('공격력 +1', '#ffd54f');
+          // 한계에 닿았으면 망치도 안 내리칩니다. 아무 일도 안 일어나는데
+          // 벼리는 시늉만 하면 그건 보상이 아니라 놀림입니다
+          // (보물상자에서 빈손이 나오면 안 되는 것과 같은 규칙).
+          if (this.weapon.addPlus()) {
+            this.forgeFx(slot.x, slot.y - 38);
+            this.popup('공격력 +1', '#ffd54f');
+          } else {
+            this.popup('공격력이 이미 한계입니다', '#8794b5');
+          }
           break;
         case SLOT.RELIC:
           // 자동으로 붙지 않습니다. 판이 멈추고 세 장 중 하나를 고릅니다.

@@ -52,7 +52,10 @@ class PauseScene extends Phaser.Scene {
     // 강화는 따로 한 줄로 뽑습니다. **갈아타면 잃는 것들**이라, 무기 값과
     // 섞어 놓으면 무엇이 자루의 몫이고 무엇이 쌓아 온 몫인지가 흐려집니다.
     const boosts = [];
-    if (w.plus) boosts.push('+' + Number(w.plusValue.toFixed(1)));
+    if (w.plus) {
+      boosts.push('+' + Number(w.plusValue.toFixed(1))
+        + (w.plusCapped ? ' (한계)' : ' / ' + w.plusMax));
+    }
     if (w.speedMult > 1.001) {
       boosts.push('속도 ×' + w.speedMult.toFixed(2) + (w.speedCapped ? ' (한계)' : ''));
     }
@@ -65,6 +68,11 @@ class PauseScene extends Phaser.Scene {
       ['초당 피해', shortNum(Math.round(w.dps / DPS_DISPLAY_DIV))],
     ];
     if (w.shots > 1) rows.splice(3, 0, ['한 번에', w.shots + '곳']);
+    // **한계가 남다른 자루만** 한 줄을 씁니다. 열은 어차피 다들 그러하므로
+    // 적어 봐야 줄만 늘어납니다 — 서른짜리(무명)는 그것이 그 자루의 전부입니다.
+    if (w.plusMax !== CFG.plusMax) {
+      rows.push(['공격력 한계', '+' + w.plusMax + '   (다른 자루는 +' + CFG.plusMax + ')']);
+    }
     if (boosts.length) rows.push(['강화', boosts.join('   ')]);
     if (w.relics.length) rows.push(['유물', w.relics.map((r) => r.icon + ' ' + r.name).join('  ')]);
     // 전리품은 자루에도 유물에도 안 붙는 따로 난 줄입니다 — 보스를 넘어선

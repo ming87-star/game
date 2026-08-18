@@ -132,6 +132,12 @@ class SwapScene extends Phaser.Scene {
       ['공격주기', Math.round(entry.rate / speed) + 'ms'],
     ];
     if (entry.shots > 1) rows.push(['한 번에', entry.shots + '곳']);
+    // **한계가 남다른 자루만** 한 줄을 씁니다. 이 창은 초당 피해로 두 자루를
+    // 견주는데, 무명(無名)은 지금 초당 피해가 아니라 **나중에 갈 수 있는
+    // 데**가 값어치라서 숫자만으로는 늘 손해로 보입니다. 그 줄이 없으면
+    // 아무도 안 고르고, 그러면 이 자루를 넣은 뜻이 없습니다.
+    const cap = entry.plusMax || CFG.plusMax;
+    if (cap !== CFG.plusMax) rows.push(['공격력 한계', '+' + cap]);
 
     rows.forEach(([label, value], i) => {
       const ry = y - L.cardH / 2 + 172 + i * 26;

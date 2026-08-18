@@ -37,7 +37,10 @@ const server = http.createServer((req, res) => {
     const slot = s.floors.get(420).slots.mid;
     s.player.setPosition(slot.x, slot.y - 34);
     s.cameras.main.setScroll(0, s.player.y - 960 * 0.68);
-    s.weapon.tier = s.job.weapons.length - 1;
+    // 가장 센 자루로 올려 놓습니다. 예전에는 `tier` 였는데 사다리를 걷어내면서
+    // 그 칸이 사라져서, 이 줄이 몇 달째 아무 일도 안 하고 있었습니다.
+    s.weapon.index = s.weapon.table.reduce(
+      (a, b) => (s.weapon.dpsOf(b, false) > s.weapon.dpsOf(a, false) ? b : a)).index;
     s.weapon.plus = 6; s.weapon.haste = 6;
     s.weapon.takeRelic(RELICS.find((r) => r.key === 'waveblade'));
     s.weapon.takeRelic(RELICS.find((r) => r.key === 'bloodcloak'));
