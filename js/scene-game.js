@@ -31,6 +31,10 @@ class GameScene extends Phaser.Scene {
     buildTextures(this);
 
     this.dead = false;
+    // Phaser 는 장면을 새로 짓지 않고 **같은 것을 다시 씁니다.** 지난 판을
+    // 스스로 그만뒀으면 이 표가 그대로 남아서, 다음 판에서 멀쩡히 죽었는데도
+    // 「이어서 진행」이 잠겨 있게 됩니다.
+    this.noResume = false;
     this.jumping = false;
     this.floorIndex = 0;
     this.lane = 'mid';
@@ -1767,8 +1771,44 @@ class GameScene extends Phaser.Scene {
     if (!this.boosts.length) return;
     this.pushNotice({ key: 'boosts', ms: 2300, build: () => this.showNotice([
       this.add.text(CFG.width / 2, 300, '지니고 오른 것', font(20, '#8794b5')).setOrigin(0.5),
-      this.add.text(CFG.width / 2, 340, this.boosts.join('   '), font(26, '#ffca28')).setOrigin(0.5),
+      ...this.boostRows(340, font(26, '#ffca28')),
     ]) });
+  }
+
+  // ── 지니고 오른 것을 줄로 나눠 놓습니다 ────────────────
+  //
+  // 메달 상점에서 많이 사고 오면 일곱 가지가 한 줄에 섭니다. 한 줄로 두면
+  // 화면 밖으로 나가고, 넘치는 만큼 줄이면(새 적 이름이 쓰는 방법) 글자가
+  // 읽을 수 없게 작아집니다 — **거기는 이름 두셋이고 여기는 일곱입니다.**
+  //
+  // 그래서 줄을 바꿉니다. 몇 줄이 될지는 글자를 실제로 재서 정합니다:
+  // 「속도 한계 ×1.30」과 「+1 ×2」는 글자 수도 폭도 다르므로, 개수로 나누면
+  // 어떤 줄은 넘치고 어떤 줄은 텅 빕니다.
+  boostRows(top, style) {
+    const cx = CFG.width / 2;
+    const room = CFG.width - 48;
+    const SEP = '   ';
+
+    // 재는 자 하나를 화면 밖에 세워 두고 글자만 갈아 끼웁니다 —
+    // 항목마다 만들고 버리면 일곱 번 짓게 됩니다.
+    const rule = this.add.text(-9999, -9999, '', style);
+    const rows = [];
+    let line = '';
+    this.boosts.forEach((label) => {
+      const tryLine = line ? line + SEP + label : label;
+      rule.setText(tryLine);
+      if (line && rule.width > room) { rows.push(line); line = label; } else line = tryLine;
+    });
+    if (line) rows.push(line);
+    rule.destroy();
+
+    // 줄 사이는 잰 상자 높이에서 옵니다. 한글 상자는 글꼴 크기보다 크므로
+    // 26px 짜리를 26px 간격으로 쌓으면 반드시 붙습니다.
+    return rows.map((text, i) => {
+      const t = this.add.text(cx, top, text, style).setOrigin(0.5, 0);
+      t.y = top + i * (t.height + 8);
+      return t;
+    });
   }
 
   // ── 함정 ──────────────────────────────────────────────
@@ -2488,9 +2528,15 @@ class GameScene extends Phaser.Scene {
     this.floatText(this.player.x, this.player.y - 50, text, color, 26, 60, 700);
   }
 
-  gameOver(reason) {
+  // opts.noResume — **스스로 그만둔 판**입니다 (일시정지 화면의 「게임 포기하기」).
+  // 그만두겠다고 해 놓고 「상점에서 이어서」가 그대로 떠 있으면 그 단추가 곧
+  // 그만두기를 없던 일로 만듭니다. 고른 것이 바로 뒤집히는 화면은 고른 것이
+  // 아닙니다. 번 메달은 그대로 받습니다 — 그만둔 값은 판을 잃는 것이지
+  // 여태 모은 것을 잃는 것이 아닙니다.
+  gameOver(reason, opts) {
     if (this.dead) return;
     this.dead = true;
+    this.noResume = !!(opts && opts.noResume);
     this.hp = 0;
     this.clearNotices(); // 죽음 화면 위에 알림이 떠 있으면 결과가 안 읽힙니다
     // 판을 넘어 남는 기록. 직업 해금이 여기에 기댑니다.
@@ -2516,7 +2562,10 @@ class GameScene extends Phaser.Scene {
     add(this.add.text(cx, 190, this.floorIndex + '층', font(66, '#ffffff')).setOrigin(0.5));
     add(this.add.text(cx, 244, '점수 ' + this.score() + '   처치 ' + this.kills +
       '   코인 ' + this.totalCoins, font(22, '#b0bec5')).setOrigin(0.5));
-    if (reason) add(this.add.text(cx, 164, reason, font(14, '#b39ddb')).setOrigin(0.5));
+    // 왜 끝났는지는 **맨 위**에 놓습니다. 164 에 두었더니 66px 짜리 층수
+    // 글자(190 에 서므로 상자가 152부터입니다) 위로 그대로 겹쳤습니다 —
+    // 여태 아무도 reason 을 안 넘겨서 한 번도 안 그려 본 줄이었습니다.
+    if (reason) add(this.add.text(cx, 104, reason, font(14, '#b39ddb')).setOrigin(0.5));
 
     // 여기부터는 **줄이 있을 때만 자리를 씁니다.** 유물 줄은 유물을 하나도
     // 안 들고 죽으면 안 나오는데, 예전에는 아랫줄이 268·278 로 못 박혀 있어서
@@ -2587,19 +2636,23 @@ class GameScene extends Phaser.Scene {
 
     // 이어서 진행하기 — 상점에 한 번은 닿아야 하고, 판마다 두 번까지입니다.
     const left = CFG.continues.max - this.continues;
-    const canResume = !!this.resumePoint && left > 0;
-    const resumeTitle = this.resumePoint
-      ? this.resumePoint.floor + '층 상점에서 이어서'
-      : '이어서 진행할 자리 없음';
+    const canResume = !!this.resumePoint && left > 0 && !this.noResume;
+    const resumeTitle = this.noResume
+      ? '이어서 진행할 수 없음'
+      : this.resumePoint
+        ? this.resumePoint.floor + '층 상점에서 이어서'
+        : '이어서 진행할 자리 없음';
     // 전리품도 값에 넣어 적습니다. 되돌아가는 자리가 그 보스보다 아래라
     // 안 따라오는데, 버튼에 안 적으면 모르고 눌러서 잃게 됩니다.
     const loses = [cost];
     if (this.trophies.count) loses.push('보스 전리품 ' + this.trophies.count + '개');
-    const resumeSub = !this.resumePoint
-      ? '상점에 한 번은 닿아야 합니다'
-      : left <= 0
-        ? '이어서 진행은 한 판에 ' + CFG.continues.max + '번까지입니다'
-        : loses.join(' · ') + '   ·   남은 횟수 ' + left + '번';
+    const resumeSub = this.noResume
+      ? '스스로 그만둔 판입니다'
+      : !this.resumePoint
+        ? '상점에 한 번은 닿아야 합니다'
+        : left <= 0
+          ? '이어서 진행은 한 판에 ' + CFG.continues.max + '번까지입니다'
+          : loses.join(' · ') + '   ·   남은 횟수 ' + left + '번';
 
     add(this.add.text(cx, 470, '무엇을 가져갈까', font(24, '#ffffff')).setOrigin(0.5));
 

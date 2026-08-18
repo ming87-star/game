@@ -193,7 +193,29 @@ const PROBE = `(() => {
   await page.evaluate(() => window.__weaponbook.leave());
   await page.waitForTimeout(900);
   // 판이 시작되면 「지니고 오른 것」이 한가운데에 뜹니다. 그동안에도 봅니다.
+  // (위에서 메달 상점의 물건을 전부 사 뒀으므로 여기가 가장 긴 판입니다.)
   await look('판 시작 — 지니고 오른 것', 900);
+
+  // **겹침만 봐서는 이걸 못 잡습니다.** 한 줄이 화면 밖으로 나가도 다른
+  // 글자와는 안 겹치므로 위의 검사는 조용히 통과합니다. 실제로 상점 물건을
+  // 다 사고 오면 일곱 가지가 한 줄에 서서 좌우로 잘려 나갔습니다.
+  // 그래서 여기만 **폭을 따로 잽니다.**
+  const boostFit = await page.evaluate(() => {
+    const s = window.__scene;
+    const room = CFG.width - 48;
+    const rows = [];
+    s.children.list.forEach((o) => {
+      if (o.type !== 'Text' || !o.visible) return;
+      if (!s.boosts.some((b) => String(o.text).includes(b))) return;
+      rows.push({ w: Math.round(o.width), text: String(o.text) });
+    });
+    return { room, rows, n: s.boosts.length };
+  });
+  check(boostFit.rows.length > 0 && boostFit.rows.every((r) => r.w <= boostFit.room),
+    '지니고 오른 것이 화면 안에 들어감 (' + boostFit.n + '가지)',
+    boostFit.rows.length
+      ? boostFit.rows.map((r) => r.w + 'px').join(' · ') + '  (자리 ' + boostFit.room + 'px)'
+      : '한 줄도 안 떴음');
   await look('판 시작 2초 뒤', 1400);
 
   // 이름이 가장 긴 자루로 갈아 끼워 봅니다. HUD 의 무기 줄은 이름 길이에 따라
@@ -349,6 +371,24 @@ const PROBE = `(() => {
     s.gameOver();
   });
   await look('죽음 화면 — 빈손으로', 900);
+
+  // ── 스스로 그만둔 판 ────────────────────────────────────
+  // 일시정지에서 「게임 포기하기」로 끝낸 판입니다. 여기만 **왜 끝났는지**를
+  // 적는 줄이 하나 더 붙는데, 여태 아무도 reason 을 안 넘겨서 한 번도 안
+  // 그려 본 줄이었습니다 — 처음 켜 보니 66px 짜리 층수 위로 그대로 겹쳤습니다.
+  await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'warrior' }));
+  await page.waitForTimeout(1200);
+  await page.evaluate(() => {
+    const s = window.__scene;
+    s.floorIndex = 372; s.medals = 5; s.coins = 900; s.totalCoins = 2400;
+    s.pauseGame();
+  });
+  await page.waitForTimeout(500);
+  await look('일시정지 — 그만두기 단추까지', 400);
+  await page.evaluate(() => window.__pause.askGiveUp());
+  await look('정말 그만둘까요', 400);
+  await page.evaluate(() => window.__pause.giveUp());
+  await look('죽음 화면 — 스스로 그만둠', 900);
 
   console.log(bad ? `\n${bad}건 어긋남` : '\n어느 화면에서도 글자가 안 겹칩니다');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
