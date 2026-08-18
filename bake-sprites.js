@@ -59,7 +59,14 @@ const WANT = [
   // 다섯을 합쳐 200KB 남짓 붙습니다. 순간의 무게가 가장 큰 그림이라 값을 합니다.
   'boss-warden', 'boss-gazer', 'boss-crusher', 'boss-brood', 'boss-phantom',
   'boss-shot', 'boss-shot-gazer', 'boss-shot-crusher', 'boss-shot-brood', 'boss-shot-phantom',
+  // 상점 층. 발판(plat-shop)은 그대로 두고 그 **뒤와 위**에 붙는 둘입니다.
+  'shop-back', 'shop-npc',
 ];
+
+// 4로 안 나누는 것들. 기본은 4배로 그려 온다는 약속이지만(위 SCALE),
+// 그리는 쪽에서 1840px 짜리 가로 그림을 뽑기가 어렵습니다. 배경은 2배로
+// 받습니다 — 920×300 → 460×150.
+const DIV = { 'shop-back': 2 };
 
 // assets/ 에 있지만 **일부러** 안 굽는 것들. 여기 없으면 아래에서
 // "그려는 놨는데 목록에 없다"고 알려 줍니다.
@@ -85,6 +92,9 @@ const PORTRAITS = [
   { key: 'face-warrior', from: 'player-warrior' },
   { key: 'face-archer', from: 'player-archer' },
   { key: 'face-rogue', from: 'player-rogue' },
+  // 상점 화면 안에 서는 주인. 판 위의 작은 주인(shop-npc)과 **다른 그림**입니다 —
+  // 하나는 38px 로 서고 하나는 190px 로 섭니다.
+  { key: 'shop-keeper', from: 'shop-keeper' },
 ];
 
 const ON_PURPOSE = new Set([
@@ -104,7 +114,7 @@ const ON_PURPOSE = new Set([
     if (fs.existsSync(path.join(ART, key + '.svg'))) { skipped.push(key); continue; }
     const png = path.join(ASSETS, key + '.png');
     if (!fs.existsSync(png)) { missing.push(key); continue; }
-    jobs.push({ key, png, div: SCALE });
+    jobs.push({ key, png, div: DIV[key] || SCALE });
   }
 
   // 초상화는 WANT 를 안 탑니다 — 같은 이름의 SVG 가 있어서 위 규칙에

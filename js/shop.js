@@ -286,6 +286,21 @@ class Shop {
       this.buildRow(offer, cx, top + L.rowY + shift + i * L.rowGap));
 
     const btnY = top + L.buttonY + shift;
+
+    // ── 상점 주인 ──────────────────────────────────────
+    // 진열 세 칸과 「계속 오르기」 사이가 통째로 비어 있습니다. 주인이 거기
+    // 섭니다 — 값을 치르는 화면에 값을 받는 사람이 하나도 없었습니다.
+    //
+    // 왼쪽 끝에 세웁니다. 한가운데에 두면 가격표와 단추 사이를 갈라 놓아
+    // 「고르고 → 누른다」가 한 줄로 안 읽힙니다. 그림이 없으면 그냥 빕니다.
+    if (s.textures.exists('shop-keeper')) {
+      const src = s.textures.get('shop-keeper').getSourceImage();
+      const h = 190;
+      const w = h * (src.width / src.height);
+      add(s.add.image(cx - L.width / 2 + 28 + w / 2, btnY - 46, 'shop-keeper')
+        .setDisplaySize(w, h).setOrigin(0.5, 1));
+    }
+
     const btn = add(s.add.rectangle(cx, btnY, 420, 62, 0x3949ab)
       .setStrokeStyle(2, 0x9fa8da).setInteractive({ useHandCursor: true }));
     add(s.add.text(cx, btnY, '계속 오르기', font(28, '#ffffff')).setOrigin(0.5));

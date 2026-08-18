@@ -287,6 +287,25 @@ class GameScene extends Phaser.Scene {
       this.platforms.add(solid);
       floor.views.push(solid);
 
+      // ── 상점 층 ───────────────────────────────────
+      // 발판은 그대로 두고 **뒤와 위**에 둘을 얹습니다. 둘 다 없어도 지금
+      // 그대로 돌아갑니다 — 노란 띠 하나로 "저기 상점"은 이미 읽힙니다.
+      //
+      // 깊이는 벽(-5)과 발판(0) 사이입니다. 배경이 발판보다 앞에 서면
+      // 발판 끝이 가려져서 어디를 밟는 자리인지가 흐려집니다.
+      if (slot.kind === SLOT.SHOP) {
+        if (hasArt('shop-back')) {
+          floor.views.push(this.add.image(slot.x, slot.y - CFG.platformH / 2, 'shop-back')
+            .setOrigin(0.5, 1).setDepth(-3));
+        }
+        // 주인은 **발판 오른쪽 끝**에 섭니다. 한가운데에 두면 「상 점」 글자와
+        // 밟고 선 주인공이 그 자리에서 셋이 겹칩니다.
+        if (hasArt('shop-npc')) {
+          floor.views.push(this.add.image(slot.x + w / 2 - 46, slot.y - CFG.platformH / 2,
+            'shop-npc').setOrigin(0.5, 1).setDepth(-1));
+        }
+      }
+
       const mark = this.makeMark(slot);
       if (mark) { slot.view = mark; floor.views.push(mark); }
     }
