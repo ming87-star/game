@@ -56,12 +56,22 @@ class TitleScene extends Phaser.Scene {
       const k = Math.max(CFG.width / src.width, CFG.height / src.height);
       this.back.push(this.add.image(cx, CFG.height / 2, 'title-art')
         .setDisplaySize(src.width * k, src.height * k));
-      // 그림 위에 글자가 얹히므로 한 겹 덮습니다. 아래로 갈수록 짙게 —
-      // 제목은 위쪽에 서고 「터치해서」는 아래쪽에 서는데, 아래쪽이 대개
-      // 바닥과 발치라 어수선합니다.
-      this.back.push(this.add.rectangle(cx, CFG.height / 2, CFG.width, CFG.height, 0x0a0d18, 0.42));
-      this.back.push(this.add.rectangle(cx, CFG.height, CFG.width, 320, 0x0a0d18, 0.55)
-        .setOrigin(0.5, 1));
+      // 그림 위에 글자가 얹히므로 아주 옅게 한 겹만 덮습니다.
+      //
+      // 예전에는 두 겹이었습니다 — 화면 전체 0.42 에, 아래 320px 만 0.55 를
+      // 한 겹 더. 아래쪽이 겹쳐서 **74% 어두웠고**, 그 경계(y=640)가 화면에
+      // 가로줄로 보였습니다. 밝기를 재 보니 41 에서 30 으로 뚝 떨어집니다.
+      //
+      // 그 띠는 「터치해서 계속하기」가 **코드가 찍는 맨 글자**이던 시절의
+      // 것입니다. 회색 글자 한 줄을 배경 위에 얹는 것이라 설 자리를 미리
+      // 어둡게 깔아 둬야 했습니다. 지금은 금테 판때기가 제 배경을 들고
+      // 오므로 뒤가 무엇이든 스스로 읽힙니다 — 지키던 것이 없어졌습니다.
+      //
+      // 남은 한 겹도 0.42 에서 0.20 으로 내립니다. 새 배경은 아래쪽이
+      // 그림의 알맹이(발판·문어·집게)라, 예전의 어두운 그림에 맞춰 둔 값이
+      // 이 그림에는 세게 걸립니다. 제목은 제 그림에 검은 번짐이 깔려 있어서
+      // 이만큼으로도 읽힙니다.
+      this.back.push(this.add.rectangle(cx, CFG.height / 2, CFG.width, CFG.height, 0x0a0d18, 0.20));
     }
 
     // ── 제목 ────────────────────────────────────────────

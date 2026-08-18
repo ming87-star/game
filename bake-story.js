@@ -38,6 +38,31 @@ const OUT = path.join(ROOT, 'js', 'storydata.js');
 // 화면에서 그려지는 크기(452px)의 1.4배. 위 주석 참고.
 const MAX_W = 640;
 const QUALITY = 0.86;
+
+// ── 한 장만 다르게 굽고 싶을 때 ────────────────────────────
+//
+// 기본값은 **이야기 컷**에 맞춰져 있습니다 — 452px 액자에 들어가는 정사각형
+// 그림. 타이틀 화면의 두 장은 크기도 성격도 달라서 기본값이 안 맞습니다.
+// 아래 값은 전부 **재서 정한 것**이고, 무엇을 쟀는지 함께 적어 둡니다.
+const TUNE = {
+  // 화면을 통째로 덮는 세로 그림(540×960)이라 픽셀이 이야기 컷의 1.8배입니다.
+  // 폭은 그대로 두고 화질만 내립니다 — 640폭에서 0.86 → 0.74 로 가면
+  // 147KB 가 90KB 가 되는데, 원본을 화면 크기로 그린 것과 견줘 **중앙값
+  // 차이가 255 중 3**입니다 (상위 5%도 10 → 12). 눈에 안 보입니다.
+  'title-art': { q: 0.74 },
+
+  // 제목 글자는 **화질이 지렛대가 아닙니다.** 0.86 → 0.62 로 내려도 119KB
+  // 에서 101KB 까지밖에 안 갑니다 — 무게가 색이 아니라 알파에 있습니다.
+  //
+  // 대신 **그려지는 크기 그대로** 굽습니다 (js/scene-title.js 의 maxH 300 ·
+  // 1.446:1 → 폭 434). 재 보니 640 으로 구워 434 로 줄이는 것보다 작고
+  // **또렷합니다** — 65KB · 상위 5% 차이 6/255 · 알파 차이 0. 640 쪽은
+  // 105KB 에 차이 15/255 였습니다. 두 번 줄이면 글자 가장자리가 상합니다.
+  //
+  // 값이 그려지는 크기에 묶여 있으므로, scene-title 의 maxH 를 고치면
+  // 여기도 같이 고쳐야 합니다. 안 고치면 조금 흐려질 뿐 안 깨집니다.
+  'title-logo': { w: 434 },
+};
 const WARN_KB = 120; // 줄인 뒤 한 장이 이보다 크면 알려 줍니다
 const FULL = process.argv.includes('--full');
 
@@ -93,6 +118,7 @@ async function shrinkAll(names) {
   for (const name of names) {
     const file = files[name];
     const uri = asIs(file);
+    const tune = TUNE[name] || {};
     const done = await page.evaluate(async ([src, maxW, q]) => {
       const img = new Image();
       await new Promise((ok, no) => { img.onload = ok; img.onerror = no; img.src = src; });
@@ -106,7 +132,7 @@ async function shrinkAll(names) {
       g.imageSmoothingQuality = 'high';
       g.drawImage(img, 0, 0, c.width, c.height);
       return { uri: c.toDataURL('image/webp', q), w: c.width, from: img.width, kept: false };
-    }, [uri, MAX_W, QUALITY]);
+    }, [uri, tune.w || MAX_W, tune.q || QUALITY]);
 
     out[name] = done.uri;
     const kb = Math.round(done.uri.length * 0.75 / 1024);
