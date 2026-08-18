@@ -322,7 +322,7 @@ a { color: var(--gold); }
 
 <div class="wrap">
   <header class="top">
-    <span class="eyebrow">오늘도 탑을 오르는 나는 무슨 생각을 해야 하나 · 무기표</span>
+    <span class="eyebrow">오늘도 탑을 오르는 나는 무슨 생각을 해야 할까 · 무기표</span>
     <h1>자루 열둘,<br><b>만듦새 넷</b>, 직업 셋.</h1>
     <p class="lede prose">무기는 사다리가 아니라 주머니입니다. <b>깊이</b>가 자루를 열고,
       <b>만듦새</b>가 같은 자루를 다른 물건으로 만듭니다. 아래 숫자는 전부

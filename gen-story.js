@@ -185,7 +185,7 @@ const SCENES = [
       '#FF00FF chroma key background (it will be keyed out later).',
       'Line 1, smaller and dimmer, muted blue-grey: 오늘도 탑을 오르는 나는',
       'Line 2, much larger and brighter, near-white with a faint violet edge light:',
-      '무슨 생각을 해야 하나',
+      '무슨 생각을 해야 할까',
       'Reproduce the Korean characters EXACTLY as written above — do not invent, alter,',
       'reorder or add any glyph. Hangul syllable blocks must stay correctly formed.',
       'The lettering is brush-drawn but controlled and highly legible: slightly irregular',

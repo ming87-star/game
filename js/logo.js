@@ -4,7 +4,7 @@
 //
 //   ▲      ← 탑 표시. 층이 위로 겹쳐 오르는 모양
 //   오늘도 탑을 오르는 나는     (작게 · 흐리게)
-//   무슨 생각을 해야 하나       (크게 · 밝게)
+//   무슨 생각을 해야 할까       (크게 · 밝게)
 //
 // 위아래로 나눈 자리가 중요합니다. 스물두 자를 한 줄로 두면 화면 너비에
 // 안 들어가고, 억지로 줄이면 아무 데서도 안 읽힙니다. 두 토막으로 나누면
@@ -32,11 +32,24 @@ function drawLogo(scene, x, y, opts) {
   // 너비를 기준으로 맞춥니다. 높이로 맞추면 그림의 여백이 얼마인지에 따라
   // 글자 크기가 들쭉날쭉해집니다 — 로고는 **가로로 얼마나 차지하는가**로
   // 자리를 잡는 물건입니다.
-  if (scene.textures.exists('title-logo')) {
+  //
+  // **art: false 면 그림이 있어도 글꼴로 짓습니다.** 손으로 쓴 제목은 크게
+  // 걸릴 때 값을 합니다. 시작 화면처럼 머리글로만 서는 자리에 90px 로 욱여
+  // 넣으면 획의 결이 죽고, 특히 흐린 윗줄(「오늘도 탑을 오르는 나는」)이
+  // 어두운 바탕에 묻혀 아예 안 읽힙니다. 그림은 타이틀 화면의 것입니다.
+  //
+  // **maxH 를 주면 높이가 이깁니다.** 그림은 갈아 끼워지는 물건이고, 갈아
+  // 끼우면 비율이 바뀝니다 — 실제로 5:2 로 그렸던 것이 1.45:1 로 다시
+  // 왔습니다. 가로만 맞추면 그때마다 세로가 203 → 351 로 뛰어서 주인공을
+  // 덮습니다. 부르는 쪽이 「여기는 이만큼까지」를 적어 두면 그림이 바뀌어도
+  // 자리가 안 무너집니다.
+  if (o.art !== false && scene.textures.exists('title-logo')) {
     const room = (o.width || CFG.width) - 32;
     const src = scene.textures.get('title-logo').getSourceImage();
-    const w = Math.min(room, room * k);
-    const h = w * (src.height / src.width);
+    const ratio = src.height / src.width;
+    let w = Math.min(room, room * k);
+    if (o.maxH && w * ratio > o.maxH) w = o.maxH / ratio;
+    const h = w * ratio;
     const img = scene.add.image(x, y, 'title-logo').setDisplaySize(w, h).setOrigin(0.5, 0);
     return { parts: [img], bottom: y + h, height: h };
   }

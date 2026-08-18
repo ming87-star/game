@@ -170,6 +170,12 @@ const check = (ok, label, got) => {
   const rain = await page.evaluate(async () => {
     const s = window.__scene;
     const r = CFG.boss.rain;
+    // **죽어 있으면 아무것도 안 나옵니다.** 여기까지 오는 동안 보스가 내리꽂는
+    // 것을 그대로 맞고 서 있었으므로 가끔 이미 죽어 있습니다. 죽으면 update 가
+    // 첫 줄에서 물러나서 잿비가 한 발도 안 떨어지고, 그러면 아래 셋이 전부
+    // 「0발」로 어긋납니다 — 재려는 것은 버티는 능력이 아니라 비의 모양입니다.
+    s.dead = false;
+    s.hp = s.maxHp = 1e9;
     // 보스가 제 시계로 다른 패턴을 겹쳐 쏘면 그것까지 세어 버립니다.
     // 재는 동안만 다음 차례를 멀리 밀어 둡니다.
     //
@@ -373,6 +379,7 @@ const check = (ok, label, got) => {
     s.bossFight = false;
     if (s.boss) { s.boss.destroy(); s.boss = null; }
     s.enemies.getChildren().slice().forEach((e) => e.destroy());
+    s.dead = false;
     s.hp = s.maxHp = 1e9;
     // **주인공의 칼을 꺼 둡니다.** 전사는 사거리 안을 매번 베고 기절까지 걸어서,
     // 안 끄면 전리품이 한 일과 칼이 한 일이 뒤섞여 아무것도 못 잽니다.
@@ -383,7 +390,10 @@ const check = (ok, label, got) => {
       const e = spawnEnemy(s, s.player.x + gap + i * 40, s.player.y - 16, 620, 'crawler');
       if (e) {
         e.hp = e.maxHp = 1e6;
-        if (freeze) { e.speed = 0; e.body.velocity.set(0, 0); }
+        // 속도만 0으로 두면 **떨어집니다.** 줄이 발판 밖까지 뻗어 있어서
+        // 끝쪽 둘은 밑으로 빠지고, 그 사이에 눈길이 터지면 1/6 이 됩니다.
+        // body.moves 를 끄면 중력도 속도도 그 몸에는 안 걸립니다.
+        if (freeze) { e.speed = 0; e.body.velocity.set(0, 0); e.body.moves = false; }
         window.__mark.push(e);
       }
     }

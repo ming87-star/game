@@ -57,11 +57,22 @@ const check = (ok, label, got) => {
   //      여기가 막히면 게임에 아예 못 들어갑니다.
   const title = await page.evaluate(() => (window.__title
     ? { live: window.__game.scene.getScenes(true).map((s) => s.scene.key).join(','),
-      hint: window.__title.hint.text } : null));
+      // 「터치해서 계속하기」는 글자일 수도 그림일 수도 있습니다
+      // (art/title-hint.webp). 어느 쪽이든 서 있어야 하고, 무엇이라고
+      // 적혀 있는지는 hintLabel 이 들고 있습니다.
+      hint: window.__title.hintLabel,
+      hintUp: !!window.__title.hint && window.__title.hint.visible,
+      art: ['title-art', 'title-logo', 'title-hint']
+        .filter((k) => window.__title.textures.exists(k)).join(','),
+    } : null));
   check(title && title.live === 'title', '켜면 타이틀 화면이 가장 먼저',
     title ? title.live : '안 나옴');
-  check(!!title && title.hint === '터치해서 계속하기', '「터치해서 계속하기」가 적힘',
-    title ? title.hint : '');
+  check(!!title && title.hint === '터치해서 계속하기' && title.hintUp,
+    '「터치해서 계속하기」가 서 있음', title ? title.hint : '');
+  // 그림 셋이 합친 파일 안에 들어 있는가. 안 들어 있어도 게임은 도는데
+  // (글꼴과 어두운 바탕으로 물러납니다) 그러면 타이틀 화면이 통째로 밋밋해집니다.
+  check(!!title && title.art === 'title-art,title-logo,title-hint',
+    '타이틀 그림 셋이 다 실림', title ? title.art : '');
 
   // 다 뜰 때까지 기다립니다 — 시계가 아니라 **다 떴다는 표시**를 봅니다.
   await page.waitForFunction(() => window.__title && window.__title.ready, null, { timeout: 8000 });

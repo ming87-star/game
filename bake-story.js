@@ -52,11 +52,15 @@ const FULL = process.argv.includes('--full');
 // 흰 띠가 남습니다. 낱장이면 그 문제가 아예 없습니다.
 // 둘 다 있으면 낱장이 이깁니다 (js/scene-story.js).
 //
-// 타이틀 화면의 두 장은 규격이 다릅니다 (아래 SPEC).
-//   title-art   화면을 덮는 세로 그림 (9:16)
+// 타이틀 화면의 세 장은 규격이 다릅니다.
+//   title-art   화면을 덮는 세로 그림 (9:16 · 배경이 안 비침)
 //   title-logo  제목 글자를 그린 것 (가로로 긴 · 배경이 비침)
+//   title-hint  「터치해서 계속하기」 금테 (아주 가로로 긴 · 배경이 비침)
+//
+// 뒤의 둘은 **알파가 살아 있어야** 합니다. 배경 그림 위에 얹히는 것이라,
+// 알파가 죽으면 검은 판때기가 그림 위에 놓입니다.
 const WANT = ['story', 'story-1', 'story-2', 'story-3', 'story-4',
-  'title-art', 'title-logo', 'meet-archer', 'meet-rogue'];
+  'title-art', 'title-logo', 'title-hint', 'meet-archer', 'meet-rogue'];
 
 // 넷 중 먼저 찾은 것을 씁니다. webp 가 같은 화질에서 가장 가볍습니다.
 const EXTS = ['.webp', '.jpg', '.jpeg', '.png'];

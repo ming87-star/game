@@ -17,7 +17,10 @@ class SelectScene extends Phaser.Scene {
     // 여기서는 **탑 표시를 뺍니다** (mark: false). 카드 셋이 화면을 거의 다
     // 쓰는 자리라, 표시가 52px 을 먹으면 「직업을 고르세요」가 첫 카드 밑으로
     // 밀려 들어갑니다. 표시는 자리가 넉넉한 오프닝 제목 컷에서 봅니다.
-    const logo = drawLogo(this, cx, 24, { scale: 0.75, mark: false });
+    // 여기서 제목은 **머리글**입니다 — 타이틀 화면에서 이미 크게 봤습니다.
+    // 그래서 손으로 쓴 그림이 아니라 글꼴로 짓습니다 (art: false). 그림을
+    // 이만한 크기로 줄이면 획의 결이 죽고, 흐린 윗줄이 바탕에 묻힙니다.
+    const logo = drawLogo(this, cx, 24, { scale: 0.75, mark: false, art: false });
 
     const best = Save.bestFloor;
     this.add.text(cx, logo.bottom + 18, best
@@ -26,7 +29,10 @@ class SelectScene extends Phaser.Scene {
     this.add.text(cx, logo.bottom + 46, '가진 메달  🏅 ' + Save.medals,
       font(19, '#ffca28')).setOrigin(0.5, 0);
 
-    CLASSES.forEach((job, i) => this.buildCard(job, cx, 292 + i * 200, best));
+    // 카드 자리는 **머리글이 끝난 곳에서** 잽니다. 못박아 두면 제목이 글꼴에서
+    // 그림으로 바뀌는 것만으로 카드 밑에 글이 깔립니다 (실제로 그랬습니다).
+    const cardTop = logo.bottom + 74 + 176 / 2;
+    CLASSES.forEach((job, i) => this.buildCard(job, cx, cardTop + i * 200, best));
 
     // 아래 두 자리 — 유물 도감과 이야기. 둘 다 판을 **시작하지 않는** 곳이라
     // 나란히 두고, 판을 시작하는 직업 카드와는 떨어뜨려 놓습니다.

@@ -39,6 +39,7 @@ class TitleScene extends Phaser.Scene {
     if (typeof loadStoryArt === 'function') {
       loadStoryArt(this, 'title-art');    // 배경 — 후반 전투
       loadStoryArt(this, 'title-logo');   // 제목을 그림으로 그린 것 (js/logo.js)
+      loadStoryArt(this, 'title-hint');   // 「터치해서 계속하기」 금테
     }
   }
 
@@ -64,17 +65,33 @@ class TitleScene extends Phaser.Scene {
     }
 
     // ── 제목 ────────────────────────────────────────────
-    // 그림이 있으면 위쪽 삼분의 일에 세웁니다 — 한가운데에 두면 배경의
-    // 한가운데를, 곧 주인공을 덮습니다. 그림이 아직 없으면 조금 내려서
-    // 놓습니다: 빈 화면의 꼭대기에 붙어 있으면 아래가 통째로 비어 만들다 만
-    // 화면으로 보입니다 (프롤로그의 빈 액자와 같은 규칙입니다).
-    const logo = drawLogo(this, cx, this.back.length ? 176 : 296, { scale: 1 });
+    // 그림이 있으면 화면 꼭대기에 붙여 세웁니다. 배경 그림의 위쪽 사분의 일이
+    // 비워져 있고(ART.md 7.96절), 그 아래가 곧 주인공입니다.
+    // 그림이 아직 없으면 조금 내려서 놓습니다: 빈 화면의 꼭대기에 붙어 있으면
+    // 아래가 통째로 비어 만들다 만 화면으로 보입니다.
+    //
+    // **maxH 가 이 자리의 약속입니다.** 그림이 바뀌어도 여기서 넘어오지
+    // 않습니다 — 제목이 300px 을 넘으면 눈과 칼끝을 덮습니다.
+    const logo = drawLogo(this, cx, this.back.length ? 20 : 296,
+      { scale: 1, maxH: 300 });
     this.logoParts = logo.parts;
 
     // ── 「터치해서 계속하기」 ──────────────────────────
-    this.hint = this.add.text(cx, CFG.height - 128, '터치해서 계속하기', {
-      fontFamily: 'sans-serif', fontSize: '22px', color: '#b0bec5',
-    }).setOrigin(0.5);
+    // 제목과 같은 규칙입니다: 그림이 있으면 그림, 없으면 글꼴.
+    // 아래 어두운 띠 안에 들어가야 하므로 너비를 400 으로 못박습니다
+    // (4.74:1 이라 높이 84 — 띠가 320이므로 넉넉히 들어갑니다).
+    this.hintLabel = '터치해서 계속하기';
+    const hintY = CFG.height - 128;
+    if (this.textures.exists('title-hint')) {
+      const src = this.textures.get('title-hint').getSourceImage();
+      const w = 400;
+      this.hint = this.add.image(cx, hintY, 'title-hint')
+        .setDisplaySize(w, w * (src.height / src.width));
+    } else {
+      this.hint = this.add.text(cx, hintY, this.hintLabel, {
+        fontFamily: 'sans-serif', fontSize: '22px', color: '#b0bec5',
+      }).setOrigin(0.5);
+    }
 
     // ── 셋을 시간에 걸쳐 띄웁니다 ──────────────────────
     this.back.forEach((o) => o.setAlpha(0));
