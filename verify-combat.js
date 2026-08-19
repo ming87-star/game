@@ -426,33 +426,61 @@ async function boot(browser, port, jobIndex) {
     `한 층 아래(${farblade.floorGap}) < 사거리 ${Math.round(farblade.longReach)}, 그래도 0`);
 
   // ── 흡혈 망토 ──────────────────────────────────────────
-  // 준 피해에 비례하되, 한 대에 채우는 양에는 뚜껑이 있습니다.
-  // 뚜껑이 없으면 위층에서 한 방이 곧 완전 회복이 됩니다.
+  // 준 피해에 비례하되, **초당 채울 수 있는 양에 뚜껑**이 있습니다
+  // (CFG.lifestealPerSec). 한 대당 뚜껑이던 시절에는 뚜껑에 늘 닿아서 실제
+  // 회복량이 `뚜껑 × 초당 대수`가 됐고, 빠른 자루일수록 더 회복했습니다 —
+  // 도적이 초당 48%를 채웠습니다.
   const leech = await warrior.evaluate(() => {
     const s = window.__scene;
     s.enemies.getChildren().slice().forEach((e) => e.destroy());
     s.weapon.takeRelic(RELICS.find((r) => r.key === 'bloodcloak'));
 
-    const bite = (dmg) => {
+    // 주머니를 가득 채워 두고 한 대를 넣습니다 — 주머니가 비어 있으면
+    // 무엇을 재든 0이 나옵니다 (그것이 이 규칙의 요점이기도 합니다).
+    const bite = (dmg, fill) => {
       const e = spawnEnemy(s, s.player.x + 400, s.player.y, s.floorIndex, 'crawler');
       e.hp = e.maxHp = 1e9;
       s.hp = 1;
+      s.leechAt = s.time.now;
+      s.leechPool = fill === undefined ? s.maxHp * CFG.lifestealPerSec : fill;
       s.hitEnemy(e, dmg);
       e.destroy();
       return s.hp - 1;
     };
 
     s.maxHp = 1000;
-    const small = bite(400);   // 뚜껑(3%=30) 아래: 400 × 2.5% = 10
-    const huge = bite(900000); // 뚜껑을 훌쩍 넘는 한 방
+    const small = bite(400);      // 400 × 2.5% = 10. 뚜껑(30) 아래입니다
+    const huge = bite(900000);    // 한 대 뚜껑을 훌쩍 넘는 한 방
+    const dry = bite(900000, 0);  // 주머니가 비었으면 아무리 크게 때려도 0
+    // 초당 몫 — 쉬지 않고 때리는 1초를 흉내 냅니다.
+    s.leechPool = 0; s.leechAt = s.time.now;
+    let sec = 0;
+    for (let i = 0; i < 40; i++) {
+      const e = spawnEnemy(s, s.player.x + 400, s.player.y, s.floorIndex, 'crawler');
+      e.hp = e.maxHp = 1e9;
+      s.hp = 1;
+      // 25ms 가 흐른 셈 칩니다 = 초당 마흔 대. **앞선 시각**을 넣어야 합니다 —
+      // 뒤의 시각을 넣으면 흐른 시간이 음수가 되어 주머니가 영영 안 찹니다.
+      s.leechAt = s.time.now - 25;
+      s.hitEnemy(e, 900000);
+      sec += s.hp - 1;
+      e.destroy();
+    }
     s.weapon.relics = s.weapon.relics.filter((r) => r.key !== 'bloodcloak');
     s.hp = s.maxHp;
-    return { small, huge, cap: Math.round(1000 * CFG.lifestealCap) };
+    return { small, huge, dry, sec, cap: Math.round(1000 * CFG.lifestealCap),
+      perSec: Math.round(1000 * CFG.lifestealPerSec) };
   });
   check(leech.small > 0 && leech.small < leech.cap, '작은 한 대는 비율대로 회복',
-    `${leech.small} (뚜껑 ${leech.cap})`);
+    `${leech.small} (한 대 뚜껑 ${leech.cap})`);
   check(leech.huge === leech.cap, '아무리 크게 때려도 한 대에 뚜껑까지만',
     `${leech.huge} = ${leech.cap}`);
+  check(leech.dry === 0, '초당 주머니가 비었으면 아무리 크게 때려도 0', leech.dry);
+  // **여기가 이 규칙의 전부입니다.** 초당 마흔 대를 때려도 1초에 들어오는 것은
+  // 초당 몫뿐입니다 — 빠른 자루가 그 배로 회복하던 구멍을 막습니다.
+  check(Math.abs(leech.sec - leech.perSec) <= 2,
+    '초당 마흔 대를 때려도 1초에 **초당 몫**까지만',
+    `${leech.sec} / ${leech.perSec} (한 대 뚜껑 ${leech.cap} × 40대 = ${leech.cap * 40} 이었을 값)`);
 
   // ── 공격력 범위와 정확도 ────────────────────────────────
   // 무기 개편의 뼈대입니다. 한 값이 아니라 범위이고, 빗나가는 일이 있습니다.

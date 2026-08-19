@@ -271,7 +271,10 @@ const check = (ok, label, got) => {
         upSlot.broken = false;
         done({ marks, floors: c.floors, broken: !!slot.broken,
           was, wentTo: s.lane, up: s.floorIndex,
-          onBroken: s.lane === upSlot.lane });
+          // **올라갔는데 그 줄이면** 부서진 발판을 딛은 것입니다. 아예 못
+          // 올라간 것(막혀서 안 감)은 딛은 것이 아닙니다 — 위층에 다른 줄이
+          // 없는 판이 이따금 나오는데, 그때 줄만 보면 애먼 것을 잡습니다.
+          onBroken: s.floorIndex > was.floor && s.lane === upSlot.lane });
       }, 60);
       setTimeout(() => { clearInterval(wait); upSlot.broken = false;
         done({ marks, floors: c.floors, broken: !!slot.broken, was,

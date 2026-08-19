@@ -149,6 +149,11 @@ class GameScene extends Phaser.Scene {
     this.announceBoosts();
 
     this.hurtFlash = null; // 깜빡임을 흔드는 그릇 { a }. flashHurt 가 만듭니다
+    // 흡혈의 초당 주머니. **판마다 비웁니다** — Phaser 는 장면을 다시 쓰므로
+    // (create 가 다시 돌아도 this 는 그대로), 안 비우면 지난 판의 주머니가
+    // 남아서 새 판 첫 대에 한꺼번에 들어옵니다.
+    this.leechPool = 0;
+    this.leechAt = undefined;
 
     // 떠오르는 글자 주머니 (floatText). **판이 시작될 때마다 비웁니다.**
     //
@@ -1798,9 +1803,25 @@ class GameScene extends Phaser.Scene {
     const leech = this.weapon.relicSum('lifesteal');
     if (leech > 0 && this.hp < this.maxHp) {
       const real = Math.min(before, dmg);
+      // 한 대에 넣을 수 있는 몫 (몰아 받기 금지)
       const cap = Math.max(1, Math.round(this.maxHp * CFG.lifestealCap));
-      const gain = Math.min(cap, Math.max(1, Math.round(real * leech)));
-      this.hp = Math.min(this.maxHp, this.hp + gain);
+      const want = Math.min(cap, Math.round(real * leech));
+      // **초당 주머니.** 시간이 흐르면 차고, 회복할 때마다 그만큼 빕니다.
+      // 한 대마다 뚜껑을 씌우면 빠른 자루가 그 배로 회복하므로(js/config.js
+      // 의 lifestealPerSec), 뚜껑을 시간에 걸어 둡니다.
+      const cloaks = leech / CFG.lifestealUnit;
+      const full = this.maxHp * CFG.lifestealPerSec * cloaks;   // 1초치
+      const now = this.time.now;
+      if (this.leechAt === undefined) this.leechAt = now;
+      // 한 번에 쌓이는 것은 1초치까지입니다. 오래 안 때리다가 몰아 받는 것을
+      // 막습니다 — 「싸우면서 차오른다」이지 「쉬면 채워진다」가 아닙니다.
+      this.leechPool = Math.min(full, (this.leechPool || 0) + (now - this.leechAt) * full / 1000);
+      this.leechAt = now;
+      const gain = Math.min(want, Math.floor(this.leechPool));
+      if (gain >= 1) {
+        this.leechPool -= gain;
+        this.hp = Math.min(this.maxHp, this.hp + gain);
+      }
     }
 
     const spark = this.add.sprite(enemy.x, enemy.y, 'spark').setDepth(11);
