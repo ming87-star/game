@@ -361,9 +361,39 @@ class Shop {
         : floorIndex <= 450 ? 'mid'
           : floorIndex <= 750 ? 'deep' : 'top';
     return {
-      band: [].concat(K[band] || [], big ? (K.big || []) : []),
+      band: [].concat(K[band] || [], big ? (K.big || []) : [], this.nowLines()),
       any: (K.any || []).slice(),
     };
+  }
+
+  // ── 지금 이 손님을 보고 하는 말 ────────────────────────
+  //
+  // 위의 묶음은 **자리**가 고르고 이것은 **손님**이 고릅니다. 들어맞는 것만
+  // 모아 옵니다 — 하나도 안 맞으면 빈 배열이고, 그때는 예전 그대로입니다.
+  //
+  // **훈수가 아닙니다.** 무엇을 사야 하는지는 가격표와 「추천」 표가 이미
+  // 말합니다. 이 사람은 보고 한마디 할 뿐이고, 사든 말든 자기 알 바 아닙니다.
+  nowLines() {
+    const s = this.scene;
+    const N = (CFG.keeperLines || {}).now || {};
+    const out = [];
+    const prices = this.offers.map((o) => o.price);
+    const cheapest = prices.length ? Math.min(...prices) : 0;
+    const whole = prices.reduce((a, b) => a + b, 0);
+
+    if (cheapest && s.coins < cheapest) out.push(...(N.broke || []));
+    // 진열을 통째로 사고도 남을 만큼. 「좀 있다」가 아니라 「주체를 못 한다」
+    // 여야 이 말이 우스워집니다.
+    else if (whole && s.coins >= whole * 1.2) out.push(...(N.rich || []));
+
+    if (s.hp / s.maxHp < 0.34) out.push(...(N.hurt || []));
+    if (s.weapon && s.weapon.plusCapped) out.push(...(N.capped || []));
+    // 무명(無名) — 한계가 남다른 자루는 이것 하나뿐입니다.
+    if (s.weapon && s.weapon.plusMax !== CFG.plusMax) out.push(...(N.unnamed || []));
+    if (s.trophies && s.trophies.count) out.push(...(N.trophy || []));
+    // 죽고 나서 이 상점부터 다시 시작한 판. 주인만 그 자리에 그대로 있습니다.
+    if (s.resume) out.push(...(N.resumed || []));
+    return out;
   }
 
   // ── 두 주머니를 번갈아 ─────────────────────────────────
@@ -440,6 +470,15 @@ class Shop {
     // 연달아 두 번 나오는 일이 생기는데, 그러면 고장으로 보입니다.
     this.bubbleBag = this.weaveLines(pool);
     this.bubbleAt = 0;
+
+    // **들어서자마자 하는 말은 손님을 보고 합니다.** 뒤에 섞여 있으면
+    // 「나를 보고 하는 말」인 줄 모르고 지나갑니다 — 알아본 티는 첫 마디에
+    // 내야 알아본 것이 됩니다. 그 뒤로는 그 자리의 말들 사이에 섞여 돕니다.
+    const now = this.nowLines();
+    if (now.length) {
+      const lead = Phaser.Utils.Array.GetRandom(now);
+      this.bubbleBag = [lead].concat(this.bubbleBag.filter((t) => t !== lead));
+    }
     this.sayNext(false);
     this.bubbleTimer = s.time.addEvent({
       delay: 4600, loop: true, callback: () => this.sayNext(true),

@@ -663,6 +663,41 @@ const check = (ok, label, got) => {
   check(restarted.emptied, '판을 새로 시작하면 글자 주머니를 비움');
   check(restarted.alive, '새 판에서도 글자가 제대로 뜸');
 
+  // ── 상점 주인이 손님을 알아보는가 ──────────────────────
+  //
+  // 들어서자마자 하는 첫 마디는 **지금 이 손님을 보고** 하는 말이어야 합니다.
+  // 그 자리의 말들 사이에 묻히면 알아본 티가 안 납니다.
+  //
+  // 여섯 판을 세워 놓고 첫 마디가 어느 주머니에서 나왔는지 봅니다.
+  const CASES = [
+    ['빈털터리', 'broke'], ['주머니가 넘침', 'rich'], ['다 죽어감', 'hurt'],
+    ['강화가 한계', 'capped'], ['전리품을 지님', 'trophy'], ['아무 일 없음', null],
+  ];
+  for (const [label, want] of CASES) {
+    await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'warrior' }));
+    await page.waitForTimeout(1400);
+    const r = await page.evaluate(([label]) => {
+      const s = window.__scene;
+      ({
+        '빈털터리': () => { s.coins = 0; },
+        '주머니가 넘침': () => { s.coins = 99999; },
+        '다 죽어감': () => { s.coins = 400; s.hp = Math.round(s.maxHp * 0.2); },
+        '강화가 한계': () => { s.coins = 400; for (let i = 0; i < 40; i++) s.weapon.addPlus(); },
+        '전리품을 지님': () => { s.coins = 400; s.trophies.take(TROPHIES.eye); },
+        '아무 일 없음': () => { s.coins = 400; },
+      })[label]();
+      s.floorIndex = 250;
+      s.shop.show(250);
+      const first = s.shop.bubbleText ? s.shop.bubbleText.text : '';
+      const N = (CFG.keeperLines || {}).now || {};
+      return { first, from: Object.keys(N).find((k) => N[k].includes(first)) || null };
+    }, [label]);
+    check(want ? r.from === want : r.from === null,
+      '상점 주인이 알아보고 먼저 말함 — ' + label, (r.from || '그냥 대사') + ' · ' + r.first);
+    await page.evaluate(() => window.__scene.shop.close());
+    await page.waitForTimeout(150);
+  }
+
   console.log(bad ? `\n${bad}건 어긋남` : '\n새로 들어온 여덟 가지 모두 맞음');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
   await browser.close();
