@@ -341,6 +341,22 @@ function bossKindFor(floor) {
   return kinds[band % kinds.length];
 }
 
+// 몇 바퀴째인가. 200~1000층이 한 바퀴(1), 1200~2000층이 두 바퀴째(2)입니다.
+// 다섯을 다 넘어야 한 바퀴가 도므로, 바퀴수는 곧 **전리품을 몇 벌 모았는가**
+// 이기도 합니다.
+function bossCycle(floor) {
+  const kinds = (CFG.boss.kinds && CFG.boss.kinds.length) || 5;
+  const band = Math.max(0, Math.round(floor / CFG.bossEvery) - 1);
+  return Math.floor(band / kinds) + 1;
+}
+
+// 그 바퀴에서 체력에 걸리는 배수. 1바퀴 2배, 그 뒤로 한 바퀴마다 세 배씩
+// 더 얹습니다 (2 · 8 · 14 …). CFG.boss 의 주석 참고.
+function bossHpMult(floor) {
+  const b = CFG.boss;
+  return (b.hpBase || 1) * (1 + (b.hpCycle || 0) * (bossCycle(floor) - 1));
+}
+
 function spawnBoss(scene, floor, x, y) {
   const kind = bossKindFor(floor);
   // 그림이 없으면 도형으로 그려 둔 'boss' 로 물러납니다.
@@ -353,6 +369,11 @@ function spawnBoss(scene, floor, x, y) {
   };
 
   const e = scene.enemies.create(x, y, skin);
+  // 두 바퀴째부터는 같은 그림에 색만 바꿔 세웁니다 (CFG.boss.cycleTint).
+  const tints = CFG.boss.cycleTint || [];
+  const tint = tints[(bossCycle(floor) - 1) % (tints.length || 1)];
+  if (tint && tint !== 0xffffff) e.setTint(tint);
+  e.cycle = bossCycle(floor);
   e.kind = kind;
   e.shotKey = shot;
   e.setDepth(8);
@@ -361,7 +382,8 @@ function spawnBoss(scene, floor, x, y) {
   e.body.setAllowGravity(false);
   e.body.setSize(e.width * 0.8, e.height * 0.8);
 
-  e.maxHp = Math.round(CFG.enemy.baseHp * enemyHpScale(floor) * (kind.hp || CFG.boss.hpMult));
+  e.maxHp = Math.round(CFG.enemy.baseHp * enemyHpScale(floor)
+    * (kind.hp || CFG.boss.hpMult) * bossHpMult(floor));
   e.hp = e.maxHp;
   e.floor = floor;
   e.contactDamage = 0; // 위 주석 참고
