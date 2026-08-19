@@ -157,14 +157,38 @@ function buildWeaponPool(job) {
 // 아래로는 **최근 것 몇 자루만** 남깁니다. 400층에서 첫 장검이 나오면
 // 주운 사람은 그냥 버리게 되고, 그러면 무기 칸이 빈 칸과 다를 바 없습니다.
 // 위로는 아직 안 열린 것을 안 줍니다 — 그게 "후반일수록 좋은 무기"입니다.
+// 무명(無名)인가. 만듦새를 입혀도 family 는 그대로 남습니다 (forgeWeapon).
+function isNameless(w) {
+  return !!w && (w.family === 'nameless' || w.key === 'nameless');
+}
+
+// 무명의 첫째 문 — **그 직업으로 메달 상품을 셋 사 뒀는가.**
+// 둘째 문(120층)은 그냥 depth 라 아래 filter 가 알아서 봅니다.
+//
+// Save 가 없는 자리(표를 뽑는 도구 따위)에서는 **닫힌 것으로 봅니다.**
+// 열린 것으로 보면 아직 못 얻은 자루가 표에 섞여서, 그 표를 보고 잡은
+// 밸런스가 실제와 어긋납니다.
+function namelessOpen(job) {
+  if (typeof Save === 'undefined' || !Save.perksFor) return false;
+  const bought = Object.keys(Save.perksFor(job.key) || {}).length;
+  return bought >= (CFG.weapon.namelessPerks || 3);
+}
+
 function weaponPoolAt(job, floor) {
   const pool = buildWeaponPool(job);
-  const open = pool.filter((w) => floor >= w.depth);
+  const wild = namelessOpen(job);
+  const open = pool.filter((w) => floor >= w.depth && (wild || !isNameless(w)));
   if (!open.length) return pool.slice(0, 2);
   // 열린 것 중 깊은 쪽에서부터 이만큼만. 자루 수로 세므로 만듦새까지 하면
   // 실제로는 그 두 배쯤이 후보가 됩니다.
+  //
+  // **무명만은 창을 안 탑니다.** 여기서 얻는 것은 그 판에 쥘 자루가 아니라
+  // 도감에 적히는 한 줄이라(다음 판의 첫 자루가 됩니다), 몇 층까지 갔든
+  // 한 번은 마주칠 수 있어야 합니다. 창에 태우면 120~299층을 그냥 지나친
+  // 판에서는 문을 둘 다 열어 놓고도 영영 못 만납니다.
   const deepest = Math.max(...open.map((w) => w.depth));
-  const window = open.filter((w) => w.depth >= deepest - CFG.weapon.lookBack);
+  const window = open.filter((w) =>
+    isNameless(w) || w.depth >= deepest - CFG.weapon.lookBack);
   return window.length ? window : open;
 }
 

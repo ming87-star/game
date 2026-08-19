@@ -184,6 +184,43 @@ const check = (ok, label, got) => {
   check(cleaned <= burst.mid, '이펙트가 스스로 걷힘 (쌓이지 않음)',
     burst.after + '개 → ' + cleaned + '개');
 
+  // ── 무명(無名)의 두 문 ─────────────────────────────────
+  // 다른 자루는 문이 하나(층)인데 이것만 둘입니다 — 메달 셋과 120층.
+  // 눈으로는 못 봅니다. 메달 개수를 0부터 넷까지 바꿔 가며 주머니를 받습니다.
+  const gate = await page.evaluate(() => {
+    const job = CLASSES[0];
+    const was = JSON.parse(JSON.stringify(Save.data.perks || {}));
+    const set = (n) => {
+      const keys = ['coins', 'hp', 'armor', 'plus', 'haste'];
+      Save.data.perks[job.key] = {};
+      for (let i = 0; i < n; i++) Save.data.perks[job.key][keys[i]] = true;
+    };
+    const hasAt = (f) => weaponPoolAt(job, f).some(isNameless);
+    const grid = [0, 1, 2, 3, 4].map((n) => {
+      set(n);
+      return { n, at: [0, 80, 119, 120, 200, 900, 1500].map((f) => ({ f, has: hasAt(f) })) };
+    });
+    // 도감은 그대로 스물다섯 칸이어야 합니다 — 문이 닫혀 있다고 칸이
+    // 사라지면 「하나가 더 있다」는 것조차 안 보입니다.
+    set(0);
+    const book = buildWeaponPool(job).length;
+    Save.data.perks = was;
+    return { grid, book, want: CFG.weapon.namelessPerks };
+  });
+  const shut = gate.grid.filter((r) => r.n < gate.want);
+  const open = gate.grid.filter((r) => r.n >= gate.want);
+  check(shut.every((r) => r.at.every((a) => !a.has)),
+    '메달 ' + gate.want + '개를 안 샀으면 무명은 어느 층에도 안 나옴',
+    shut.map((r) => r.n + '개:' + r.at.filter((a) => a.has).length + '군데').join(' · '));
+  check(open.every((r) => r.at.filter((a) => a.f < 120).every((a) => !a.has)),
+    '메달을 다 샀어도 120층 아래에는 안 나옴',
+    open.map((r) => r.n + '개:' + r.at.filter((a) => a.f < 120 && a.has).length + '군데').join(' · '));
+  check(open.every((r) => r.at.filter((a) => a.f >= 120).every((a) => a.has)),
+    '120층 위로는 **끝까지** 나옴 (창 규칙을 안 탐)',
+    open.map((r) => r.n + '개:' + r.at.filter((a) => a.f >= 120 && a.has).length + '/' +
+      r.at.filter((a) => a.f >= 120).length).join(' · '));
+  check(gate.book === 25, '도감은 문이 닫혀 있어도 스물다섯 칸', gate.book + '칸');
+
   console.log(bad ? `\n${bad}건 어긋남` : '\n무기 그림·죽는 이펙트 모두 맞음');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
   await browser.close();
