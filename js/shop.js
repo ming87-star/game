@@ -84,7 +84,9 @@ function applyShopEffect(scene, key) {
         s.armorMax += CFG.shop.capGain.armor;
         s.armor = Math.min(s.armorMax, s.armor + CFG.shop.capGain.armor);
       } else {
-        s.dodgeMax += CFG.shop.capGain.dodge;
+        // 절대 천장(CFG.dodge.hardMax)을 넘지 않습니다. 안 막으면 계속 사서
+        // 회피 100%에 닿는데, 그건 아무것도 안 맞는 몸이라 판이 없어집니다.
+        s.dodgeMax = Math.min(CFG.dodge.hardMax, s.dodgeMax + CFG.shop.capGain.dodge);
         s.dodge = Math.min(s.dodgeMax, s.dodge + CFG.shop.capGain.dodge);
       }
       break;
@@ -105,7 +107,11 @@ function applyShopEffect(scene, key) {
 // (시험이 이걸 잡아냈습니다 — 스무 번 열어 세 번이 빈손이었습니다.)
 function rollChestLoot(scene) {
   const s = scene;
-  const pool = ['maxhp', 'cap']; // 이 둘은 한계가 없어 언제나 값이 움직입니다
+  const pool = ['maxhp'];
+  // 「한계」는 갑옷 쪽에는 천장이 없지만 회피 쪽에는 있습니다
+  // (CFG.dodge.hardMax). 닿았으면 후보에서 뺍니다 — 이펙트만 터지고 아무
+  // 일도 안 일어나면 그건 보상이 아니라 놀림입니다.
+  if (s.job.usesArmor || s.dodgeMax < CFG.dodge.hardMax) pool.push('cap');
   // 공격력도 열(무명은 서른)에서 멎습니다. 닿았으면 후보에서 뺍니다 —
   // 화면을 가득 채우는 이펙트를 터뜨려 놓고 아무 일도 안 일어나면 놀림입니다.
   if (!s.weapon.plusCapped) pool.push('plus');
@@ -189,7 +195,8 @@ function powerAfter(s, key) {
       break;
     case 'cap':
       if (s.job.usesArmor) armor = Math.min(s.armorMax + c.capGain.armor, armor + c.capGain.armor);
-      else dodge = Math.min(s.dodgeMax + c.capGain.dodge, dodge + c.capGain.dodge);
+      else dodge = Math.min(Math.min(CFG.dodge.hardMax, s.dodgeMax + c.capGain.dodge),
+        dodge + c.capGain.dodge);
       break;
     case 'charm':
       // 부적은 **미뤄 둔 회복**입니다. 쓰러질 때 최대 체력의 charmHeal 만큼으로
