@@ -57,6 +57,12 @@ class GameScene extends Phaser.Scene {
     // 아래 snapshotAtShop 에 안 들어갑니다.
     this.trophies = new Trophies(this);
     this.charm = false; // 수호 부적 — 상점에서만 삽니다. 쓰러질 때 한 번 버팁니다
+    // 천리안 — 사면 판 내내. 화면 밖에 놓인 **다음 아이템 하나**를 알려 줍니다.
+    this.farsight = false;
+    // 막는 것 넷 — { 놈 열쇠: 남은 횟수 }. 상점에 닿을 때마다 도로 찹니다.
+    this.wards = {};
+    // 유물복권에 당첨되고 아직 안 고른 몫. 상점을 나설 때 하나씩 엽니다.
+    this.pendingRelics = 0;
 
     // 도감에서 골라 온 자루. 고르지 않았으면 그 직업의 첫 자루입니다
     // (js/scene-weaponbook.js). 강화는 안 딸려 옵니다 — 자루만 넘어옵니다.
@@ -189,6 +195,10 @@ class GameScene extends Phaser.Scene {
       // 값은 치렀는데 물건이 사라진 것이라, 밖에서 보면 "부적이 안 듣는다"입니다.
       armorMax: this.armorMax, dodgeMax: this.dodgeMax,
       charm: this.charm,
+      // 천리안과 막는 것도 **코인을 주고 산 것**입니다. 부적과 같은 이유로
+      // 함께 챙깁니다 — 안 챙기면 사고 죽어서 이어 갈 때 값만 치른 셈이 됩니다.
+      farsight: this.farsight,
+      wards: Object.assign({}, this.wards),
       coins: this.coins, totalCoins: this.totalCoins,
       kills: this.kills,
       continues: this.continues,
@@ -214,6 +224,8 @@ class GameScene extends Phaser.Scene {
     if (r.armorMax !== undefined) this.armorMax = r.armorMax;
     if (r.dodgeMax !== undefined) this.dodgeMax = r.dodgeMax;
     this.charm = !!r.charm;
+    this.farsight = !!r.farsight;
+    this.wards = Object.assign({}, r.wards || {});
     this.coins = r.coins;
     this.totalCoins = r.totalCoins;
     this.kills = r.kills;
@@ -787,6 +799,9 @@ class GameScene extends Phaser.Scene {
   // 뚫어야 하고, 그 층은 아직 적이 서 있습니다.
   shoveDown(from) {
     if (this.dead || this.jumping || this.bossFight || this.shop.open || this.choosing) return;
+    // 「박은 신」은 **밀리는 것 자체**를 막습니다. 피해만 막으면 층은 그대로
+    // 잃는데, 이 놈이 가져가는 것은 체력이 아니라 층입니다.
+    if (from && this.wardBlocks(from.def)) return;
     const below = this.floors.get(this.floorIndex - 1);
     if (!below) return;                       // 바닥이거나 이미 지워진 자리
     const c = CFG.foes.shove;
@@ -921,6 +936,30 @@ class GameScene extends Phaser.Scene {
         }
       });
     });
+  }
+
+  // ── 천리안 ────────────────────────────────────────────
+  // **화면 밖에 놓인 다음 아이템 하나**를 찾습니다. 몇 층 위, 어느 줄인지.
+  //
+  // 이미 만들어 둔 층만 봅니다 (floorIndex+7 까지). 아직 안 만든 층을 여기서
+  // 굴려 보면 **그때 나온 것과 실제로 갈 때 나오는 것이 달라집니다** — 미리
+  // 보여 준 것이 거짓말이 되는데, 그건 안 보여 주는 것보다 나쁩니다.
+  //
+  // 미믹은 **겉모습 그대로** 알려 줍니다. 정체를 까면 함정이 통째로 죽습니다 —
+  // 천리안도 지도와 똑같이 속습니다. 가까이 가야 드러나는 것은 그대로입니다.
+  nextItemAhead() {
+    for (let i = this.floorIndex + 1; i <= this.floorIndex + 7; i++) {
+      const floor = this.floors.get(i);
+      if (!floor) continue;
+      for (const lane of LANES) {
+        const slot = floor.slots[lane];
+        if (!slot || slot.taken) continue;
+        const kind = slot.kind === SLOT.MIMIC ? slot.disguise : slot.kind;
+        if (!kind || !SLOT_MARK[kind]) continue;
+        return { up: i - this.floorIndex, lane, kind, label: SLOT_MARK[kind].label };
+      }
+    }
+    return null;
   }
 
   // ── 보스 ──────────────────────────────────────────────
@@ -1288,6 +1327,14 @@ class GameScene extends Phaser.Scene {
   }
 
   onShopClosed() {
+    // 유물복권에 당첨된 몫이 있으면 **여기서** 엽니다. 상점 안에서 열면
+    // 두 창이 같은 깊이에 겹쳐 서고, 유물 창은 판을 멈추는데 상점은 이미
+    // 멈춰 있는 판 위에 얹혀 있어서 어느 쪽도 제대로 안 닫힙니다.
+    if (this.pendingRelics > 0) {
+      this.pendingRelics -= 1;
+      this.time.delayedCall(360, () => this.openRelicChoice());
+    }
+
     // 상점을 나서도 바로 몰려오지는 않습니다. 위층 적은 실제로 올라설 때 깨어납니다.
     this.ambientAt = this.time.now + CFG.ambient.baseDelay;
 
@@ -2356,6 +2403,20 @@ class GameScene extends Phaser.Scene {
     this.hurt(bullet.dmg || CFG.enemyShot.damage, null, fromBoss);
   }
 
+  // 그 놈을 막는 물건이 있고 아직 남았으면 한 번 씁니다.
+  //
+  // **쓰면 그 자리에서 보여야 합니다.** 안 보이면 「막았다」가 아니라 「안
+  // 맞았다」로 읽혀서, 값을 치르고 산 물건이 아무 일도 안 한 것처럼 보입니다.
+  wardBlocks(def) {
+    if (!def || !isFoeType(def)) return false;
+    const left = this.wards[def.key] || 0;
+    if (left <= 0) return false;
+    this.wards[def.key] = left - 1;
+    const w = CFG.foes.ward.of[def.key];
+    this.popup((w ? w.name : '막음') + ' ' + (left - 1), '#a5d6a7');
+    return true;
+  }
+
   hurt(amount, source, fromBoss) {
     // 그림자에게 삼켜지는 중에는 다른 피해가 끼어들 이유가 없습니다.
     if (this.dead || this.swallowing) return;
@@ -2366,6 +2427,8 @@ class GameScene extends Phaser.Scene {
     // **판을 바꾸는 넷도 같습니다** (CFG.foes.dodgeScale). 피할 자리를 보고
     // 정하는 것이 그 넷의 전부인데, 확률로 절반이 그냥 흘러가면 도적만 그
     // 판단을 안 하게 됩니다. 어려움을 확률로 지우면 어려움이 아니라 운입니다.
+    // 막는 물건이 먼저입니다 — 방어력도 회피도 지나기 전에 통째로 없앱니다.
+    if (!fromBoss && source && this.wardBlocks(source.def)) return;
     const foeHit = !fromBoss && source && source.def && isFoeType(source.def);
     const dodge = fromBoss ? this.dodge * CFG.boss.dodgeScale
       : foeHit ? this.dodge * ((CFG.foes && CFG.foes.dodgeScale) || 1)

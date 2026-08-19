@@ -56,10 +56,16 @@ const SHOP_ITEMS = {
   // 후반에 아이템을 포기하고 뛰기 시작하면 이 둘이 살 이유가 됩니다.
   cap:     { title: '여벌 갑옷',   desc: '방어·회피의 **한계**를 올립니다' },
   charm:   { title: '수호 부적',   desc: '쓰러질 때 한 번만 버팁니다' },
+  farsight: { title: '천리안', desc: '화면 밖 **다음 아이템**이 어느 줄에 있는지 보입니다' },
+  // 「막는 것」은 한 칸을 넷이 나눠 씁니다. 이름과 설명은 그때 뜬 놈의 것을
+  // 씁니다 (아래 buildRow).
+  ward:    { title: '막는 것',     desc: '' },
+  lottery: { title: '유물복권',
+    desc: '절반은 유물, 절반은 꽝' },
 };
 
 // 진열에서 산 것이든 보물상자에서 나온 것이든, 실제로 주는 효과는 하나입니다.
-function applyShopEffect(scene, key) {
+function applyShopEffect(scene, key, extra) {
   const s = scene;
   switch (key) {
     // 지도에서는 하나씩, 상점에서는 뭉치로. 그것이 상점의 값어치입니다.
@@ -93,6 +99,25 @@ function applyShopEffect(scene, key) {
     case 'charm':
       s.charm = true;
       break;
+    case 'farsight':
+      s.farsight = true;
+      break;
+    case 'ward':
+      // 산 그 자리에서 가득 찹니다.
+      if (extra && extra.ward) s.wards[extra.ward] = CFG.foes.ward.charges;
+      break;
+    case 'lottery': {
+      // 절반은 유물, 절반은 꽝.
+      //
+      // **유물 창은 상점을 나선 뒤에 엽니다.** 두 창이 같은 깊이(300)에 서로
+      // 겹쳐 서고, 유물 창은 판을 멈추는데 상점은 이미 멈춰 있는 판 위에
+      // 얹혀 있습니다 — 겹치면 어느 쪽도 제대로 안 닫힙니다.
+      // 결과는 산 그 줄에 적어서 바로 보여 줍니다 (아래 refresh).
+      const won = Math.random() < CFG.shop.lottery.chance;
+      if (won) s.pendingRelics = (s.pendingRelics || 0) + 1;
+      if (extra && extra.mark) extra.mark(won);
+      break;
+    }
   }
 }
 
@@ -235,10 +260,36 @@ class Shop {
     rest.push(this.scene.job.usesArmor ? 'armor' : 'dodge');
     // 부적은 이미 하나 지니고 있으면 팔지 않습니다. 쌓이면 죽음이 값을 잃습니다.
     if (!this.scene.charm) rest.push('charm');
+    // 천리안은 판에 하나뿐입니다.
+    if (!this.scene.farsight) rest.push('farsight');
+    // ── 막는 것 넷은 **한 칸을 나눠 씁니다** ────────────
+    // 넷을 다 후보에 올리면 진열 다섯 칸에 열셋이 몰려서, +1 이나 회복 같은
+    // 단골이 자주 빠집니다. 한 칸만 내주고 그 안에서 하나를 고릅니다 —
+    // 「이번엔 어느 놈 것이 떴나」가 그 자체로 판단거리가 됩니다.
+    const want = this.wardPick();
+    if (want) rest.push('ward');
+    // 유물복권은 정해진 층 위에서만. 아래층에서는 값을 치를 수도 없고,
+    // 치를 수 있다 해도 그때는 살 것이 많아서 코인이 남지 않습니다.
+    if (this.scene.floorIndex >= CFG.shop.lottery.from) rest.push('lottery');
     while (picked.length < CFG.shop.offers && rest.length) {
       picked.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
     }
-    return picked.map((key) => ({ key, price: this.priceOf(key, shopNo), sold: false }));
+    return picked.map((key) => ({
+      key, price: this.priceOf(key, shopNo), sold: false,
+      ward: key === 'ward' ? want : undefined,
+    }));
+  }
+
+  // 이 층에서 팔 수 있는 「막는 것」 하나. 이미 산 것과 아직 안 만난 놈은 뺍니다 —
+  // 본 적도 없는 놈을 막는 물건을 파는 것은 정답을 미리 알려 주는 것입니다.
+  wardPick() {
+    const s = this.scene;
+    const pool = Object.keys(CFG.foes.ward.of).filter((k) => {
+      if (s.wards[k] !== undefined) return false;      // 이미 샀습니다
+      const def = CFG.enemyTypes.find((t) => t.key === k);
+      return def && s.seenTypes.has(k);                // 만나 본 놈만
+    });
+    return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
   }
 
   // 지금 진열에서 **가장 이득인 것** 하나. 없으면 null 입니다.
@@ -271,6 +322,10 @@ class Shop {
     // rollOffers 가 "팔 무기가 있느냐"를 보고 무기 칸을 넣을지 정하고,
     // 이름과 그림과 손익도 전부 이 한 자루에서 나옵니다.
     // 지금 든 것과 같은 자루면 팔 것이 없으므로 비웁니다.
+    // **막는 것은 상점마다 도로 찹니다.** 다 쓰고 나면 다음 상점까지는
+    // 맨몸이라, 「지금 쓸까 아껴 둘까」가 층마다 붙습니다.
+    Object.keys(s.wards).forEach((k) => { s.wards[k] = CFG.foes.ward.charges; });
+
     const offered = rollWeapon(s.job, floorIndex);
     s.shopWeapon = offered.index === s.weapon.index ? null : offered;
 
@@ -518,7 +573,13 @@ class Shop {
     const add = (o) => { this.parts.push(o.setScrollFactor(0).setDepth(301)); return o; };
 
     const info = SHOP_ITEMS[offer.key];
-    const title = offer.key === 'upgrade' && s.shopWeapon ? s.shopWeapon.name : info.title;
+    // 「막는 것」은 넷이 한 칸을 나눠 쓰므로 이름과 설명이 그때그때 다릅니다.
+    const w = offer.key === 'ward' && CFG.foes.ward.of[offer.ward];
+    const title = offer.key === 'upgrade' && s.shopWeapon ? s.shopWeapon.name
+      : w ? w.name : info.title;
+    const detail = w
+      ? w.what + ' (' + CFG.foes.ward.charges + '번 · 상점마다 다시 참)'
+      : info.desc;
 
     const T = this.tight ? TIGHT : null;
     const box = add(s.add.rectangle(cx, y, 420, T ? T.rowH : 96, 0x232b47)
@@ -535,7 +596,7 @@ class Shop {
 
     const name = add(s.add.text(left, y + (T ? T.nameY : -26), title,
       font(T ? T.name : 26, '#ffffff')));
-    const desc = add(s.add.text(left, y + (T ? T.descY : 8), info.desc,
+    const desc = add(s.add.text(left, y + (T ? T.descY : 8), detail,
       font(T ? T.desc : 18, '#8794b5')));
     const price = add(s.add.text(cx + 190, y, '◎ ' + offer.price,
       font(T ? T.price : 24, '#ffd54f')).setOrigin(1, 0.5));
@@ -582,7 +643,10 @@ class Shop {
 
     s.coins -= offer.price;
     offer.sold = true;
-    applyShopEffect(s, offer.key);
+    applyShopEffect(s, offer.key, {
+      ward: offer.ward,
+      mark: (won) => { offer.result = won ? '당첨 — 나서면 유물을 고릅니다' : '꽝'; },
+    });
     this.refresh();
   }
 
@@ -603,7 +667,8 @@ class Shop {
       if (offer.sold) {
         box.setFillStyle(0x171c2e).setStrokeStyle(2, 0x2a3252);
         name.setColor('#4a5578');
-        desc.setColor('#3c456b').setText('구입함');
+        desc.setColor(offer.result === '꽝' ? '#6b7599' : '#3c456b')
+          .setText(offer.result || '구입함');
         price.setColor('#4a5578');
         return;
       }

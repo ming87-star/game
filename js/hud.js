@@ -54,6 +54,14 @@ class Hud {
     // 오른쪽 끝에 맞춰 제 줄에 세우면 왼쪽이 얼마나 길어져도 부딪히지 않습니다.
     this.floorText = fixed(scene.add.text(CFG.width - 24, 14, '', font(30, '#ffffff')).setOrigin(1, 0));
     this.coinText = fixed(scene.add.text(CFG.width - 24, 52, '', font(24, '#ffd54f')).setOrigin(1, 0));
+    // ── 천리안 · 막는 것 ────────────────────────────────
+    // 둘 다 **코인을 주고 산 물건**이라 화면에 남아 있어야 합니다. 천리안은
+    // 알려 주는 것이 전부이고, 막는 것은 남은 횟수를 모르면 「지금 쓸까
+    // 아껴 둘까」를 셀 수가 없습니다.
+    this.farText = fixed(scene.add.text(CFG.width - 24, 84, '', font(17, '#80deea'))
+      .setOrigin(1, 0));
+    this.wardText = fixed(scene.add.text(CFG.width - 24, 106, '', font(17, '#a5d6a7'))
+      .setOrigin(1, 0));
     // 0일 때는 자리를 비웁니다 — 아직 하나도 없는 첫 판에 설명 없는 기호가
     // 떠 있으면 그냥 노이즈입니다.
     this.medalText = fixed(scene.add.text(CFG.width - 24, 84, '', font(20, '#ffca28')).setOrigin(1, 0));
@@ -216,6 +224,20 @@ class Hud {
     const s = this.scene;
     const w = s.weapon;
     const L = this.last;
+
+    // 천리안 — 화면 밖 다음 아이템 하나. **오르면 매번 바뀝니다.**
+    if (s.farsight) {
+      const at = s.nextItemAhead && s.nextItemAhead();
+      const lane = at && { left: '왼쪽', mid: '가운데', right: '오른쪽' }[at.lane];
+      const t = at ? '천리안  ' + at.up + '층 위 ' + lane + ' · ' + at.label : '천리안  ―';
+      if (t !== L.far) { L.far = t; this.farText.setText(t); }
+    } else if (L.far !== '') { L.far = ''; this.farText.setText(''); }
+
+    // 막는 것 — 남은 횟수. 이름을 다 적으면 줄이 넘치므로 첫 글자만 씁니다.
+    const keys = Object.keys(s.wards || {});
+    const wt = keys.length
+      ? keys.map((k) => (CFG.foes.ward.of[k].name[0]) + ' ' + s.wards[k]).join('  ') : '';
+    if (wt !== L.ward) { L.ward = wt; this.wardText.setText(wt); }
 
     // ── 체력 ──────────────────────────────────────────
     if (s.hp !== L.hp || s.maxHp !== L.maxHp) {
