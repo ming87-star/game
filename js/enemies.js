@@ -57,6 +57,21 @@ function coinDropChance(floor) {
 // 예전에 걷어낸 hpGrowth(1.022^층)와는 다릅니다. 그것은 끝없이 곱으로 자라서
 // 어느 층부터 안 죽는 벽이 섰습니다. 이 배수는 마릿수 상한이 멎는 자리에서
 // 같이 멎습니다 (1.75).
+// 지금 든 자루가 **한 번 휘둘러** 넣는 몫. 판을 바꾸는 넷의 체력을 이것으로
+// 셉니다 (CFG.foes.hits).
+//
+// dps 와 같은 자입니다 — 공격력 가운뎃값 × 발 수 × 정확도. 궁수의 화살 넉
+// 발이 **한 번**입니다. 화살 하나를 한 번으로 세면 궁수만 이 넷을 넉 배 빨리
+// 지우게 되어, 같은 놈이 직업마다 다른 무게가 됩니다.
+//
+// 자루가 없는 자리(시험이 세워 보는 판 따위)에서는 1을 돌려줍니다 — 0을
+// 돌려주면 체력이 0인 놈이 서서 태어나자마자 죽습니다.
+function swingDamage(scene) {
+  const w = scene && scene.weapon;
+  if (!w) return 1;
+  return Math.max(1, w.dmg * (w.shots || 1) * (w.accuracy === undefined ? 1 : w.accuracy));
+}
+
 function enemyCrowdScale(floor) {
   const c = CFG.enemyCount;
   const shops = Math.floor(Math.max(0, floor) / CFG.shopEvery);
@@ -103,16 +118,28 @@ function spawnEnemy(scene, x, y, floor, typeKey) {
   e.contactDamage = Math.round(def.dmg * (1 + floor * CFG.enemy.dmgPerFloor) * crowd);
   e.coin = Math.round(def.coin * crowd);
 
+  // ── 판을 바꾸는 넷은 자가 다릅니다 ──────────────────
+  // 체력은 「몇 번 때려야 하는가」, 피해는 「체력 막대의 몇 할」입니다.
+  // 까닭은 CFG.foes.hits · dmgPct 에 적어 두었습니다.
+  const F = CFG.foes && CFG.foes.fierce;
+  const fierce = !!(F && floor >= F.from && isFoeType(def));
+  if (isFoeType(def)) {
+    const hits = (CFG.foes.hits && CFG.foes.hits[def.key]) || 4;
+    e.maxHp = Math.max(1, Math.round(swingDamage(scene) * (hits + (fierce ? F.hits : 0))));
+    e.hp = e.maxHp;
+    e.hits = hits + (fierce ? F.hits : 0);   // 안내 창이 이 값을 그대로 적습니다
+    const pct = (CFG.foes.dmgPct && CFG.foes.dmgPct[def.key]) || 0.1;
+    e.dmgPct = pct * (fierce ? F.dmg : 1);
+    e.contactDamage = Math.max(1, Math.round(scene.maxHp * e.dmgPct));
+  }
+
   // ── 두 바퀴째의 넷 ──────────────────────────────────
   // 1000층을 넘으면 판을 바꾸는 넷이 **더 사나워진 판**으로 다시 섭니다.
-  // 체력과 피해가 오르고 박자가 빨라집니다. 색이 달라야 같은 놈이 아니라는
-  // 것이 보입니다 — 두 배 아픈데 생김새가 똑같으면 그건 고장으로 읽힙니다.
-  const F = CFG.foes && CFG.foes.fierce;
-  if (F && floor >= F.from && isFoeType(def)) {
+  // 더 여러 번 때려야 하고 더 아픕니다 (값은 바로 위에서 이미 얹었습니다).
+  // 색이 달라야 같은 놈이 아니라는 것이 보입니다 — 두 배 아픈데 생김새가
+  // 똑같으면 그건 고장으로 읽힙니다.
+  if (fierce) {
     e.fierce = true;
-    e.maxHp = Math.round(e.maxHp * F.hp);
-    e.hp = e.maxHp;
-    e.contactDamage = Math.round(e.contactDamage * F.dmg);
     e.setTint(F.tint);
   }
   e.phase = Math.random() * Math.PI * 2;

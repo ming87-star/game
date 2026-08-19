@@ -2341,7 +2341,14 @@ class GameScene extends Phaser.Scene {
     // 도적은 일정 확률로 통째로 흘려 넘깁니다.
     // 다만 보스가 내리꽂는 것에는 덜 통합니다 — 안 그러면 피하지 않아도
     // 절반 넘게 흘러가서, 줄을 고르는 그 싸움을 도적만 안 하게 됩니다.
-    const dodge = fromBoss ? this.dodge * CFG.boss.dodgeScale : this.dodge;
+    //
+    // **판을 바꾸는 넷도 같습니다** (CFG.foes.dodgeScale). 피할 자리를 보고
+    // 정하는 것이 그 넷의 전부인데, 확률로 절반이 그냥 흘러가면 도적만 그
+    // 판단을 안 하게 됩니다. 어려움을 확률로 지우면 어려움이 아니라 운입니다.
+    const foeHit = !fromBoss && source && source.def && isFoeType(source.def);
+    const dodge = fromBoss ? this.dodge * CFG.boss.dodgeScale
+      : foeHit ? this.dodge * ((CFG.foes && CFG.foes.dodgeScale) || 1)
+        : this.dodge;
     if (dodge > 0 && Math.random() < dodge) {
       this.lastHitAt = this.time.now;
       this.popup('회피', '#ce93d8');

@@ -973,16 +973,16 @@ async function boot(browser, port, jobIndex) {
     for (let i = 0; i < 20; i++) if (w.addPlus()) took++;
     out.plain = { took, plus: w.plus, max: w.plusMax, capped: w.plusCapped };
 
-    // 무명(無名) — 서른까지.
+    // 무명(無名) — 쉰까지. 값은 CFG 가 아니라 그 자루가 들고 있습니다.
     const nameless = w.table.find((x) => x.family === 'nameless');
     out.hasNameless = !!nameless;
     if (!nameless) return out;
     w.index = nameless.index; w.plus = 0;
     took = 0;
-    for (let i = 0; i < 40; i++) if (w.addPlus()) took++;
+    for (let i = 0; i < 80; i++) if (w.addPlus()) took++;
     out.nameless = { name: w.name, took, plus: w.plus, max: w.plusMax };
 
-    // 곡선 — **맨몸이 가장 약하고, +25 에서 최강(+10 한계)을 앞지릅니다.**
+    // 곡선 — **맨몸이 가장 약하고, +40 에서 최강(+10 한계)을 앞지릅니다.**
     const best = w.table.reduce((x, y) => (w.dpsOf(y, false) > w.dpsOf(x, false) ? y : x));
     w.index = best.index; w.plus = CFG.plusMax;
     const ceiling = w.dps;
@@ -993,9 +993,9 @@ async function boot(browser, port, jobIndex) {
       // 주머니에서 맨몸이 가장 약한가
       weakest: w.table.every((x) => w.dpsOf(x, false) >= w.dpsOf(nameless, false)),
       p10: Math.round(at(10) / ceiling * 100),
-      p24: Math.round(at(24) / ceiling * 100),
-      p25: Math.round(at(25) / ceiling * 100),
-      p30: Math.round(at(30) / ceiling * 100),
+      p39: Math.round(at(39) / ceiling * 100),
+      p40: Math.round(at(40) / ceiling * 100),
+      p50: Math.round(at(50) / ceiling * 100),
     };
 
     // 보물상자 — 한계에 닿으면 공격력이 후보에서 빠집니다. 화면을 가득 채우는
@@ -1024,19 +1024,25 @@ async function boot(browser, port, jobIndex) {
     '보통 자루는 +' + limits.plain.max + '에서 멎음',
     limits.plain.took + '개 붙고 멈춤');
   check(limits.hasNameless, '주머니에 무명(無名)이 있음');
-  check(limits.nameless && limits.nameless.took === 30 && limits.nameless.max === 30,
-    '무명은 +30까지 받음',
+  check(limits.nameless && limits.nameless.took === 50 && limits.nameless.max === 50,
+    '무명은 +50까지 받음',
     limits.nameless && limits.nameless.name + ' → +' + limits.nameless.plus);
   check(limits.curve.weakest, '무명은 맨몸이 주머니에서 가장 약함');
-  check(limits.curve.p10 < 60, '+10 까지는 오히려 뒤처짐',
+  check(limits.curve.p10 < 40, '+10 까지는 한참 뒤처짐',
     '최강(+' + CFG_PLUS_MAX + ' 한계) 대비 ' + limits.curve.p10 + '%');
-  // **여기가 이 자루의 전부입니다.** 스물넷에서는 아직 못 미치고 스물다섯에서
+  // **여기가 이 자루의 전부입니다.** 서른아홉에서는 아직 못 미치고 마흔에서
   // 넘어야 합니다 — 넘는 자리가 흐려지면 「인내」라는 성격이 사라집니다.
-  check(limits.curve.p24 < 100 && limits.curve.p25 >= 100,
-    '+25 에서 가장 강한 자루가 됨',
-    '+24 ' + limits.curve.p24 + '% → +25 ' + limits.curve.p25 + '% (' + limits.curve.best + ' +'
+  //
+  // 예전에는 스물다섯이었습니다. 그런데 지도의 +1 과 상점 뭉치를 다 챙기면
+  // 300층 언저리에 서른(옛 한계)에 닿아서, 그 뒤로 줍는 +1 이 전부 버려졌습니다.
+  // 천장을 쉰으로 올리고 걸음을 그만큼 줄여서 **꼭대기 높이는 그대로 둔 채
+  // 가는 길만 길게** 했습니다 (직업마다 걸음이 조금씩 다릅니다 — 맨몸과
+  // 최강 사이의 거리가 달라서, 같은 걸음이면 뒤집히는 자리가 흩어집니다).
+  check(limits.curve.p39 < 100 && limits.curve.p40 >= 100,
+    '+40 에서 가장 강한 자루가 됨',
+    '+39 ' + limits.curve.p39 + '% → +40 ' + limits.curve.p40 + '% (' + limits.curve.best + ' +'
       + CFG_PLUS_MAX + ' = ' + limits.curve.ceiling + ')');
-  check(limits.curve.p30 > limits.curve.p25, '+30 에서 가장 높음', limits.curve.p30 + '%');
+  check(limits.curve.p50 > limits.curve.p40, '+50 에서 가장 높음', limits.curve.p50 + '%');
 
   check(limits.chestFree && !limits.chestCapped,
     '한계에 닿으면 보물상자가 공격력을 안 줌',

@@ -47,13 +47,13 @@ class Weapon {
   // "최소 공격력"이 곧 실제 공격력이 되어 범위라는 것이 뜻을 잃습니다.
   // ── 공격력 강화의 한계 ────────────────────────────────
   // **자루마다 다릅니다.** 보통은 열(CFG.plusMax)에서 멎고, 무명(無名)만
-  // 서른까지 받습니다 (js/classes.js). 한계가 없던 시절에는 한 자루를
+  // 쉰까지 받습니다 (js/classes.js). 한계가 없던 시절에는 한 자루를
   // 오래 들고 다니며 계속 벼리는 것이 늘 옳아서, 갈아타기 창이 물어보는
   // 것이 사실은 물어보는 것이 아니었습니다.
   get plusMax() { return this.base.plusMax || CFG.plusMax; }
   get plusCapped() { return this.plus >= this.plusMax; }
   // +1 하나가 올려 주는 몫도 자루마다 다릅니다. 무명은 늦게 시작해서 멀리
-  // 가야 하므로 걸음이 셋 배입니다.
+  // 가야 하므로 걸음이 두 배 남짓입니다 (직업마다 조금씩 다릅니다).
   get plusStep() { return this.base.plusStep || CFG.plusStep; }
 
   get plusValue() { return this.plus * (this.job.plusScale || 1); }

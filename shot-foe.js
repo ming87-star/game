@@ -34,18 +34,27 @@ const server=http.createServer((req,res)=>{
  await page.waitForTimeout(900);
 
  // 넷을 차례로 띄웁니다. 창은 판 위에 얹히는 것이라 판을 멈춰 두고 씁니다.
+ //
+ // 마지막 한 장은 **회피를 가진 몸**으로 찍습니다. 회피가 0인 사람에게는
+ // 「½ 만 듣는다」를 안 적으므로(js/scene-foe.js 의 facts), 그 칸이 셋으로
+ // 늘어난 모습은 이 한 장으로만 볼 수 있습니다.
  const names=[];
- for (const key of ['shover','slammer','lancer','zapper']) {
+ for (const key of ['shover','slammer','lancer','zapper','zapper-dodge']) {
    const name=await page.evaluate((key)=>{
      const s=window.__scene;
      if (s.scene.isActive('foe')) s.scene.stop('foe');
-     const def=CFG.enemyTypes.find(t=>t.key===key);
-     const tell=CFG.foes.tell[key];
+     const real=key.replace('-dodge','');
+     s.dodge = key.endsWith('-dodge') ? 0.2 : 0;
+     const def=CFG.enemyTypes.find(t=>t.key===real);
+     const tell=CFG.foes.tell[real];
      s.scene.launch('foe',{from:s,def,tell});
      return tell.name;
    },key);
    names.push(name);
-   await page.waitForTimeout(700);
+   // 단추는 잠시 뒤에 뜹니다 (CFG.foes.tellDelayMs). **다 뜬 모습**을 찍어야
+   // 하므로 시계로 기다리지 말고 창이 스스로 준비됐다고 할 때까지 기다립니다.
+   await page.waitForFunction(()=>window.__foe&&window.__foe.ready,null,{timeout:8000});
+   await page.waitForTimeout(200);
    await page.screenshot({path:'shots/foe-'+key+'.png'});
  }
  console.log(names.join(' · '));
