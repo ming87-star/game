@@ -377,7 +377,10 @@ function shoveStep(scene, e, player, time, near, dx) {
     return;
   }
 
-  const close = near && Math.abs(dx) < c.reach && Math.abs(player.y - e.y) < 40;
+  // **반 초 걸어올 거리만큼 일찍** 몸을 낮춥니다 (CFG.foes.startEarlyMs).
+  // 닿아야 시작하면, 발판을 스쳐 지나가는 사람은 몸을 낮추는 것조차 못 봅니다.
+  const see = c.reach + e.speed * ((CFG.foes.startEarlyMs || 0) / 1000);
+  const close = near && Math.abs(dx) < see && Math.abs(player.y - e.y) < 40;
   if (!e.shoveAt && close) {
     // 몸을 낮춥니다. 이 동안에 비키면 헛칩니다.
     e.shoveAt = time + c.windupMs;
@@ -386,7 +389,10 @@ function shoveStep(scene, e, player, time, near, dx) {
     return;
   }
   if (e.shoveAt) {
-    e.body.velocity.x = 0;
+    // 몸을 낮춘 채로도 **반쯤 속도로 다가옵니다.** 멀리서 시작하게 해 놓고
+    // 그 자리에 세워 두면 닿지를 못해서 언제나 헛칩니다 — 예고가 아니라
+    // 그냥 안 하는 것이 됩니다.
+    e.body.velocity.x = Phaser.Math.Clamp(dx * 3, -e.speed * 0.5, e.speed * 0.5);
     if (time < e.shoveAt) return;
     e.shoveAt = 0;
     e.clearTint();
@@ -469,7 +475,9 @@ function lanceStep(scene, e, player, time) {
   const c = CFG.foes.lance;
   e.body.velocity.x = 0;
   const beat = c.beatMs * (e.fierce ? CFG.foes.fierce.beat : 1);
-  if (!e.beatAt) e.beatAt = time + beat;
+  // **첫 박자만** 당깁니다 (CFG.foes.startEarlyMs). 온전히 기다리면 그 사이에
+  // 두 층을 올라가 버려서, 이놈이 무엇을 하는 놈인지 한 번도 못 보고 지나갑니다.
+  if (!e.beatAt) e.beatAt = time + Math.max(200, beat - (CFG.foes.startEarlyMs || 0));
   if (time < e.beatAt) return;
   e.beatAt = time + beat;
   scene.fireLance(e);
@@ -483,7 +491,8 @@ function zapStep(scene, e, player, time) {
   const c = CFG.foes.zap;
   e.body.velocity.x = 0;
   const beat = c.beatMs * (e.fierce ? CFG.foes.fierce.beat : 1);
-  if (!e.beatAt) e.beatAt = time + beat;
+  // 가르는 놈과 같습니다 — 첫 박자만 당깁니다.
+  if (!e.beatAt) e.beatAt = time + Math.max(200, beat - (CFG.foes.startEarlyMs || 0));
   if (time < e.beatAt) return;
   e.beatAt = time + beat;
   scene.fireZap(e);
