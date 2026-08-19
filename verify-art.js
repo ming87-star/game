@@ -22,6 +22,10 @@ const server = http.createServer((req, res) => {
 const SCALE = 405 / 540;
 const at = (gx, gy) => [gx * SCALE, gy * SCALE];
 
+// 판을 바꾸는 넷 — 도형으로 먼저 돌려 보고 손에 붙는 것을 확인한 뒤에
+// 그립니다. 그릴 것을 그린 날 이 줄을 비우면 위 검사가 저절로 넷을 봅니다.
+const PENDING = ['e-shover', 'e-slammer', 'e-lancer', 'e-zapper'];
+
 let bad = 0;
 const check = (ok, label, got) => {
   if (!ok) bad++;
@@ -85,7 +89,8 @@ const check = (ok, label, got) => {
   // ── 도형이 그림을 덮어쓰지 않았는가 ────────────────────
   // generateTexture 는 캔버스를, load.svg 는 이미지를 남깁니다. 그래서 이걸로
   // "지금 화면에 있는 것이 그림인지 도형인지"를 가릴 수 있습니다.
-  const source = await page.evaluate(() => {
+  // 아직 안 그린 넷 — 도형으로 먼저 돌려 보는 중입니다.
+  const source = await page.evaluate((PENDING) => {
     const s = window.__scene;
     const kindOf = (key) => {
       if (!s.textures.exists(key)) return '없음';
@@ -104,17 +109,29 @@ const check = (ok, label, got) => {
       // bake-sprites.js 의 WANT 에 안 넣었습니다 — 색을 코드가 입혀 쓰는 것들이라
       // 그림으로 바꾸면 그 색이 먹힙니다).
       shape: ['coin', 'slash', 'spark'].map((k) => k + '=' + kindOf(k)),
-      // 적 표에 있는 열셋이 하나도 안 빠지고 그림이어야 합니다.
+      // 적 표에 있는 것이 하나도 안 빠지고 그림이어야 합니다.
+      //
+      // **판을 바꾸는 넷은 아직 뺍니다.** 도형으로 먼저 돌려 보고 손에
+      // 붙는 것을 확인한 뒤에 그리기로 한 것들입니다 (ART.md 참고).
+      // 여기서 걸러 두지 않으면 「아직 안 그렸다」가 매번 틀림으로 나와서,
+      // 정말 빠진 것이 생겼을 때 그것에 안 놀라게 됩니다.
+      pending: PENDING,
       everyEnemy: CFG.enemyTypes.map((t) => 'e-' + t.key)
-        .concat(['e-goldfrog']).filter((k) => kindOf(k) !== '그림'),
+        .concat(['e-goldfrog'])
+        .filter((k) => PENDING.indexOf(k) < 0)
+        .filter((k) => kindOf(k) !== '그림'),
+      // 뺀 넷은 **빈칸이 아니라 도형**으로 자리를 지키고 있어야 합니다.
+      pendingKind: PENDING.map((k) => k + '=' + kindOf(k)),
     };
-  });
+  }, PENDING);
   check(source.art.every((x) => x.endsWith('그림')), '그려 둔 것은 그림이 쓰임',
     source.art.join(' · '));
   check(source.shape.every((x) => x.endsWith('도형')), '안 그린 것은 도형이 자리를 지킴',
     source.shape.join(' · '));
-  check(!source.everyEnemy.length, '적 표의 열셋과 황금개구리가 모두 그림',
+  check(!source.everyEnemy.length, '적 표와 황금개구리가 모두 그림 (아직 안 그린 넷은 뺌)',
     source.everyEnemy.length ? '도형으로 남음: ' + source.everyEnemy.join(' ') : '빠진 것 없음');
+  check(source.pendingKind.every((x) => x.endsWith('도형')),
+    '아직 안 그린 넷은 도형이 자리를 지킴', source.pendingKind.join(' · '));
 
   // 래스터 스프라이트도 **1배로** 들어와야 합니다. 4배 그대로 얹으면 충돌
   // 상자가 그림 배율을 안 따라가서 적이 허공에 걸립니다 (js/artset.js 맨 위).

@@ -251,6 +251,60 @@ function buildTextures(scene) {
   g.fillCircle(22, 13, 3.5);
   bake('e-ghost', 34, 36);
 
+  // ── 판을 바꾸는 넷 ────────────────────────────────────
+  // 그림이 아직 없어 도형으로 세워 둡니다. **생김새가 하는 짓을 말해야**
+  // 합니다 — 32px 에서 남는 것은 실루엣과 색 두어 단뿐이라, 넷을 저마다
+  // 다른 **덩어리 모양**으로 갈라 둡니다.
+
+  // 미는 놈 — 앞으로 내민 넓은 어깨. 「들이받는다」가 실루엣에 있어야 합니다.
+  g.clear();
+  g.fillStyle(0x455a64, 1);
+  g.fillRoundedRect(2, 10, 30, 22, 5);
+  g.fillStyle(0x78909c, 1);
+  g.fillRoundedRect(20, 6, 16, 30, 6);      // 앞으로 내민 판
+  g.fillStyle(0xffd54f, 1);
+  g.fillRect(30, 12, 4, 18);                // 부딪히는 면
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(14, 18, 3);
+  bake('e-shover', 38, 38);
+
+  // 내리찍는 놈 — 아래로 뾰족한 쐐기. 위에서 떨어질 것이 모양에 보입니다.
+  g.clear();
+  g.fillStyle(0x6a1b9a, 1);
+  g.fillTriangle(4, 2, 32, 2, 18, 36);
+  g.fillStyle(0xba68c8, 1);
+  g.fillTriangle(10, 4, 26, 4, 18, 24);
+  g.fillStyle(0xff5252, 1);
+  g.fillCircle(18, 10, 4);
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(13, 9, 2.5);
+  g.fillCircle(23, 9, 2.5);
+  bake('e-slammer', 36, 38);
+
+  // 가르는 놈 — 옆으로 길게 누운 몸에 한쪽만 뜬 눈. 가로로 쏜다는 뜻입니다.
+  g.clear();
+  g.fillStyle(0x37474f, 1);
+  g.fillRoundedRect(2, 12, 34, 14, 7);
+  g.fillStyle(0xff5252, 1);
+  g.fillRect(2, 17, 34, 4);                 // 가로로 난 틈
+  g.fillStyle(0xff8a80, 1);
+  g.fillCircle(30, 19, 5);
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(31, 19, 2);
+  bake('e-lancer', 38, 38);
+
+  // 전류를 뿜는 놈 — 가운데 몸에서 위아래로 뻗은 팔. 제 층이 아니라 위아래입니다.
+  g.clear();
+  g.fillStyle(0x4a148c, 1);
+  g.fillCircle(19, 19, 12);
+  g.fillStyle(0xba68c8, 1);
+  g.fillRoundedRect(15, 0, 8, 12, 3);       // 위로 뻗은 팔
+  g.fillRoundedRect(15, 26, 8, 12, 3);      // 아래로 뻗은 팔
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(15, 18, 3);
+  g.fillCircle(23, 18, 3);
+  bake('e-zapper', 38, 38);
+
   // ── 박쥐 ──────────────────────────────────────────────
   // 도둑 — 자루를 든 보라색 박쥐
   g.clear();

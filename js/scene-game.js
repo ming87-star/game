@@ -573,6 +573,17 @@ class GameScene extends Phaser.Scene {
   announceEnemy(def) {
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
     const cx = CFG.width / 2;
+
+    // ── 판을 바꾸는 넷은 판을 멈추고 알려 줍니다 ──────
+    // 이름 한 줄로는 모자랍니다 — 무엇을 하는지 모르면 한 번은 반드시
+    // 당하고, 그건 어려운 것이 아니라 안 알려 준 것입니다 (js/scene-foe.js).
+    const tell = CFG.foes && CFG.foes.tell && CFG.foes.tell[def.key];
+    if (tell && !this.dead && !this.shop.open && !this.choosing) {
+      this.clearNotices();
+      this.scene.pause();
+      this.scene.launch('foe', { from: this, def, tell });
+      return;
+    }
     this.pushNotice({
       key: 'enemy', ms: 2200, names: [def.name],
       // 한 발판에서 두 종류가 함께 깨어나는 일이 흔합니다. 그때는 알림을 두 번
@@ -686,9 +697,12 @@ class GameScene extends Phaser.Scene {
 
     // 닿을 수 있는 길은 지금 자리에서 한 칸 이내뿐입니다.
     // 그 안에서 원하는 쪽에 발판이 없으면 가장 가까운 길로 갑니다 — 점프는 실패하지 않습니다.
-    const slot = next.slots[LANES[want]] || LANES
+    // 내리찍는 놈이 뚫고 간 발판은 잠깐 못 딛습니다 (CFG.foes.slam.breakMs).
+    // 그 줄이 진짜로 막혀야 「버리거나 서두르거나」가 선택이 됩니다.
+    const ok = (sl) => sl && !sl.broken;
+    const slot = (ok(next.slots[LANES[want]]) && next.slots[LANES[want]]) || LANES
       .map((l, i) => ({ slot: next.slots[l], i }))
-      .filter((c) => c.slot && Math.abs(c.i - here) <= 1)
+      .filter((c) => ok(c.slot) && Math.abs(c.i - here) <= 1)
       .sort((a, b) => Math.abs(a.i - want) - Math.abs(b.i - want))
       .map((c) => c.slot)[0];
     if (!slot) return;
@@ -754,6 +768,153 @@ class GameScene extends Phaser.Scene {
       targets: this.player, x: CFG.laneX[this.lane],
       duration: 150, ease: 'Quad.out',
       onComplete: () => { this.jumping = false; },
+    });
+  }
+
+  // ── 판을 바꾸는 넷이 부르는 것들 ───────────────────────
+
+  // 미는 놈이 밀어냅니다. **한 층 아래로**, 딱 한 층만.
+  //
+  // 층은 floorIndex-3 까지 살려 두므로 한 층 아래는 언제나 있습니다. 그보다
+  // 더 밀면 이미 지워진 층으로 떨어져서 딛을 지형이 없습니다.
+  //
+  // 아픈 것이 아니라 **되돌아가는 것**이 값입니다. 방금 지나온 층을 다시
+  // 뚫어야 하고, 그 층은 아직 적이 서 있습니다.
+  shoveDown(from) {
+    if (this.dead || this.jumping || this.bossFight || this.shop.open || this.choosing) return;
+    const below = this.floors.get(this.floorIndex - 1);
+    if (!below) return;                       // 바닥이거나 이미 지워진 자리
+    const c = CFG.foes.shove;
+
+    // 밀린 쪽으로 한 칸. 벽에 붙어 있으면 제자리에서 떨어집니다.
+    const here = LANES.indexOf(this.lane);
+    const dir = from.x > this.player.x ? -1 : 1;
+    const want = Phaser.Math.Clamp(here + dir, 0, LANES.length - 1);
+    const slot = below.slots[LANES[want]] || below.slots[this.lane]
+      || LANES.map((l) => below.slots[l]).find(Boolean);
+    if (!slot) return;
+
+    this.lane = slot.lane;
+    this.floorIndex -= 1;
+    this.jumping = true;
+    this.lastHitAt = this.time.now + c.graceMs;   // 떨어지는 동안은 안 맞습니다
+    this.popup('밀려남', '#ff8a80');
+    this.cameras.main.shake(220, 0.010);
+
+    this.tweens.add({
+      targets: this.player, x: slot.x, y: slot.y - 34,
+      duration: 260, ease: 'Quad.in',
+      onComplete: () => {
+        this.jumping = false;
+        this.wakeFloor(this.floorIndex);
+        this.hurt(from.contactDamage || 0, from);
+      },
+    });
+  }
+
+  // 내리찍는 놈이 세 층 위에서 그 줄을 물들입니다. **예고가 곧 이 놈의
+  // 전부입니다** — 세 층이 잇달아 막힌다는 것을 미리 봐야 줄을 버릴지
+  // 서두를지 고를 수 있습니다.
+  markSlamLane(e) {
+    const c = CFG.foes.slam;
+    for (let i = 1; i <= c.floors; i++) {
+      const floor = this.floors.get(this.floorIndex + c.above - i);
+      if (!floor) continue;
+      const slot = LANES.map((l) => floor.slots[l])
+        .filter(Boolean).sort((a, b) => Math.abs(a.x - e.x) - Math.abs(b.x - e.x))[0];
+      if (!slot) continue;
+      const warn = this.add.rectangle(slot.x, slot.y - 10, CFG.platformW, 4, 0xff5252, 0.8)
+        .setDepth(6);
+      this.tweens.add({ targets: warn, alpha: 0.15, duration: 260, yoyo: true,
+        repeat: Math.ceil(c.markMs / 520), onComplete: () => warn.destroy() });
+    }
+  }
+
+  // 한 층을 뚫고 지나갑니다. 발판이 잠깐 못 쓰게 되고, 그 자리에 있으면 맞습니다.
+  slamThrough(e) {
+    const c = CFG.foes.slam;
+    this.cameras.main.shake(160, 0.008);
+    // 그 줄에 서 있었으면 맞습니다. 세게 아픕니다 — 미리 보여 준 값입니다.
+    if (Math.abs(this.player.x - e.x) < CFG.platformW / 2
+      && Math.abs(this.player.y - e.y) < CFG.floorHeight * 0.55) {
+      this.hurt(e.contactDamage || 0, e);
+    }
+    // 부서진 발판. 잠깐 딛지 못합니다 — 그 줄이 진짜로 막힙니다.
+    const floor = [...this.floors.values()]
+      .sort((a, b) => Math.abs(a.y - e.y) - Math.abs(b.y - e.y))[0];
+    if (!floor) return;
+    const slot = LANES.map((l) => floor.slots[l])
+      .filter(Boolean).sort((a, b) => Math.abs(a.x - e.x) - Math.abs(b.x - e.x))[0];
+    if (!slot || !slot.deck) return;
+    slot.broken = true;
+    slot.deck.forEach((d) => d.setAlpha(0.25));
+    this.time.delayedCall(c.breakMs, () => {
+      slot.broken = false;
+      if (slot.deck) slot.deck.forEach((d) => d.setAlpha(1));
+    });
+  }
+
+  // 가르는 놈 — 제가 선 층을 가로로 관통합니다.
+  fireLance(e) {
+    const c = CFG.foes.lance;
+    const y = e.y - 6;
+    const aim = this.add.rectangle(CFG.width / 2, y, CFG.width, 3, c.aimColor, 0.85)
+      .setScrollFactor(1).setDepth(7);
+    this.tweens.add({ targets: aim, alpha: 0.3, duration: c.chargeMs / 3, yoyo: true, repeat: 1 });
+    this.time.delayedCall(c.chargeMs, () => {
+      aim.destroy();
+      if (this.dead) return;
+      const beam = this.add.rectangle(CFG.width / 2, y, CFG.width, c.width, c.color, 0.7)
+        .setDepth(7);
+      this.tweens.add({ targets: beam, alpha: 0, duration: c.liveMs,
+        onComplete: () => beam.destroy() });
+      // 그 층에 있으면 맞습니다. 줄은 상관없습니다 — 층 전체입니다.
+      if (Math.abs(this.player.y - y) < c.width) this.hurt(e.contactDamage || 0, e);
+    });
+  }
+
+  // 위층과 아래층으로 **전기가 튑니다.** 제 층은 안전합니다.
+  //
+  // 처음에는 채찍으로 만들었습니다 — 위아래로 뻗는 긴 팔. 화면에서 재 보니
+  // **안 읽혔습니다.** 가로로 누운 가는 막대가 165px 떨어진 곳에 잠깐 떴다
+  // 사라지는 것이라, 그 놈이 한 짓인지 그냥 화면 어딘가에 뭐가 번쩍인 건지
+  // 구분이 안 됐습니다. 움직임이 커 보이려면 **몸에서 뻗어 나가는 것이
+  // 보여야** 하는데, 팔이 몸에 닿아 있지 않았습니다.
+  //
+  // 전기는 그 문제가 없습니다. **몸에서 목표 층까지 이어진 선**을 그리므로
+  // 누가 무엇을 하는지가 선 하나로 읽히고, 지그재그라 짧아도 빨라 보입니다.
+  fireZap(e) {
+    const c = CFG.foes.zap;
+    [-1, 1].forEach((dir) => {
+      const toY = e.y + dir * CFG.floorHeight;
+      // 예고 — 몸에서 가늘게 뻗어 나가며 깜빡입니다.
+      const aim = this.add.rectangle(e.x, (e.y + toY) / 2, 3, CFG.floorHeight, c.aimColor, 0.7)
+        .setDepth(7);
+      this.tweens.add({ targets: aim, alpha: 0.2, duration: c.chargeMs / 3, yoyo: true, repeat: 1 });
+
+      this.time.delayedCall(c.chargeMs, () => {
+        aim.destroy();
+        if (this.dead) return;
+        const parts = [];
+        // 지그재그로 세 토막. 곧은 선보다 훨씬 빨라 보입니다.
+        const steps = 3;
+        for (let i = 0; i < steps; i++) {
+          const y0 = e.y + (toY - e.y) * (i / steps);
+          const y1 = e.y + (toY - e.y) * ((i + 1) / steps);
+          const seg = this.add.rectangle(e.x + (i % 2 ? 9 : -9), (y0 + y1) / 2,
+            6, Math.abs(y1 - y0), c.color, 0.95).setDepth(8)
+            .setRotation((i % 2 ? 1 : -1) * 0.22);
+          parts.push(seg);
+        }
+        // 닿은 층에서 좌우로 퍼집니다 — 여기가 아픈 자리라는 표시입니다.
+        parts.push(this.add.rectangle(e.x, toY, c.reachX * 2, 10, c.color, 0.8).setDepth(8));
+        this.tweens.add({ targets: parts, alpha: 0, duration: c.liveMs,
+          onComplete: () => parts.forEach((o) => o.destroy()) });
+
+        if (Math.abs(this.player.y - toY) < 40 && Math.abs(this.player.x - e.x) < c.reachX) {
+          this.hurt(e.contactDamage || 0, e);
+        }
+      });
     });
   }
 
@@ -861,6 +1022,12 @@ class GameScene extends Phaser.Scene {
     this.scene.launch('trophy', {
       from: this, boss: boss.kind, trophy, got, healed,
     });
+  }
+
+  // 처음 보는 놈 창이 닫히면 여기로 돌아옵니다. 창을 닫은 그 손가락이
+  // 그대로 이동으로 먹히지 않게 잠깐 막습니다 (전리품 창과 같은 규칙).
+  closeFoe() {
+    this.tapBlockedUntil = this.time.now + 300;
   }
 
   // 전리품 창이 닫히면 여기로 돌아옵니다.

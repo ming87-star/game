@@ -102,6 +102,19 @@ function spawnEnemy(scene, x, y, floor, typeKey) {
   // 「가난해진」 발판이 됩니다.
   e.contactDamage = Math.round(def.dmg * (1 + floor * CFG.enemy.dmgPerFloor) * crowd);
   e.coin = Math.round(def.coin * crowd);
+
+  // ── 두 바퀴째의 넷 ──────────────────────────────────
+  // 1000층을 넘으면 판을 바꾸는 넷이 **더 사나워진 판**으로 다시 섭니다.
+  // 체력과 피해가 오르고 박자가 빨라집니다. 색이 달라야 같은 놈이 아니라는
+  // 것이 보입니다 — 두 배 아픈데 생김새가 똑같으면 그건 고장으로 읽힙니다.
+  const F = CFG.foes && CFG.foes.fierce;
+  if (F && floor >= F.from && ['shove', 'slam', 'lance', 'zap'].indexOf(def.move) >= 0) {
+    e.fierce = true;
+    e.maxHp = Math.round(e.maxHp * F.hp);
+    e.hp = e.maxHp;
+    e.contactDamage = Math.round(e.contactDamage * F.dmg);
+    e.setTint(F.tint);
+  }
   e.phase = Math.random() * Math.PI * 2;
   e.nextShotAt = scene.time.now + CFG.enemyShot.interval * (0.5 + Math.random());
   e.nextHopAt = scene.time.now + Math.random() * CFG.hop.interval;
@@ -189,6 +202,11 @@ function groundStep(scene, e, player, time) {
 
   // 돌진병 — 노려보다가 가로로 내닫습니다. 예고가 있어야 피할 수 있습니다.
   if (e.def.move === 'charge') return chargeStep(scene, e, player, time, near, dx);
+  if (e.def.move === 'shove') return shoveStep(scene, e, player, time, near, dx);
+  // 이 둘은 **다가오지 않습니다.** 제자리에서 박자로 칩니다 — 쫓아오기까지
+  // 하면 피할 자리가 없어집니다.
+  if (e.def.move === 'lance') return lanceStep(scene, e, player, time);
+  if (e.def.move === 'zap') return zapStep(scene, e, player, time);
 
   e.body.velocity.x = e.dir * e.speed;
   e.setFlipX(e.dir < 0);
@@ -272,6 +290,7 @@ function airStep(scene, e, player, time) {
 
   // 급강하 — 머리 위로 올라가 잠깐 멎었다가 곧장 내리꽂습니다.
   if (e.def.move === 'dive') return diveStep(scene, e, player, time);
+  if (e.def.move === 'slam') return slamStep(scene, e, player, time);
 
   // 유령 — 나타났다 사라졌다 합니다. 사라진 동안은 때릴 수 없습니다.
   if (e.def.move === 'phase') {
@@ -314,6 +333,133 @@ function diveStep(scene, e, player, time) {
   // 내리꽂는 중. 주인공보다 한참 아래로 내려가면 다시 올라갑니다.
   e.body.velocity.set(0, d.dropSpeed);
   if (e.y > player.y + 160) e.divePhase = 'rise';
+}
+
+// ── 미는 놈 ──────────────────────────────────────────────
+//
+// 아픈 놈이 아닙니다. 무서운 것은 **되돌아가는 것**입니다 — 한 층 내려가면
+// 방금 지나온 층을 다시 뚫어야 합니다.
+//
+// 밀기 전에 몸을 낮춥니다(windup). 예고 없이 미는 것은 사고지 선택이
+// 아닙니다. 그리고 한 번 밀면 한참 쉽니다 — 안 그러면 갇힙니다.
+function shoveStep(scene, e, player, time, near, dx) {
+  const c = CFG.foes.shove;
+  if (e.shoveRestUntil && time < e.shoveRestUntil) {
+    e.body.velocity.x = 0;
+    e.setFlipX(dx < 0);
+    return;
+  }
+
+  const close = near && Math.abs(dx) < c.reach && Math.abs(player.y - e.y) < 40;
+  if (!e.shoveAt && close) {
+    // 몸을 낮춥니다. 이 동안에 비키면 헛칩니다.
+    e.shoveAt = time + c.windupMs;
+    e.setTint(0xffd54f);
+    e.body.velocity.x = 0;
+    return;
+  }
+  if (e.shoveAt) {
+    e.body.velocity.x = 0;
+    if (time < e.shoveAt) return;
+    e.shoveAt = 0;
+    e.clearTint();
+    e.shoveRestUntil = time + c.cooldownMs;
+    // 아직 곁에 있으면 밀어냅니다. 비켰으면 헛칩니다 — 예고를 둔 값입니다.
+    if (Math.abs(player.x - e.x) < c.reach && Math.abs(player.y - e.y) < 40) {
+      scene.shoveDown(e);
+    }
+    return;
+  }
+
+  e.body.velocity.x = e.dir * e.speed;
+  e.setFlipX(e.dir < 0);
+}
+
+// ── 내리찍는 놈 ──────────────────────────────────────────
+//
+// 세 층 위에서 먼저 보이고, 그 줄을 **세 층 연달아** 뚫으며 내려옵니다.
+// 바로 위에서 떨어지면 한 번 비키면 그만이지만, 세 층이 잇달아 막히면
+// 그 줄을 버리거나 서둘러야 합니다.
+function slamStep(scene, e, player, time) {
+  const c = CFG.foes.slam;
+  if (!e.slamPhase) {
+    e.slamPhase = 'rise';
+    e.slamLeft = c.floors;
+  }
+
+  if (e.slamPhase === 'rise') {
+    // 주인공이 선 줄의 세 층 위로 갑니다. 여기서 **보여야** 합니다.
+    const wantY = player.y - CFG.floorHeight * c.above;
+    // e.speed 는 **이미 초당 픽셀**입니다 (위 spawnEnemy). 곱하지 않습니다.
+    e.body.velocity.y = e.y > wantY ? -c.riseSpeed : c.riseSpeed * 0.35;
+    e.body.velocity.x = Phaser.Math.Clamp((player.x - e.x) * 2.2, -e.speed, e.speed);
+    if (Math.abs(e.y - wantY) < 40 && Math.abs(e.x - player.x) < 46) {
+      e.slamPhase = 'mark';
+      e.phaseUntil = time + c.markMs;
+      e.setTint(0xff5252);
+      scene.markSlamLane(e);       // 그 줄이 붉게 물듭니다
+    }
+    return;
+  }
+
+  if (e.slamPhase === 'mark') {
+    e.body.velocity.set(0, 0);
+    if (time > e.phaseUntil) { e.slamPhase = 'drop'; e.slamNextY = e.y + CFG.floorHeight; }
+    return;
+  }
+
+  if (e.slamPhase === 'drop') {
+    e.body.velocity.set(0, c.dropSpeed);
+    if (e.y >= e.slamNextY) {
+      scene.slamThrough(e);        // 이 층의 발판을 부수고 그 줄을 칩니다
+      e.slamLeft -= 1;
+      if (e.slamLeft <= 0) {
+        // 다 내려왔습니다. **바닥에 남아 평범한 적이 됩니다** — 피한 것이
+        // 없어지지 않고 앞길에 서 있게 되어, 회피에 값이 붙습니다.
+        e.slamPhase = 'done';
+        e.clearTint();
+        e.def = Object.assign({}, e.def, { move: c.landMove, ground: true });
+        e.body.setAllowGravity(true);
+        return;
+      }
+      e.slamPhase = 'rest';
+      e.phaseUntil = time + c.restMs;
+    }
+    return;
+  }
+
+  if (e.slamPhase === 'rest') {
+    e.body.velocity.set(0, 0);
+    if (time > e.phaseUntil) { e.slamPhase = 'drop'; e.slamNextY = e.y + CFG.floorHeight; }
+  }
+}
+
+// ── 가르는 놈 ────────────────────────────────────────────
+//
+// 제가 선 층을 가로로 관통합니다. **박자가 전부입니다** — 서 있는 층만
+// 위험하면 지나가면 그만이지만, 박자가 있으면 언제 지나갈지를 봐야 합니다.
+function lanceStep(scene, e, player, time) {
+  const c = CFG.foes.lance;
+  e.body.velocity.x = 0;
+  const beat = c.beatMs * (e.fierce ? CFG.foes.fierce.beat : 1);
+  if (!e.beatAt) e.beatAt = time + beat;
+  if (time < e.beatAt) return;
+  e.beatAt = time + beat;
+  scene.fireLance(e);
+}
+
+// ── 전류를 뿜는 놈 ───────────────────────────────────────
+//
+// **제 층은 안전합니다.** 위층과 아래층만 후립니다. 그래서 이놈을 피하는
+// 가장 안전한 자리가 이놈 옆입니다.
+function zapStep(scene, e, player, time) {
+  const c = CFG.foes.zap;
+  e.body.velocity.x = 0;
+  const beat = c.beatMs * (e.fierce ? CFG.foes.fierce.beat : 1);
+  if (!e.beatAt) e.beatAt = time + beat;
+  if (time < e.beatAt) return;
+  e.beatAt = time + beat;
+  scene.fireZap(e);
 }
 
 function fireEnemyShot(scene, enemy, angle) {
