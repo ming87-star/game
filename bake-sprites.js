@@ -43,10 +43,13 @@ const QUALITY = 0.92; // 32px 까지 줄이고 나면 화질이 아까우므로 
 // 그리라고 했는데 모델이 그 위에 드워프 전사를 그려 넣었습니다 (ART.md 11절).
 // 그리고 주인공 셋과 보스 다섯은 손대지 않기로 한 것들입니다.
 const WANT = [
-  // 적 열넷 + 박쥐 둘 — 게임에 나오는 적 전부입니다
+  // 적 열여덟 + 박쥐 둘 — 게임에 나오는 적 전부입니다.
+  // 아직 안 그린 것도 여기 적어 둡니다. 그래야 굽고 나서 「아직 없는 그림」에
+  // 이름이 뜨고, 그린 날 파일만 넣으면 저절로 붙습니다.
   'e-coinbug', 'e-crawler', 'e-hopper', 'e-goldfrog', 'e-flyer', 'e-brute',
   'e-charger', 'e-dasher', 'e-bomber', 'e-giant', 'e-splitter', 'e-shooter',
   'e-diver', 'e-ghost',
+  'e-shover', 'e-slammer', 'e-lancer', 'e-zapper',
   'bat-thief', 'bat-biter',
   // 발판 위에 놓이는 것 스무 장. 가짜는 진짜와 **짝을 이뤄야** 합니다 —
   // 하나만 갈아 끼우면 다가가기 전과 뒤의 그림체가 달라져서 미리 들킵니다.

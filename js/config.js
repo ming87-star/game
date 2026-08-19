@@ -1279,7 +1279,7 @@ const CFG = {
     // 「아이템이 어디 있나 · 가짜는 어디 있나」뿐이었습니다. 몰려오는 적을
     // 버티든 기다리든 정면으로 뚫든 값이 거의 같아서, 많아도 무섭지가
     // 않았습니다. 이 넷은 그 넷 중 하나씩을 못 하게 만듭니다.
-    { key: 'charger',  name: '돌진병',   from: 200, hp: 1.6, speed: 1.00, dmg: 16, coin: 9,  scale: 1.05, ground: true,  move: 'charge', w0: 2.0 },
+    { key: 'charger',  name: '뚫는 것',  from: 200, hp: 1.6, speed: 1.00, dmg: 16, coin: 9,  scale: 1.05, ground: true,  move: 'charge', w0: 2.0 },
     { key: 'shover',   name: '미는 놈',   from: 225, hp: 1.6, speed: 0.95, dmg: 6,  coin: 11, scale: 1.1,  ground: true,  move: 'shove',  w0: 1.6 },
     { key: 'dasher',   name: '빠른 놈',   from: 250, hp: 0.7, speed: 2.20, dmg: 10, coin: 6,  scale: 0.9,  ground: true,  move: 'chase',  w0: 1.8 },
     { key: 'bomber',   name: '폭탄충',   from: 300, hp: 0.9, speed: 1.05, dmg: 9,  coin: 8,  scale: 1.0,  ground: false, move: 'chase',  w0: 1.7, onDeath: 'explode' },

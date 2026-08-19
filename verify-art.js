@@ -22,9 +22,12 @@ const server = http.createServer((req, res) => {
 const SCALE = 405 / 540;
 const at = (gx, gy) => [gx * SCALE, gy * SCALE];
 
-// 판을 바꾸는 넷 — 도형으로 먼저 돌려 보고 손에 붙는 것을 확인한 뒤에
-// 그립니다. 그릴 것을 그린 날 이 줄을 비우면 위 검사가 저절로 넷을 봅니다.
-const PENDING = ['e-shover', 'e-slammer', 'e-lancer', 'e-zapper'];
+// 아직 안 그린 것들. 그린 날 여기서 지우면 위 검사가 저절로 그 놈을 봅니다.
+//
+// 미는 놈은 빠졌습니다 — 돌진병이 쓰던 방패 그림을 물려받았습니다. 대신
+// **뚫는 것(e-charger)** 이 들어왔습니다. 그 그림을 넘겨줬으니 코가 드릴인
+// 모습으로 다시 그려야 하고, 그때까지는 도형이 섭니다.
+const PENDING = ['e-charger', 'e-slammer', 'e-lancer', 'e-zapper'];
 
 let bad = 0;
 const check = (ok, label, got) => {
@@ -100,8 +103,11 @@ const check = (ok, label, got) => {
     return {
       // 손그림 SVG (art/*.svg) 와 래스터 스프라이트 (assets/*.png) 를 섞어 봅니다.
       // 둘 다 게임에서는 똑같이 '그림'이어야 합니다.
+      // e-charger 가 여기 있었습니다. 그 그림은 **미는 놈**(e-shover)에게
+      // 넘겼습니다 — 방패를 앞세운 자세가 때리는 놈이 아니라 미는 놈의
+      // 자세였습니다. 뚫는 것은 코가 드릴인 모습으로 다시 그리는 중입니다.
       art: ['player-warrior', 'e-crawler', 'e-flyer', 'wall', 'plat',
-        'e-dasher', 'e-ghost', 'e-charger', 'bat-thief', 'bat-biter',
+        'e-dasher', 'e-ghost', 'e-shover', 'bat-thief', 'bat-biter',
         // 마지막 둘 — 코인벌레와 황금개구리. 여기까지 오면 **적은 다 그림**입니다.
         'e-coinbug', 'e-goldfrog'].map((k) => k + '=' + kindOf(k)),
       // 아직 안 그린 것은 도형이 맡고 있어야 합니다 — 빈칸이면 안 됩니다.

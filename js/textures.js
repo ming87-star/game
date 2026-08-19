@@ -189,17 +189,28 @@ function buildTextures(scene) {
   g.fillCircle(17, 20, 3); // 배에 얹힌 금빛
   bake('e-goldfrog', 34, 32);
 
-  // 돌진병 — 앞으로 내민 방패
+  // 뚫는 것 — 코가 드릴입니다.
+  //
+  // 앞으로 내민 방패였습니다. 그 그림(assets/e-charger.png)은 **미는 놈**에게
+  // 넘겼습니다 — 방패를 앞세우고 버틴 자세는 때리는 놈이 아니라 미는 놈의
+  // 자세였고, 마침 미는 놈에게 그림이 없었습니다.
+  //
+  // 이놈은 노려보다 가로로 내닫는 놈이라 **뚫는 쪽**이 맞습니다. 그래서
+  // 실루엣의 왼쪽 절반을 원뿔 하나가 차지합니다 — 32px 에서 알아볼 수
+  // 있으려면 뾰족한 것 하나가 크게 앞으로 나와 있어야 합니다.
+  // **오른쪽을 봅니다.** 판에서는 e.setFlipX(dir < 0) 로 뒤집으므로, 안 뒤집은
+  // 모습이 곧 오른쪽으로 가는 모습입니다 — 코를 왼쪽에 두면 내달릴 때 드릴이
+  // 뒤를 향합니다.
   g.clear();
   g.fillStyle(0x795548, 1);
-  g.fillRoundedRect(8, 6, 24, 26, 6);
-  g.fillStyle(0xa1887f, 1);
-  g.fillRoundedRect(0, 2, 10, 34, 3); // 방패
-  g.fillStyle(0xffe082, 1);
-  g.fillCircle(5, 19, 3);
+  g.fillRoundedRect(2, 6, 22, 26, 6);     // 몸
+  g.fillStyle(0xbcaaa4, 1);
+  g.fillTriangle(24, 8, 24, 30, 36, 19);  // 코 — 앞으로 뻗은 드릴
+  g.fillStyle(0x8d6e63, 1);
+  g.fillTriangle(25, 12, 25, 26, 32, 19); // 나선 한 골
   g.fillStyle(0xff8a80, 1);
-  g.fillCircle(20, 16, 4);
-  g.fillCircle(28, 16, 4);
+  g.fillCircle(9, 15, 4);
+  g.fillCircle(17, 15, 4);
   bake('e-charger', 36, 38);
 
   // 폭탄충 — 도화선이 달린 둥근 몸

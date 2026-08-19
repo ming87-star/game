@@ -113,9 +113,34 @@ const SUBJECTS = [
   { name: 'e-brute', group: 'enemy', anchor: 'bottom', w: 32, h: 34,
     what: 'A heavy brown armoured brute, hunched and thick, stone pauldrons, tiny sunken head '
         + 'between the shoulders, heavy fists hanging low, stubby legs. Brown #8D6E63.' },
+  // 방패를 앞세운 그림은 **미는 놈**의 것이 됐습니다 (아래 e-shover).
+  // 이놈은 노려보다 가로로 내닫는 놈이라 뚫는 쪽으로 다시 그립니다.
   { name: 'e-charger', group: 'enemy', anchor: 'bottom', w: 36, h: 38,
+    what: 'A brown armoured burrowing monster whose NOSE IS A BIG CONE DRILL thrust forward — '
+        + 'the drill is the danger and must dominate the silhouette, taking up the front half '
+        + 'of the body. Visible spiral grooves on the cone. Small braced legs, tiny angry eyes '
+        + 'set back behind the drill. Brown #795548 body, pale steel #BCAAA4 drill.' },
+  // ── 판을 바꾸는 넷 ─────────────────────────────────
+  // 앞의 것들은 닿으면 아픈 것이 전부지만 이 넷은 층을 빼앗고 발판을 부수고
+  // 박자로 때립니다. 처음 만날 때 판을 멈추고 이 그림을 크게 한 번 보여 주므로
+  // (js/scene-foe.js), **무엇을 하는 놈인지가 실루엣에 보여야** 합니다.
+  { name: 'e-shover', group: 'enemy', anchor: 'bottom', w: 36, h: 38,
     what: 'A brown charging soldier monster holding a big shield thrust forward — the shield is '
         + 'the danger and must dominate the silhouette. Braced stance. Brown #795548.' },
+  { name: 'e-slammer', group: 'enemy', w: 38, h: 40,
+    what: 'A steel-grey monster shaped like a falling WEDGE, heavy and pointed downward — the '
+        + 'weight must sit at the bottom so it reads as something about to drop. Short stubby '
+        + 'fins near the top, no legs. Steel #78909C, and only the bottom point glowing red '
+        + '#EF5350.' },
+  { name: 'e-lancer', group: 'enemy', anchor: 'bottom', w: 44, h: 30,
+    what: 'A dark red monster with a LONG HORIZONTAL body, wider than it is tall, lying sideways '
+        + 'like a cannon — it must never read as upright. One long horizontal glowing red slit '
+        + 'across the middle of the body, like a firing port. Dark red #B71C1C body, slit '
+        + '#FF5252.' },
+  { name: 'e-zapper', group: 'enemy', anchor: 'bottom', w: 36, h: 40,
+    what: 'A purple round-bodied monster with ONE PAIR OF HORNS REACHING UP AND DOWN — up above '
+        + 'the head and down below the body, never sideways. Only the tips of the horns glow. '
+        + 'Purple #7E57C2 body, glowing tips bright violet #D05CE3.' },
   { name: 'e-dasher', group: 'enemy', anchor: 'bottom', w: 32, h: 30,
     what: 'A yellow very fast monster, body swept sharply forward, low and streamlined, '
         + 'thin trailing wisps behind it. Yellow #FFCA28.' },
@@ -753,6 +778,23 @@ async function keyOut(oven, png, subject) {
 }
 
 (async () => {
+  // ── --prompt — 열쇠 없이 주문서만 봅니다 ────────────────
+  // 그림은 열쇠가 있는 자리에서 뽑지만, **무엇을 시킬지는 여기 적혀 있습니다.**
+  // 열쇠가 없는 자리에서도 이 글을 꺼내 다른 도구에 그대로 붙일 수 있어야
+  // 합니다 (gen-story.js 와 같은 규칙).
+  if (process.argv.includes('--prompt')) {
+    const pick = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+    const list = !pick.length ? SUBJECTS
+      : SUBJECTS.filter((x) => pick.includes(x.name) || pick.includes(x.group));
+    list.forEach((x) => {
+      console.log('── ' + x.name + '  ' + x.w + '×' + x.h +
+        ' (그림은 ' + (x.w * (x.scale || BAKE_SCALE)) + '×' +
+        (x.h * (x.scale || BAKE_SCALE)) + ' 로 받습니다)');
+      console.log(promptFor(x));
+      console.log();
+    });
+    return;
+  }
   if (!KEY) { console.error('GEMINI_API_KEY 가 없습니다'); process.exit(1); }
   fs.mkdirSync(RAW, { recursive: true });
   fs.mkdirSync(OUT, { recursive: true });

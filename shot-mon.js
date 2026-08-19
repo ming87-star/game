@@ -19,6 +19,10 @@ const server=http.createServer((req,res)=>{
    bestFloor:0,deaths:0,runs:0,bestCoins:0,medals:0,weapons:{},boosts:{},
    relics:{},unlocked:{archer:true,rogue:true},lastJob:'warrior',sawStory:true})));
  await page.reload({waitUntil:'networkidle'});
+ // 켜면 타이틀 화면이 먼저 섭니다 (js/scene-title.js). 사람처럼 한 번 지납니다 —
+ // 안 지나면 아래가 전부 타이틀 화면 위에서 헛돕니다.
+ await page.waitForFunction(()=>window.__title&&window.__title.ready,null,{timeout:8000});
+ await page.evaluate(()=>window.__title.go());
  await page.waitForTimeout(900);
  await page.mouse.click(270,278); await page.waitForTimeout(500);
  const st=await page.evaluate(()=>window.__medal.startAt);
@@ -37,7 +41,9 @@ const server=http.createServer((req,res)=>{
    s.player.setVisible(false);
    const cam=s.cameras.main;
    // 적 표의 열셋 + 황금개구리 + 박쥐 둘을 두 줄로 세웁니다.
-   const keys=CFG.enemyTypes.map(t=>['e-'+t.key,t.scale,t.name])
+   const seen=new Set();
+   const keys=CFG.enemyTypes.filter(t=>!seen.has(t.key)&&seen.add(t.key))
+     .map(t=>['e-'+t.key,t.scale,t.name])
      .concat([['e-goldfrog',1,'황금개구리'],['bat-thief',1,'좀도둑'],['bat-biter',1,'무는 박쥐']]);
    const x0=cam.scrollX+46, y0=cam.scrollY+300;
    const out=[];
@@ -52,7 +58,7 @@ const server=http.createServer((req,res)=>{
  });
  console.log(info.join(' · '));
  await page.waitForTimeout(400);
- await page.screenshot({path:'/tmp/claude-0/-home-user-CRETEC-test/589e2d63-5001-53ca-91ea-464e907f5b5a/scratchpad/mon-ingame.png',
+ await page.screenshot({path:'shots/mon-ingame.png',
    clip:{x:0,y:250,width:540,height:330}});
  console.log(errs.length?'오류: '+errs.slice(0,3).join(' | '):'오류 없음');
  await br.close(); server.close();
