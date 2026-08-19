@@ -108,7 +108,7 @@ function spawnEnemy(scene, x, y, floor, typeKey) {
   // 체력과 피해가 오르고 박자가 빨라집니다. 색이 달라야 같은 놈이 아니라는
   // 것이 보입니다 — 두 배 아픈데 생김새가 똑같으면 그건 고장으로 읽힙니다.
   const F = CFG.foes && CFG.foes.fierce;
-  if (F && floor >= F.from && ['shove', 'slam', 'lance', 'zap'].indexOf(def.move) >= 0) {
+  if (F && floor >= F.from && isFoeType(def)) {
     e.fierce = true;
     e.maxHp = Math.round(e.maxHp * F.hp);
     e.hp = e.maxHp;

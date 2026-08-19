@@ -290,10 +290,19 @@ function typeWeight(def, index) {
 }
 
 // 그 층에 나올 수 있는 적 종류 중 하나를 비중에 따라 고릅니다.
-function pickEnemyType(index) {
+//
+// noFoe 를 주면 **판을 바꾸는 넷을 빼고** 고릅니다 — 한 발판에 하나까지라는
+// 규칙 때문입니다(CFG.foes.perSlot). 뺐더니 후보가 하나도 안 남으면 null 을
+// 돌려주고, 부르는 쪽이 그 자리를 비웁니다. 이미 물러난 종류를 되살려서
+// 채우지는 않습니다.
+function pickEnemyType(index, noFoe) {
   // 비중이 0인 것은 아예 후보에서 뺍니다. 남겨 두면 아래 마지막 줄의
   // 안전장치가 이미 물러난 종류를 집어 올릴 수 있습니다.
-  const pool = CFG.enemyTypes.filter((t) => typeWeight(t, index) > 0);
+  let pool = CFG.enemyTypes.filter((t) => typeWeight(t, index) > 0);
+  if (noFoe) {
+    pool = pool.filter((t) => !isFoeType(t));
+    if (!pool.length) return null;      // 위층 — 자리를 비웁니다
+  }
   if (!pool.length) return CFG.enemyTypes[0].key;
   const weights = pool.map((t) => typeWeight(t, index));
   const total = weights.reduce((a, b) => a + b, 0);
@@ -304,6 +313,21 @@ function pickEnemyType(index) {
     if (r <= 0) return pool[i].key;
   }
   return pool[pool.length - 1].key;
+}
+
+// 판을 바꾸는 넷인가. 두 곳이 같은 것을 묻습니다 — 여기(한 발판에 하나)와
+// spawnEnemy(사나워지는 판). 자가 둘이면 언젠가 어긋나므로 하나만 둡니다.
+// 열쇠 목록이 아니라 **움직임**으로 가립니다(CFG.foes.moves): 목록에는 두
+// 바퀴째 칸이 같은 열쇠로 한 번 더 들어 있어서 열쇠로 세면 헷갈립니다.
+function isFoeType(def) {
+  const m = CFG.foes && CFG.foes.moves;
+  return !!(m && def && m.indexOf(def.move) >= 0);
+}
+
+// 열쇠로 그 종류의 칸을 찾습니다. enemies.js 의 enemyDef 와 같은 일을 하지만,
+// tower.js 는 그리기와 떨어져 있어야 하므로 여기 하나 둡니다.
+function enemyDefOf(key) {
+  return CFG.enemyTypes.find((t) => t.key === key);
 }
 
 function blankSlot(index, lane, kind) {
@@ -331,8 +355,19 @@ function makeSlot(index, lane, need, usesArmor) {
   }
 
   if (slot.kind === SLOT.ENEMY) {
-    slot.enemyCount = enemyCountFor(index);
-    for (let i = 0; i < slot.enemyCount; i++) slot.enemyTypes.push(pickEnemyType(index));
+    // **판을 바꾸는 놈은 한 발판에 하나까지.** 이미 하나 섰으면 다음부터는
+    // 그놈들을 빼고 고릅니다. 뺄 것이 없으면(1425층 위) 그 자리는 빕니다.
+    const cap = (CFG.foes && CFG.foes.perSlot) || 1;
+    let foes = 0;
+    for (let i = 0, want = enemyCountFor(index); i < want; i++) {
+      const key = pickEnemyType(index, foes >= cap);
+      if (!key) continue;                       // 자리를 비웁니다
+      if (isFoeType(enemyDefOf(key))) foes++;
+      slot.enemyTypes.push(key);
+    }
+    // 발판 위의 「⚠ N」은 **실제로 선 마릿수**여야 합니다. 뽑으려던 수를
+    // 그대로 두면 비운 자리만큼 경고가 거짓말을 합니다 (scene-game.js).
+    slot.enemyCount = slot.enemyTypes.length;
   }
   return slot;
 }

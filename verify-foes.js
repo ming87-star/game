@@ -28,6 +28,8 @@ const server = http.createServer((req, res) => {
   });
 });
 
+const LANES_N = 3;   // 줄 셋 (왼쪽·가운데·오른쪽)
+
 let bad = 0;
 const check = (ok, label, got) => {
   if (!ok) bad++;
@@ -105,6 +107,43 @@ const check = (ok, label, got) => {
     .every((n) => again.top.indexOf(n) >= 0),
     '끝판(1900층)은 **넷만** 돕니다', again.top.join(' · '));
   check(again.same, '두 바퀴째 칸은 첫 칸과 같은 값 (세지는 것은 spawnEnemy 가 얹음)');
+
+  // ── 0-2-2. 한 발판에 하나까지 ───────────────────────────
+  // 이 넷은 하나하나가 판단을 요구합니다. 둘이 겹치면 곱해지는 것이 아니라
+  // 아예 셀 수가 없어집니다. 층을 여럿 만들어 보고 **가장 많을 때**를 봅니다.
+  const perSlot = await page.evaluate(() => {
+    const cap = CFG.foes.perSlot;
+    const out = [];
+    [250, 650, 850, 1100, 1500, 1900].forEach((f) => {
+      let most = 0, mostFloor = 0, slots = 0, want = 0, got = 0;
+      for (let i = 0; i < 300; i++) {
+        const floor = makeFloor(f + (i % 40));
+        let inFloor = 0;
+        LANES.forEach((l) => {
+          const sl = floor.slots[l];
+          if (!sl || sl.kind !== 'enemy') return;
+          slots++; want += enemyCountFor(sl.index); got += sl.enemyTypes.length;
+          const n = sl.enemyTypes.filter((k) => isFoeType(enemyDefOf(k))).length;
+          most = Math.max(most, n);
+          inFloor += n;
+          // 「⚠ N」이 실제로 선 마릿수와 같아야 합니다
+          if (sl.enemyCount !== sl.enemyTypes.length) most = 99;
+        });
+        mostFloor = Math.max(mostFloor, inFloor);
+      }
+      out.push({ f, most, mostFloor, cap,
+        want: +(want / slots).toFixed(2), got: +(got / slots).toFixed(2) });
+    });
+    return out;
+  });
+  check(perSlot.every((r) => r.most <= r.cap),
+    '한 발판에 판을 바꾸는 놈은 ' + perSlot[0].cap + '까지 (300층씩 여섯 자리)',
+    perSlot.map((r) => r.f + '층 ' + r.most).join(' · '));
+  check(perSlot.every((r) => r.mostFloor <= LANES_N * perSlot[0].cap),
+    '한 층에는 줄마다 하나까지 — 넘어서는 일이 없음',
+    perSlot.map((r) => r.f + '층 ' + r.mostFloor).join(' · '));
+  console.log('      한 발판 마릿수 (뽑으려던 → 선): ' +
+    perSlot.map((r) => r.f + '층 ' + r.want + '→' + r.got).join(' · '));
 
   // ── 0-3. 1000층을 넘으면 정말로 사나워지는가 ────────────
   const fierce = await page.evaluate(() => {
