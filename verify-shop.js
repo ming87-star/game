@@ -53,42 +53,97 @@ const check = (ok, label, got) => {
   await page.waitForFunction(() => window.__scene && window.__scene.player, null, { timeout: 8000 });
   await page.waitForTimeout(900);
 
-  // ── 1. 천리안 ───────────────────────────────────────────
+  // ── 1. 천리안 — 줄마다 하나씩, 화면에 이미 들어온 것은 뺌 ──
   const far = await page.evaluate(() => {
     const s = window.__scene;
-    s.floorIndex = 120;
+    s.floorIndex = 120; s.lane = 'mid';
     for (let i = 117; i <= 130; i++) s.addFloor(i);
-    const at = s.nextItemAhead();
-    // **아직 안 만든 층은 안 봅니다.** 거기서 굴려 보면 그때 나온 것과 실제로
-    // 갈 때 나오는 것이 달라져서, 미리 보여 준 것이 거짓말이 됩니다.
-    const madeUpTo = Math.max(...[...s.floors.keys()]);
-    // 미믹은 **겉모습 그대로** — 정체를 까면 함정이 통째로 죽습니다.
-    // 우연히 하나 놓이기를 기다리면 시험이 헛돌므로 **직접 심습니다.**
-    let liar = 0, mimics = 0;
+    // 앞으로 남은 열넷 칸을 줄마다 하나씩 심어서, 「줄마다 가장 가까운 것
+    // 하나」가 실제로 지켜지는지 봅니다 (같은 줄에 둘을 심으면 가까운 쪽만
+    // 나와야 합니다).
+    // 층에 따라 길이 둘로 좁아지기도 합니다(가운데는 늘 있지만 좌우는
+    // 아닙니다). **셋 다 있어야 재기가 됩니다** — blankSlot 으로 없는 자리를
+    // 채워 넣습니다.
     for (let i = s.floorIndex + 1; i <= s.floorIndex + 7; i++) {
       const f = s.floors.get(i);
       if (!f) continue;
-      LANES.forEach((l) => { if (f.slots[l]) f.slots[l].kind = 'empty'; });
+      LANES.forEach((l) => { f.slots[l] = blankSlot(i, l, 'empty'); });
     }
-    const plant = s.floors.get(s.floorIndex + 2);
-    const lane = LANES.find((l) => plant.slots[l]);
-    plant.slots[lane].kind = 'mimic';
-    plant.slots[lane].disguise = 'heal';
-    mimics = 1;
-    const seen = s.nextItemAhead();
-    if (!seen || seen.up !== 2 || seen.lane !== lane || seen.kind !== 'heal') liar = 1;
-    const shown = seen && seen.kind;
-    return { at, madeUpTo, ahead: madeUpTo - s.floorIndex, liar, mimics, shown,
-      hud: (s.farsight = true, s.hud.update(), s.hud.farText.text) };
+    const put = (up, lane, kind, disguise) => {
+      const f = s.floors.get(s.floorIndex + up);
+      f.slots[lane].kind = kind;
+      if (disguise) f.slots[lane].disguise = disguise;
+    };
+    put(2, 'left', 'plus');
+    put(5, 'left', 'heal');   // left 는 2층 위 것만 잡혀야 합니다 (더 가까움)
+    put(3, 'mid', 'mimic', 'heal'); // 미믹은 겉모습(heal)으로 나와야 합니다
+    put(2, 'right', 'plus');  // 뒤가 없는 하나 — 화면에 들어오면 그냥 사라져야 합니다
+
+    const at = s.nextItemsByLane();
+
+    // **아직 안 만든 층은 안 봅니다.** 거기서 굴려 보면 그때 나온 것과 실제로
+    // 갈 때 나오는 것이 달라져서, 미리 보여 준 것이 거짓말이 됩니다.
+    const madeUpTo = Math.max(...[...s.floors.keys()]);
+
+    // **화면에 이미 들어온 것은 뺍니다.** 카메라를 그 칸이 보이는 자리까지
+    // 바짝 올려 두고 다시 물어봅니다.
+    //   right (뒤가 없음)  → null 이 되어야 합니다
+    //   left  (뒤에 5층 위 것이 하나 더 있음) → 다음 것(5층 위)으로 넘어가야
+    //         합니다. 진짜 표식이라면 하나가 화면에 들어왔다고 줄 전체가
+    //         꺼지면 안 되고, 다음으로 가까운 것을 이어서 알려야 합니다.
+    s.cameras.main.setScroll(0, s.floors.get(s.floorIndex + 2).slots.left.y - 200);
+    const nearCam = s.nextItemsByLane();
+
+    return {
+      leftUp: at.left && at.left.up, leftKind: at.left && at.left.kind,
+      midUp: at.mid && at.mid.up, midKind: at.mid && at.mid.kind,
+      right: at.right,
+      madeUpTo, ahead: madeUpTo - s.floorIndex,
+      nearRight: nearCam.right,
+      nearLeft: nearCam.left,
+    };
   });
-  check(!!far.at, '천리안이 다음 아이템 하나를 찾음',
-    far.at ? far.at.up + '층 위 ' + far.at.lane + ' · ' + far.at.label : '못 찾음');
-  check(far.at && far.at.up <= far.ahead,
+  check(far.leftUp === 2 && far.leftKind === 'plus',
+    '줄마다 **가장 가까운 것 하나만** — 2층·5층에 둘을 심으면 2층 것만 나옴',
+    'left ' + far.leftUp + '층 위 · ' + far.leftKind);
+  check(far.midKind === 'heal',
+    '미믹은 **겉모습 그대로** — 천리안도 지도와 똑같이 속습니다',
+    '「회복」인 척한 미믹을 심었더니 ' + far.midKind + ' 으로 보임');
+
+  check(far.leftUp <= far.ahead,
     '아직 안 만든 층은 안 봄 (미리 보여 준 것이 거짓말이 되면 안 됩니다)',
     '만들어 둔 데까지 ' + far.ahead + '층 위');
-  check(far.liar === 0, '미믹은 **겉모습 그대로** — 천리안도 지도와 똑같이 속습니다',
-    '「회복」인 척한 미믹을 심었더니 ' + far.shown + ' 으로 보임');
-  check(/천리안/.test(far.hud), 'HUD 에 한 줄로 뜸', far.hud);
+  check(!far.nearRight,
+    '화면에 실제로 들어온 것은 표에서 빠짐 (뒤가 없으면 그냥 사라짐)');
+  check(far.nearLeft && far.nearLeft.kind === 'heal' && far.nearLeft.up > far.leftUp,
+    '가까운 것이 화면에 들어오면 **다음으로 가까운 것**을 이어서 알려 줌',
+    far.leftUp + '층 위(plus) → ' + (far.nearLeft && far.nearLeft.up) + '층 위(' +
+    (far.nearLeft && far.nearLeft.kind) + ')');
+
+  // ── 1-2. HUD 의 줄 표식 ──────────────────────────────────
+  const beacon = await page.evaluate(() => {
+    const s = window.__scene;
+    // 앞선 시험이 right 줄에 심어 둔 것을 치웁니다 — 여기서는 「아무것도
+    // 없는 줄」로 다시 씁니다.
+    s.floors.get(s.floorIndex + 2).slots.right.kind = 'empty';
+    s.cameras.main.setScroll(0, s.player.y - CFG.height * 0.68); // 되돌립니다
+    s.farsight = true; s.bossFight = false;
+    s.hud.update();
+    const shown = s.hud.farIcons.map((b) => b.ring.visible);
+    s.farsight = false;
+    s.hud.update();
+    const hiddenAfterOff = s.hud.farIcons.every((b) => !b.ring.visible);
+    s.farsight = true; s.bossFight = true;   // 투기장에서는 접힘
+    s.hud.update();
+    const hiddenInBoss = s.hud.farIcons.every((b) => !b.ring.visible);
+    s.bossFight = false;
+    return { shown, hiddenAfterOff, hiddenInBoss };
+  });
+  check(beacon.shown[0] && beacon.shown[1] && !beacon.shown[2],
+    'HUD 표식이 줄마다 따로 뜸 (왼쪽·가운데 있음 · 오른쪽 없음)',
+    beacon.shown.join(' · '));
+  check(beacon.hiddenAfterOff, '천리안을 안 샀으면 표식이 다 접힘');
+  check(beacon.hiddenInBoss, '투기장에서는 접힘 (줄도 아이템도 없는 자리라서)');
 
   // ── 2. 막는 것 ──────────────────────────────────────────
   const ward = await page.evaluate(() => {

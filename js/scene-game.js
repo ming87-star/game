@@ -939,27 +939,35 @@ class GameScene extends Phaser.Scene {
   }
 
   // ── 천리안 ────────────────────────────────────────────
-  // **화면 밖에 놓인 다음 아이템 하나**를 찾습니다. 몇 층 위, 어느 줄인지.
+  // **줄마다** 화면 밖에 놓인 다음 아이템 하나를 찾습니다.
   //
   // 이미 만들어 둔 층만 봅니다 (floorIndex+7 까지). 아직 안 만든 층을 여기서
   // 굴려 보면 **그때 나온 것과 실제로 갈 때 나오는 것이 달라집니다** — 미리
   // 보여 준 것이 거짓말이 되는데, 그건 안 보여 주는 것보다 나쁩니다.
   //
+  // **화면에 이미 들어온 것은 뺍니다.** 그 물건은 발판 위에서 스스로 보이므로,
+  // 표식이 남아 있으면 같은 것을 두 번 알려 주는 꼴입니다. HUD 띠(140px) 아래가
+  // 실제로 보이는 자리라, 그 위로 스크롤이 넘어온 것만 「아직 안 보이는 것」입니다.
+  //
   // 미믹은 **겉모습 그대로** 알려 줍니다. 정체를 까면 함정이 통째로 죽습니다 —
   // 천리안도 지도와 똑같이 속습니다. 가까이 가야 드러나는 것은 그대로입니다.
-  nextItemAhead() {
+  nextItemsByLane() {
+    const out = { left: null, mid: null, right: null };
+    const visibleTop = this.cameras.main.scrollY + 140;
     for (let i = this.floorIndex + 1; i <= this.floorIndex + 7; i++) {
       const floor = this.floors.get(i);
       if (!floor) continue;
       for (const lane of LANES) {
+        if (out[lane]) continue; // 이미 그 줄에서 가장 가까운 것을 찾았습니다
         const slot = floor.slots[lane];
         if (!slot || slot.taken) continue;
         const kind = slot.kind === SLOT.MIMIC ? slot.disguise : slot.kind;
         if (!kind || !SLOT_MARK[kind]) continue;
-        return { up: i - this.floorIndex, lane, kind, label: SLOT_MARK[kind].label };
+        if (slot.y >= visibleTop) continue; // 이미 화면에 들어왔습니다
+        out[lane] = { up: i - this.floorIndex, lane, kind, label: SLOT_MARK[kind].label };
       }
     }
-    return null;
+    return out;
   }
 
   // ── 보스 ──────────────────────────────────────────────

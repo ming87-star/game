@@ -54,17 +54,37 @@ class Hud {
     // 오른쪽 끝에 맞춰 제 줄에 세우면 왼쪽이 얼마나 길어져도 부딪히지 않습니다.
     this.floorText = fixed(scene.add.text(CFG.width - 24, 14, '', font(30, '#ffffff')).setOrigin(1, 0));
     this.coinText = fixed(scene.add.text(CFG.width - 24, 52, '', font(24, '#ffd54f')).setOrigin(1, 0));
-    // ── 천리안 · 막는 것 ────────────────────────────────
-    // 둘 다 **코인을 주고 산 물건**이라 화면에 남아 있어야 합니다. 천리안은
-    // 알려 주는 것이 전부이고, 막는 것은 남은 횟수를 모르면 「지금 쓸까
-    // 아껴 둘까」를 셀 수가 없습니다.
-    this.farText = fixed(scene.add.text(CFG.width - 24, 84, '', font(17, '#80deea'))
-      .setOrigin(1, 0));
-    this.wardText = fixed(scene.add.text(CFG.width - 24, 106, '', font(17, '#a5d6a7'))
+    // ── 막는 것 ─────────────────────────────────────────
+    // **코인을 주고 산 물건**이라 화면에 남아 있어야 합니다. 남은 횟수를
+    // 모르면 「지금 쓸까 아껴 둘까」를 셀 수가 없습니다.
+    this.wardText = fixed(scene.add.text(CFG.width - 24, 134, '', font(17, '#a5d6a7'))
       .setOrigin(1, 0));
     // 0일 때는 자리를 비웁니다 — 아직 하나도 없는 첫 판에 설명 없는 기호가
     // 떠 있으면 그냥 노이즈입니다.
     this.medalText = fixed(scene.add.text(CFG.width - 24, 84, '', font(20, '#ffca28')).setOrigin(1, 0));
+
+    // ── 천리안 — 줄마다 곧 나올 아이템을 그 줄 자리에 ─────
+    // 화면 위쪽 글자 한 줄로 적었더니 "어느 줄이 왼쪽 오른쪽인지"를 다시
+    // 글로 읽어야 했습니다. 그 물건이 **실제로 있을 줄, 화면 맨 위**에 작은
+    // 표를 놓으면 읽지 않아도 몸이 압니다 — 저 표 아래로 올라가면 됩니다.
+    //
+    // HUD 띠(140px) 바로 아래, 줄마다 하나씩 CFG.laneX 자리에 둡니다. 그
+    // 물건이 화면에 실제로 들어오면(scene.nextItemsByLane 이 걸러 줍니다)
+    // 자리를 비웁니다 — 진짜 물건이 보이는데 표까지 남으면 같은 것을 두 번
+    // 알리는 꼴입니다.
+    this.farIcons = LANES.map((lane) => {
+      const x = CFG.laneX[lane];
+      const y = 172;
+      const ring = fixed(scene.add.circle(x, y, 18, 0x0d1120, 0.75)
+        .setStrokeStyle(2, 0x80deea, 0.85)).setDepth(102).setVisible(false);
+      const icon = fixed(scene.add.image(x, y, 'w-unknown').setDisplaySize(24, 24))
+        .setDepth(103).setVisible(false);
+      const label = fixed(scene.add.text(x, y, '', font(15, '#0d1120')).setOrigin(0.5))
+        .setDepth(103).setVisible(false);
+      const num = fixed(scene.add.text(x, y + 24, '', font(12, '#80deea')).setOrigin(0.5))
+        .setDepth(102).setVisible(false);
+      return { lane, ring, icon, label, num, shown: null };
+    });
 
     // 들고 있는 무기. 이름만 적어 두면 열두 자루가 전부 같은 글자 덩어리로 보여서,
     // 방금 UP을 밟아 무엇이 바뀌었는지가 눈에 안 들어옵니다. 그림이 있어야
@@ -225,16 +245,37 @@ class Hud {
     const w = s.weapon;
     const L = this.last;
 
-    // 천리안 — 화면 밖 다음 아이템 하나. **오르면 매번 바뀝니다.**
-    if (s.farsight) {
-      const at = s.nextItemAhead && s.nextItemAhead();
-      const lane = at && { left: '왼쪽', mid: '가운데', right: '오른쪽' }[at.lane];
-      const t = at ? '천리안  ' + at.up + '층 위 ' + lane + ' · ' + at.label : '천리안  ―';
-      if (t !== L.far) { L.far = t; this.farText.setText(t); }
-    } else if (L.far !== '') { L.far = ''; this.farText.setText(''); }
+    // 천리안 — 줄마다 곧 나올 아이템을 그 줄 자리에 세워 둡니다.
+    // 투기장 안에는 줄도 아이템도 없으니 보스전 동안은 접습니다.
+    const byLane = s.farsight && !s.bossFight && s.nextItemsByLane
+      ? s.nextItemsByLane() : null;
+    this.farIcons.forEach((b) => {
+      const at = byLane && byLane[b.lane];
+      const key = at ? at.up + at.kind : null;
+      if (key === b.shown) return;      // 안 바뀌었으면 손 안 댑니다
+      b.shown = key;
+      if (!at) {
+        b.ring.setVisible(false); b.icon.setVisible(false);
+        b.label.setVisible(false); b.num.setVisible(false);
+        return;
+      }
+      const mark = SLOT_MARK[at.kind];
+      const artKey = slotArtKey(at.kind, s.job.key);
+      if (artKey && this.scene.textures.exists(artKey)) {
+        b.icon.setTexture(artKey).setVisible(true);
+        b.label.setVisible(false);
+      } else {
+        b.icon.setVisible(false);
+        b.label.setText(mark.label).setColor(mark.text).setVisible(true);
+      }
+      b.ring.setFillStyle(0x0d1120, 0.75).setStrokeStyle(2, mark.color, 0.9).setVisible(true);
+      b.num.setText(at.up + '층 위').setVisible(true);
+    });
 
     // 막는 것 — 남은 횟수. 이름을 다 적으면 줄이 넘치므로 첫 글자만 씁니다.
-    const keys = Object.keys(s.wards || {});
+    // 보스전에는 걸릴 놈이 없으므로 접습니다 — 안 그러면 보스 체력 띠(y 143~173)
+    // 와 부딪힙니다.
+    const keys = s.bossFight ? [] : Object.keys(s.wards || {});
     const wt = keys.length
       ? keys.map((k) => (CFG.foes.ward.of[k].name[0]) + ' ' + s.wards[k]).join('  ') : '';
     if (wt !== L.ward) { L.ward = wt; this.wardText.setText(wt); }
