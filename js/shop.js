@@ -43,12 +43,20 @@ const TIGHT = { rowH: 74, rowGap: 78, name: 23, desc: 16, price: 22, nameY: -16,
 //                     지도에는 절대 안 나옵니다 — 돈을 벌 이유가 여기서 생깁니다
 //   3. 고르게 합니다   다섯을 펼치고 살 수 있는 것은 둘셋뿐입니다.
 //                     무엇을 사느냐가 아니라 무엇을 포기하느냐가 내용입니다
+// 두 번째 심장을 들었으면 「단단한 몸」이 더 큽니다. 값은 여기 한 곳에
+// 모아 둡니다 — 사는 자리(applyShopEffect)와 미리 보는 자리(powerAfter)와
+// 진열 문구(buildRow)가 셋 다 이걸 봐야 하나로 맞습니다.
+function maxhpGainFor(s) {
+  return CFG.shop.maxhpGain + (s.weapon.hasRelic('secondheart') ? CFG.relicFx.secondheartBonus : 0);
+}
+
 const SHOP_ITEMS = {
   plus:    { title: '날붙이 갈기', desc: '공격력 +' + CFG.shop.bundle.plus + ' (지도에서는 하나씩)' },
   haste:   { title: '가벼운 손',   desc: '공격 속도 +' + CFG.shop.bundle.haste + ' (지도에서는 하나씩)' },
   upgrade: { title: '다음 무기',   desc: '강화는 초기화됩니다' },
   heal:    { title: '응급 처치',   desc: '체력을 가득 채웁니다' },
-  maxhp:   { title: '단단한 몸',   desc: '최대 체력 +' + CFG.shop.maxhpGain + ' · 그만큼 회복' },
+  // maxhp 의 desc 는 buildRow 가 그때그때 다시 씁니다 (두 번째 심장 때문에).
+  maxhp:   { title: '단단한 몸',   desc: '최대 체력이 오르고 그만큼 회복' },
   armor:   { title: '두꺼운 갑옷', desc: '방어구 +' + CFG.armor.shopGain + '% (한계까지)' },
   dodge:   { title: '가벼운 발',   desc: '회피 +' + Math.round(CFG.dodge.shopGain * 100) + '%' },
   // ── 여기에만 있는 것 둘 ────────────────────────────
@@ -73,10 +81,12 @@ function applyShopEffect(scene, key, extra) {
     case 'haste': for (let i = 0; i < CFG.shop.bundle.haste; i++) s.weapon.addHaste(); break;
     // 상점의 무기 칸은 여기 없습니다 — 아래 buy 가 갈아타기 창으로 넘깁니다.
     case 'heal': s.hp = s.maxHp; break;
-    case 'maxhp':
-      s.maxHp += CFG.shop.maxhpGain;
-      s.hp = Math.min(s.maxHp, s.hp + CFG.shop.maxhpGain);
+    case 'maxhp': {
+      const gain = maxhpGainFor(s);
+      s.maxHp += gain;
+      s.hp = Math.min(s.maxHp, s.hp + gain);
       break;
+    }
     case 'armor':
       s.armor = Math.min(s.armorMax, s.armor + CFG.armor.shopGain);
       break;
@@ -209,9 +219,11 @@ function powerAfter(s, key) {
     case 'heal':
       hp = s.maxHp;
       break;
-    case 'maxhp':
-      hp = Math.min(s.maxHp + c.maxhpGain, hp + c.maxhpGain);
+    case 'maxhp': {
+      const gain = maxhpGainFor(s);
+      hp = Math.min(s.maxHp + gain, hp + gain);
       break;
+    }
     case 'armor':
       armor = Math.min(s.armorMax, armor + CFG.armor.shopGain);
       break;
@@ -244,7 +256,11 @@ class Shop {
   priceOf(key, shopNo) {
     const p = CFG.shop.prices[key];
     const n = shopNo - 1;
-    return Math.round((p.base + p.perShop * n) * Math.pow(CFG.shop.priceGrowth, n));
+    const raw = (p.base + p.perShop * n) * Math.pow(CFG.shop.priceGrowth, n);
+    // 기울어진 저울 — 상점 전체가 쌉니다. 값을 매기는 자리가 여기 하나뿐이라,
+    // 여기서 깎으면 진열에 뜨는 값도 실제로 치르는 값도 같이 깎입니다.
+    const scale = this.scene.weapon.hasRelic('tiltedscale') ? CFG.relicFx.scaleMul : 1;
+    return Math.max(1, Math.round(raw * scale));
   }
 
   rollOffers(shopNo) {
@@ -579,6 +595,8 @@ class Shop {
       : w ? w.name : info.title;
     const detail = w
       ? w.what + ' (' + CFG.foes.ward.charges + '번 · 상점마다 다시 참)'
+      // 「단단한 몸」도 두 번째 심장을 들었으면 값이 다릅니다.
+      : offer.key === 'maxhp' ? '최대 체력 +' + maxhpGainFor(s) + ' · 그만큼 회복'
       : info.desc;
 
     const T = this.tight ? TIGHT : null;

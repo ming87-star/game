@@ -110,7 +110,8 @@ function spawnEnemy(scene, x, y, floor, typeKey) {
   e.hp = e.maxHp;
   e.speed = Math.min(
     CFG.enemy.maxSpeed,
-    (CFG.enemy.baseSpeed + floor * CFG.enemy.speedPerFloor) * def.speed);
+    (CFG.enemy.baseSpeed + floor * CFG.enemy.speedPerFloor) * def.speed)
+    * (scene.weapon && scene.weapon.hasRelic('sandoftime') ? CFG.relicFx.sandMul : 1);
   e.floor = floor;
   // 공격력과 코인도 같은 배수를 탑니다. 셋이 함께 커져야 한 발판의 총량이
   // 그대로 남습니다 — 하나만 키우면 「덜 아픈데 안 죽는」 놈이 되거나
@@ -143,8 +144,8 @@ function spawnEnemy(scene, x, y, floor, typeKey) {
     e.setTint(F.tint);
   }
   e.phase = Math.random() * Math.PI * 2;
-  e.nextShotAt = scene.time.now + CFG.enemyShot.interval * (0.5 + Math.random());
-  e.nextHopAt = scene.time.now + Math.random() * CFG.hop.interval;
+  e.nextShotAt = scene.time.now + CFG.enemyShot.interval * (0.5 + Math.random()) * slowMul(scene);
+  e.nextHopAt = scene.time.now + Math.random() * CFG.hop.interval * slowMul(scene);
   e.phaseUntil = scene.time.now + CFG.phase.onMs;
   e.phased = false;
 
@@ -159,7 +160,20 @@ function spawnEnemy(scene, x, y, floor, typeKey) {
   return e;
 }
 
+// 시간의 모래 — 적 전체(보스 제외)를 늦춥니다. 이동은 e.speed 에 한 번
+// 곱해 두고(spawnEnemy), 공격·박자는 매번 이 배수로 사이를 늘립니다.
+// 보스는 spawnBoss 라는 딴 길로 태어나므로 이 자를 아예 안 탑니다.
+function slowMul(scene) {
+  return (scene.weapon && scene.weapon.hasRelic('sandoftime'))
+    ? 1 / CFG.relicFx.sandMul : 1;
+}
+
 function updateEnemies(scene, time, delta) {
+  // 투명망토 — 뛰는 동안은 적이 나를 못 봅니다. 이미 날아온 것(화살·판을
+  // 바꾸는 넷이 이미 펼친 장판)은 저마다 제 트윈으로 따로 돌고 있어서
+  // 그대로 맞습니다 — 여기서 멎는 것은 "새로 반응하는 것"뿐입니다.
+  if (scene.jumping && scene.weapon && scene.weapon.hasRelic('invisijump')) return;
+
   const player = scene.player;
   const camBottom = scene.cameras.main.scrollY + CFG.height + 320;
 
@@ -200,7 +214,7 @@ function groundStep(scene, e, player, time) {
   if (e.def.move === 'ranged' && near && Math.abs(dx) < CFG.enemyShot.standoff) {
     e.body.velocity.x = 0;
     if (time > e.nextShotAt) {
-      e.nextShotAt = time + CFG.enemyShot.interval;
+      e.nextShotAt = time + CFG.enemyShot.interval * slowMul(scene);
       fireEnemyShot(scene, e, Phaser.Math.Angle.Between(e.x, e.y, player.x, player.y));
     }
     return;
@@ -216,7 +230,7 @@ function groundStep(scene, e, player, time) {
   if (e.def.move === 'hop') {
     if (e.body.blocked.down) {
       if (time > e.nextHopAt) {
-        e.nextHopAt = time + CFG.hop.interval * (0.7 + Math.random() * 0.6);
+        e.nextHopAt = time + CFG.hop.interval * (0.7 + Math.random() * 0.6) * slowMul(scene);
         e.body.velocity.y = -CFG.hop.up;
         e.body.velocity.x = e.dir * CFG.hop.forward;
       } else {
@@ -301,7 +315,7 @@ function airStep(scene, e, player, time) {
     } else {
       e.body.velocity.set(0, 0);
       if (time > e.nextShotAt) {
-        e.nextShotAt = time + CFG.enemyShot.interval;
+        e.nextShotAt = time + CFG.enemyShot.interval * slowMul(scene);
         fireEnemyShot(scene, e, angle);
       }
     }
@@ -396,7 +410,7 @@ function shoveStep(scene, e, player, time, near, dx) {
     if (time < e.shoveAt) return;
     e.shoveAt = 0;
     e.clearTint();
-    e.shoveRestUntil = time + c.cooldownMs;
+    e.shoveRestUntil = time + c.cooldownMs * slowMul(scene);
     // 아직 곁에 있으면 밀어냅니다. 비켰으면 헛칩니다 — 예고를 둔 값입니다.
     if (Math.abs(player.x - e.x) < c.reach && Math.abs(player.y - e.y) < 40) {
       scene.shoveDown(e);
@@ -474,7 +488,7 @@ function slamStep(scene, e, player, time) {
 function lanceStep(scene, e, player, time) {
   const c = CFG.foes.lance;
   e.body.velocity.x = 0;
-  const beat = c.beatMs * (e.fierce ? CFG.foes.fierce.beat : 1);
+  const beat = c.beatMs * (e.fierce ? CFG.foes.fierce.beat : 1) * slowMul(scene);
   // **첫 박자만** 당깁니다 (CFG.foes.startEarlyMs). 온전히 기다리면 그 사이에
   // 두 층을 올라가 버려서, 이놈이 무엇을 하는 놈인지 한 번도 못 보고 지나갑니다.
   if (!e.beatAt) e.beatAt = time + Math.max(200, beat - (CFG.foes.startEarlyMs || 0));
@@ -490,7 +504,7 @@ function lanceStep(scene, e, player, time) {
 function zapStep(scene, e, player, time) {
   const c = CFG.foes.zap;
   e.body.velocity.x = 0;
-  const beat = c.beatMs * (e.fierce ? CFG.foes.fierce.beat : 1);
+  const beat = c.beatMs * (e.fierce ? CFG.foes.fierce.beat : 1) * slowMul(scene);
   // 가르는 놈과 같습니다 — 첫 박자만 당깁니다.
   if (!e.beatAt) e.beatAt = time + Math.max(200, beat - (CFG.foes.startEarlyMs || 0));
   if (time < e.beatAt) return;

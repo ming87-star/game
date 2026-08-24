@@ -497,11 +497,22 @@ class GameScene extends Phaser.Scene {
 
       if (slot.kind !== SLOT.ENEMY) continue;
       slot.spawned = true;
-      slot.enemyTypes.forEach((type, i) => {
-        spawnEnemy(this, slot.x + Phaser.Math.Between(-45, 45), slot.y - 50 - i * 30, index, type);
-      });
-      // 실제로 나왔으니 예고 표시는 지웁니다.
-      if (slot.view) { slot.view.destroy(); slot.view = null; }
+      const spawnNow = () => {
+        slot.enemyTypes.forEach((type, i) => {
+          spawnEnemy(this, slot.x + Phaser.Math.Between(-45, 45), slot.y - 50 - i * 30, index, type);
+        });
+        // 실제로 나왔으니 예고 표시는 지웁니다.
+        if (slot.view) { slot.view.destroy(); slot.view = null; }
+      };
+      // 고요한 걸음 — 위층(내가 선 층보다 높은 층)만 늦게 깨어납니다.
+      // 예고 표시(⚠ N)는 그대로 둡니다 — 늦게 깨어나는 것이지 안 보이는
+      // 것은 아닙니다. this.after 를 쓰는 것은 그 안에 이미 "판이 죽었거나
+      // 멈췄으면 버린다"는 지킴이가 있어서입니다.
+      if (index > this.floorIndex && this.weapon.hasRelic('quietwake')) {
+        this.after(CFG.relicFx.quietwakeMs, spawnNow);
+      } else {
+        spawnNow();
+      }
     }
   }
 
@@ -670,9 +681,18 @@ class GameScene extends Phaser.Scene {
       // 누른 자리의 발판으로 순간이동하는 것이 아니라 방향을 고르는 것입니다.
       const third = this.scale.width / 3;
       const step = p.x < third ? -1 : p.x < third * 2 ? 0 : 1;
+
+      // 로켓장화 — 가운데를 **길게** 누르면 두 칸, 짧게 누르면 평소처럼 한 칸.
+      // 눌리는 순간에는 아직 길게 누를지 몰라서, 가운데일 때만 판정을
+      // 늦춥니다 — 늦추지 않으면 늘 짧은 쪽(보통 점프)으로만 걸립니다.
+      if (step === 0 && this.weapon.hasRelic('rocketboots')) {
+        this.startCenterPress();
+        return;
+      }
       this.hud.flashArrow(step);
       this.jump(step);
     });
+    this.input.on('pointerup', () => this.endCenterPress());
     const key = (step) => () => {
       if (this.shop.open || this.dead) return;
       this.hud.flashArrow(step);
@@ -684,6 +704,27 @@ class GameScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-RIGHT', key(1));
     this.input.keyboard.on('keydown-P', () => this.pauseGame());
     this.input.keyboard.on('keydown-ESC', () => this.pauseGame());
+  }
+
+  // 가운데를 누른 채로 CFG.relicFx.rocketHoldMs 를 채우면 로켓 점프,
+  // 그 전에 떼면 보통 점프입니다. **누르는 순간에는 안 뜁니다** — 떼거나
+  // 문턱을 넘는 그 시각에 한 번만 뜁니다. 안 그러면 손가락을 대는 순간
+  // 이미 한 칸이 나가 버려서 "길게 누른다"는 뜻 자체가 없어집니다.
+  startCenterPress() {
+    this.centerFired = false;
+    this.centerTimer = this.time.delayedCall(CFG.relicFx.rocketHoldMs, () => {
+      this.centerFired = this.rocketJump();
+    });
+  }
+
+  endCenterPress() {
+    if (!this.centerTimer) return;
+    const already = this.centerFired;
+    this.centerTimer.remove();
+    this.centerTimer = null;
+    if (already) return; // 이미 로켓으로 떴습니다
+    this.hud.flashArrow(0);
+    this.jump(0);
   }
 
   // ── 일시정지 ──────────────────────────────────────────
@@ -702,6 +743,11 @@ class GameScene extends Phaser.Scene {
   }
 
   // step: -1 왼쪽 · 0 바로 위 · +1 오른쪽. 한 번에 한 칸까지만 옮겨 갑니다.
+  // 흑철갑옷 — 방어 한계를 올리는 대신 뛰는 것이 굼떠집니다.
+  jumpMs(base) {
+    return this.weapon.hasRelic('blackiron') ? Math.round(base * CFG.relicFx.blackironJumpMul) : base;
+  }
+
   jump(step) {
     if (this.jumping || this.dead || this.shop.open || this.choosing) return;
     // 투기장에서는 위로 오르지 않습니다. 좌우로 비켜서 떨어지는 것을 피할 뿐입니다.
@@ -710,12 +756,25 @@ class GameScene extends Phaser.Scene {
     if (!next) return;
 
     const here = LANES.indexOf(this.lane);
-    const want = Phaser.Math.Clamp(here + step, 0, LANES.length - 1);
+    let want = Phaser.Math.Clamp(here + step, 0, LANES.length - 1);
+
+    // 탑은 둥글다 — 맨 끝 줄에서 바깥으로 뛰면 반대쪽 끝의 위층으로 넘어갑니다.
+    // clamp 가 이미 want 를 here 로 묶어 둔 뒤라, "바깥으로 뛰려 했다"는 것은
+    // want === here 이고 그 방향이 화면 끝을 향했다는 것으로 압니다.
+    if (this.weapon.hasRelic('roundtower') && want === here) {
+      if (step < 0 && here === 0) want = LANES.length - 1;
+      else if (step > 0 && here === LANES.length - 1) want = 0;
+    }
 
     // 닿을 수 있는 길은 지금 자리에서 한 칸 이내뿐입니다.
     // 그 안에서 원하는 쪽에 발판이 없으면 가장 가까운 길로 갑니다 — 점프는 실패하지 않습니다.
     // 내리찍는 놈이 뚫고 간 발판은 잠깐 못 딛습니다 (CFG.foes.slam.breakMs).
     // 그 줄이 진짜로 막혀야 「버리거나 서두르거나」가 선택이 됩니다.
+    //
+    // **탑은 둥글다로 건너뛴 want 는 이 한 칸 규칙 밖입니다.** 그 자리가
+    // 비어 있으면(막혔거나 좁아진 층) 보통 점프와 똑같이 한 칸 이내로
+    // 되돌아갑니다 — 순간이동이 실패하는 게 아니라, 그 순간이동을 받아줄
+    // 자리가 없을 뿐입니다.
     const ok = (sl) => sl && !sl.broken;
     const slot = (ok(next.slots[LANES[want]]) && next.slots[LANES[want]]) || LANES
       .map((l, i) => ({ slot: next.slots[l], i }))
@@ -739,7 +798,7 @@ class GameScene extends Phaser.Scene {
       this.tweens.add({
         targets: this.player,
         rotation: (slot.x < fromX ? -1 : 1) * Math.PI * 2,
-        duration: CFG.jumpDuration,
+        duration: this.jumpMs(CFG.jumpDuration),
         onComplete: () => this.player.setRotation(0),
       });
     }
@@ -747,7 +806,7 @@ class GameScene extends Phaser.Scene {
     this.tweens.add({
       targets: arc,
       t: 1,
-      duration: CFG.jumpDuration,
+      duration: this.jumpMs(CFG.jumpDuration),
       ease: 'Linear',
       onUpdate: () => {
         this.player.x = Phaser.Math.Linear(fromX, toX, arc.t);
@@ -769,6 +828,67 @@ class GameScene extends Phaser.Scene {
         this.land(slot);
       },
     });
+  }
+
+  // 로켓장화 — 지금 줄에서 **두 층을 한 번에** 뜁니다. 사이 층(floorIndex+1)은
+  // 아예 안 지나갑니다 — 그 층의 적도 안 깨우고, 그 층의 아이템도 안 줍니다.
+  // 뛰어넘는다는 것은 정말로 건너뛰는 것입니다.
+  //
+  // jump() 를 그대로 복사하지 않고 따로 둔 까닭: 목표 층이 next 가 아니라
+  // next2 이고, 줄을 고르는 우선순위도 다릅니다(step 이 없으니 "요청한 줄"이
+  // 아니라 "지금 줄"을 우선합니다) — 한 함수 안에서 둘을 다 표현하면 조건이
+  // 뒤엉킵니다.
+  rocketJump() {
+    if (this.jumping || this.dead || this.shop.open || this.choosing || this.bossFight) return false;
+    const next2 = this.floors.get(this.floorIndex + 2);
+    if (!next2) return false;
+
+    const here = LANES.indexOf(this.lane);
+    const ok = (sl) => sl && !sl.broken;
+    // 지금 줄이 있으면 그대로, 없으면 가장 가까운 줄로. **한 칸 이내 규칙이
+    // 없습니다** — 두 층을 건너뛰는 것 자체가 이미 보통 규칙 밖입니다.
+    const slot = (ok(next2.slots[LANES[here]]) && next2.slots[LANES[here]]) || LANES
+      .map((l, i) => ({ slot: next2.slots[l], i }))
+      .filter((c) => ok(c.slot))
+      .sort((a, b) => Math.abs(a.i - here) - Math.abs(b.i - here))
+      .map((c) => c.slot)[0];
+    if (!slot) return false;
+
+    this.jumping = true;
+    this.player.setFlipX(slot.x < this.player.x);
+
+    const fromX = this.player.x;
+    const fromY = this.player.y;
+    const toX = slot.x;
+    const toY = slot.y - STAND_OFFSET;
+    const arc = { t: 0 };
+
+    this.cameras.main.shake(140, 0.006);
+    this.tweens.add({
+      targets: arc,
+      t: 1,
+      // 두 층을 도는 것이니 보통 점프보다 오래, 더 높이 뜁니다.
+      duration: this.jumpMs(CFG.jumpDuration * 1.5),
+      ease: 'Linear',
+      onUpdate: () => {
+        this.player.x = Phaser.Math.Linear(fromX, toX, arc.t);
+        this.player.y = Phaser.Math.Linear(fromY, toY, arc.t)
+          - Math.sin(Math.PI * arc.t) * CFG.jumpArc * 1.7;
+      },
+      onComplete: () => {
+        this.jumping = false;
+        if (this.dead) return;
+        this.floorIndex = next2.index;
+        this.checkMedalFloor();
+        this.checkFloorGates();
+        this.lane = slot.lane;
+        this.idleMs = 0;
+        this.idleWarned = false;
+        this.clearShadowPool();
+        this.land(slot);
+      },
+    });
+    return true;
   }
 
   // 투기장에서의 이동. 층은 그대로고 줄만 바뀝니다.
@@ -993,6 +1113,7 @@ class GameScene extends Phaser.Scene {
     this.hud.setArrows([true, false, true]);
 
     this.boss = spawnBoss(this, this.floorIndex, CFG.width / 2, this.arenaY - 560);
+    this.mirrorUsed = false; // 거울 조각 — 이 싸움에서 다시 한 번 씁니다.
     this.announceBoss();
 
     // 위에서 내려앉습니다. 내려앉는 동안은 공격하지 않습니다.
@@ -1044,6 +1165,14 @@ class GameScene extends Phaser.Scene {
     const healed = Math.min(Math.round(this.maxHp * CFG.boss.heal), this.maxHp - Math.round(this.hp));
     this.hp += healed;
     this.dropCoin(boss.x, boss.y, CFG.boss.coin, true);
+
+    // 보라빛 메달 — 이 유물을 들고 있으면 보스마다 메달이 붙습니다. 메달은
+    // 「100층마다 층에서 하나」로 정해 둔 규칙 밖의 값이지만, 이건 유물의
+    // 값어치이지 지도가 흘리는 것이 아니라서 그 규칙과 안 부딪힙니다.
+    if (this.weapon.hasRelic('purplemedal')) {
+      this.medals += 1;
+      this.popup('🏅 +1', '#ce93d8');
+    }
 
     // ── 메달이 아니라 전리품입니다 ─────────────────────
     // 메달은 100층마다 층에서 나오는 것 하나로 모았습니다. 보스가 셋을 더
@@ -1257,7 +1386,10 @@ class GameScene extends Phaser.Scene {
     this.syncUpgradeMarks();
 
     // 가까이 온 가짜부터 정체를 드러냅니다.
-    for (let i = 0; i <= CFG.trap.revealWithin; i++) {
+    // 참눈이 있으면 훨씬 멀리서부터 드러납니다 (CFG.relicFx.trueEyeWithin).
+    const revealWithin = this.weapon.hasRelic('trueeye')
+      ? CFG.relicFx.trueEyeWithin : CFG.trap.revealWithin;
+    for (let i = 0; i <= revealWithin; i++) {
       const floor = this.floors.get(this.floorIndex + i);
       if (!floor) continue;
       for (const lane of LANES) {
@@ -1405,10 +1537,18 @@ class GameScene extends Phaser.Scene {
     return Phaser.Math.Distance.Between(e.x, e.y, this.player.x, this.player.y);
   }
 
+  // 위기는 기회다가 있으면 체력이 반 아래일 때 손이 빨라집니다.
+  // Weapon 은 scene 을 모르므로(js/weapon.js), 여기서 한 번 더 씌웁니다.
+  effRate() {
+    const w = this.weapon;
+    const low = this.hp < this.maxHp * CFG.relicFx.crisisHp && w.hasRelic('crisis');
+    return low ? w.rate / CFG.relicFx.crisisRateMul : w.rate;
+  }
+
   // ── 근접 ──────────────────────────────────────────────
   swing(now) {
     const w = this.weapon;
-    if (now - this.lastSwingAt < w.rate) return;
+    if (now - this.lastSwingAt < this.effRate()) return;
 
     // 아래는 치지 않습니다 — 화살과 같은 규칙(CFG.aimBelow)입니다. 탑은 올라가는
     // 곳이라 지나온 층을 향해 칼을 휘두르는 것은 시간을 버리는 일입니다.
@@ -1477,6 +1617,7 @@ class GameScene extends Phaser.Scene {
       // 공격력은 적마다 새로 굴립니다. 한 번 굴려 나눠 주면 범위가 있는 뜻이
       // 반으로 줄어듭니다 — 화면에 뜨는 숫자 여럿이 늘 똑같아집니다.
       this.hitEnemy(e, Math.max(1, Math.round(w.rollDamage() * scaleAt(e))));
+      this.applyOil(e);
       this.stunEnemy(e);
     });
   }
@@ -1617,7 +1758,7 @@ class GameScene extends Phaser.Scene {
   // ── 원거리 ────────────────────────────────────────────
   shoot(now) {
     const w = this.weapon;
-    if (now - this.lastSubAt < w.rate) return;
+    if (now - this.lastSubAt < this.effRate()) return;
 
     // 위쪽만 노립니다. 탑은 올라가는 곳이라 아래를 쏘는 것은 이미 지나온 층에
     // 시간을 쓰는 일입니다 — 게다가 아래층 적은 쫓아오지도 못하니, 쏘는 동안
@@ -1781,6 +1922,12 @@ class GameScene extends Phaser.Scene {
     b.from = target;
     b.homing = this.weapon.homing;
     b.bornAt = this.time.now;
+    // 관통하는 기름 — 화살에 파동과 같은 「꿰뚫는 길」을 씌웁니다. 대신
+    // 이 길로 들어서면 화살이 곧게만 날아갑니다(위 update() 의 화살 휘는
+    // 처리가 hitSet 붙은 것은 건너뜁니다) — 뚫고 지나가는 화살이 도중에
+    // 휘면 그건 더는 "관통"으로 안 보입니다.
+    const pierce = this.weapon.relicSum('pierceOil');
+    if (pierce > 0) { b.hitSet = new Set(); b.pierce = pierce; }
     this.physics.velocityFromRotation(
       Phaser.Math.Angle.Between(x, y, target.x, target.y), CFG.arrowSpeed, b.body.velocity);
   }
@@ -1825,6 +1972,9 @@ class GameScene extends Phaser.Scene {
       if (bullet.hitSet.has(enemy)) return;
       bullet.hitSet.add(enemy);
       this.hitEnemy(enemy, bullet.dmg);
+      // 관통하는 기름을 바른 화살도 이 길을 탑니다(아래 fireArrow). 파동은
+      // 기름이 없어도 원래 꿰뚫으므로, 여기서 기름 상태를 걸어도 안전합니다.
+      this.applyOil(enemy);
       if (bullet.pierce > 0) { bullet.pierce--; return; }
       bullet.destroy();
       return;
@@ -1834,6 +1984,7 @@ class GameScene extends Phaser.Scene {
     const at = { x: bullet.x, y: bullet.y };
     bullet.destroy();
     this.hitEnemy(enemy, dmg);
+    this.applyOil(enemy);
 
     // 메아리 활 — 맞은 자리에서 다른 적에게 한 번 더 튕깁니다.
     if (bounce > 0) {
@@ -1846,9 +1997,115 @@ class GameScene extends Phaser.Scene {
     }
   }
 
+  // 도깨비불 — 주인공을 도는 불꽃 둘. 겨누지 않아도 닿으면 들어갑니다.
+  // 유물이 없으면(또는 판이 끝나면) 만든 것을 치웁니다.
+  updateWisps(time, delta) {
+    const has = this.weapon.hasRelic('willowisp');
+    if (!has) {
+      if (this.wisps) { this.wisps.forEach((w) => w.sprite.destroy()); this.wisps = null; }
+      return;
+    }
+    const c = CFG.relicFx.wisp;
+    if (!this.wisps) {
+      this.wisps = [];
+      for (let i = 0; i < c.count; i++) {
+        const sprite = this.add.circle(this.player.x, this.player.y, 7, 0xba68c8, 0.9)
+          .setStrokeStyle(2, 0xe1bee7, 0.9).setDepth(9);
+        this.wisps.push({ sprite, angle: (Math.PI * 2 / c.count) * i, nextHitAt: 0 });
+      }
+    }
+    this.wisps.forEach((w) => {
+      w.angle += c.speedRad * delta / 1000;
+      w.sprite.x = this.player.x + Math.cos(w.angle) * c.radius;
+      w.sprite.y = this.player.y + Math.sin(w.angle) * c.radius;
+      if (time < w.nextHitAt) return;
+      const hit = this.enemies.getChildren().find((e) => this.targetable(e) &&
+        Phaser.Math.Distance.Between(e.x, e.y, w.sprite.x, w.sprite.y) < c.hitRadius);
+      if (hit) {
+        w.nextHitAt = time + c.tickMs;
+        this.hitEnemy(hit, Math.max(1, Math.round(this.weapon.dmg * c.dmgShare)));
+      }
+    });
+  }
+
+  // 뜨거운 기름 · 차가운 기름 — 무기에 발라 둔 것이라 **내 공격이 닿을
+  // 때만** 새로 걸립니다(도깨비불처럼 곁다리로 도는 것에는 안 묻습니다).
+  // 기름은 겹쳐 못 쓰므로 hasRelic 은 늘 어느 한쪽만 참입니다.
+  applyOil(enemy) {
+    if (!enemy.active) return;
+    const w = this.weapon;
+    if (w.hasRelic('hotoil')) {
+      const c = CFG.relicFx.hotoil;
+      enemy.burnLeft = c.ticks;
+      enemy.burnDmg = Math.max(1, Math.round(w.dmg * c.dmgShare));
+      enemy.burnNextAt = this.time.now + c.tickMs;
+      if (!enemy.burnRing) {
+        enemy.burnRing = this.add.circle(enemy.x, enemy.y, 16, c.tint, 0.4).setDepth(8);
+      }
+    } else if (w.hasRelic('coldoil')) {
+      const c = CFG.relicFx.coldoil;
+      enemy.slowUntil = this.time.now + c.ms;
+      enemy.slowMul = c.slow;
+      if (!enemy.slowRing) {
+        enemy.slowRing = this.add.circle(enemy.x, enemy.y, 16, c.tint, 0.4).setDepth(8);
+      }
+    }
+  }
+
+  // 적이 사라질 때 남은 고리를 같이 지웁니다 — 안 지우면 죽은 자리에
+  // 동그라미만 혼자 남습니다.
+  clearOilFx(enemy) {
+    if (enemy.burnRing) { enemy.burnRing.destroy(); enemy.burnRing = null; }
+    if (enemy.slowRing) { enemy.slowRing.destroy(); enemy.slowRing = null; }
+  }
+
+  // 타는 동안은 조금씩 더 깎이고, 언 동안은 몸이 느립니다. **속도는 e.speed
+  // 를 직접 안 건드립니다** — 건드리면 기름이 걷힌 뒤에도 원래 속도로
+  // 되돌릴 방법이 없습니다. 대신 그 프레임에 이미 정해진 속도 위에 얹어
+  // 씁니다(updateEnemies 뒤, 물리가 그 값을 쓰기 전에).
+  updateOilFx(time) {
+    this.enemies.getChildren().forEach((e) => {
+      if (e.burnRing) {
+        e.burnRing.setPosition(e.x, e.y);
+        if (e.burnLeft > 0 && time >= e.burnNextAt) {
+          e.burnLeft--;
+          e.burnNextAt = time + CFG.relicFx.hotoil.tickMs;
+          if (e.active) this.hitEnemy(e, e.burnDmg);
+        }
+        if (e.burnLeft <= 0 && e.burnRing) { e.burnRing.destroy(); e.burnRing = null; }
+      }
+      if (e.slowRing) {
+        e.slowRing.setPosition(e.x, e.y);
+        if (time >= e.slowUntil) {
+          e.slowRing.destroy(); e.slowRing = null; e.slowMul = 1;
+        } else if (e.body) {
+          e.body.velocity.x *= e.slowMul;
+          e.body.velocity.y *= e.slowMul;
+        }
+      }
+    });
+  }
+
   hitEnemy(enemy, dmg) {
     if (!enemy.active) return;
     const before = enemy.hp;
+    const w = this.weapon;
+
+    // 초전박살 — 그 적에게 넣는 첫 대만 셉니다. 어떤 공격이 처음이든(무기·
+    // 기름·도깨비불 가리지 않음) 그 적의 hitOnce 는 딱 한 번만 거짓입니다.
+    const firstMul = w.relicSum('firstStrikeMul');
+    if (firstMul > 0 && !enemy.hitOnce) dmg = Math.round(dmg * firstMul);
+    enemy.hitOnce = true;
+
+    // 처형인의 표식 — 많이 깎인 적에게 크게 들어갑니다. **이 대가 들어가기
+    // 전** 남은 몫으로 봅니다 — 들어간 뒤로 재면 마지막 한 대는 언제나
+    // "이미 죽어서" 문턱 아래일 수 있고, 그건 이 유물이 노리는 그림이
+    // 아닙니다(끝내는 한 대가 아니라 몰아붙이는 한 대여야 합니다).
+    const execMul = w.relicSum('executeMul');
+    if (execMul > 0 && enemy.maxHp && before / enemy.maxHp < CFG.relicFx.executionerHp) {
+      dmg = Math.round(dmg * execMul);
+    }
+
     enemy.hp -= dmg;
 
     // 흡혈 망토 — 실제로 깎은 만큼만 돌려받습니다. 남은 체력보다 큰 한 방을
@@ -1898,6 +2155,7 @@ class GameScene extends Phaser.Scene {
 
     // 보스는 죽는 방식이 다릅니다.
     if (enemy.isBoss) {
+      this.clearOilFx(enemy);
       enemy.destroy();
       this.kills++;
       this.bossDefeated(enemy);
@@ -1915,6 +2173,7 @@ class GameScene extends Phaser.Scene {
 
     // 죽는 방식이 따로 있는 것들. 자리를 먼저 챙겨 두고 없앱니다.
     const at = { x: enemy.x, y: enemy.y, floor: enemy.floor, def: enemy.def };
+    this.clearOilFx(enemy);
     this.deathBurst(enemy);
     enemy.destroy();
     this.kills++;
@@ -2157,6 +2416,9 @@ class GameScene extends Phaser.Scene {
     ]) });
   }
 
+  // 직업마다 다릅니다 (js/classes.js 의 relicMax). 안 적었으면 CFG.relic.maxHeld.
+  relicMax() { return this.job.relicMax || CFG.relic.maxHeld; }
+
   // ── 유물 고르기 ───────────────────────────────────────
   // 유물은 밟는다고 저절로 붙지 않습니다. 판이 멈추고 세 장이 펼쳐집니다.
   // 유물이 강한 만큼, 무엇을 가져갈지가 판을 가르는 결정이어야 합니다.
@@ -2197,8 +2459,13 @@ class GameScene extends Phaser.Scene {
       box.on('pointerdown', () => {
         parts.forEach((o) => o.destroy());
         rows.length = 0;
+        // 기름은 자리를 새로 안 씁니다 — 전에 바른 기름을 벗겨 내고 그
+        // 자리에 새로 바릅니다. 자리가 꽉 차 있어도 「무엇을 버릴까」를
+        // 물을 이유가 없습니다 (takeRelic 이 실제로 벗겨 냅니다).
+        const swapsOil = relic.oilFamily &&
+          this.weapon.relics.some((r) => r.oilFamily === relic.oilFamily);
         // 자리가 꽉 찼으면 무엇을 버릴지 한 번 더 고릅니다. 그때까지는 판이 멈춘 채입니다.
-        if (this.weapon.relics.length >= CFG.relic.maxHeld) return this.openRelicSwap(relic);
+        if (!swapsOil && this.weapon.relics.length >= this.relicMax()) return this.openRelicSwap(relic);
         this.closeChoice();
         this.takeRelic(relic);
       });
@@ -2219,7 +2486,7 @@ class GameScene extends Phaser.Scene {
     const add = (o) => { parts.push(o.setScrollFactor(0).setDepth(300)); return o; };
 
     add(this.add.rectangle(cx, CFG.height / 2, CFG.width, CFG.height, 0x000000, 0.9));
-    add(this.add.text(cx, 150, '유물은 ' + CFG.relic.maxHeld + '개까지', font(22, '#8794b5')).setOrigin(0.5));
+    add(this.add.text(cx, 150, '유물은 ' + this.relicMax() + '개까지', font(22, '#8794b5')).setOrigin(0.5));
     add(this.add.text(cx, 196, '무엇을 버릴까', font(34, '#ffd54f')).setOrigin(0.5));
     add(this.add.text(cx, 244, '새로 얻는 것 — ' + incoming.icon + ' ' + incoming.name,
       font(20, '#a5d6a7')).setOrigin(0.5));
@@ -2268,8 +2535,27 @@ class GameScene extends Phaser.Scene {
   }
 
   takeRelic(relic) {
+    // 기름은 겹쳐 못 씁니다. 새 기름을 바르면 전에 바른 기름부터 벗깁니다 —
+    // 자리 하나를 두고 결 하나를 고르는 것이지, 자리를 더 쓰는 것이 아닙니다.
+    if (relic.oilFamily) {
+      const old = this.weapon.relics.find((r) => r.oilFamily === relic.oilFamily);
+      if (old) {
+        this.weapon.relics = this.weapon.relics.filter((r) => r !== old);
+        this.popup('벗김: ' + old.name, '#8794b5');
+      }
+    }
     this.weapon.takeRelic(relic);
     Save.collectRelic(relic.key);
+
+    // 흑철갑옷 — 손에 넣는 그 자리에서 한 번 방어 한계를 밉니다. 상점의
+    // 「여벌 갑옷」과 같은 모양입니다 — 한계만 올리고 끝나면 그 순간에는
+    // 아무 일도 안 일어난 것처럼 보입니다.
+    if (relic.key === 'blackiron' && this.job.usesArmor) {
+      const bump = Math.round(this.armorMax * (CFG.relicFx.blackironCapMul - 1));
+      this.armorMax += bump;
+      this.armor = Math.min(this.armorMax, this.armor + bump);
+    }
+
     this.popup(relic.icon + ' ' + relic.name, '#ffd54f');
     this.hud.update();
   }
@@ -2278,7 +2564,7 @@ class GameScene extends Phaser.Scene {
   // 아주 낮은 확률로 유물이 들어 있습니다. 이미 유물이 꽉 찼으면 굴리지
   // 않습니다 — 무엇을 버릴지 고르게 하면서까지 상자를 열 이유는 없습니다.
   openTreasure(slot) {
-    const canHoldRelic = this.weapon.relics.length < CFG.relic.maxHeld;
+    const canHoldRelic = this.weapon.relics.length < this.relicMax();
     const relic = canHoldRelic && Math.random() < CFG.treasure.relicChance
       ? rollRelicChoices(this.job.key, this.weapon.relics, 1)[0]
       : null;
@@ -2449,6 +2735,28 @@ class GameScene extends Phaser.Scene {
 
     this.lastHitAt = this.time.now;
 
+    // 용 비늘 투구 — 보스에게 받는 피해를 줄입니다. 보스의 공격은 거의
+    // 위에서 떨어지므로 투구라는 이름이 그대로 들어맞습니다.
+    if (fromBoss && this.weapon.hasRelic('dragonscale')) {
+      amount = Math.round(amount * CFG.relicFx.dragonscaleMul);
+    }
+    // 위기는 기회다 — 체력이 반 아래면 받는 피해가 줄어듭니다. 손이 빨라지는
+    // 쪽은 effRate() 가 따로 봅니다 (swing·shoot 의 쿨다운).
+    if (this.hp < this.maxHp * CFG.relicFx.crisisHp && this.weapon.hasRelic('crisis')) {
+      amount = Math.round(amount * CFG.relicFx.crisisDmgMul);
+    }
+
+    // 거울 조각 — 보스에게서 받는 첫 한 대를 그대로 돌려줍니다. 이 대는
+    // 없던 일이 되고(막습니다), 그만큼이 보스에게 그대로 들어갑니다.
+    // **보스마다 한 번**입니다 — this.mirrorUsed 를 startBoss 에서 도로 켭니다.
+    if (fromBoss && this.boss && this.boss.active && !this.mirrorUsed &&
+        this.weapon.hasRelic('mirrorshard')) {
+      this.mirrorUsed = true;
+      this.popup('되돌림', '#ce93d8');
+      this.hitEnemy(this.boss, amount);
+      return;
+    }
+
     // ── 갈라진 가면 — 한 대를 통째로 막습니다 ───────────
     // **방어력보다 먼저 봅니다.** 나중에 보면 방어력이 깎은 뒤의 몫만 막게
     // 되어, 두꺼운 갑옷을 입은 사람에게는 가면이 거의 아무것도 안 하게
@@ -2576,14 +2884,24 @@ class GameScene extends Phaser.Scene {
 
   // 코인은 잠깐 튀었다가 주인공에게 빨려 들어옵니다.
   updatePickups(delta) {
+    // 황금 손이 없으면 「같은 층, 한 칸 옆」까지만 끌립니다. 그 밖에 떨어진
+    // 코인은 그 자리에 그대로 있습니다 — 다가가서 사거리 안으로 들어오면
+    // 그때부터 끌립니다. 황금 손이 있으면 이 문턱이 없어집니다.
+    const wide = this.weapon.hasRelic('goldhand');
     for (let i = this.pickups.length - 1; i >= 0; i--) {
       const p = this.pickups[i];
-      p.speed = Math.min(900, p.speed + delta * 2.2);
+      const dx = p.sprite.x - this.player.x;
+      const dy = p.sprite.y - this.player.y;
+      const near = wide || (Math.abs(dx) <= CFG.relicFx.magnetLaneX
+        && Math.abs(dy) <= CFG.relicFx.magnetFloorY);
 
-      const angle = Phaser.Math.Angle.Between(p.sprite.x, p.sprite.y, this.player.x, this.player.y);
-      const step = (p.speed * delta) / 1000;
-      p.sprite.x += Math.cos(angle) * step;
-      p.sprite.y += Math.sin(angle) * step;
+      if (near) {
+        p.speed = Math.min(900, p.speed + delta * 2.2);
+        const angle = Phaser.Math.Angle.Between(p.sprite.x, p.sprite.y, this.player.x, this.player.y);
+        const step = (p.speed * delta) / 1000;
+        p.sprite.x += Math.cos(angle) * step;
+        p.sprite.y += Math.sin(angle) * step;
+      }
 
       if (Phaser.Math.Distance.Between(p.sprite.x, p.sprite.y, this.player.x, this.player.y) < 24) {
         this.coins += p.value;
@@ -2751,8 +3069,10 @@ class GameScene extends Phaser.Scene {
   wearArmor(blocked) {
     if (!this.job.usesArmor || this.armor <= 0) return 0;
     const before = Math.round(this.armor);
+    // 강철 살갗 — 닳는 속도 자체를 줄입니다 (안 닳는 게 아니라 훨씬 천천히).
+    const mul = this.weapon.hasRelic('ironskin') ? CFG.relicFx.ironskinMul : 1;
     this.armor = Math.max(0,
-      this.armor - CFG.armor.wearPerHit - blocked * CFG.armor.wearPerDamage);
+      this.armor - (CFG.armor.wearPerHit + blocked * CFG.armor.wearPerDamage) * mul);
     return before - Math.round(this.armor);
   }
 
@@ -2830,6 +3150,8 @@ class GameScene extends Phaser.Scene {
     this.noResume = !!(opts && opts.noResume);
     this.hp = 0;
     this.clearNotices(); // 죽음 화면 위에 알림이 떠 있으면 결과가 안 읽힙니다
+    // 도깨비불은 판이 끝나도 저 혼자 돌고 있으면 안 됩니다.
+    if (this.wisps) { this.wisps.forEach((w) => w.sprite.destroy()); this.wisps = null; }
     // 판을 넘어 남는 기록. 직업 해금이 여기에 기댑니다.
     const wasBest = Save.bestFloor;
     const opened = classesUnlockedBy(this.floorIndex, this.totalCoins);
@@ -3005,7 +3327,9 @@ class GameScene extends Phaser.Scene {
     this.updateItems(time);
     if (this.floorIndex > 0) this.hud.fadeHint(delta);
 
+    this.updateWisps(time, delta);
     updateEnemies(this, time, delta);
+    this.updateOilFx(time);
 
     this.bullets.getChildren().forEach((b) => {
       if (!b.active) return;

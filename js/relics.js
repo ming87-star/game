@@ -19,6 +19,16 @@
 //   lifesteal    준 피해의 이 비율만큼 회복
 //   thorns       접촉한 적에게 돌려주는 피해 (내가 맞은 피해 대비)
 //   coinBonus    코인 획득 배수 가산
+//
+//   needsArmor      갑옷을 입는 직업(usesArmor)에게만 보임
+//   oilFamily       같은 값을 가진 것끼리는 한 자리를 나눠 씀 (새로 고르면 전에 것이 벗겨짐)
+//   pierceOil       화살이 이 수만큼 더 뚫고 나감
+//   executeMul       남은 체력이 낮은 적에게 곱하는 배수 (CFG.relicFx.executionerHp 아래)
+//   firstStrikeMul   그 적에게 넣는 첫 대에만 곱하는 배수
+// 그 밖의 스물한 가지(투명망토·탑은 둥글다 등)는 이름만으로 키를 찾아
+// scene-game.js·enemies.js 가 `weapon.hasRelic(key)` 로 직접 묻습니다 —
+// 값이 하나뿐이거나 자리마다 손질이 달라서 공통 필드로 묶기보다 그때그때
+// 코드에서 다룹니다. 자세한 동작은 CFG.relicFx (js/config.js) 를 보세요.
 const RELICS = [
   {
     key: 'waveblade', name: '파동검', icon: '≋',
@@ -96,6 +106,139 @@ const RELICS = [
     stealBonus: 0.25,
     stealAmount: 2,
   },
+
+  // ── 새로 늘어난 스물하나 ────────────────────────────────
+  //
+  // 아홉은 전부 "때리는 값"이나 "버티는 값"을 만졌습니다. 유물을 서른 개로
+  // 늘리면서 비어 있던 자리를 먼저 채웠습니다 — 오르는 동안의 판단(투명망토·
+  // 탑은 둥글다·로켓장화), 진짜/가짜를 아는 것(참눈), 판단 없이 도는 것
+  // (도깨비불), 위기에 강해지는 것(위기는 기회다) — 지금까지 하나도 없던
+  // 결입니다.
+  //
+  // **기름 셋(관통하는·뜨거운·차가운)은 겹쳐 쓸 수 없습니다.** `oilFamily`
+  // 로 묶어 두고, 새 기름을 고르면 scene-game.js 의 takeRelic 이 전에 바른
+  // 것을 벗겨 냅니다 — 자리 하나를 두고 세 결 중 하나를 고르는 것입니다.
+  //
+  // 밸런스는 첫 판입니다. 서른 개를 한꺼번에 등록하고, 재는 것은 다음 손질로
+  // 미뤘습니다.
+
+  // ── 오르는 것 ────────────────────────────────────────
+  {
+    key: 'invisijump', name: '투명망토', icon: '◌',
+    desc: '점프하는 동안 적이 나를 못 봅니다',
+    detail: '이미 날아온 것 · 판을 바꾸는 넷의 장판은 그대로 맞습니다',
+  },
+  {
+    key: 'roundtower', name: '탑은 둥글다', icon: '⊙',
+    desc: '맨 끝 줄에서 바깥으로 뛰면 반대쪽 끝으로 넘어갑니다',
+    detail: '왼쪽 끝에서 왼쪽 → 위층 오른쪽 끝. 오른쪽 끝도 마찬가지',
+  },
+  {
+    key: 'quietwake', name: '고요한 걸음', icon: '☾',
+    desc: '위층 적이 조금 늦게 깨어납니다',
+    detail: '올라선 순간 바로 달려들지 않습니다',
+  },
+  {
+    key: 'rocketboots', name: '로켓장화', icon: '⇑',
+    desc: '가운데를 길게 누르면 두 칸을 한 번에 뜁니다',
+    detail: '짧게 누르면 평소처럼 한 칸입니다',
+  },
+  {
+    key: 'sandoftime', name: '시간의 모래', icon: '⧗',
+    desc: '적 전체가 조금 느려집니다',
+    detail: '이동·공격 속도 -10% (보스는 안 듣습니다)',
+  },
+
+  // ── 아는 것 ──────────────────────────────────────────
+  {
+    key: 'trueeye', name: '참눈', icon: '☉',
+    desc: '가짜가 훨씬 멀리서부터 드러납니다',
+    detail: '천리안이 어디에 있는지를 알려 준다면, 이건 그것이 진짜인지를 알려 줍니다',
+  },
+
+  // ── 때리는 것 ────────────────────────────────────────
+  {
+    key: 'willowisp', name: '도깨비불', icon: '❂',
+    desc: '주인공 곁을 도는 불꽃이 스치는 적을 태웁니다',
+    detail: '겨누지 않아도 닿으면 들어갑니다',
+  },
+  {
+    key: 'executionermark', name: '처형인의 표식', icon: '☠',
+    desc: '체력이 많이 깎인 적에게 크게 들어갑니다',
+    detail: '남은 체력 25% 아래인 적에게 두 배',
+    executeMul: 2,
+  },
+  {
+    key: 'firststrike', name: '초전박살', icon: '⚡',
+    desc: '그 적에게 넣는 첫 대가 셉니다',
+    detail: '처음 한 대만 세 배 — 그다음부터는 평소대로',
+    firstStrikeMul: 3,
+  },
+  {
+    key: 'piercingoil', name: '관통하는 기름', icon: '➳', oilFamily: 'oil',
+    desc: '화살이 하나를 뚫고 하나 더 갑니다',
+    detail: '무기에 발라 두는 것이라, 다른 기름과는 같이 못 씁니다',
+    pierceOil: 1,
+  },
+  {
+    key: 'hotoil', name: '뜨거운 기름', icon: '♨', oilFamily: 'oil',
+    desc: '벤 적이 잠깐 불타며 조금씩 더 깎입니다',
+    detail: '타는 적은 몸이 붉게 보입니다 · 다른 기름과는 같이 못 씁니다',
+  },
+  {
+    key: 'coldoil', name: '차가운 기름', icon: '❄', oilFamily: 'oil',
+    desc: '벤 적이 잠깐 느려집니다',
+    detail: '언 적은 몸이 파랗게 보입니다 · 다른 기름과는 같이 못 씁니다',
+  },
+
+  // ── 버티는 것 ────────────────────────────────────────
+  {
+    key: 'secondheart', name: '두 번째 심장', icon: '♡',
+    desc: '최대 체력을 올리는 물건이 더 크게 듭니다',
+    detail: '상점 「단단한 몸」이 +25 대신 +40',
+  },
+  {
+    key: 'ironskin', name: '강철 살갗', icon: '⛨', needsArmor: true,
+    desc: '방어력이 훨씬 천천히 닳습니다',
+    detail: '닳는 속도 80% 감소',
+  },
+  {
+    key: 'dragonscale', name: '용 비늘 투구', icon: '⛊',
+    desc: '보스에게 받는 피해가 줄어듭니다',
+    detail: '보스 공격 -50% — 보스의 공격은 거의 다 위에서 떨어집니다',
+  },
+  {
+    key: 'blackiron', name: '흑철갑옷', icon: '▦', needsArmor: true,
+    desc: '방어의 한계가 오르는 대신, 뛰는 것이 굼떠집니다',
+    detail: '방어 한계 +50% · 점프가 40% 더디어집니다',
+  },
+  {
+    key: 'crisis', name: '위기는 기회다', icon: '☯',
+    desc: '체력이 반 아래로 내려가면 오히려 강해집니다',
+    detail: '받는 피해 -30% · 공격 속도 +20%',
+  },
+
+  // ── 버는 것 · 판을 바꾸는 것 ──────────────────────────
+  {
+    key: 'goldhand', name: '황금 손', icon: '☞',
+    desc: '코인이 훨씬 멀리서부터 끌려옵니다',
+    detail: '유물 없이는 같은 층 한 칸 옆까지만 · 이 유물이 있으면 보이는 코인 전부',
+  },
+  {
+    key: 'tiltedscale', name: '기울어진 저울', icon: '⚖',
+    desc: '상점 값이 쌉니다',
+    detail: '-40%',
+  },
+  {
+    key: 'purplemedal', name: '보라빛 메달', icon: '⊛',
+    desc: '이 유물을 들고 보스를 넘길 때마다 메달을 받습니다',
+    detail: '보스마다 메달 +1 — 다시 오르기를 고르면 다시 셉니다',
+  },
+  {
+    key: 'mirrorshard', name: '거울 조각', icon: '◆',
+    desc: '보스에게 처음 맞는 한 대를 그대로 돌려줍니다',
+    detail: '그 싸움에서 한 번뿐입니다',
+  },
 ];
 
 function relicByKey(key) {
@@ -103,8 +246,14 @@ function relicByKey(key) {
 }
 
 // 그 직업이 얻을 수 있는 것들.
+//
+// needsArmor 는 갑옷을 입는 직업(usesArmor)에게만 나옵니다. 도적처럼 갑옷이
+// 없는 직업에게 「방어력」을 만지는 유물을 보여 줘 봐야 고를 이유가 없는
+// 유물이 하나 자리만 차지합니다 (js/medals.js 의 medalItemsFor 와 같은 규칙).
 function relicsFor(jobKey) {
-  return RELICS.filter((r) => !r.jobs || r.jobs.includes(jobKey));
+  const job = classByKey(jobKey);
+  return RELICS.filter((r) => (!r.jobs || r.jobs.includes(jobKey))
+    && (!r.needsArmor || (job && job.usesArmor)));
 }
 
 // 펼쳐 보일 세 장. 이미 들고 있는 것은 빼고 무작위로 뽑습니다.
