@@ -355,7 +355,7 @@ class Hud {
     }
     if (!!s.charm !== L.charm) {
       L.charm = !!s.charm;
-      this.charmText.setText(s.charm ? '· 수호 부적' : '')
+      this.charmText.setText(s.charm ? '· 질긴 목숨' : '')
         .setX(this.dpsText.x + this.dpsText.width + 12);
     }
 

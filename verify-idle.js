@@ -283,7 +283,7 @@ const check = (ok, label, got) => {
     await probe('초당 피해', () => { s.weapon.plus += 4; }, () => h.dpsText.text);
     await probe('강화 +', () => { s.weapon.plus += 3; }, () => h.plusText.text);
     await probe('공격 속도', () => { s.weapon.haste += 3; }, () => h.multText.text);
-    await probe('수호 부적', () => { s.charm = true; }, () => h.charmText.text);
+    await probe('질긴 목숨', () => { s.charm = true; }, () => h.charmText.text);
     await probe('유물', () => { s.weapon.takeRelic(RELICS[0]); }, () => h.relicText.text);
     // 유물을 바꿔치기해도 따라와야 합니다 — **개수가 그대로**인 자리라,
     // 개수만 보고 넘어가면 버린 유물의 아이콘이 화면에 남습니다.

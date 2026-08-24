@@ -2798,15 +2798,19 @@ class GameScene extends Phaser.Scene {
     }
   }
 
-  // 부적이 깨지며 대신 맞아 줍니다. 잠깐 무적을 주지 않으면 다음 한 대에
-  // 그대로 다시 쓰러져서, 산 보람 없이 사라집니다.
+  // 쓰러졌다가 한 번 다시 일어섭니다 (상점의 「질긴 목숨」). 잠깐 무적을 주지
+  // 않으면 다음 한 대에 그대로 다시 쓰러져서, 산 보람 없이 사라집니다.
+  //
+  // 뜨는 글이 「부적이 깨졌다」였습니다. 그러면 나를 살린 것이 **물건**이
+  // 됩니다 — 이름을 바꾼 까닭이 그것이라(js/shop.js), 글도 같이 옮겼습니다.
+  // 일어선 것은 나입니다.
   breakCharm() {
     this.charm = false;
     this.hp = Math.round(this.maxHp * CFG.shop.charmHeal);
     this.lastHitAt = this.time.now + CFG.shop.charmGraceMs;
 
     this.cameras.main.shake(260, 0.012);
-    this.popup('부적이 깨졌다', '#4dd0e1');
+    this.popup('간신히 일어섰다', '#4dd0e1');
     const ring = this.add.circle(this.player.x, this.player.y, 20, 0x000000, 0)
       .setStrokeStyle(4, 0x4dd0e1, 0.95).setDepth(12);
     this.tweens.add({
