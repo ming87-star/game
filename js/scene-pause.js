@@ -92,8 +92,10 @@ class PauseScene extends Phaser.Scene {
     keep(this.add.text(cx, cy - 46,
       '스스로 그만둔 판은 상점에서 이어서 갈 수 없습니다',
       font(16, '#e08a92')).setOrigin(0.5).setDepth(402));
+    // 죽음 화면(buildDeathChoices)은 같은 값을 「이번 판 메달 N개」라고 적습니다.
+    // 두 화면이 같은 것을 다르게 부르면 같은 것인지부터 헷갈립니다.
     keep(this.add.text(cx, cy - 18,
-      s && s.medals ? '번 메달 ' + s.medals + '개는 그대로 받습니다'
+      s && s.medals ? '이번 판 메달 ' + s.medals + '개는 그대로 받습니다'
         : '이번 판에 번 메달은 없습니다',
       font(16, '#8794b5')).setOrigin(0.5).setDepth(402));
 

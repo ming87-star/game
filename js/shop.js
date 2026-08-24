@@ -50,6 +50,10 @@ function maxhpGainFor(s) {
   return CFG.shop.maxhpGain + (s.weapon.hasRelic('secondheart') ? CFG.relicFx.secondheartBonus : 0);
 }
 
+// **여기 글은 그려지는 그대로입니다.** 처음 보는 놈 안내 창(js/scene-foe.js)은
+// `**`로 감싼 데를 굵게 읽으라는 뜻으로 쓰고 그리기 전에 그 표를 떼어 내지만,
+// 상점 줄에는 그런 처리가 없습니다. 여기에 `**`를 적으면 별표가 화면에
+// 그대로 뜹니다 — 실제로 「여벌 갑옷」이 한동안 그랬습니다.
 const SHOP_ITEMS = {
   plus:    { title: '날붙이 갈기', desc: '공격력 +' + CFG.shop.bundle.plus + ' (지도에서는 하나씩)' },
   haste:   { title: '가벼운 손',   desc: '공격 속도 +' + CFG.shop.bundle.haste + ' (지도에서는 하나씩)' },
@@ -57,14 +61,19 @@ const SHOP_ITEMS = {
   heal:    { title: '응급 처치',   desc: '체력을 가득 채웁니다' },
   // maxhp 의 desc 는 buildRow 가 그때그때 다시 씁니다 (두 번째 심장 때문에).
   maxhp:   { title: '단단한 몸',   desc: '최대 체력이 오르고 그만큼 회복' },
-  armor:   { title: '두꺼운 갑옷', desc: '방어구 +' + CFG.armor.shopGain + '% (한계까지)' },
+  // ── 갑옷 둘은 하는 일이 다릅니다 ───────────────────
+  // 「두꺼운 갑옷」은 **지금 수치**를 올리다가 최대치에 닿으면 거기서 멎고,
+  // 「여벌 갑옷」은 **최대치 자체**를 밀어 올리면서 그만큼을 같이 채웁니다.
+  // 그래서 최대치에 닿은 뒤에도 값어치가 남는 것은 여벌 갑옷뿐입니다.
+  // 이름만으로는 둘이 구분되지 않으니 설명이 그 차이를 말해야 합니다.
+  armor:   { title: '두꺼운 갑옷', desc: '방어구 +' + CFG.armor.shopGain + '% (최대치까지)' },
   dodge:   { title: '가벼운 발',   desc: '회피 +' + Math.round(CFG.dodge.shopGain * 100) + '%' },
   // ── 여기에만 있는 것 둘 ────────────────────────────
   // 지도에는 한계를 올려 주는 것도, 죽음을 한 번 무르는 것도 없습니다.
   // 후반에 아이템을 포기하고 뛰기 시작하면 이 둘이 살 이유가 됩니다.
-  cap:     { title: '여벌 갑옷',   desc: '방어·회피의 **한계**를 올립니다' },
+  cap:     { title: '여벌 갑옷',   desc: '최대치를 올리고 그만큼 채웁니다' },
   charm:   { title: '수호 부적',   desc: '쓰러질 때 한 번만 버팁니다' },
-  farsight: { title: '천리안', desc: '줄마다 곧 나올 아이템을 화면 위에 미리 보여 줍니다' },
+  farsight: { title: '천리안', desc: '줄마다 다음 아이템을 알려 줍니다' },
   // 「막는 것」은 한 칸을 넷이 나눠 씁니다. 이름과 설명은 그때 뜬 놈의 것을
   // 씁니다 (아래 buildRow).
   ward:    { title: '막는 것',     desc: '' },
