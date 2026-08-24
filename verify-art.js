@@ -306,6 +306,46 @@ const check = (ok, label, got) => {
   check(scenery.wall, '탑 안쪽 벽이 그림으로 깔림');
   check(scenery.deck === 'plat', '발판이 그림으로 깔림', scenery.deck);
 
+  // ── 벽에 남은 것들 (js/decor.js) ────────────────────────
+  // 이 탑이 한때 꽃으로 가득했다는 것을 말 없이 남긴 것들입니다. 아무 일도
+  // 안 하는 물건이라 망가져도 티가 안 납니다 — 그래서 셈으로 봅니다.
+  const decor = await page.evaluate(() => {
+    const s = window.__scene;
+    const 놓인것 = (i) => decorFor(s, i).map((o) => {
+      const r = { key: o.texture.key, x: Math.round(o.x), y: Math.round(o.y) };
+      o.destroy();
+      return r;
+    });
+
+    // 같은 층은 늘 같은 모습이어야 합니다 (다시 올라갔을 때 그 자리에).
+    const 한번 = JSON.stringify(놓인것(347));
+    const 두번 = JSON.stringify(놓인것(347));
+
+    // 삼천 층을 훑어 얼마나 나오는지, 어디에 놓이는지 셉니다.
+    let 덩굴 = 0, 꽃 = 0, 발판겹침 = 0;
+    const 꽃층 = [];
+    for (let i = 1; i <= 3000; i++) {
+      놓인것(i).forEach((o) => {
+        if (o.key === 'decor-vine') 덩굴++;
+        if (o.key === 'decor-flower') { 꽃++; 꽃층.push(i); }
+        // 발판은 층 y 에 있습니다. 그 언저리에 걸치면 발판으로 오해받습니다.
+        if (Math.abs(o.y - floorY(i)) < 40) 발판겹침++;
+      });
+    }
+    // 꽃이 상점층(50층마다)이나 보스층에 놓이면, 가장 붐비는 자리에 가장
+    // 조용해야 할 것이 묻힙니다.
+    const 붐빔 = 꽃층.filter((i) => i % CFG.shopEvery === 0 || isBossFloor(i)).length;
+    return { 같은가: 한번 === 두번, 덩굴, 꽃, 발판겹침, 붐빔, 셋: 꽃층.slice(0, 3).join(', ') };
+  });
+
+  check(decor.같은가, '같은 층은 늘 같은 모습 (씨앗과 무관)');
+  check(decor.꽃 === 30, '삼천 층에 시든 꽃 서른 (백 층마다 하나)',
+    decor.꽃 + '송이 · ' + decor.셋 + '층…');
+  check(decor.붐빔 === 0, '꽃이 상점층·보스층을 피함', decor.붐빔 + '건');
+  check(decor.덩굴 > 400 && decor.덩굴 < 900,
+    '마른 덩굴은 네댓 층에 한 번쯤', decor.덩굴 + '개 / 3000층');
+  check(decor.발판겹침 === 0, '발판 자리에 걸치는 것이 없음', decor.발판겹침 + '건');
+
   console.log(bad ? `\n${bad}건 어긋남` : '\n그림이 제자리에 다 붙었습니다');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
   await browser.close();

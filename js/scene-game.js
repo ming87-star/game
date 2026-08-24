@@ -278,6 +278,10 @@ class GameScene extends Phaser.Scene {
     const floor = makeFloor(index, healNeedFrom(this.hp, this.maxHp), this.job.usesArmor);
     floor.views = [];
 
+    // 벽에 남은 것들 (js/decor.js). 층에 딸려 놓이고 층과 함께 사라집니다 —
+    // views 에 넣어 두면 아래 지우는 자리가 알아서 치웁니다.
+    floor.views.push(...decorFor(this, index));
+
     for (const lane of LANES) {
       const slot = floor.slots[lane];
       if (!slot) continue;

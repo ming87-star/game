@@ -593,6 +593,8 @@ function buildTextures(scene) {
   buildWeaponIcons(scene);
   // 유물 서른 장 (js/relicart.js). 무기 그림과 같은 규칙으로 지어집니다.
   buildRelicIcons(scene);
+  // 벽에 남은 것들 — 마른 덩굴과 시든 꽃 (js/decor.js).
+  buildDecorArt(scene);
 }
 
 // ── 무기 그림 ───────────────────────────────────────────
