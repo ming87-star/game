@@ -410,23 +410,39 @@ class Trophies {
   // ── 갈라진 가면 ─────────────────────────────────────────
   // 얼굴에 씌워집니다. 한 대를 **통째로** 막고 깨졌다가 다시 생깁니다.
   //
-  // **머리에 정확히 맞추지 않습니다.** 주인공 셋의 머리가 다르므로(투구·후드·
-  // 두건) 머리보다 크게 씌워 덮습니다 — 자리를 재는 대신 가리는 쪽이 셋 다에
-  // 들어맞고, 무기 일흔두 자루의 몸짓마다 머리 자리를 다시 재지 않아도 됩니다.
-  wearMask() {
+  // **얼굴을 찾아서 씌웁니다.** 예전에는 물리 몸 한가운데에서 16px 위에 그냥
+  // 놓고 「머리보다 크게 덮으면 셋 다 맞는다」고 여겼는데, 재 보니 아니었습니다 —
+  // 겉몸은 발을 축으로 그려지고(js/motion.js) 자세마다 머리가 딴 데 가 있어서,
+  // 가면이 얼굴을 비켜 **가슴을 덮고 투구가 뒤로 삐져나왔습니다.** 어긋난
+  // 정도도 직업마다 달라서(도적이 가장 크게 숙입니다) 상수 하나로는 못 맞춥니다.
+  //
+  // 지금은 겉몸이 그 컷의 머리 자리를 돌려주고(rig.headPoint), 크기도 그
+  // 머리 너비에 맞춥니다. 시트가 없는 판에서는 옛 자리로 물러납니다.
+  maskSpot() {
     const s = this.scene;
     const m = CFG.trophy.mask;
+    const h = s.rig && s.rig.headPoint && s.rig.headPoint();
+    if (!h) return { x: s.player.x, y: s.player.y + m.y, size: m.size };
+    // 머리보다 조금 크게 — 가면이니 얼굴을 덮어야지 얼굴 안에 들어가면
+    // 안 됩니다. 다만 예전처럼 가슴까지 내려오면 안 됩니다.
+    return { x: h.x, y: h.y, size: Math.max(m.min, h.w * m.headMul) };
+  }
+
+  wearMask() {
+    const s = this.scene;
     if (this.mask) return;
-    this.mask = s.add.image(s.player.x, s.player.y + m.y, 'trophy-mask')
-      .setDisplaySize(m.size, m.size).setDepth(12);
+    const at = this.maskSpot();
+    this.mask = s.add.image(at.x, at.y, 'trophy-mask')
+      .setDisplaySize(at.size, at.size).setDepth(12);
     this.maskAt = 0;
   }
 
   updateMask(time) {
     const s = this.scene;
-    const m = CFG.trophy.mask;
     if (this.mask) {
-      this.mask.setPosition(s.player.x, s.player.y + m.y);
+      const at = this.maskSpot();
+      this.mask.setPosition(at.x, at.y);
+      this.mask.setDisplaySize(at.size, at.size);
       this.mask.setFlipX(s.player.flipX);
       this.mask.rotation = s.player.rotation;
       this.mask.setAlpha(s.player.alpha);

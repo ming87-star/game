@@ -200,6 +200,175 @@ class PlayerRig {
   // 쉬는 자세는 첫 컷입니다. 마지막 컷(자세 잡기)에서 첫 컷으로 넘어가는 것은
   // 곧 다음 대의 예비동작이라 눈에 안 걸립니다.
   rest() { this.setFrame(0); }
+
+  // ── 지금 컷에서 머리가 어디인가 ────────────────────────
+  //
+  // 갈라진 가면(js/trophies.js)이 얼굴에 씌워지려면 이것이 있어야 합니다.
+  // 예전에는 물리 몸 한가운데에서 16px 위에 그냥 놓았는데, **겉몸은 발을
+  // 축으로 그려지고 자세마다 머리가 딴 데 가 있습니다** — 도적은 앞으로
+  // 크게 숙이고 전사는 뒤로 젖힙니다. 그래서 가면이 얼굴이 아니라 가슴을
+  // 덮었습니다.
+  //
+  // 화면 자리로 돌려 줍니다: { x, y, w }. 시트가 없으면 null 입니다.
+  headPoint() {
+    if (!this.view || !this.data) return null;
+    const h = headAnchors(this.scene, this.key, this.data);
+    if (!h) return null;
+    const a = h[Math.min(this.frame, h.length - 1)];
+    if (!a) return null;
+
+    const d = this.data;
+    const k = this.scale;
+    // 컷 안의 자리를 겉몸 기준으로. 겉몸의 축은 발(foot, ground)입니다.
+    let dx = (a.x - d.foot) * k;
+    const dy = (a.y - d.ground) * k;
+    if (this.view.flipX) dx = -dx;
+    // 몸이 통째로 돌면(도적이 뛰며 한 바퀴) 이 벡터도 같이 돕니다.
+    const rot = this.view.rotation;
+    let ox = dx, oy = dy;
+    if (rot) {
+      const c = Math.cos(rot), s = Math.sin(rot);
+      ox = dx * c - dy * s;
+      oy = dx * s + dy * c;
+    }
+    return { x: this.view.x + ox, y: this.view.y + oy, w: a.w * k };
+  }
+}
+
+// ── 시트에서 머리 자리를 찾아 둡니다 ──────────────────────
+//
+// 시트에는 발 자리(foot·ground)와 키(hero)만 적혀 있고 머리 자리는 없습니다.
+// 그림에서 직접 찾습니다 — **컷마다 위쪽 30% 를 훑어 가장 넓은 가로 토막**을
+// 고릅니다. 머리는 넓고(14px 쯤) 무기는 가늘어서(칼날 3~5px), 머리 높이에서
+// 가장 넓은 덩어리는 거의 언제나 머리입니다. 자루가 서른여섯이라 하나하나
+// 손으로 적어 둘 수는 없습니다.
+//
+// 시트 한 장을 캔버스에 한 번 올려 픽셀을 통째로 읽습니다. 한 자루당 한 번이고
+// 그 뒤로는 적어 둔 것을 씁니다 — 매 프레임 하는 일이 아닙니다.
+const HEAD_CACHE = {};
+
+function headAnchors(scene, key, d) {
+  if (HEAD_CACHE[key] !== undefined) return HEAD_CACHE[key];
+  HEAD_CACHE[key] = null;
+  try {
+    const src = scene.textures.get(key).getSourceImage();
+    const cv = document.createElement('canvas');
+    cv.width = src.width;
+    cv.height = src.height;
+    const ctx = cv.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(src, 0, 0);
+    const px = ctx.getImageData(0, 0, cv.width, cv.height).data;
+
+    // 머리끝에서 어깨가 시작될 즈음까지 훑습니다.
+    const top = Math.max(0, Math.round(d.ground - d.hero));
+    const bottom = Math.min(cv.height - 1, Math.round(d.ground - d.hero * 0.55));
+    // 이보다 넓어지면 더는 머리가 아닙니다 (어깨·망토·크게 휘두른 무기).
+    const capW = d.hero * 0.42;
+    // 덩어리 한가운데가 위아래로 내려가며 이보다 많이 흐르면 머리가 아닙니다.
+    // **머리는 제자리에 있고 휘두른 무기는 비스듬히 흘러갑니다** — 전사의
+    // 칼이 딱 그렇습니다(x15 에서 x42 로). 넓이만 보면 칼과 머리가 거의
+    // 같아서(420 대 418) 동전 던지기가 됩니다.
+    const drift = d.hero * 0.15;
+
+    const cands = [];
+    for (let i = 0; i < d.n; i++) {
+      const x0 = i * d.fw;
+
+      // ── 덩어리로 묶습니다 ─────────────────────────────
+      // 「가장 넓은 토막」으로 고르면 안 됩니다. 도적은 머리 높이에 덩어리가
+      // 둘인데(왼쪽 망토·오른쪽 후드) 망토 쪽이 더 넓어서, 가면이 등에
+      // 붙었습니다. 위에서 아래로 내려가며 겹치는 토막끼리 이어 붙이고,
+      // 넓어지다 문턱을 넘으면 거기서 그 덩어리를 닫습니다 — 망토는 계속
+      // 넓어지므로 일찍 닫히고, 머리는 제 너비에서 멎습니다.
+      let open = [];
+      const done = [];
+      for (let y = top; y <= bottom; y++) {
+        const runs = [];
+        let run = 0;
+        for (let x = 0; x <= d.fw; x++) {
+          // **불투명한 것만 셉니다.** 칼이 지나간 잔상(스미어)은 반투명하게
+          // 그려져 있는데, 문턱이 낮으면 그 넓은 호가 머리보다 큰 덩어리로
+          // 잡혀서 가면이 잔상에 붙었습니다 (장창의 한 컷이 그랬습니다).
+          const on = x < d.fw && px[((y * cv.width) + x0 + x) * 4 + 3] > 160;
+          if (on) { run++; continue; }
+          if (run > 2) runs.push({ a: x - run, b: x, w: run });
+          run = 0;
+        }
+        const next = [];
+        runs.forEach((r) => {
+          if (r.w > capW) return;                       // 이미 머리보다 넓습니다
+          // 바로 윗줄에서 가로로 겹치는 덩어리에 이어 붙입니다.
+          const mid = (r.a + r.b) / 2;
+          const up = open.find((c) => r.a < c.b && r.b > c.a);
+          if (up) {
+            up.a = r.a; up.b = r.b;
+            // **가장 넓은 줄을 자리로 삼습니다** — x 는 이 줄에서, y 도 이
+            // 줄에서. 예전에는 x 는 가장 넓은 줄에서 가져오고 y 는 위아래
+            // 한가운데를 썼는데, 그 둘이 다른 줄이라 초승달처럼 휜 덩어리에서
+            // 는 **빈 자리**를 가리켰습니다 (검사가 세 컷을 잡아냈습니다).
+            if (r.w > up.w) { up.w = r.w; up.cx = mid; up.cy = y; }
+            up.area += r.w;
+            up.lo = Math.min(up.lo, mid);
+            up.hi = Math.max(up.hi, mid);
+            up.y2 = y;
+            next.push(up);
+          } else {
+            next.push({ a: r.a, b: r.b, w: r.w, cx: mid, cy: y, area: r.w,
+              lo: mid, hi: mid, y1: y, y2: y });
+          }
+        });
+        open.filter((c) => !next.includes(c)).forEach((c) => done.push(c));
+        open = next;
+      }
+      open.forEach((c) => done.push(c));
+
+      // 머리다울 만한 것들 — 옆으로 안 흐르는, 납작하지 않은 덩어리.
+      cands.push(done
+        .filter((c) => c.y2 - c.y1 + 1 >= d.hero * 0.10 && c.hi - c.lo <= drift)
+        .sort((a, b) => b.area - a.area));
+    }
+
+    // ── 컷끼리 견줍니다 ───────────────────────────────────
+    // 머리는 컷이 넘어가도 크게 안 움직입니다. 한 컷만 딴 데로 튀면 그건
+    // 머리가 아니라 그 컷에서 유난히 커진 무기입니다 — 여덟 컷의 가운뎃값을
+    // 잡고, 거기서 너무 먼 것은 다음 후보로 물립니다.
+    const firsts = cands.map((c) => (c[0] ? c[0].cx : d.foot)).slice().sort((a, b) => a - b);
+    const mid = firsts[Math.floor(firsts.length / 2)];
+    // 가운뎃값에서 먼 것은 **아예 못 찾은 것으로 칩니다.** 억지로 그 컷의
+    // 1등을 쓰면 가면이 그 컷에서만 칼로 옮겨 갑니다 (전사의 한 컷이 그랬습니다).
+    // 못 찾은 자리는 바로 아래에서 이웃 컷을 빌려 메웁니다.
+    const picked = cands.map((list) => list.find((c) => Math.abs(c.cx - mid) <= d.hero * 0.30)
+      || null);
+
+    // 아무것도 못 찾은 컷은 **이웃 컷에서 빌려 옵니다.** 크게 든 컷이나 스미어
+    // 컷에서는 머리가 팔에 묻혀 덩어리가 안 잡힐 때가 있는데, 그때 정해진
+    // 자리로 떨어뜨리면 가면이 허공에 뜹니다 — 실제로 전사의 두 컷이 그랬습니다.
+    for (let i = 0; i < picked.length; i++) {
+      if (picked[i]) continue;
+      let near = null;
+      for (let k = 1; k < picked.length && !near; k++) {
+        near = picked[i - k] || picked[i + k] || null;
+      }
+      picked[i] = near;
+    }
+
+    // 너비는 컷마다 들쭉날쭉합니다 — 팔이 머리에 붙는 컷에서는 머리가 실제보다
+    // 훨씬 넓게 잡힙니다. **쉬는 자세(첫 컷)의 너비**를 씁니다. 거기가 머리가
+    // 가장 깨끗하게 드러나는 자리이고, 하나로 정해 두면 휘두르는 동안 가면
+    // 크기가 출렁이지도 않습니다.
+    const ws = picked.filter(Boolean).map((c) => c.w).sort((a, b) => a - b);
+    const w = (picked[0] && picked[0].w)
+      || (ws.length ? ws[Math.floor(ws.length / 2)] : d.hero * 0.28);
+
+    const out = picked.map((c) => (c
+      ? { x: c.cx, y: c.cy, w }
+      : { x: d.foot, y: d.ground - d.hero * 0.85, w }));
+    HEAD_CACHE[key] = out;
+  } catch (e) {
+    // 픽셀을 못 읽는 판에서는 가면이 옛 자리로 갑니다 (아래 trophies.js).
+    HEAD_CACHE[key] = null;
+  }
+  return HEAD_CACHE[key];
 }
 
 // 이 무기의 시트 이름.
