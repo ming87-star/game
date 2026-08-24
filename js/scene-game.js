@@ -1386,7 +1386,7 @@ class GameScene extends Phaser.Scene {
     this.syncUpgradeMarks();
 
     // 가까이 온 가짜부터 정체를 드러냅니다.
-    // 참눈이 있으면 훨씬 멀리서부터 드러납니다 (CFG.relicFx.trueEyeWithin).
+    // 혜안이 있으면 훨씬 멀리서부터 드러납니다 (CFG.relicFx.trueEyeWithin).
     const revealWithin = this.weapon.hasRelic('trueeye')
       ? CFG.relicFx.trueEyeWithin : CFG.trap.revealWithin;
     for (let i = 0; i <= revealWithin; i++) {

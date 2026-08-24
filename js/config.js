@@ -1618,7 +1618,7 @@ const CFG = {
     hotoil: { tickMs: 500, ticks: 4, dmgShare: 0.12, tint: 0xff7043 },
     coldoil: { ms: 2000, slow: 0.5, tint: 0x81d4fa },
 
-    // 참눈 — 미믹이 드러나는 범위(CFG.trap.revealWithin=2)를 이만큼으로
+    // 혜안 — 미믹이 드러나는 범위(CFG.trap.revealWithin=2)를 이만큼으로
     // 늘립니다. floorIndex+7 까지가 이미 만들어 둔 전부라, 그 끝까지 늘리면
     // "보이는 가짜는 이미 다 안다"가 됩니다.
     trueEyeWithin: 7,

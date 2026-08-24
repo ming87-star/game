@@ -336,7 +336,7 @@ const check = (ok, label, got) => {
   check(rocket.floor === 302, '두 층을 한 번에 (300 → 302)', rocket.floor);
   check(!rocket.jumpingAfter, '내려앉은 뒤에는 다시 뛸 수 있음');
 
-  // ── 15. 참눈 — 미믹이 훨씬 멀리서부터 드러남 ────────────
+  // ── 15. 혜안 — 미믹이 훨씬 멀리서부터 드러남 ────────────
   const eye = await page.evaluate(() => {
     const s = window.__scene;
     s.weapon.relics = [];
@@ -358,7 +358,48 @@ const check = (ok, label, got) => {
     return { without, withEye };
   });
   check(!eye.without, '평소에는 6층 위 가짜가 아직 안 드러남');
-  check(eye.withEye, '참눈이 있으면 그만큼 멀어도 드러남');
+  check(eye.withEye, '혜안이 있으면 그만큼 멀어도 드러남');
+
+  // ── 16. 유물 도감 — 서른 줄에 **다 닿을 수 있는가** ─────
+  //
+  // 아홉이던 유물을 서른으로 늘렸을 때 도감은 그대로 뒀습니다. 줄은 다
+  // 그려졌지만 마지막 줄이 y=2382 (화면은 960) 라서 열아홉은 아예 화면
+  // 밖이었습니다 — 그리는 것과 닿는 것은 다릅니다. 그래서 「그려졌나」가
+  // 아니라 「끝까지 끌어서 마지막 줄을 볼 수 있나」를 잽니다.
+  const book = await page.evaluate(async () => {
+    // 도감은 못 만난 유물을 「? ???」로 적습니다. 이름으로 찾아야 하니
+    // 서른을 다 만난 것으로 해 두고 엽니다.
+    RELICS.forEach((r) => { Save.data.relics[r.key] = 1; });
+    window.__game.scene.start('relicbook');
+    await new Promise((r) => setTimeout(r, 700));
+    const s = window.__relicbook;
+    const cam = s.cameras.main;
+    // 흘리기 전 — 몇 줄이 화면 안에 들어와 있나
+    const 보이는줄 = () => s.children.list.filter((o) => o.type === 'Text'
+      && o.scrollFactorY !== 0
+      && o.y - cam.scrollY > 152 && o.y - cam.scrollY < CFG.height - 86).length;
+    const 처음 = 보이는줄();
+    // 끝까지 흘립니다
+    cam.scrollY = s.maxScroll;
+    const 끝에서 = 보이는줄();
+    // 마지막 유물의 이름이 화면 안에 들어왔는가
+    const 줄글 = (r) => r.icon + '  ' + r.name;
+    const 막줄 = RELICS[RELICS.length - 1].name;
+    const 막줄보임 = s.children.list.some((o) => o.type === 'Text'
+      && o.text === 줄글(RELICS[RELICS.length - 1])
+      && o.y - cam.scrollY > 152 && o.y - cam.scrollY < CFG.height - 86);
+    // 첫 유물은 흘리기 전에 보여야 합니다 (거꾸로 시작하지 않게)
+    const 첫줄 = RELICS[0].name;
+    cam.scrollY = 0;
+    const 첫줄보임 = s.children.list.some((o) => o.type === 'Text'
+      && o.text === 줄글(RELICS[0])
+      && o.y - cam.scrollY > 152 && o.y - cam.scrollY < CFG.height - 86);
+    return { 처음, 끝에서, 막줄보임, 첫줄보임, maxScroll: Math.round(s.maxScroll), 막줄, 첫줄 };
+  });
+  check(book.첫줄보임, '처음에는 첫 유물이 보임', book.첫줄);
+  check(book.maxScroll > 0, '끌어서 넘길 자리가 있음', book.maxScroll + 'px');
+  check(book.막줄보임, '끝까지 끌면 마지막 유물까지 닿음', book.막줄);
+  check(book.끝에서 > 0, '끝에서도 빈 화면이 아님', book.끝에서 + '줄');
 
   console.log(bad ? `\n${bad}건 어긋남` : '\n유물 서른 개 모두 맞음');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
