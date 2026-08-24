@@ -2450,7 +2450,12 @@ class GameScene extends Phaser.Scene {
 
       const box = add(this.add.rectangle(cx, y, 460, 130, 0x231a3a)
         .setStrokeStyle(2, 0xffd54f).setInteractive({ useHandCursor: true }));
-      add(this.add.text(cx - 200, y - 40, relic.icon + '  ' + relic.name, font(28, '#ffd54f')));
+      // 그림은 **이름 줄에만** 놓습니다 (js/relicart.js). 아래 두 줄(desc·
+      // detail)은 그대로 cx-200 에서 시작해야 합니다 — 거기까지 밀면 글이
+      // 쓸 수 있는 자리가 40px 줄어서 몇 줄이 카드 밖으로 넘습니다
+      // (node verify-text.js 가 재는 그 자리입니다).
+      add(this.add.image(cx - 184, y - 23, relicIconKey(relic.key)).setDisplaySize(34, 34));
+      add(this.add.text(cx - 162, y - 40, relic.name, font(28, '#ffd54f')));
       add(this.add.text(cx - 200, y - 2, relic.desc, font(20, '#ffe082')));
       add(this.add.text(cx - 200, y + 30, relic.detail, font(17, '#8794b5')));
       // 처음 보는 유물이라고 알려 주면 도감을 채우는 재미가 생깁니다.
@@ -2497,7 +2502,8 @@ class GameScene extends Phaser.Scene {
       const y = 340 + i * 130;
       const box = add(this.add.rectangle(cx, y, 460, 110, 0x2a1a1a)
         .setStrokeStyle(2, 0xff8a80).setInteractive({ useHandCursor: true }));
-      add(this.add.text(cx - 200, y - 28, relic.icon + '  ' + relic.name, font(26, '#ff8a80')));
+      add(this.add.image(cx - 185, y - 13, relicIconKey(relic.key)).setDisplaySize(32, 32));
+      add(this.add.text(cx - 164, y - 28, relic.name, font(26, '#ff8a80')));
       add(this.add.text(cx - 200, y + 8, relic.detail, font(17, '#8794b5')));
       add(this.add.text(cx + 200, y - 28, '버리기', font(18, '#ff8a80')).setOrigin(1, 0));
 

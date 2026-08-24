@@ -383,7 +383,8 @@ const check = (ok, label, got) => {
     cam.scrollY = s.maxScroll;
     const 끝에서 = 보이는줄();
     // 마지막 유물의 이름이 화면 안에 들어왔는가
-    const 줄글 = (r) => r.icon + '  ' + r.name;
+    // 도감 줄은 그림 + 이름입니다 (js/relicart.js 를 붙이면서 기호가 빠졌습니다).
+    const 줄글 = (r) => r.name;
     const 막줄 = RELICS[RELICS.length - 1].name;
     const 막줄보임 = s.children.list.some((o) => o.type === 'Text'
       && o.text === 줄글(RELICS[RELICS.length - 1])
@@ -400,6 +401,28 @@ const check = (ok, label, got) => {
   check(book.maxScroll > 0, '끌어서 넘길 자리가 있음', book.maxScroll + 'px');
   check(book.막줄보임, '끝까지 끌면 마지막 유물까지 닿음', book.막줄);
   check(book.끝에서 > 0, '끝에서도 빈 화면이 아님', book.끝에서 + '줄');
+
+  // ── 17. 판을 거치지 않고 도감을 열어도 그림이 뜨는가 ────
+  //
+  // 위의 도감 검사는 판을 한 번 돌고 나서 엽니다. 그런데 도감은 **시작
+  // 화면에서 바로** 열 수 있고, 그때는 텍스처가 아직 안 구워져 있어서
+  // Phaser 가 「없는 그림」 자리에 초록 X 상자를 놓습니다. 실제로 그랬습니다.
+  // 그래서 판을 아예 안 거친 길을 따로 재 둡니다.
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForFunction(() => window.__title && window.__title.ready, null, { timeout: 8000 });
+  const fresh = await page.evaluate(async () => {
+    RELICS.forEach((r) => { Save.data.relics[r.key] = 1; });
+    window.__title.go();
+    await new Promise((r) => setTimeout(r, 500));
+    window.__game.scene.start('relicbook');
+    await new Promise((r) => setTimeout(r, 900));
+    const s = window.__relicbook;
+    const imgs = s.children.list.filter((o) => o.type === 'Image');
+    const 빠진것 = imgs.filter((o) => o.texture.key === '__MISSING').length;
+    return { 그림수: imgs.length, 빠진것, 총: RELICS.length };
+  });
+  check(fresh.그림수 >= fresh.총, '판을 안 거쳐도 서른 장이 다 놓임', fresh.그림수 + '장');
+  check(fresh.빠진것 === 0, '없는 그림(초록 X 상자)이 하나도 없음', fresh.빠진것 + '개');
 
   console.log(bad ? `\n${bad}건 어긋남` : '\n유물 서른 개 모두 맞음');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');

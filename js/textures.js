@@ -591,6 +591,8 @@ function buildTextures(scene) {
   g.destroy();
 
   buildWeaponIcons(scene);
+  // 유물 서른 장 (js/relicart.js). 무기 그림과 같은 규칙으로 지어집니다.
+  buildRelicIcons(scene);
 }
 
 // ── 무기 그림 ───────────────────────────────────────────

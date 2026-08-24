@@ -20,7 +20,17 @@ class RelicBookScene extends Phaser.Scene {
     super('relicbook');
   }
 
+  // 유물 그림도 판 밖에서 필요합니다. 이 화면은 시작 화면에서 바로 열 수
+  // 있어서, 한 판도 안 뛰고 들어오면 텍스처가 아직 안 구워져 있습니다 —
+  // 그러면 Phaser 가 「없는 그림」 자리에 **초록 X 상자**를 놓습니다.
+  // 무기 도감과 같은 처리입니다 (js/scene-weaponbook.js).
+  preload() {
+    loadArt(this);
+  }
+
   create() {
+    buildTextures(this);
+
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
     const cx = CFG.width / 2;
 
@@ -94,8 +104,14 @@ class RelicBookScene extends Phaser.Scene {
     this.add.rectangle(cx, y, 460, 66, has ? 0x231a3a : 0x161a28)
       .setStrokeStyle(2, has ? 0x7e6bc4 : 0x252c44);
 
-    this.add.text(cx - 200, y - 14, has ? relic.icon + '  ' + relic.name : '?  ???',
-      font(23, has ? '#ffd54f' : '#4a5578'));
+    // 만난 것만 그림이 뜹니다 (js/relicart.js). 못 만난 칸은 물음표 그대로 —
+    // 그림이 보이면 무엇인지 짐작이 되어 「직접 만나서 알게 한다」가 깨집니다.
+    if (has) {
+      this.add.image(cx - 186, y - 1, relicIconKey(relic.key)).setDisplaySize(28, 28);
+      this.add.text(cx - 166, y - 14, relic.name, font(23, '#ffd54f'));
+    } else {
+      this.add.text(cx - 200, y - 14, '?  ???', font(23, '#4a5578'));
+    }
     this.add.text(cx - 200, y + 12, has ? relic.detail : '아직 만나지 못했습니다',
       font(16, has ? '#8794b5' : '#3c456b'));
 
