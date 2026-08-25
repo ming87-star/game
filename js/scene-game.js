@@ -37,6 +37,7 @@ class GameScene extends Phaser.Scene {
     this.noResume = false;
     this.jumping = false;
     this.floorIndex = 0;
+    this.combo = 0;   // 연타 (권법사). 판마다 0 부터입니다
     this.lane = 'mid';
     resetTowerRun(); // 이번 판의 UP 배치를 새로 뽑습니다
 
@@ -1567,6 +1568,10 @@ class GameScene extends Phaser.Scene {
 
     this.lastSwingAt = now;
     this.swings = (this.swings || 0) + 1;
+    // 연타 — **이 대에 실릴 배수를 먼저 잡아 두고** 그 다음에 셈틀을 올립니다.
+    // 순서를 바꾸면 첫 대가 이미 한 칸 쌓인 채로 들어갑니다.
+    const 연타 = this.comboMul();
+    this.bumpCombo();
 
     const nearest = hit.reduce((a, b) => (this.meleeDist(a) < this.meleeDist(b) ? a : b));
     const angle = Phaser.Math.Angle.Between(
@@ -1620,10 +1625,32 @@ class GameScene extends Phaser.Scene {
       }
       // 공격력은 적마다 새로 굴립니다. 한 번 굴려 나눠 주면 범위가 있는 뜻이
       // 반으로 줄어듭니다 — 화면에 뜨는 숫자 여럿이 늘 똑같아집니다.
-      this.hitEnemy(e, Math.max(1, Math.round(w.rollDamage() * scaleAt(e))));
+      this.hitEnemy(e, Math.max(1, Math.round(w.rollDamage() * scaleAt(e) * 연타)));
       this.applyOil(e);
       this.stunEnemy(e);
     });
+  }
+
+  // ── 연타 (권법사) ───────────────────────────────────────
+  // 칠 때마다 쌓이고 **열 번째에서 풀립니다** (CFG.combo).
+  //
+  // 처음 안은 「층을 옮기면 풀림」이었습니다. 재 보니 한 층에서 치는 것이
+  // 평균 두 대뿐이라(전사 2.1 · 권법사 1.9) 연타가 2를 못 넘었습니다 —
+  // 있으나 마나 한 기능이었습니다. 열 대로 끊으면 다섯 층쯤에 한 바퀴라,
+  // **오르는 내내 쌓이다 열 번째에 터집니다.**
+  //
+  // 판을 넘어 남지 않습니다 — 죽으면 0 부터입니다 (this.combo 를 안 옮깁니다).
+  comboMul() {
+    if (!this.job.combo) return 1;
+    return 1 + (this.combo || 0) * CFG.combo.per;
+  }
+
+  bumpCombo() {
+    if (!this.job.combo) return;
+    this.combo = ((this.combo || 0) + 1) % CFG.combo.every;
+    // 한 바퀴를 돌면 눈에 보이게 합니다. **안 보여 주면 이 직업이 무엇을
+    // 하는 직업인지 영영 안 읽힙니다** — 지팡이의 터짐과 같은 자리입니다.
+    if (this.combo === 0) this.popup('열 대!', '#ffd54f');
   }
 
   // 공격력을 주우면 **망치가 한 번 내리쳐집니다.**

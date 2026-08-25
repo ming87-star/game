@@ -63,6 +63,15 @@ class Hud {
     // 떠 있으면 그냥 노이즈입니다.
     this.medalText = fixed(scene.add.text(CFG.width - 24, 84, '', font(20, '#ffca28')).setOrigin(1, 0));
 
+    // ── 연타 (권법사) ───────────────────────────────────
+    // **안 보여 주면 이 직업의 결정이 사라집니다.** 열 번째 한 대가 크게
+    // 들어가는데, 몇 대째인지 모르면 그걸 큰 놈에게 맞출 수가 없습니다 —
+    // 그냥 가끔 세게 들어가는 주먹이 됩니다.
+    //
+    // 권법사가 아니면 자리를 아예 안 씁니다 (막는 것과 같은 규칙).
+    this.comboText = fixed(scene.add.text(CFG.width - 24, 156, '', font(17, '#ffd54f'))
+      .setOrigin(1, 0));
+
     // ── 천리안 — 줄마다 곧 나올 아이템을 그 줄 자리에 ─────
     // 화면 위쪽 글자 한 줄로 적었더니 "어느 줄이 왼쪽 오른쪽인지"를 다시
     // 글로 읽어야 했습니다. 그 물건이 **실제로 있을 줄, 화면 맨 위**에 작은
@@ -279,6 +288,18 @@ class Hud {
     const wt = keys.length
       ? keys.map((k) => (CFG.foes.ward.of[k].name[0]) + ' ' + s.wards[k]).join('  ') : '';
     if (wt !== L.ward) { L.ward = wt; this.wardText.setText(wt); }
+
+    // ── 연타 ──────────────────────────────────────────
+    // 점 열 개로 그립니다. 숫자보다 **한눈에 몇 칸 남았는지**가 읽힙니다.
+    // 보스전에는 접습니다 (막는 것과 같은 자리라 체력 띠와 부딪힙니다).
+    if (s.job.combo) {
+      const n = s.bossFight ? -1 : (s.combo || 0);
+      if (n !== L.combo) {
+        L.combo = n;
+        this.comboText.setText(n < 0 ? ''
+          : '연타 ' + '●'.repeat(n) + '○'.repeat(CFG.combo.every - n));
+      }
+    }
 
     // ── 체력 ──────────────────────────────────────────
     if (s.hp !== L.hp || s.maxHp !== L.maxHp) {

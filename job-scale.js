@@ -91,10 +91,18 @@ function measure(job, f) {
   //
   // 이 한 줄이 궁수를 몇 점 내립니다. 그래도 그쪽이 맞습니다 — 부풀린 값을
   // 기준으로 새 직업 다섯을 맞추면 다섯이 다 같이 부풀려집니다.
+  // ── 연타 (권법사) ────────────────────────────────────
+  // 칠 때마다 쌓이고 열 번째에 풀립니다 (CFG.combo). 한 바퀴의 **평균**을
+  // 곱합니다 — 꼭대기(×1.63)를 곱하면 늘 열 번째만 치는 셈이 되고,
+  // 안 곱하면 이 직업의 알맹이가 표에서 통째로 빠집니다.
+  const 연타 = job.combo
+    ? 1 + ((CFG.combo.every - 1) / 2) * CFG.combo.per
+    : 1;
+
   const 발사체 = (n) => 1 + ((n || 1) - 1) * 0.5;
   const each = pool
     .map((x) => (x.dmgMin + x.dmgMax) / 2 * boost * 발사체(x.shots) * x.acc
-      * (1 + (x.burn || 0)) / (x.rate / speed) * 1000)
+      * (1 + (x.burn || 0)) * 연타 / (x.rate / speed) * 1000)
     .sort((a, b) => a - b);
   const dps = each[Math.floor(each.length / 2)];
 

@@ -1,4 +1,7 @@
-// 마법사의 지팡이가 지닌 넷 — **화상 · 관통 · 광역 · 보호막**.
+// 마법사의 지팡이 넷(**화상 · 관통 · 광역 · 보호막**)과 권법사의 **연타**.
+//
+// 다섯 다 같은 부류입니다 — 자루나 직업에 값이 적혀 있고, 그 값을 읽는
+// 코드가 있어야 비로소 무슨 일이 일어납니다.
 //
 // ── 이 시험이 있는 까닭 ─────────────────────────────────
 // 넷 다 `js/classes.js` 의 자루에 **숫자로 적혀 있습니다.** 그런데 그 숫자를
@@ -208,7 +211,77 @@ const check = (ok, what, note) => {
     '줄어드는 만큼이 적힌 값과 맞음',
     보호막.나무.깎임 + ' ÷ ' + 보호막.수호.막 + ' ≈ ' + 보호막.수호.깎임);
 
-  console.log(bad ? `\n${bad}건 어긋남` : '\n지팡이 넷이 다 제 일을 합니다');
+  // ── 연타 (권법사) ───────────────────────────────────────
+  // 지팡이 넷과 같은 부류입니다 — **값이 적혀 있어도 도는 코드가 없으면
+  // 아무 일도 안 일어나고 오류도 안 납니다.**
+  await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'monk' }));
+  await page.waitForFunction(() => window.__scene && window.__scene.player
+    && window.__scene.job.key === 'monk', null, { timeout: 8000 });
+
+  const 연타 = await page.evaluate(() => {
+    const s = window.__scene;
+    const 배수 = [];
+    s.combo = 0;
+    for (let i = 0; i < CFG.combo.every * 2 + 1; i++) {
+      배수.push(Number(s.comboMul().toFixed(4)));
+      s.bumpCombo();
+    }
+    return { 배수, per: CFG.combo.per, every: CFG.combo.every };
+  });
+  check(연타.배수[0] === 1, '첫 대는 그대로 (쌓인 것이 없음)', '×' + 연타.배수[0]);
+  check(연타.배수[1] > 1, '두 번째부터 쌓임', '×' + 연타.배수[1]);
+  const 꼭대기 = 연타.every - 1;
+  check(Math.abs(연타.배수[꼭대기] - (1 + 꼭대기 * 연타.per)) < 1e-6,
+    '열 번째가 가장 크게 들어감', '×' + 연타.배수[꼭대기]);
+  check(연타.배수[연타.every] === 1, '**열 번을 치면 풀림**',
+    연타.every + '번째 뒤 ×' + 연타.배수[연타.every]);
+  check(연타.배수[연타.every + 1] > 1, '풀린 뒤 다시 쌓임',
+    '×' + 연타.배수[연타.every + 1]);
+  const 평균 = 연타.배수.slice(0, 연타.every).reduce((a, b) => a + b, 0) / 연타.every;
+  check(Math.abs(평균 - 1.315) < 0.02, '한 바퀴 평균이 직업표의 어림과 맞음',
+    '×' + 평균.toFixed(3) + ' (classes.js 의 그럴듯과 맞물립니다)');
+
+  // **실제로 더 아프게 들어가는가.** 위는 셈이고 이것이 판입니다.
+  const 아픔 = await page.evaluate(() => {
+    const s = window.__scene;
+    const 친다 = (쌓임) => {
+      s.enemies.getChildren().slice().forEach((e) => e.destroy());
+      const e = s.enemies.create(s.player.x + 20, s.player.y, 'e-crawler');
+      e.body.setAllowGravity(false);
+      e.hp = 1e9; e.maxHp = 1e9; e.floor = 1; e.def = { key: 'crawler' };
+      s.combo = 쌓임;
+      s.lastSwingAt = -99999;
+      // 흔들림과 정확도를 없애 **연타 말고는 아무것도 안 달라지게** 합니다.
+      const w = s.weapon;
+      w.rollDamage = () => 1000;
+      w.hits = () => true;
+      s.swing(s.time.now);
+      const 들어감 = 1e9 - e.hp;
+      e.destroy();
+      return 들어감;
+    };
+    return { 맨처음: 친다(0), 아홉쌓임: 친다(9) };
+  });
+  check(아픔.맨처음 > 0, '맨몸으로도 들어감', 아픔.맨처음);
+  check(아픔.아홉쌓임 > 아픔.맨처음, '**쌓이면 실제로 더 아픔**',
+    아픔.맨처음 + ' → ' + 아픔.아홉쌓임);
+  check(Math.abs(아픔.아홉쌓임 / 아픔.맨처음 - (1 + 9 * 연타.per)) < 0.03,
+    '더 아픈 만큼이 적힌 값과 맞음',
+    (아픔.아홉쌓임 / 아픔.맨처음).toFixed(3) + ' ≈ ' + (1 + 9 * 연타.per).toFixed(2));
+
+  // 권법사가 아니면 아무 일도 없어야 합니다.
+  await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'warrior' }));
+  await page.waitForFunction(() => window.__scene && window.__scene.player
+    && window.__scene.job.key === 'warrior', null, { timeout: 8000 });
+  const 남 = await page.evaluate(() => {
+    const s = window.__scene;
+    s.combo = 9;
+    return { 배수: s.comboMul(), 쌓이나: (s.bumpCombo(), s.combo) };
+  });
+  check(남.배수 === 1 && 남.쌓이나 === 9, '권법사가 아니면 연타가 안 걸림',
+    '×' + 남.배수);
+
+  console.log(bad ? `\n${bad}건 어긋남` : '\n지팡이 넷과 연타가 다 제 일을 합니다');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
   await browser.close();
   server.close();
