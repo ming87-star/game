@@ -104,7 +104,13 @@ const check = (ok, label, got) => {
   check(onSelect, '오프닝을 지나면 직업 고르기로');
 
   // 2. 직업 고르기 → 메달 상점
-  await page.mouse.click(270, 288);
+  // 여기서는 **진짜로 누릅니다** — 이 시험의 알맹이가 「사람 손에서 도는가」라서
+  // 좌표를 안 거치면 재는 뜻이 없습니다. 자리만 화면에 물어봅니다.
+  const cell = await page.evaluate(() => window.__select.jobAt('warrior'));
+  await page.mouse.click(cell.x, cell.y);
+  await page.waitForTimeout(300);
+  const goAt = await page.evaluate(() => window.__select.startAt);
+  await page.mouse.click(goAt.x, goAt.y);
   await page.waitForTimeout(900);
   const medal = await page.evaluate(() => (window.__medal ? window.__medal.startAt : null));
   check(!!medal, '직업을 고르면 메달 상점으로', medal ? JSON.stringify(medal) : '안 넘어감');

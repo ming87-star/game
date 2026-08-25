@@ -155,7 +155,13 @@ const PROBE = `(() => {
   await page.waitForTimeout(800);
 
   // ── 메달 상점 ───────────────────────────────────────────
-  await page.mouse.click(...at(270, 288));
+  // 고르기 화면에 자리를 물어봅니다 (손으로 적어 두면 화면을 고칠 때 조용히
+  // 엉뚱한 데를 누릅니다). 직업을 고른 뒤 「시작하기」까지 두 번입니다.
+  const cell = await page.evaluate(() => window.__select.jobAt('warrior'));
+  await page.mouse.click(...at(cell.x, cell.y));
+  await page.waitForTimeout(300);
+  const go = await page.evaluate(() => window.__select.startAt);
+  await page.mouse.click(...at(go.x, go.y));
   await look('메달 상점 — 아무것도 없음', 800);
   await page.evaluate(() => {
     const m = window.__medal;

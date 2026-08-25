@@ -20,7 +20,7 @@ const server = http.createServer((req, res) => {
     relics: {}, unlocked: { archer: true, rogue: true }, lastJob: 'warrior', sawStory: true })));
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(800);
-  await page.mouse.click(270, 288);
+  await page.evaluate(() => window.__select.go('warrior'));  // 좌표 대신 화면에 시킵니다
   await page.waitForTimeout(500);
   const st = await page.evaluate(() => window.__medal.startAt);
   await page.mouse.click(st.x, st.y);

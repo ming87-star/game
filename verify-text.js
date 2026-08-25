@@ -91,6 +91,24 @@ let bad = 0;
       put('메달 title', it.key, it.title, 24, 340);
     });
 
+    // 직업 고르기 (js/scene-select.js) — 격자 아래 세부 패널. 글은 cx-230
+    // 부터 468 이 답니다. **이름 줄만 좁습니다** — 격자 한 칸이 109 라,
+    // 이름이 그보다 길면 옆 칸을 밟습니다.
+    CLASSES.forEach((job) => {
+      put('직업 이름(격자 칸)', job.key, job.name, 19, 105);
+      put('직업 blurb', job.key, job.blurb, 19, 468);
+      put('직업 detail', job.key, job.detail, 17, 468);
+      put('직업 소문', job.key, job.rumor, 19, 468);
+      // 잠긴 줄 — 「한 판에서 700층 · 코인 2000」
+      if (job.unlockFloor) {
+        put('직업 해금 조건', job.key,
+          '한 판에서  ' + job.unlockFloor + '층 · 코인 ' + job.unlockCoins, 20, 468);
+      }
+      // 맨 아랫줄은 왼쪽(무기 n/25)과 오른쪽(전용 유물)이 마주 봅니다.
+      const mine = RELICS.find((r) => r.jobs && r.jobs.includes(job.key) && r.jobs.length === 1);
+      if (mine) put('직업 전용 유물', job.key, '전용 유물  ' + mine.name, 17, 468 - 90);
+    });
+
     // 처음 보는 놈 안내 창은 `**`를 떼고 그리므로 뗀 뒤의 길이로 잽니다.
     // 여기만 가운데 맞춤에 줄바꿈이 걸려 있어 폭 대신 표만 봅니다.
     const starred = [];

@@ -68,9 +68,13 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
     if (!on) { console.error('씨앗이 걸리지 않았습니다'); process.exit(1); }
   }
 
-  // 시작 화면에서 직업 카드를 실제로 눌러서 들어갑니다.
-  const cardIndex = ['warrior', 'archer', 'rogue'].indexOf(jobKey);
-  await page.mouse.click(...at(270, 288 + Math.max(0, cardIndex) * 210));
+  // 시작 화면에서 직업 칸을 **실제로 눌러서** 들어갑니다. 자리는 화면에
+  // 물어봅니다 — 손으로 적어 두면 고르기 화면을 고칠 때 조용히 빗나갑니다.
+  const cell = await page.evaluate((j) => window.__select.jobAt(j), jobKey);
+  await page.mouse.click(...at(cell.x, cell.y));
+  await page.waitForTimeout(300);
+  const go = await page.evaluate(() => window.__select.startAt);
+  await page.mouse.click(...at(go.x, go.y));
   await page.waitForTimeout(800);
 
   // 직업을 고르면 메달 상점을 거칩니다. 살 수 있는 것은 위에서부터 다 삽니다.

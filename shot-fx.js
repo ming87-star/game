@@ -22,8 +22,7 @@ const server = http.createServer((req, res) => {
       relics: {}, unlocked: { archer: true, rogue: true }, lastJob: 'warrior', sawStory: true })));
     await page.reload({ waitUntil: 'networkidle' });
     await page.waitForTimeout(700);
-    const idx = ['warrior', 'archer', 'rogue'].indexOf(job);
-    await page.mouse.click(270 * 0.75, (288 + idx * 210) * 0.75);
+    await page.evaluate((j) => window.__select.go(j), job);
     await page.waitForTimeout(600);
     const st = await page.evaluate(() => window.__medal.startAt);
     await page.mouse.click(st.x * 0.75, st.y * 0.75);

@@ -53,7 +53,7 @@ const server = http.createServer((req, res) => {
   // ── 탑에서 만나는 사람 ─────────────────────────────────
   // 해금은 쓰러졌을 때 일어납니다. 한 판을 억지로 끝내고, 죽음 화면에서
   // 고른 뒤에 컷이 나오는지 봅니다.
-  await page.mouse.click(270, 288);                       // 전사 카드 (y=278 중심)
+  await page.evaluate(() => window.__select.go('warrior'));  // 좌표 대신 화면에 시킵니다
   await page.waitForTimeout(700);
   const st = await page.evaluate(() => window.__medal.startAt);
   await page.mouse.click(st.x, st.y);

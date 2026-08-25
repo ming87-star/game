@@ -58,7 +58,8 @@ const check = (ok, label, got) => {
   const save = () => page.evaluate(() => JSON.parse(JSON.stringify(window.__save.data)));
 
   // 직업 카드를 눌러 메달 상점으로. 카드는 y 288부터 210 간격입니다.
-  const pickWarrior = () => page.mouse.click(...at(270, 288));
+  // 좌표를 안 거칩니다 (js/scene-select.js 의 go) — 격자로 바뀌어도 안 깨집니다.
+  const pickWarrior = () => page.evaluate(() => window.__select.go('warrior'));
 
   // 메달 상점 → 무기 도감 → 판. 도감은 잡혀 있는 자루를 그대로 들고 나갑니다.
   const climb = async () => {

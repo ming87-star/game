@@ -27,7 +27,7 @@ function buildTextures(scene) {
   g.fillRoundedRect(8, 4, 22, 18, 6);          // 투구
   g.fillStyle(0x263238, 1);
   g.fillRect(11, 12, 16, 4);                   // 눈 구멍
-  g.fillStyle(0xef5350, 1);
+  g.fillStyle(0x1c4ac8, 1);                    // 군청 — 붉은 깃이 여기 남아 있었습니다
   g.fillTriangle(19, 0, 15, 6, 23, 6);         // 투구 깃
   bake('player-warrior', 38, 48);
 

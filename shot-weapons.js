@@ -28,7 +28,7 @@ const server = http.createServer((req, res) => {
   await page.waitForTimeout(800);
 
   // 직업 고르기 → 메달 상점 → 시작
-  await page.mouse.click(270, 288);
+  await page.evaluate(() => window.__select.go('warrior'));  // 좌표 대신 화면에 시킵니다
   await page.waitForTimeout(500);
   const st = await page.evaluate(() => window.__medal.startAt);
   await page.mouse.click(st.x, st.y);

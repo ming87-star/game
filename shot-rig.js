@@ -22,9 +22,12 @@ const server=http.createServer((req,res)=>{
    relics:{},unlocked:{archer:true,rogue:true},lastJob:j,sawStory:true})),job);
  await page.reload({waitUntil:'networkidle'});
  await page.waitForTimeout(900);
- // 직업 카드는 y=278 부터 200 씩 (js/scene-select.js)
- const row={warrior:0,archer:1,rogue:2}[job]||0;
- await page.mouse.click(270,278+row*200); await page.waitForTimeout(500);
+ // 자리를 손으로 적지 않고 화면에 물어봅니다 — 고르기 화면이 카드에서
+ // 격자로 바뀌면서, 적어 둔 좌표는 오류 없이 엉뚱한 데를 눌렀습니다.
+ const cell=await page.evaluate((j)=>window.__select.jobAt(j),job);
+ await page.mouse.click(cell.x,cell.y); await page.waitForTimeout(300);
+ const go=await page.evaluate(()=>window.__select.startAt);
+ await page.mouse.click(go.x,go.y); await page.waitForTimeout(500);
  const st=await page.evaluate(()=>window.__medal.startAt);
  await page.mouse.click(st.x,st.y); await page.waitForTimeout(1200);
   // 메달 상점 다음은 무기 도감입니다. 잡혀 있는 자루를 그대로 들고 나갑니다.

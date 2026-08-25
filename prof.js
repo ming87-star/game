@@ -21,7 +21,8 @@ const server = http.createServer((req, res) => {
     JSON.stringify({ sawStory: true, lastJob: 'warrior', medals: 30 })));
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(700);
-  await page.mouse.click(270 * .75, 278 * .75); await page.waitForTimeout(600);
+  await page.evaluate(() => window.__select.go('warrior'));
+  await page.waitForTimeout(600);
   const st = await page.evaluate(() => window.__medal.startAt);
   await page.mouse.click(st.x * .75, st.y * .75); await page.waitForTimeout(900);
   // 메달 상점 다음은 무기 도감입니다. 잡혀 있는 자루를 그대로 들고 나갑니다.

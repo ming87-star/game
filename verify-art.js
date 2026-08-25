@@ -59,7 +59,9 @@ const check = (ok, label, got) => {
     null, { timeout: 8000 });
   await page.evaluate(() => window.__title.go());
   await page.waitForTimeout(700);
-  await page.mouse.click(...at(270, 278));
+  // 좌표를 손으로 적지 않습니다 — 고르기가 격자로 바뀌면서 적어 둔 자리는
+  // 오류 없이 빗나갔고, 그 다음 줄에서야 엉뚱한 곳이 터졌습니다.
+  await page.evaluate(() => window.__select.go('warrior'));
   await page.waitForTimeout(600);
   const start = await page.evaluate(() => window.__medal.startAt);
   await page.mouse.click(...at(start.x, start.y));

@@ -53,7 +53,13 @@ const server = http.createServer((req, res) => {
       CLASSES.map((j) => j.key + (classUnlocked(j) ? ':열림' : ':잠김')).join(' '));
 
     // 직업 → 메달 상점 → 탑. 여기서는 아무것도 사지 않고 그대로 올라갑니다.
-    await page.mouse.click(270 * 0.75, 288 * 0.75); // 전사 카드
+    // 자리는 화면에 물어봅니다 — 적어 두면 고르기 화면을 고칠 때 조용히
+    // 엉뚱한 데를 누르고, 그래도 오류는 안 납니다.
+    const cell = await page.evaluate(() => window.__select.jobAt('warrior'));
+    await page.mouse.click(cell.x * 0.75, cell.y * 0.75);
+    await page.waitForTimeout(300);
+    const go = await page.evaluate(() => window.__select.startAt);
+    await page.mouse.click(go.x * 0.75, go.y * 0.75);
     await page.waitForTimeout(600);
     const start = await page.evaluate(() => window.__medal.startAt);
     await page.mouse.click(start.x * 0.75, start.y * 0.75);

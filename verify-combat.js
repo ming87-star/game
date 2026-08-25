@@ -47,7 +47,9 @@ async function boot(browser, port, jobIndex) {
     null, { timeout: 8000 });
   await page.evaluate(() => window.__title.go());
   await page.waitForTimeout(700);
-  await page.mouse.click(...at(270, 278 + jobIndex * 210));
+  // 좌표를 손으로 적지 않습니다 — 고르기가 격자로 바뀌면서 적어 둔 자리는
+  // 오류 없이 빗나갔습니다. 몇 번째 직업인지만 넘기면 화면이 알아서 고릅니다.
+  await page.evaluate((i) => window.__select.go(CLASSES[i].key), jobIndex || 0);
   await page.waitForTimeout(600);
   const start = await page.evaluate(() => window.__medal.startAt);
   await page.mouse.click(...at(start.x, start.y));

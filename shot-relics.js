@@ -40,7 +40,7 @@ const OUT = '/tmp/claude-0/-home-user-CRETEC-test/6ef932c5-f747-53e8-9e55-72cbde
   // 타이틀 → 직업(전사) → 메달 상점 → 무기 도감 → 판 시작.
   await page.evaluate(() => window.__title && window.__title.go && window.__title.go());
   await page.waitForTimeout(600);
-  await page.mouse.click(270, 278);
+  await page.evaluate(() => window.__select.go('warrior'));  // 좌표 대신 화면에 시킵니다
   await page.waitForTimeout(600);
   const st = await page.evaluate(() => window.__medal && window.__medal.startAt);
   if (st) { await page.mouse.click(st.x, st.y); await page.waitForTimeout(1000); }
