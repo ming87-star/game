@@ -71,22 +71,53 @@ const server = http.createServer((req, res) => {
     return locked;
   };
 
+  // ── 무엇이 열려야 하는지는 **직업표에서 뽑습니다** ──────
+  // 예전에는 여기 `{ archer: true }` 처럼 손으로 적어 두었습니다. 직업이
+  // 셋에서 여덟이 되자 500층/1000코인 에서 도굴꾼(300/800)도 함께 열렸는데,
+  // 시험은 궁수 하나만 적혀 있어서 **틀렸다고 했습니다.** 게임이 맞고
+  // 시험이 낡은 것이었습니다.
+  //
+  // 조건을 표에서 읽으면 직업이 몇이 되든 안 낡습니다. 대신 **규칙 자체**를
+  // 따로 봅니다 — 한 판 안에서 층과 코인을 **둘 다** 채워야 한다는 것.
+  const 기대 = (floor, coins) => page.evaluate(([f, c]) => CLASSES
+    .filter((j) => (j.unlockFloor || j.unlockCoins)
+      && f >= (j.unlockFloor || 0) && c >= (j.unlockCoins || 0))
+    .map((j) => j.key).sort(), [floor, coins]);
+
   const cases = [
-    ['층만 채움',        900, 300,  {}],
-    ['코인만 채움',      120, 3000, {}],
-    ['궁수 조건 충족',   500, 1000, { archer: true }],
-    ['둘 다 충족',       700, 2000, { archer: true, rogue: true }],
+    ['층만 채움', 900, 300],
+    ['코인만 채움', 120, 3000],
+    ['가장 낮은 문', 300, 800],
+    ['가운데쯤', 500, 1000],
+    ['거의 다', 700, 2000],
+    ['전부', 1200, 4000],
   ];
 
   let bad = 0;
-  for (const [label, floor, coins, want] of cases) {
+  for (const [label, floor, coins] of cases) {
     const start = await fresh();
     const got = await runEnd(floor, coins);
-    const ok = JSON.stringify(Object.keys(got).sort()) === JSON.stringify(Object.keys(want).sort());
+    const 예상 = await 기대(floor, coins);
+    const ok = JSON.stringify(Object.keys(got).sort()) === JSON.stringify(예상);
     if (!ok) bad++;
-    console.log(`${ok ? 'OK ' : '틀림'}  ${label.padEnd(14)} ${floor}층/${coins}코인 →`,
-      Object.keys(got).join(',') || '(없음)', ' | 시작화면:', start);
+    console.log(`${ok ? 'OK ' : '틀림'}  ${label.padEnd(12)} ${floor}층/${coins}코인 →`,
+      Object.keys(got).sort().join(',') || '(없음)',
+      ok ? '' : ' (예상 ' + (예상.join(',') || '없음') + ')');
   }
+
+  // **규칙 자체**를 봅니다 — 한쪽만 채워서는 하나도 안 열려야 합니다.
+  // 위 표에서 뽑는 방식은 조건을 그대로 옮겨 오므로, 이 한 줄이 없으면
+  // 「둘 다 채워야 한다」가 깨져도 시험이 같이 틀립니다.
+  // 페이지가 열린 뒤라야 CLASSES 를 읽을 수 있어서 **고리 뒤에서** 봅니다.
+  const 아무것도 = await 기대(0, 0);
+  const 층만 = await 기대(9999, 0);
+  const 코인만 = await 기대(0, 9999);
+  const 규칙 = 아무것도.length === 0 && 층만.length === 0 && 코인만.length === 0;
+  if (!규칙) bad++;
+  console.log(`${규칙 ? 'OK ' : '틀림'}  ${'한쪽만 채워서는 안 열림'.padEnd(12)}`,
+    '아무것도 ' + (아무것도.join(',') || '없음') +
+    ' · 층만 ' + (층만.join(',') || '없음') +
+    ' · 코인만 ' + (코인만.join(',') || '없음'));
 
   // ── 만남 컷 ────────────────────────────────────────────
   // 직업이 열리면 죽음 화면에서 고른 **다음에** 한 컷이 나오고, 끝나면

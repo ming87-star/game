@@ -762,6 +762,79 @@ function drawSword(g, spec) {
   }
 }
 
+// ── 새 직업 셋의 자루 ───────────────────────────────────
+// 권법사·마법사/사령술사·도굴꾼은 검이 아닙니다. 갈래를 안 만들어 두면
+// 전부 drawSword 로 떨어져서 **여든다섯 자루가 같은 그림**이 됩니다
+// (verify-weapons 가 잡았습니다).
+//
+// 규칙은 검과 같습니다 — 어두운 외곽선, 왼쪽 위에서 오는 빛, 아이콘의
+// 절반 넘게 차지하는 알맹이.
+
+// 권법사 — 주먹에 감고 끼우는 것. **자루가 없는 것이 열쇠**입니다.
+// 세로로 긴 다른 자루들 사이에서 이것만 가로로 뭉툭해야 한눈에 갈립니다.
+function drawFist(g, spec) {
+  const cx = ICON.size / 2;
+  const cy = ICON.size / 2 + 2;
+  const w = 11 + (spec.hw || 4) * 0.9;   // 뒤쪽 자루일수록 두툼하게
+  const h = 9.5;
+  // 주먹 — 모난 네모 하나. 손가락 마디를 위쪽에 셋 얹습니다.
+  iconPaint(g, ICON.blade);
+  iconPoly(g, [[cx - w, cy - h], [cx + w * 0.72, cy - h],
+    [cx + w, cy - h * 0.35], [cx + w, cy + h * 0.5],
+    [cx + w * 0.72, cy + h], [cx - w, cy + h]]);
+  // 마디 셋 — 이게 있어야 「주먹」으로 읽힙니다
+  iconPaint(g, iconShade(ICON.blade, 1.35));
+  for (let i = 0; i < 3; i++) iconDot(g, cx + w * 0.55, cy - h * 0.55 + i * h * 0.55, 2.1);
+  // 손목에 감은 천
+  iconPaint(g, ICON.grip);
+  iconPoly(g, [[cx - w - 3.4, cy - h * 0.62], [cx - w + 1, cy - h * 0.62],
+    [cx - w + 1, cy + h * 0.62], [cx - w - 3.4, cy + h * 0.62]]);
+}
+
+// 마법사·사령술사 — 긴 대 끝에 얹힌 것. 창과 헷갈리지 않게 **끝이 뾰족한
+// 촉이 아니라 둥근 덩어리**이고, 대가 아이콘 아래까지 곧게 내려옵니다.
+function drawStaff(g, spec) {
+  const cx = ICON.size / 2;
+  const 알 = 4.6 + (spec.hw || 4) * 0.28;
+  // 대 — 아래 끝까지. 창보다 가늘고 깁니다
+  iconPaint(g, ICON.wood);
+  iconPoly(g, [[cx - 1.9, 13], [cx + 1.9, 13], [cx + 1.9, ICON.size - 4], [cx - 1.9, ICON.size - 4]]);
+  // 끝을 감싼 갈고리 둘 — 덩어리를 물고 있는 모양
+  iconPaint(g, ICON.gold);
+  iconPoly(g, [[cx - 알 - 1.6, 16], [cx - 알 + 1.4, 16], [cx - 1.6, 9], [cx - 4.2, 9]]);
+  iconPoly(g, [[cx + 알 + 1.6, 16], [cx + 알 - 1.4, 16], [cx + 1.6, 9], [cx + 4.2, 9]]);
+  // 얹힌 덩어리 — 이 자루의 색입니다
+  iconPaint(g, ICON.blade);
+  iconDot(g, cx, 11, 알);
+  iconPaint(g, iconShade(ICON.blade, 1.45));
+  iconDot(g, cx - 알 * 0.32, 11 - 알 * 0.32, 알 * 0.38);
+}
+
+// 도굴꾼 — 곡괭이. **위쪽에 가로로 뻗은 머리**가 열쇠입니다.
+// 검·지팡이는 세로로 길고 주먹은 가로로 뭉툭한데, 이건 T 자입니다.
+function drawPick(g, spec) {
+  const cx = ICON.size / 2;
+  const 뻗음 = 12 + (spec.hw || 4) * 0.7;
+  const headY = 14;
+  // 자루 — 머리 아래로 내려옵니다
+  iconPaint(g, ICON.wood);
+  iconPoly(g, [[cx - 2.1, headY], [cx + 2.1, headY],
+    [cx + 2.1, ICON.size - 4], [cx - 2.1, ICON.size - 4]]);
+  // 머리 — 한쪽은 뾰족하게 휘고 한쪽은 뭉툭하게. 좌우가 달라야 곡괭이입니다
+  iconPaint(g, ICON.blade);
+  iconPoly(g, [[cx - 3, headY - 3.2], [cx - 뻗음, headY - 6.4],
+    [cx - 뻗음 + 2.2, headY - 1.4], [cx - 3, headY + 1.4]]);
+  iconPoly(g, [[cx + 3, headY - 3.2], [cx + 뻗음 * 0.72, headY - 4.6],
+    [cx + 뻗음 * 0.72, headY + 1.2], [cx + 3, headY + 1.4]]);
+  // 왼쪽 위에 밝은 면
+  iconPaint(g, iconShade(ICON.blade, 1.35));
+  iconPoly(g, [[cx - 4.5, headY - 3.4], [cx - 뻗음 * 0.82, headY - 5.6],
+    [cx - 뻗음 * 0.82, headY - 3.8], [cx - 4.5, headY - 2.2]]);
+  // 자루 끝
+  iconPaint(g, ICON.grip);
+  iconDot(g, cx, ICON.size - 4.5, 2.6);
+}
+
 function drawSpear(g) {
   const cx = ICON.size / 2;
   // 자루 — 아래에서 위까지 곧게. 검과 갈리는 것은 이 긴 대입니다.
@@ -785,7 +858,12 @@ function drawBow(g, spec) {
   const cx = ICON.size / 2, cy = ICON.size / 2;
   const r = spec.big ? 20 : 17;
   const ox = cx - 7;
-  const span = Phaser.Math.DegToRad(spec.recurve ? 62 : 74);
+  // 활대가 감싸는 각. **`curve` 로 직접 줄 수도 있습니다** — big·recurve·
+  // arrows·gem 넷만으로는 조합이 여덟뿐이라, 두 직업이 열두 자루씩 나눠
+  // 쓰면 반드시 겹칩니다 (곰사냥꾼의 활 셋이 같은 그림이었습니다).
+  // 각을 조금씩 달리하면 열둘이 다 갈립니다 — 굽은 정도는 활의 성격이기도
+  // 합니다.
+  const span = Phaser.Math.DegToRad(spec.curve || (spec.recurve ? 62 : 74));
 
   // 활대 — 어두운 심 위에 밝은 결을 겹칩니다. 굵은 선 하나면 막대로 보입니다.
   g.lineStyle(ICON.weight + 3.2, ICON.stroke, 1);
@@ -837,6 +915,22 @@ function drawBow(g, spec) {
   if (spec.gem) {
     iconPaint(g, iconShade(ICON.blade, 1.5));
     iconPoly(g, [[ox + r - 2, cy - 5], [ox + r + 3, cy], [ox + r - 2, cy + 5], [ox + r - 7, cy]]);
+  }
+
+  // ── 손잡이에 감은 가죽 ──────────────────────────────
+  // 곰사냥꾼의 활이 궁수의 활과 **완전히 같은 그림**이 되는 것을 막습니다.
+  // big·recurve·arrows 세 갈래뿐이라 두 직업이 열두 자루씩 나눠 쓰면 반드시
+  // 겹칩니다 (verify-weapons 가 다섯 쌍을 잡았습니다).
+  //
+  // 털가죽을 감는 것은 곰사냥꾼의 결이기도 합니다 — 산에서 쓰던 활입니다.
+  if (spec.wrap) {
+    iconPaint(g, ICON.grip);
+    iconPoly(g, [[ox + r - 4.5, cy - 7], [ox + r + 1.5, cy - 7],
+      [ox + r + 1.5, cy + 7], [ox + r - 4.5, cy + 7]]);
+    iconPaint(g, iconShade(ICON.grip, 1.5));
+    for (let i = 0; i < 3; i++) {
+      g.fillRect(ox + r - 4.5, cy - 5.4 + i * 4.2, 6, 1.4);
+    }
   }
 }
 
@@ -910,6 +1004,9 @@ function buildWeaponIcons(scene) {
       if (spec.art === 'bow') drawBow(g, spec);
       else if (spec.art === 'crossbow') drawCrossbow(g, spec);
       else if (spec.art === 'spear') drawSpear(g);
+      else if (spec.art === 'fist') drawFist(g, spec);
+      else if (spec.art === 'staff') drawStaff(g, spec);
+      else if (spec.art === 'pick') drawPick(g, spec);
       else drawSword(g, spec);
 
       g.generateTexture(key, ICON.size, ICON.size);

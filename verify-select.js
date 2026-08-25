@@ -144,22 +144,15 @@ const check = (ok, what, note) => {
     '0x' + leak.테두리.toString(16) + ' ≠ 0x' + leak.직업색.toString(16));
 
   // ── 여덟이 들어가는가 ───────────────────────────────────
-  // 지금은 셋뿐이지만 여덟이 됩니다. 그때 격자가 넘치거나 세부 패널이
-  // 아래 단추를 밟으면, 그건 직업을 넣는 날에 알 일이 아닙니다.
-  await open({ bestFloor: 820, bestCoins: 2400, medals: 6,
-    unlocked: { archer: true, rogue: true } });
-  const eight = await page.evaluate(() => {
-    const 씨 = CLASSES[0];
-    [['monk', '권법사'], ['bearhunter', '곰사냥꾼'], ['necro', '사령술사'],
-      ['mage', '마법사'], ['digger', '도굴꾼']].forEach(([k, n], i) => {
-      CLASSES.push(Object.assign({}, 씨, { key: k, name: n, color: 0x9fa8da,
-        unlockFloor: 300 + i * 100, unlockCoins: 500 + i * 300, rumor: '아무개.' }));
-    });
-    window.__game.scene.start('select');
-    return CLASSES.length;
-  });
-  await page.waitForFunction(() => window.__select && Object.keys(window.__select.cells).length === 8,
-    null, { timeout: 8000 });
+  // 한동안은 셋뿐이라 **가짜 다섯을 끼워 넣어** 미리 쟀습니다. 이제 진짜
+  // 여덟이 있으므로 그대로 봅니다 — 가짜를 그냥 두었더니 열셋이 되어
+  // 이 검사가 통째로 멎었습니다.
+  //
+  // 여기서 보는 것은 셋일 때와 같습니다. 격자가 넘치는가, 세부 패널이
+  // 아래 단추를 밟는가, 스크롤 없이 한 화면에 들어가는가.
+  await open({ bestFloor: 1200, bestCoins: 4000, medals: 6,
+    unlocked: { archer: true, rogue: true, monk: true, hunter: true,
+      necro: true, wizard: true, digger: true } });
   await page.waitForTimeout(300);
 
   const fit = await page.evaluate(() => {

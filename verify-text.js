@@ -58,9 +58,15 @@ let bad = 0;
     };
 
     const rows = [];
+    // 줄바꿈이 있는 글은 **줄마다 따로** 잽니다. 통째로 재면 두 줄짜리 글이
+    // 늘 넘친 것으로 나옵니다 — 화면에서는 나뉘어 그려지는데.
     const put = (곳, 열쇠, 글, 크기, 자리) => {
       if (!글) return;
-      rows.push({ 곳, 열쇠, 글, 폭: width(글, 크기), 자리 });
+      String(글).split('\n').forEach((줄, i, 전체) => {
+        if (!줄) return;
+        rows.push({ 곳, 열쇠: 열쇠 + (전체.length > 1 ? ' ' + (i + 1) + '줄' : ''),
+          글: 줄, 폭: width(줄, 크기), 자리 });
+      });
     };
 
     // 유물 고르는 카드 (js/scene-game.js 의 openRelicChoice) — 상자 460 폭에
