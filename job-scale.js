@@ -7,7 +7,7 @@
 // 없습니다 — 여덟을 서로 견주면 스물여덟 쌍입니다.
 //
 // 화력과 맷집을 곱하면 **얼마나 오래 살아서 얼마나 때리는가**가 한 숫자로
-// 나옵니다. 도적을 100 으로 놓고 나머지를 그 옆에 세웁니다.
+// 나옵니다. 전사를 100 으로 놓고 나머지를 그 옆에 세웁니다.
 //
 // ── 이 자가 못 재는 것 ──────────────────────────────────
 // **이 표는 답이 아니라 시작점입니다.** 직업마다 이 자에 안 잡히는 것이
@@ -136,14 +136,21 @@ process.argv.forEach((a, i) => {
 const pad = (s, n) => String(s).padStart(n);
 
 if (바꾼것.length) console.log('\n바꿔 본 값: ' + 바꾼것.join(' · '));
-console.log('\n초당 피해 × 실질 체력 — 도적을 100 으로 (강화 ' + STACKS + '단)\n');
+console.log('\n초당 피해 × 실질 체력 — 전사를 100 으로 (강화 ' + STACKS + '단)\n');
 console.log('  층    직업    초당 피해   회피   방어   실질 체력      점수   도적 대비');
 console.log('  ' + '─'.repeat(72));
 
 const totals = {};
 for (const f of FLOORS) {
   const row = CLASSES.map((job) => ({ job, m: measure(job, f) }));
-  const base = (row.find((r) => r.job.key === 'rogue') || row[row.length - 1]).m.score;
+  // ── 기준은 전사입니다 ────────────────────────────────
+  // 한동안 전사를 100 으로 놓았는데, **기준으로 삼은 것은 안 움직입니다** —
+  // 도적의 회피를 내려도 도적은 늘 100 이고 나머지가 올라가는 것으로만
+  // 보였습니다. 무엇이 바뀌었는지 읽을 수가 없습니다.
+  //
+  // 전사는 **처음부터 열려 있는 유일한 직업**이고 이 게임의 밑바닥입니다.
+  // 여기를 100 으로 박아 두면 다른 직업을 손볼 때 그 직업의 수가 움직입니다.
+  const base = (row.find((r) => r.job.key === 'warrior') || row[0]).m.score;
   for (const { job, m } of row) {
     const rel = m.score / base * 100;
     (totals[job.key] = totals[job.key] || []).push(rel);
@@ -154,7 +161,7 @@ for (const f of FLOORS) {
       pad(m.armor.toFixed(0) + '%', 7) +
       pad(Math.round(m.ehp), 12) +
       pad(Math.round(m.score), 10) +
-      pad(rel.toFixed(0), 10) + (job.key === 'rogue' ? '  ←' : ''));
+      pad(rel.toFixed(0), 10) + (job.key === 'warrior' ? '  ←' : ''));
   }
   console.log('');
 }
@@ -163,9 +170,11 @@ for (const f of FLOORS) {
 // 기본으로 둡니다 — 어디에 앉힐지는 **해금이 얼마나 어려운가**로 정할 일이라
 // (전사는 공짜라 약하고 도적은 700층이라 셉니다) 아직 안 정했습니다.
 //   node job-scale.js --draft 85
-const TARGET = Number(process.argv.slice(2).find((a) => /^\d+$/.test(a) && Number(a) > 10)) || 75;
+// 기준이 전사 100 이므로 목표도 그 언저리입니다. 여덟이 한 점에 모여야 할
+// 까닭은 없고, **해금이 어려울수록 위**에 앉으면 됩니다.
+const TARGET = Number(process.argv.slice(2).find((a) => /^\d+$/.test(a) && Number(a) > 10)) || 110;
 
-console.log('  층을 가로질러 고른 값 (도적 = 100)\n');
+console.log('  층을 가로질러 고른 값 (전사 = 100)\n');
 CLASSES.forEach((job) => {
   const v = totals[job.key];
   const avg = v.reduce((a, b) => a + b, 0) / v.length;
