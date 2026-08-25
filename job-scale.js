@@ -76,10 +76,33 @@ function measure(job, f) {
 
   // 그 층에 나오는 자루들의 **한가운데**를 그 직업의 화력으로 봅니다.
   // 어느 하나를 집으면 운 좋은 판만 재게 됩니다.
+  // ── 자루에 붙은 효과 ────────────────────────────────
+  // burn   한 대에 얹히는 지속 피해 몫. 초당 피해에 그대로 곱해집니다
+  // shield 실질 체력을 이만큼 올립니다
+  // 관통·광역은 **여럿에게 닿는 것**이라 여기 안 잡힙니다 — 이 표의 초당
+  // 피해는 처음부터 「한 놈에게 들어가는 몫」입니다 (전사의 사거리와 같은 자리).
+  // ── 여벌 발사체는 절반만 셉니다 ──────────────────────
+  // `shots` 는 **한 번에 노리는 서로 다른 적의 수**입니다 (README 「궁수는
+  // 위만 쏩니다」). 그런데 이 표의 초당 피해는 처음부터 **한 놈에게 들어가는
+  // 몫**입니다 — 그냥 곱하면 여벌 화살이 전부 그 한 놈에게 꽂히는 셈이 되어
+  // 궁수와 마법사가 부풀려집니다.
+  //
+  // 그렇다고 0 으로 두면 안 됩니다. 발판에 여럿 있을 때는 실제로 값이 나고,
+  // 그런 자리가 드물지 않습니다. **여벌 하나당 절반**으로 봅니다.
+  //
+  // 이 한 줄이 궁수를 몇 점 내립니다. 그래도 그쪽이 맞습니다 — 부풀린 값을
+  // 기준으로 새 직업 다섯을 맞추면 다섯이 다 같이 부풀려집니다.
+  const 발사체 = (n) => 1 + ((n || 1) - 1) * 0.5;
   const each = pool
-    .map((x) => (x.dmgMin + x.dmgMax) / 2 * boost * (x.shots || 1) * x.acc / (x.rate / speed) * 1000)
+    .map((x) => (x.dmgMin + x.dmgMax) / 2 * boost * 발사체(x.shots) * x.acc
+      * (1 + (x.burn || 0)) / (x.rate / speed) * 1000)
     .sort((a, b) => a - b);
   const dps = each[Math.floor(each.length / 2)];
+
+  // 보호막은 자루마다 다르므로 **그 층 자루들의 한가운데**로 봅니다 —
+  // 초당 피해를 한가운데로 보는 것과 같은 이유입니다.
+  const shields = pool.map((x) => x.shield || 1).sort((a, b) => a - b);
+  const shield = shields[Math.floor(shields.length / 2)];
 
   // 방어·회피도 판이 진행될수록 한계 쪽으로 자랍니다. 절반쯤 채운 것으로 봅니다.
   const grow = Math.min(1, f / 250);
@@ -89,7 +112,7 @@ function measure(job, f) {
 
   // 한 대에 실제로 들어오는 몫은 (1−회피)×(1−방어/100). 실질 체력은 그 몫으로 나눈 값.
   const taken = (1 - dodge) * (1 - armor / 100);
-  const ehp = job.hp / taken;
+  const ehp = job.hp / taken * shield;
   return { dps, ehp, dodge, armor, score: dps * ehp / 1000 * 칸보정(job) };
 }
 
@@ -173,6 +196,34 @@ if (초안.length) {
   });
   console.log('\n  ×1.0 근처면 수치가 맞은 것이고, ×2 를 넘으면 그 능력 하나로');
   console.log('  메우기 어렵다는 뜻입니다 — **수치를 올려야 합니다.**');
+
+  // ── 그럴듯한 값을 넣으면 어디에 앉나 ───────────────────
+  // 위의 「목표 75」는 제가 임의로 잡은 자리입니다. 여덟이 다 한 점에 모여야
+  // 할 까닭도 없습니다 — 지금 셋도 53·67·100 으로 벌어져 있고 그게 의도입니다.
+  //
+  // 그래서 **그 능력이 실제로 몇 배쯤일지**를 따로 적어 두고(draft-jobs.js 의
+  // `그럴듯`, 까닭은 그 옆 주석에), 그 값으로 앉는 자리를 냅니다.
+  // 여기가 이 표의 진짜 답입니다.
+  if (초안.some((x) => x.그럴듯)) {
+    // 머리글의 기준값도 셈에서 꺼냅니다 — 손으로 적어 두면 수식을 고칠
+    // 때 같이 안 고쳐집니다 (README 직업 표가 그래서 한동안 틀렸습니다).
+    const 기존 = ['warrior', 'archer', 'rogue'].map((k) => {
+      const j2 = CLASSES.find((x) => x.key === k);
+      const v = totals[k];
+      return j2.name + ' ' + Math.round(v.reduce((a, b) => a + b, 0) / v.length);
+    }).join(' · ');
+    console.log('\n  그럴듯한 값을 넣으면 어디에 앉나 (' + 기존 + ')\n');
+    const 자리 = 초안.map((job) => {
+      const v = totals[job.key];
+      const avg = v.reduce((a, b) => a + b, 0) / v.length;
+      return { job, 앉음: avg * (job.그럴듯 || 1), 맨몸: avg };
+    }).sort((a, b) => a.앉음 - b.앉음);
+    자리.forEach(({ job, 앉음, 맨몸 }) => {
+      console.log('    ' + job.name.padEnd(5) + pad(맨몸.toFixed(0), 4) + ' × ' +
+        (job.그럴듯 || 1).toFixed(2) + '  =  ' + pad(앉음.toFixed(0), 4) +
+        '   ' + job.표에안잡힘);
+    });
+  }
 }
 
 // ── 새 직업이 들어올 자리 ────────────────────────────────

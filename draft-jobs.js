@@ -27,25 +27,43 @@ function ladder(a, b) {
 }
 
 // 초안 하나를 진짜 직업 꼴로 폅니다 (job-scale 이 읽는 모양).
+//
+// `자루` 를 주면 곡선 대신 그 열둘을 그대로 씁니다 — 마법사처럼 **자루마다
+// 성격이 갈리는 직업**은 곧은 선으로 못 냅니다.
 function expand(d) {
   const dmg = ladder(d.dmg[0], d.dmg[1]);
   const rate = ladder(d.rate[0], d.rate[1]);
   const reach = ladder(d.reach[0], d.reach[1]);
   const shots = d.shots ? ladder(d.shots[0], d.shots[1]) : null;
+  const 자리 = d.attack === 'ranged' ? 'range' : 'reach';
   return Object.assign({}, d, {
-    weapons: DEPTHS.map((depth, i) => ({
-      key: d.key + i,
-      name: d.name + (i + 1),
-      dmg: Math.round(dmg[i]),
-      rate: Math.round(rate[i]),
-      depth,
-      acc: 0.92,
-      spread: 0.18,
-      dmgMin: Math.round(dmg[i] * 0.82),
-      dmgMax: Math.round(dmg[i] * 1.18),
-      shots: shots ? Math.max(1, Math.round(shots[i])) : 1,
-      [d.attack === 'ranged' ? 'range' : 'reach']: Math.round(reach[i]),
-    })),
+    weapons: DEPTHS.map((depth, i) => {
+      const 덧 = (d.자루 && d.자루[i]) || {};
+      const base = {
+        key: d.key + i,
+        name: 덧.name || (d.name + (i + 1)),
+        dmg: Math.round(dmg[i] * (덧.dmgMul === undefined ? 1 : 덧.dmgMul)),
+        rate: Math.round(rate[i] * (덧.rateMul === undefined ? 1 : 덧.rateMul)),
+        depth,
+        acc: 덧.acc === undefined ? 0.92 : 덧.acc,
+        spread: 덧.spread === undefined ? 0.18 : 덧.spread,
+        shots: 덧.shots || (shots ? Math.max(1, Math.round(shots[i])) : 1),
+        [자리]: Math.round(reach[i]),
+      };
+      base.dmgMin = Math.round(base.dmg * (1 - base.spread));
+      base.dmgMax = Math.round(base.dmg * (1 + base.spread));
+      // ── 표에 **잡히는** 효과 둘 ────────────────────────
+      // burn   한 대에 얹히는 지속 피해 몫 (뜨거운 기름과 같은 결).
+      //        초당 피해에 그대로 곱해집니다
+      // shield 실질 체력을 이만큼 올립니다
+      // 나머지(관통·광역)는 **여럿에게 닿는 것**이라 이 자에 안 잡힙니다 —
+      // 전사의 사거리와 같은 자리입니다.
+      if (덧.burn) base.burn = 덧.burn;
+      if (덧.shield) base.shield = 덧.shield;
+      if (덧.pierce) base.pierce = 덧.pierce;
+      if (덧.aoe) base.aoe = 덧.aoe;
+      return base;
+    }),
   });
 }
 
@@ -77,6 +95,10 @@ const DRAFT = [
     speedCap: 2.60, plusScale: 1, attack: 'melee', relicMax: 2,
     dmg: [30, 44], rate: [200, 130], reach: [58, 88],
     표에안잡힘: '연타가 쌓이면 세집니다',
+    // **연타는 가만히 서서 때려야 쌓입니다.** 그런데 이 게임에서 할 일은
+    // 올라가는 것이라, 쌓아 둔 것이 층을 옮길 때마다 풀립니다. 한 발판에서
+    // 서너 대 이어 치는 정도가 보통이라 봅니다.
+    그럴듯: 1.3,
   },
   {
     key: 'hunter', name: '곰사냥꾼', color: 0xbcaaa4,
@@ -91,6 +113,10 @@ const DRAFT = [
     // 「궁수보다 느리고 한 발이 무겁다」와도 맞습니다.
     dmg: [55, 78], rate: [420, 320], reach: [280, 420],
     표에안잡힘: '곰이 앞서 올라가 먼저 잡습니다',
+    // 곰은 **따로 움직이는 한 마리**입니다. 내가 안 가 본 층에서 미리 잡아
+    // 두므로 실제로 겪는 마릿수가 줄어듭니다. 다만 내 화력에 더해지는 것이
+    // 아니라 **덜 마주치게** 하는 것이라, 두 배까지는 아닙니다.
+    그럴듯: 1.25,
   },
   {
     key: 'necro', name: '사령술사', color: 0x4db6ac,
@@ -100,26 +126,65 @@ const DRAFT = [
     speedCap: 1.90, plusScale: 1, attack: 'ranged', relicMax: 3,
     dmg: [36, 52], rate: [330, 245], reach: [270, 400],
     표에안잡힘: '죽은 적 셋이 따라다니며 같이 때립니다',
+    // 셋이 각자 내 화력의 3할씩만 해도 **+0.9배**입니다. 다만 셋을 늘 채워
+    // 두려면 계속 잡아야 하고, 층을 옮기면 따라오는 데 시간이 걸립니다.
+    그럴듯: 1.9,
   },
   {
     key: 'wizard', name: '마법사', color: 0x4fc3f7,
-    // 자루마다 나가는 투사체가 다릅니다 — **고르는 것이 곧 성격**입니다.
+    // ── 지팡이는 피해만 주지 않습니다 ──────────────────
+    // 자루마다 **다른 것이 함께 나갑니다** — 발사체가 여럿이거나, 광역이거나,
+    // 스스로 태우거나, 꿰뚫거나, 보호막을 두르거나.
+    //
+    // 그래서 마법사만 곡선이 아니라 **열둘을 하나씩 적습니다.** 곧은 선으로
+    // 내면 「자루 고르기가 곧 성격」이라는 알맹이가 표에서 사라집니다.
+    //
+    // 효과를 얻는 만큼 **한 대는 가볍습니다** (dmgMul). 그게 저울입니다.
+    //
     // 로브 한 겹. 몸은 얇지만 사령술사보다는 낫습니다.
     hp: 175, armor: 22, armorMax: 58, usesArmor: true,
     dodge: 0, dodgeMax: 0, steal: 0,
     speedCap: 2.00, plusScale: 1, attack: 'ranged', relicMax: 2,
-    dmg: [46, 68], rate: [350, 255], reach: [300, 450],
-    표에안잡힘: '자루마다 투사체가 달라 상황을 고를 수 있습니다',
+    dmg: [50, 74], rate: [340, 250], reach: [300, 450],
+    자루: [
+      { name: '나무 지팡이' },
+      { name: '불의 지팡이', dmgMul: 0.80, burn: 0.45 },
+      { name: '쌍갈래 지팡이', dmgMul: 0.62, shots: 2 },
+      { name: '꿰뚫는 지팡이', dmgMul: 0.86, pierce: 2 },
+      { name: '수호의 지팡이', dmgMul: 0.72, shield: 1.30 },
+      { name: '터지는 지팡이', dmgMul: 0.80, aoe: 1 },
+      { name: '세갈래 지팡이', dmgMul: 0.46, shots: 3 },
+      { name: '사슬 지팡이', dmgMul: 0.78, pierce: 3 },
+      { name: '화염폭풍', dmgMul: 0.62, burn: 0.55, aoe: 1 },
+      { name: '서리 지팡이', dmgMul: 0.88, acc: 0.96, spread: 0.10 },
+      { name: '별의 지팡이', dmgMul: 0.50, shots: 3, burn: 0.30 },
+      { name: '대마법사의 지팡이', dmgMul: 0.48, shots: 3, shield: 1.20, burn: 0.25 },
+    ],
+    표에안잡힘: '관통·광역이 여럿에게 닿습니다 (전사의 사거리와 같은 자리)',
+    // 전사의 사거리와 **같은 종류의 이득**입니다. 한 발판에 서넛이 몰려
+    // 있을 때만 값이 나고, 하나만 있으면 통째로 놉니다.
+    그럴듯: 1.5,
   },
   {
     key: 'digger', name: '도굴꾼', color: 0xd4e157,
     // **유물을 다섯 듭니다.** 그 대신 맨몸이 여덟 중 가장 약합니다.
     // 곡괭이는 느리고 무겁습니다.
-    hp: 155, armor: 16, armorMax: 42, usesArmor: true,
+    // **공격력이 여덟 중 가장 낮습니다.** 유물 다섯을 드는 값을 여기서
+    // 치릅니다 — 곡괭이는 싸우라고 만든 물건이 아닙니다.
+    //
+    // 체력·방어는 가운데쯤 둡니다. 처음에는 둘 다 가장 낮게 잡았는데
+    // (hp 155 · 방어 42) 점수가 43 이 나와서, **처음부터 열려 있는 전사(53)
+    // 보다도 약했습니다.** 늦게 열리는 직업이 시작 직업보다 약하면 여는
+    // 뜻이 없습니다. 「공격력**이나** 체력」 중 공격력 쪽을 골랐습니다.
+    hp: 185, armor: 20, armorMax: 56, usesArmor: true,
     dodge: 0, dodgeMax: 0, steal: 0,
     speedCap: 1.60, plusScale: 1, attack: 'melee', relicMax: 5,
-    dmg: [44, 64], rate: [370, 285], reach: [86, 120],
+    dmg: [38, 56], rate: [380, 295], reach: [86, 120],
     표에안잡힘: '유물을 다섯 듭니다 (나머지는 둘~셋)',
+    // **이미 점수에 들어가 있습니다** (칸당 ×1.18, 다섯이면 ×1.64).
+    // 그 위에 또 얹을 것이 없으므로 1.0 입니다 — 유물 다섯이 실제로 그보다
+    // 값지다면 도굴꾼은 표보다 세게 나옵니다. 재기 어려운 자리라 그대로 둡니다.
+    그럴듯: 1.0,
   },
 ];
 
