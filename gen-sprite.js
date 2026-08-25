@@ -147,6 +147,18 @@ const SUBJECTS = [
   // 곰사냥꾼 — 열쇠가 **활**인데 궁수도 활입니다. 검정에서 활 하나로는
   // 둘이 같은 그림이 되므로 ART.md 2.5절이 자세로 가르라고 못박았습니다.
   // 궁수는 곧게 서서 겨누고, 이쪽은 **활을 내린 채** 무겁게 섭니다.
+  //
+  // **곰이 옆에 같이 섭니다.** 2.5절이 "초상화 안에 같이 들어가도 되지만"
+  // 이라고 열어 둔 쪽입니다 — 판 위에 설 곰(ally-bear)은 그것대로 따로
+  // 있어야 하고, 이건 초상화 안의 곰입니다. 둘이 같이 서면 이 사람이
+  // 무엇을 하는 사람인지가 한 장에서 다 보입니다.
+  //
+  // 다만 칸이 세로로 깁니다(97×123). 곰을 옆으로 눕혀 세우면 무리가 가로로
+  // 넓어져서 상자에 맞추느라 통째로 작아집니다. 그래서 **앉혀서 머리를
+  // 들게** 합니다 — 같은 곰인데 세로로 서고, 사람과 키를 나눠 가집니다.
+  //
+  // 그리고 셋 사이를 띄웁니다. 붙으면 검정에서 덩어리 하나가 됩니다 —
+  // 사령술사의 부하 셋과 같은 규칙입니다.
   { name: 'player-hunter', group: 'player', w: 42, h: 48, anchor: 'bottom',
     style: ['player-warrior', 'player-rogue'],
     what: 'A bear hunter hero: a heavy, thick-set, wide-legged figure standing planted and '
@@ -166,9 +178,25 @@ const SUBJECTS = [
         + 'Below the mantle he is in close-fitting leather with his legs clearly separated. '
         + 'A bearded, weather-beaten older face under the skull hood. '
         + 'Muted grey-brown hide #BCAAA4 with darker brown leather. '
+        + 'HIS BEAR STANDS WITH HIM, on the opposite side from the bow. The bear is SITTING '
+        + 'UP on its haunches with its head raised, compact and upright rather than stretched '
+        + 'out sideways, its head reaching about as high as the man\'s chest. It is a big '
+        + 'shaggy brown bear with kind eyes and no bared fangs, wearing a wide PALE BAND '
+        + 'around its neck — it is his companion, not a threat, and the two stand calmly '
+        + 'together. Warm brown fur #8D6E63, pale band #BCAAA4. '
+        + 'THE SINGLE MOST IMPORTANT THING: the man and the bear MUST NOT TOUCH. Leave a '
+        + 'visible channel of empty background running all the way between them, from the '
+        + 'ground right up past the bear\'s head — you should be able to see straight through '
+        + 'the gap. The bear\'s fur must not brush his arm, his hip or his leg, and the two '
+        + 'must not overlap at any point. Do the same between the man and the bow. '
+        + 'Imagine all three filled in as flat black shapes: a viewer must still count THREE '
+        + 'separate silhouettes — a bow, a man, and an animal — not one merged lump. '
+        + 'The bear sits back on its haunches so it is tall and narrow rather than sprawling '
+        + 'sideways, which keeps the group compact even with the gaps. '
+        + 'Keep the whole group no wider than it is tall. '
         + 'He must NOT read like the slim upright archer: the archer stands tall and draws '
         + 'the bow, this man stands wide and low and carries it at rest out to one side. '
-        + 'Nothing on him is red, crimson, scarlet or orange.' },
+        + 'Nothing on him or the bear is red, crimson, scarlet or orange.' },
 
   // 사령술사 — 부하 셋이 열쇠인데, **몸에 붙으면 검정에서 안 세어집니다.**
   // 셋을 몸에서 떼어 놓는 것이 이 한 장의 전부입니다.
