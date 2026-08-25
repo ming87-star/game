@@ -117,6 +117,10 @@ const ON_PURPOSE = new Set([
   'coin', 'slash', 'spark', 'wave', 'bullet', 'enemy-bullet', 'arrow', 'arrow-trail',
   'wall', 'plat', 'plat-shop', 'plat-boss',
   'player-warrior', 'player-archer', 'player-rogue',
+  // 새 직업. 판에서는 시트가 돌고 고르는 화면에는 face-* 로 구워지므로,
+  // 이 파일 자체는 스프라이트로 안 굽습니다 (위 셋과 같은 까닭).
+  // 직업이 게임에 붙는 날 PORTRAITS 에 face-monk 를 더하세요.
+  'player-monk',
   // 처음에 그렸던 남자 상인. 상점 주인은 여자로 갔지만 그림은 멀쩡하므로
   // 이름만 바꿔 남겨 둡니다 — 나중에 다른 사람으로 쓸 자리가 있을 겁니다.
   'shop-keeper-man', 'shop-npc-man',

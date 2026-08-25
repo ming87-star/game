@@ -69,16 +69,51 @@ const FORBID = [
 // 범위와 어긋나므로 표를 먼저 고쳐야 합니다.
 const SUBJECTS = [
   // 주인공 셋 — 발이 그림 맨 아래에 닿아야 합니다
+  // 붉은 망토는 군청으로 옮겨졌습니다 (recolor-warrior.js · STORY.md 3절).
+  // **그림 파일만 옮기고 이 글은 안 고쳐 뒀었습니다** — 그대로 뒀으면 다시
+  // 뽑는 날 붉은 전사가 돌아옵니다. 색을 옮길 때는 그림과 주문서를 같이.
   { name: 'player-warrior', group: 'player', w: 38, h: 48, anchor: 'bottom',
     what: 'A warrior hero for a tower climbing game: broad angular pauldrons, a horned helmet '
-        + 'with a red crest, sturdy wide stance, red and steel-grey armour, a sword held small '
-        + 'at his side. Broadest of the three heroes. Red accent #EF9A9A.' },
+        + 'with a deep navy-blue crest, sturdy wide stance, navy-blue and steel-grey armour, '
+        + 'a sword held small at his side. Broadest of the three heroes. Navy accent #133286. '
+        + 'Nothing on him is red.' },
   { name: 'player-archer', group: 'player', w: 42, h: 48, anchor: 'bottom',
     what: 'An archer hero: a sharply pointed hood, a bow slung across the back, a slim tall body, '
         + 'light leather gear. Narrower and taller-looking than the warrior. Green accent #A5D6A7.' },
   { name: 'player-rogue', group: 'player', w: 40, h: 48, anchor: 'bottom',
     what: 'A rogue hero: crouched low, a cloak streaming back, hood and a face covering, '
         + 'two short daggers. Lowest and widest stance of the three. Purple accent #CE93D8.' },
+
+  // ── 새로 들어오는 다섯 (ART.md 2.5절) ──────────────────
+  // 직업 고르기가 격자가 되면서 카드가 초상화 하나뿐이 되고, 잠긴 칸은
+  // **속이 하나도 안 보이는 검정 + 외곽선 1px** 로 나옵니다. 그래서 규칙이
+  // 하나 더 붙습니다 — **몸 밖으로 나오는 것이 하나씩 있어야 합니다.**
+  // 윤곽선 안쪽의 무늬·색·얼굴은 검정에서 전부 사라집니다.
+  //
+  // 그린 뒤에는 반드시 재 보세요 (게임과 같은 조건으로 칠해 줍니다):
+  //   CHROME_PATH=... node sil-check.js assets/player-monk.png
+  //
+  // 권법사가 가장 어렵습니다. 맨손이라 몸 밖으로 나오는 것이 가장 적은데,
+  // **손에 아무것도 없다는 것 자체가 열쇠**라 무기를 쥐여 주면 안 됩니다.
+  // 그래서 튀어나오는 것을 넷으로 나눠 걸었습니다 — 위로 상투, 앞으로 든
+  // 무릎, 뒤로 날리는 띠, 옆으로 벌린 손.
+  { name: 'player-monk', group: 'player', w: 38, h: 48, anchor: 'bottom',
+    what: 'A bare-handed martial artist hero, mid-stance, caught in one dynamic pose. '
+        + 'HIS HANDS ARE COMPLETELY EMPTY — no weapon, no staff, no sword, no shield, '
+        + 'nothing held and nothing strapped to him. That emptiness is the point. '
+        + 'He stands on one leg with the OTHER KNEE LIFTED HIGH in front of him, thigh '
+        + 'roughly level, so the raised leg clearly juts out from the body. '
+        + 'Both hands are open with the fingers spread, held away from the torso — one '
+        + 'forward, one drawn back — so there is clear empty space between arm and chest. '
+        + 'A long cloth SASH tied at his waist streams out BEHIND him, well clear of the '
+        + 'body, a separate ribbon of cloth. '
+        + 'His hair is gathered into a TOPKNOT that sticks up above the crown of his head. '
+        + 'He wears a sleeveless cream off-white tunic and loose trousers cropped at the '
+        + 'shin, with cloth wraps around his forearms, hands and shins. '
+        + 'Lean and narrow — the slightest build of all the heroes, no armour, no bulk, '
+        + 'the opposite of the broad-shouldered warrior. '
+        + 'Gold accent #FFD54F on the sash and the wraps. '
+        + 'NOTHING on him is red, crimson, scarlet or orange.' },
 
   // 적 열둘 — 무엇이 위험한지가 실루엣에 보여야 합니다 (ART.md 3절)
   //
