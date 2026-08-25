@@ -15,6 +15,24 @@ const { chromium } = require('playwright');
 
 const ROOT = __dirname;
 const RAW = path.join(ROOT, 'shots', 'story-raw');   // shots/ 는 .gitignore 에 있습니다
+// ── --keep — 구도는 그대로, 색만 바꿉니다 ────────────────
+// 색 하나 때문에 다시 그릴 때, 맨손으로 다시 시키면 **구도까지 새로 나옵니다.**
+// 실제로 전사를 군청으로 옮기면서 story-1 을 다시 뽑았더니 방이 넓어지고
+// 얼굴이 드러났습니다 — 색만 바꾸려던 것인데 다른 그림이 됐습니다.
+//
+// 그래서 예전 그림을 **구도 참조로 붙이고** "이 그림 그대로, 색만" 이라고
+// 시킵니다. 예전 그림은 shots/story-prev/ 에 둡니다 (직접 옮겨 두세요).
+const PREV = path.join(ROOT, 'shots', 'story-prev');
+const KEEP = process.argv.includes('--keep');
+
+const KEEP_NOTE = [
+  'The FIRST attached image is the previous version of this exact same picture.',
+  'Redraw it: keep the composition, the camera angle, the framing, the pose, the lighting,',
+  'the mood and every prop exactly where they already are. Same picture, same moment.',
+  'Change ONLY the colour of the knight\'s cloth — his crest, cloak and tabard — from red',
+  'to deep navy blue. Everything else stays as it is, including how much of his face the',
+  'helmet hides.',
+].join(' ');
 const OUT = path.join(ROOT, 'art');   // bake-story.js 가 art/ 에서 읽습니다
 
 const KEY = process.env.GEMINI_API_KEY;
@@ -65,15 +83,38 @@ const LETTER_STYLE = [
   'No Latin letters and no words other than the two Korean lines given.',
 ].join(' ');
 
+// ── 붉은 것은 하나여야 합니다 ───────────────────────────
+// 이야기의 마지막에 붉은 겉옷 하나가 나옵니다. 그것이 이 게임에서 유일하게
+// 붉은 것이라야 뜻이 섭니다 (README 「붉은 것은 하나여야 합니다」). 그래서
+// 판 안의 전사를 군청으로 옮겼고(recolor-warrior.js), 이 컷들도 같은 군청
+// 이어야 합니다 — 프롤로그의 그와 발판 위의 그가 같은 사람이라야 하니까요.
+//
+// **색은 판 안의 전사에서 재서 가져왔습니다** (h228 · 채도 0.73 · 밝기 0.25).
+// 그림 쪽은 한 단 밝게 잡습니다(#133286 · 밝기 0.30). 배경이 h218 · 채도
+// 0.40 · 밝기 0.14 라 같은 밝기로 칠하면 천이 벽에 붙습니다.
+//
+// 천이 실루엣을 떠받칠 필요는 없습니다. 재 보니 사람을 배경에서 떼는 것은
+// **강철**입니다 — 네 컷 모두 강철이 밝기 0.50, 배경이 0.14 로 0.36 이나
+// 벌어져 있습니다. 붉은 천은 그 위에 얹힌 강조였지 실루엣의 뼈대가 아니라,
+// 군청으로 바꿔도 사람이 묻히지 않습니다.
+//
+// 타이틀(title-art)은 이 규칙 밖입니다 — 횃불과 불똥은 붉어야 불이고,
+// 타이틀은 이야기를 말하는 자리가 아니라 「이런 게임이다」를 보여 주는
+// 자리입니다. 지금 그림 그대로 둡니다.
 const HERO = [
-  'The knight: broad angular shoulder armour, a horned helmet with a red crest,',
-  'steel-grey armour with red cloth, and one large sword.',
-  'His face is almost entirely hidden by the helmet. Red accent colour #EF9A9A.',
+  'The knight: broad angular shoulder armour, a horned helmet with a deep navy-blue crest,',
+  'steel-grey armour with deep navy-blue cloth, and one large sword.',
+  'His face is almost entirely hidden by the helmet. Navy accent colour #133286.',
+  'The navy cloth is a clear step brighter and more saturated than the blue-grey stone',
+  'behind it, so it never blends into the wall.',
+  'NOTHING anywhere in the picture may be red, crimson, scarlet, maroon or orange —',
+  'not the crest, not the cloak, not the cloth, not the straps, and no light, flame,',
+  'ember, torch or glow. There is no red in this world.',
 ].join(' ');
 
 const REF_NOTE = [
   'Use the attached image(s) as the exact visual reference for the knight and for the world:',
-  'keep the same armour silhouette, the horned helmet with its red crest, the same colours,',
+  'keep the same armour silhouette, the horned helmet with its navy-blue crest, the same colours,',
   'proportions, art style, palette and lighting. Same character, same tower, a different moment.',
 ].join(' ');
 
@@ -213,7 +254,7 @@ const SCENES = [
       'They are lowering their bow, the string still settling.',
       'The archer wears a pointed hood, has a slender tall build, and holds a bow;',
       'green tones #A5D6A7. Their face is clearly visible and catches the light —',
-      'they are the protagonist of the next story. The knight stays red, the archer green:',
+      'they are the protagonist of the next story. The knight stays navy, the archer green:',
       'the two must read as different people at a glance.',
     ].join(' '),
   },
@@ -228,13 +269,16 @@ const SCENES = [
       'Hood and a cloth face covering. They hold TWO daggers, one in each hand,',
       'both blades clearly visible.',
       'They look straight out at the viewer from the darkness. Purple tones #CE93D8.',
-      'The knight stays red, the rogue purple: the two must read as different people at a glance.',
+      'The knight stays navy, the rogue purple: the two must read as different people at a glance.',
     ].join(' '),
   },
 ];
 
 function promptFor(s) {
   const parts = [];
+  // 구도 참조가 붙는 날에는 그 말이 가장 먼저 와야 합니다 — 뒤에 오는
+  // 장면 설명은 「무엇을 그리는가」이고, 이것은 「어떻게 그리는가」입니다.
+  if (KEEP && fs.existsSync(path.join(PREV, s.name + '.png'))) parts.push(KEEP_NOTE);
   if (s.refs.length) parts.push(REF_NOTE);
   parts.push(s.scene);
   // 사람이 안 나오는 그림에는 주인공 문장을 안 붙입니다 — 붙이면 글자만
@@ -290,6 +334,14 @@ function apiRatio(aspect) {
 
 async function generate(scene) {
   const parts = [];
+  // 구도 참조가 **맨 앞**이어야 합니다 — KEEP_NOTE 가 "첫 번째 그림"이라고
+  // 가리키므로, 순서가 밀리면 엉뚱한 그림을 붙들고 그립니다.
+  if (KEEP) {
+    const prev = path.join(PREV, scene.name + '.png');
+    if (fs.existsSync(prev)) {
+      parts.push({ inlineData: { mimeType: 'image/png', data: fs.readFileSync(prev).toString('base64') } });
+    }
+  }
   // 참조를 먼저 넣어야 지시문이 그 그림을 가리킵니다.
   for (const ref of scene.refs) {
     const file = path.join(RAW, ref + '.png');
@@ -421,7 +473,8 @@ async function bake(oven, pngBuffer, outName, aspect, chroma) {
   const made = [];
   for (const scene of todo) {
     const refs = scene.refs.filter((r) => fs.existsSync(path.join(RAW, r + '.png')));
-    process.stdout.write(`${scene.name}  참조 [${refs.join(', ') || '없음'}] … `);
+    const kept = KEEP && fs.existsSync(path.join(PREV, scene.name + '.png'));
+    process.stdout.write(`${scene.name}  ${kept ? '구도 그대로 · ' : ''}참조 [${refs.join(', ') || '없음'}] … `);
     try {
       const png = await generate({ ...scene, refs });
       fs.writeFileSync(path.join(RAW, scene.name + '.png'), png);
