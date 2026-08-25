@@ -54,6 +54,21 @@ const BG = [
   'leave a small clean margin all around.',
 ].join(' ');
 
+// ── 사람은 넷 다 같은 비례여야 합니다 ────────────────────
+// gen-sheet.js 가 같은 문제로 한 번 데었습니다. 궁수에게 "slim tall body" 라고
+// 적었더니 혼자 **7등신 실사 비례**로 나와서, 전사·도적(4등신) 옆에 세우면
+// 딴 게임 사람이었습니다. 여기서도 권법사가 6~7등신 소년으로 왔습니다.
+//
+// **키나 체격은 몸이 아니라 자세와 옷으로 말하게 하고, 비례는 여기서 못박습니다.**
+// 직업 고르기 격자는 여덟을 한 화면에 나란히 세우는 자리라(ART.md 2.5절)
+// 하나만 비례가 달라도 그 칸만 튑니다.
+const PROPORTION = [
+  'PROPORTIONS (identical for every hero in this game): a chunky CHIBI build about four heads',
+  'tall — a big head, a short sturdy torso, short thick limbs, large hands and boots.',
+  'NOT a realistic six-, seven- or eight-head figure, not slender, not lanky, not tall,',
+  'not a teenager and not a young adult body.',
+].join(' ');
+
 const FORBID = [
   // 아이템에서 자꾸 무생물에 눈을 그려 옵니다 — 폭탄 · 모루 · 망치 · 약병에
   // 만화 눈이 달려 나왔습니다. 적과 주인공만 눈을 가집니다.
@@ -98,6 +113,15 @@ const SUBJECTS = [
   // 그래서 튀어나오는 것을 넷으로 나눠 걸었습니다 — 위로 상투, 앞으로 든
   // 무릎, 뒤로 날리는 띠, 옆으로 벌린 손.
   { name: 'player-monk', group: 'player', w: 38, h: 48, anchor: 'bottom',
+    // 첫 판이 6~7등신 소년으로 왔습니다. 말로만 4등신이라고 하면 모델이
+    // 제 결로 갑니다 — 이미 서 있는 둘을 붙여서 비례를 재게 합니다.
+    //
+    // 이 그림은 **gemini-3.1-flash-image** 로 뽑았습니다. 그리던 날 pro 가
+    // 열한 번 내리 503 이었습니다. 참조 둘이 붓과 비례를 잡아 줘서 flash 로도
+    // 셋 옆에 세울 만하게 나왔습니다 — 참조가 없었으면 못 바꿨을 겁니다.
+    //   GEMINI_IMAGE_MODEL=gemini-3.1-flash-image node gen-sprite.js player-monk
+    // (2.5-flash 는 마젠타를 못 걷어내고 분홍 배경째로 왔습니다)
+    style: ['player-warrior', 'player-rogue'],
     what: 'A bare-handed martial artist hero, mid-stance, caught in one dynamic pose. '
         + 'HIS HANDS ARE COMPLETELY EMPTY — no weapon, no staff, no sword, no shield, '
         + 'nothing held and nothing strapped to him. That emptiness is the point. '
@@ -108,10 +132,15 @@ const SUBJECTS = [
         + 'A long cloth SASH tied at his waist streams out BEHIND him, well clear of the '
         + 'body, a separate ribbon of cloth. '
         + 'His hair is gathered into a TOPKNOT that sticks up above the crown of his head. '
+        + 'He is an OLD MASTER, weathered and well past his prime years: iron-grey hair, '
+        + 'a short grey chin beard jutting forward, a heavy lined brow, deep-set narrow eyes '
+        + 'and a hard set mouth. He must clearly read as an old veteran, NOT as a boy, '
+        + 'NOT as a teenager, NOT as a smooth-faced young man. '
+        + 'Old but not frail — corded, wiry muscle on the bare arms, and he holds the stance '
+        + 'with complete steadiness. '
         + 'He wears a sleeveless cream off-white tunic and loose trousers cropped at the '
         + 'shin, with cloth wraps around his forearms, hands and shins. '
-        + 'Lean and narrow — the slightest build of all the heroes, no armour, no bulk, '
-        + 'the opposite of the broad-shouldered warrior. '
+        + 'No armour and no bulk — the opposite of the broad-shouldered warrior. '
         + 'Gold accent #FFD54F on the sash and the wraps. '
         + 'NOTHING on him is red, crimson, scarlet or orange.' },
 
@@ -588,6 +617,7 @@ const FACING = {
 function promptFor(s) {
   const parts = [s.what];
   if (s.group === 'boss') parts.push(BOSS_RULES);
+  if (s.group === 'player') parts.push(PROPORTION);
   parts.push(STYLE);
   parts.push(s.bg === 'none' || s.bg === 'opaque' ? BG_OPAQUE : BG);
   parts.push(FORBID);
@@ -631,15 +661,21 @@ function refOf(subject) {
 // 서므로, 그림체가 다르면 「저건 적인가」를 한 박자 늦게 판단하게 됩니다
 // (ART.md 8.9절). 말로 "3등신 · 두꺼운 외곽선" 이라고 적어도 모델은 제 결로
 // 그립니다. 이미 그려 놓은 것을 **물려야** 합니다.
+//
+// 등신 수를 여기 글로 박아 두면 안 됩니다. 한동안 "three-head chibi" 라고
+// 적혀 있었는데, 그건 상점 사람들 이야기였습니다 — 주인공 넷은 4등신입니다
+// (gen-sheet.js 의 PROPORTION). 주인공에 이 규칙을 물리는 날 글과 그림이
+// 서로 다른 말을 하게 됩니다. **비례는 붙인 그림에서 재게 시킵니다.**
 const STYLE_RULE = [
   'The attached images are STYLE REFERENCES from this same game — a hero and a monster',
   'that already exist. They are NOT the character you are drawing: do not copy their',
   'costume, their colours, their weapon or their pose.',
-  'Copy the DRAWING STYLE exactly: the same chunky three-head chibi proportions, the same',
-  'big head to small body ratio, the same thick dark outline weight, the same flat cel',
-  'shading in three or four hard steps with no soft gradients, the same low saturation,',
-  'the same amount of detail. Put your drawing next to them and they must look like they',
-  'were painted by the same hand for the same game.',
+  'Copy the DRAWING STYLE exactly: MATCH THE HEAD-TO-BODY RATIO OF THE ATTACHED PICTURES —',
+  'measure it off them rather than choosing your own — along with the same chunky chibi',
+  'build, the same thick dark outline weight, the same flat cel shading in three or four',
+  'hard steps with no soft gradients, the same low saturation, the same amount of detail.',
+  'Put your drawing next to them and they must look like they were painted by the same',
+  'hand for the same game.',
 ].join(' ');
 
 // 같은 **사람**을 두 장으로 그릴 때 씁니다. 실루엣을 베끼는 `like` 와도,
