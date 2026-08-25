@@ -108,6 +108,14 @@ function measure(job, f) {
   // 맞는지는 「그럴듯」이 따로 답니다 (js/classes.js 의 사령술사).
   const 부하 = job.thralls ? 2 : 0;
 
+  // ── 곰 (곰사냥꾼) ────────────────────────────────────
+  // 주인공 한 대의 dmgShare 로 제 박자에 칩니다 (CFG.bear). 하나뿐이지만
+  // 부하보다 셉니다 — 앞장서는 만큼 먼저 맞기 때문입니다.
+  //
+  // **늘 살아 있는 것으로 안 봅니다.** 단단한 놈을 물면 제가 깎이고, 쓰러지면
+  // 6초 뒤에야 돌아옵니다. 여덟 중 열에 여덟쯤 서 있는 것으로 봅니다.
+  const 곰 = job.bear ? 0.8 : 0;
+
   const 발사체 = (n) => 1 + ((n || 1) - 1) * 0.5;
   const each = pool
     .map((x) => (x.dmgMin + x.dmgMax) / 2 * boost * 발사체(x.shots) * x.acc
@@ -116,11 +124,15 @@ function measure(job, f) {
   let dps = each[Math.floor(each.length / 2)];
   // 부하는 주인공 한 대의 몫으로 제 박자에 칩니다. 자루가 빠르든 느리든
   // 그 박자는 같으므로, **초당 피해에 곱하는 것이 아니라 더합니다.**
+  const 한대 = pool.map((x) => (x.dmgMin + x.dmgMax) / 2 * boost)
+    .sort((a, b) => a - b)[Math.floor(pool.length / 2)];
   if (부하) {
     const c = CFG.thrall;
-    const 한대 = pool.map((x) => (x.dmgMin + x.dmgMax) / 2 * boost)
-      .sort((a, b) => a - b)[Math.floor(pool.length / 2)];
     dps += 부하 * 한대 * c.dmgShare * (1000 / c.tickMs);
+  }
+  if (곰) {
+    const c = CFG.bear;
+    dps += 곰 * 한대 * c.dmgShare * (1000 / c.tickMs);
   }
 
   // 보호막은 자루마다 다르므로 **그 층 자루들의 한가운데**로 봅니다 —

@@ -42,6 +42,7 @@ class GameScene extends Phaser.Scene {
     // 안 비우면 사령술사로 놀다가 전사로 바꿨을 때 부하가 그대로 따라옵니다
     // (시험이 잡았습니다). 판이 끝날 때 치우는 것만으로는 모자랍니다.
     this.clearThralls();
+    this.clearBear();   // 곰 (곰사냥꾼). 같은 까닭으로 여기서 비웁니다
     this.lane = 'mid';
     resetTowerRun(); // 이번 판의 UP 배치를 새로 뽑습니다
 
@@ -2144,6 +2145,111 @@ class GameScene extends Phaser.Scene {
     });
   }
 
+  // ── 곰 (곰사냥꾼) ───────────────────────────────────────
+  //
+  // **앞서 올라가 먼저 잡습니다.** 부하는 따라오는 것이고 곰은 앞장서는
+  // 것이라, 이 게임에서 처음으로 **내가 아직 안 간 층에서 일이 벌어집니다.**
+  //
+  // 한 층 위까지만 갑니다 (CFG.bear.ahead). 두 층 위는 화면 밖이고,
+  // **곰이 무엇을 하는지 안 보이면 없는 것과 같습니다.**
+  //
+  // 주인공이 뒤처지면 곰은 **거기서 기다립니다.** 계속 가게 두면 곰만 혼자
+  // 꼭대기로 가 버리고, 그러면 이건 직업이 아니라 방치 게임이 됩니다.
+  spawnBear(atX, atY) {
+    const c = CFG.bear;
+    const sprite = this.add.image(atX, atY, 'ally-bear').setDepth(9);
+    sprite.setAlpha(0);
+    this.tweens.add({ targets: sprite, alpha: 1, duration: 260 });
+    this.bear = {
+      sprite,
+      hp: Math.max(1, Math.round(this.maxHp * c.hp)),
+      maxHp: Math.max(1, Math.round(this.maxHp * c.hp)),
+      nextHitAt: 0,
+      deadUntil: 0,
+    };
+  }
+
+  clearBear() {
+    if (this.bear && this.bear.sprite) this.bear.sprite.destroy();
+    this.bear = null;
+  }
+
+  // 곰이 쓰러집니다. 판이 끝나는 것으로 두면 한 번 실수에 직업이 통째로
+  // 사라지므로, **잠시 뒤에 주인공 곁에서 다시 일어납니다.**
+  downBear(time) {
+    const b = this.bear;
+    if (!b) return;
+    const s = b.sprite;
+    this.popup('곰이 쓰러졌습니다', '#bcaaa4');
+    this.tweens.add({ targets: s, alpha: 0, angle: -70, duration: 420 });
+    b.deadUntil = time + CFG.bear.reviveMs;
+    b.hp = 0;
+  }
+
+  updateBear(time, delta) {
+    if (!this.job.bear || this.dead) return;
+    const c = CFG.bear;
+    if (!this.bear) { this.spawnBear(this.player.x, this.player.y); return; }
+    const b = this.bear;
+    const s = b.sprite;
+
+    // 쓰러져 있는 동안 — 때가 되면 주인공 곁에서 일어납니다.
+    if (b.hp <= 0) {
+      if (time < b.deadUntil) return;
+      s.setPosition(this.player.x - 30, this.player.y);
+      s.setAngle(0);
+      b.hp = b.maxHp;
+      b.nextHitAt = 0;
+      this.tweens.add({ targets: s, alpha: 1, duration: 300 });
+      this.popup('곰이 돌아왔습니다', '#bcaaa4');
+      return;
+    }
+
+    // ── 어디로 가는가 ─────────────────────────────────
+    // 한 층 위에 적이 있으면 거기로, 없으면 같은 층의 적에게, 그것도
+    // 없으면 주인공 앞쪽에 섭니다.
+    const 위층 = this.floorIndex + c.ahead;
+    const 후보 = this.enemies.getChildren().filter((e) => this.targetable(e) &&
+      e.floor !== undefined && e.floor >= this.floorIndex && e.floor <= 위층);
+    const 먹이 = 후보.sort((a, b2) => (b2.floor - a.floor) ||
+      (Phaser.Math.Distance.Between(a.x, a.y, s.x, s.y) -
+       Phaser.Math.Distance.Between(b2.x, b2.y, s.x, s.y)))[0];
+
+    const 갈곳 = 먹이
+      ? { x: 먹이.x, y: 먹이.y }
+      : { x: this.player.x + 34, y: floorY(Math.min(위층, this.floorIndex + c.ahead)) - 18 };
+
+    const step = c.speed * delta / 1000;
+    const dx = 갈곳.x - s.x;
+    const dy = 갈곳.y - s.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 4) {
+      s.x += dx / dist * Math.min(step, dist);
+      s.y += dy / dist * Math.min(step, dist);
+    }
+    s.setFlipX(dx < -2 ? true : dx > 2 ? false : s.flipX);
+
+    // ── 칩니다 ────────────────────────────────────────
+    if (time < b.nextHitAt || !먹이) return;
+    if (Phaser.Math.Distance.Between(먹이.x, 먹이.y, s.x, s.y) > c.reach) return;
+    b.nextHitAt = time + c.tickMs;
+    const 살아있었나 = 먹이.hp;
+    this.hitEnemy(먹이, Math.max(1, Math.round(this.weapon.dmg * c.dmgShare)));
+    // 곰이 문 자리가 보이게 짧게 밀었다 돌아옵니다.
+    this.tweens.add({ targets: s, x: s.x + Phaser.Math.Clamp(먹이.x - s.x, -12, 12),
+      duration: 110, yoyo: true });
+
+    // ── 되받습니다 ────────────────────────────────────
+    // **곰이 죽는 길은 이것 하나입니다.** 때린 상대가 살아 있으면 그만큼
+    // 되받습니다 — 약한 놈은 공짜로 치우고 단단한 놈에게는 제가 깎입니다.
+    if (먹이.active && 먹이.hp > 0 && 살아있었나 > 0) {
+      b.hp -= Math.max(1, Math.round(this.maxHp * c.hp * c.backMul * 0.2));
+      s.setTint(0xff8a80);
+      this.time.delayedCall(90, () => s.active && s.clearTint());
+      if (b.hp <= 0) this.downBear(time);
+    }
+  }
+
   // 도깨비불 — 주인공을 도는 불꽃 둘. 겨누지 않아도 닿으면 들어갑니다.
   // 유물이 없으면(또는 판이 끝나면) 만든 것을 치웁니다.
   updateWisps(time, delta) {
@@ -3344,6 +3450,7 @@ class GameScene extends Phaser.Scene {
     if (this.wisps) { this.wisps.forEach((w) => w.sprite.destroy()); this.wisps = null; }
     // 부하도 같이 보냅니다 — 죽은 자리에 셋이 남아 서 있으면 안 됩니다.
     this.clearThralls();
+    this.clearBear();
     // 판을 넘어 남는 기록. 직업 해금이 여기에 기댑니다.
     const wasBest = Save.bestFloor;
     const opened = classesUnlockedBy(this.floorIndex, this.totalCoins);
@@ -3521,6 +3628,7 @@ class GameScene extends Phaser.Scene {
 
     this.updateWisps(time, delta);
     this.updateThralls(time, delta);
+    this.updateBear(time, delta);
     updateEnemies(this, time, delta);
     this.updateOilFx(time);
 

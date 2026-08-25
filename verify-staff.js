@@ -1,5 +1,5 @@
 // 직업의 능력들 — 마법사의 지팡이 넷(**화상 · 관통 · 광역 · 보호막**),
-// 권법사의 **연타**, 사령술사의 **부하 셋**.
+// 권법사의 **연타**, 사령술사의 **부하 셋**, 곰사냥꾼의 **곰**.
 //
 // 다섯 다 같은 부류입니다 — 자루나 직업에 값이 적혀 있고, 그 값을 읽는
 // 코드가 있어야 비로소 무슨 일이 일어납니다.
@@ -419,7 +419,116 @@ const check = (ok, what, note) => {
   });
   check(남2 === 0, '사령술사가 아니면 아무것도 안 일어섬', 남2 + '마리');
 
-  console.log(bad ? `\n${bad}건 어긋남` : '\n지팡이 넷 · 연타 · 부하가 다 제 일을 합니다');
+  // ── 곰 (곰사냥꾼) ───────────────────────────────────────
+  await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'hunter' }));
+  await page.waitForFunction(() => window.__scene && window.__scene.player
+    && window.__scene.job.key === 'hunter', null, { timeout: 8000 });
+  await page.waitForTimeout(300);
+
+  const 곰생김 = await page.evaluate(() => {
+    const s = window.__scene;
+    s.updateBear(s.time.now, 16);
+    return { 있나: !!s.bear, hp: s.bear && s.bear.hp, 그림: s.bear && s.bear.sprite.texture.key };
+  });
+  check(곰생김.있나, '판이 시작되면 곰이 섬');
+  check(곰생김.그림 === 'ally-bear', '곰 그림을 씀', 곰생김.그림);
+  check(곰생김.hp > 0, '곰에게 체력이 있음', 곰생김.hp);
+
+  // 한 층 위의 적에게 갑니다 — **내가 아직 안 간 층**입니다.
+  const 앞서감 = await page.evaluate(() => {
+    const s = window.__scene;
+    s.enemies.getChildren().slice().forEach((e) => e.destroy());
+    const 위 = s.enemies.create(CFG.laneX.right, floorY(s.floorIndex + 1) - 18, 'e-crawler');
+    위.body.setAllowGravity(false);
+    위.hp = 1e9; 위.maxHp = 1e9; 위.floor = s.floorIndex + 1; 위.coin = 0; 위.def = { key: 'crawler' };
+    s.bear.sprite.setPosition(s.player.x, s.player.y);
+    const 처음 = Phaser.Math.Distance.Between(s.bear.sprite.x, s.bear.sprite.y, 위.x, 위.y);
+    for (let i = 0; i < 90; i++) s.updateBear(s.time.now, 16);
+    const 나중 = Phaser.Math.Distance.Between(s.bear.sprite.x, s.bear.sprite.y, 위.x, 위.y);
+    const 위층인가 = s.bear.sprite.y < s.player.y - 40;
+    위.destroy();
+    return { 처음: Math.round(처음), 나중: Math.round(나중), 위층인가 };
+  });
+  check(곰생김.있나 && 앞서감.나중 < 앞서감.처음, '**한 층 위의 적에게 앞서 감**',
+    앞서감.처음 + 'px → ' + 앞서감.나중 + 'px');
+  check(앞서감.위층인가, '곰이 주인공보다 위에 섬 (안 가 본 층)');
+
+  // 실제로 칩니다 — 그리고 잡으면 코인이 나오고 처치 수에 들어갑니다.
+  const 곰이침 = await page.evaluate(async () => {
+    const s = window.__scene;
+    s.enemies.getChildren().slice().forEach((e) => e.destroy());
+    const e = s.enemies.create(s.player.x + 30, s.player.y - 20, 'e-crawler');
+    e.body.setAllowGravity(false);
+    e.hp = 1e9; e.maxHp = 1e9; e.floor = s.floorIndex; e.coin = 0; e.def = { key: 'crawler' };
+    s.bear.sprite.setPosition(e.x, e.y);
+    s.bear.nextHitAt = 0;
+    const 처음 = e.hp;
+    for (let i = 0; i < 6; i++) { s.updateBear(s.time.now + i * 700, 16); }
+    const 깎임 = 처음 - e.hp;
+    e.destroy();
+    return 깎임;
+  });
+  check(곰이침 > 0, '**곰이 실제로 칩니다**', 곰이침 + ' 깎임');
+
+  const 곰이잡음 = await page.evaluate(() => {
+    const s = window.__scene;
+    s.enemies.getChildren().slice().forEach((e) => e.destroy());
+    const 전처치 = s.kills;
+    const 전코인 = s.coins;
+    const e = s.enemies.create(s.player.x + 30, s.player.y - 20, 'e-crawler');
+    e.body.setAllowGravity(false);
+    e.hp = 1; e.maxHp = 10; e.floor = 1; e.coin = 500; e.def = { key: 'crawler' };
+    s.bear.sprite.setPosition(e.x, e.y);
+    s.bear.nextHitAt = 0;
+    s.updateBear(s.time.now, 16);
+    return { 처치늘음: s.kills - 전처치, 코인나옴: s.coinsOnFloor === undefined
+      ? s.children.list.filter((o) => o.texture && o.texture.key === 'coin').length : 0 };
+  });
+  check(곰이잡음.처치늘음 === 1, '곰이 잡은 것도 **내 처치 수**에 들어감',
+    곰이잡음.처치늘음 + '마리');
+
+  // 단단한 놈을 물면 곰이 깎이고, 다 깎이면 쓰러졌다가 돌아옵니다.
+  const 쓰러짐 = await page.evaluate(() => {
+    const s = window.__scene;
+    s.enemies.getChildren().slice().forEach((e) => e.destroy());
+    const e = s.enemies.create(s.player.x + 30, s.player.y - 20, 'e-brute');
+    e.body.setAllowGravity(false);
+    e.hp = 1e9; e.maxHp = 1e9; e.floor = s.floorIndex; e.coin = 0; e.def = { key: 'brute' };
+    s.bear.hp = s.bear.maxHp;
+    const 처음hp = s.bear.hp;
+    let 깎인뒤 = 처음hp;
+    for (let i = 0; i < 40 && s.bear.hp > 0; i++) {
+      s.bear.sprite.setPosition(e.x, e.y);
+      s.bear.nextHitAt = 0;
+      s.updateBear(s.time.now + i * 700, 16);
+      깎인뒤 = s.bear.hp;
+    }
+    const 쓰러졌나 = s.bear.hp <= 0;
+    const 되살아날때 = s.bear.deadUntil;
+    // 시간을 뛰어넘어 돌아오는지 봅니다
+    s.updateBear(되살아날때 + 10, 16);
+    const 돌아왔나 = s.bear.hp > 0;
+    e.destroy();
+    return { 처음hp, 깎인뒤, 쓰러졌나, 돌아왔나, reviveMs: CFG.bear.reviveMs };
+  });
+  check(쓰러짐.깎인뒤 < 쓰러짐.처음hp, '**단단한 놈을 물면 곰이 깎임**',
+    쓰러짐.처음hp + ' → ' + Math.max(0, 쓰러짐.깎인뒤));
+  check(쓰러짐.쓰러졌나, '다 깎이면 쓰러짐');
+  check(쓰러짐.돌아왔나, '**쓰러져도 잠시 뒤에 돌아옴** (판이 끝나지 않음)',
+    쓰러짐.reviveMs + 'ms 뒤');
+
+  // 곰사냥꾼이 아니면 곰이 없어야 합니다.
+  await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'warrior' }));
+  await page.waitForFunction(() => window.__scene && window.__scene.player
+    && window.__scene.job.key === 'warrior', null, { timeout: 8000 });
+  const 남3 = await page.evaluate(() => {
+    const s = window.__scene;
+    s.updateBear(s.time.now, 16);
+    return !!s.bear;
+  });
+  check(!남3, '곰사냥꾼이 아니면 곰이 안 섬');
+
+  console.log(bad ? `\n${bad}건 어긋남` : '\n지팡이 넷 · 연타 · 부하 · 곰이 다 제 일을 합니다');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
   await browser.close();
   server.close();
