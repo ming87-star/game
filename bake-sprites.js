@@ -124,6 +124,10 @@ const ON_PURPOSE = new Set([
   // 이 파일 자체는 스프라이트로 안 굽습니다 (위 셋과 같은 까닭).
   // 직업이 게임에 붙는 날 PORTRAITS 에 face-monk 를 더하세요.
   'player-monk', 'player-hunter', 'player-necro', 'player-wizard', 'player-digger',
+  // 곰을 옆에 나란히 세운 곰사냥꾼. 지금 쓰는 것은 곰을 앞에 낮게 앉힌
+  // 쪽이지만(검정에서 곰이 따로 세어집니다), 이쪽은 색에서 곰이 더 큽니다.
+  // 바꾸고 싶으면 이 파일을 player-hunter.png 로 덮으면 됩니다.
+  'player-hunter-side',
   // 처음에 그렸던 남자 상인. 상점 주인은 여자로 갔지만 그림은 멀쩡하므로
   // 이름만 바꿔 남겨 둡니다 — 나중에 다른 사람으로 쓸 자리가 있을 겁니다.
   'shop-keeper-man', 'shop-npc-man',
