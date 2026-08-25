@@ -77,8 +77,16 @@ function loadArt(scene) {
 // 직업을 바꿔 가며 놀면 그때그때 필요한 것만 쌓입니다.
 function loadSheets(scene, jobKey) {
   if (typeof SHEET_ART === 'undefined') return;
+  // 내 편의 시트는 **그 직업일 때만** 함께 싣습니다. 곰은 곰사냥꾼의 것이라
+  // 다른 직업으로 놀 때까지 풀어 둘 까닭이 없습니다.
+  //
+  // 이 줄이 없어서 곰 시트를 구워 놓고도 **못 찾았습니다** — SHEET_ART 에는
+  // 있는데 텍스처가 없으니 bearSheet 가 null 을 돌려주고, 곰이 그림 한 장으로
+  // 물러섰습니다. 오류는 안 났습니다.
+  const 내편 = jobKey && classByKey(jobKey) && classByKey(jobKey).bear
+    ? 'sheet-ally-bear' : null;
   Object.keys(SHEET_ART).forEach((key) => {
-    if (jobKey && !key.startsWith('sheet-w-' + jobKey + '-')) return;
+    if (jobKey && key !== 내편 && !key.startsWith('sheet-w-' + jobKey + '-')) return;
     if (scene.textures.exists(key)) return;
     const s = SHEET_ART[key];
     scene.load.spritesheet(key, s.url, { frameWidth: s.fw, frameHeight: s.fh });

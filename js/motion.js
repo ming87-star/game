@@ -382,6 +382,31 @@ function headAnchors(scene, key, d) {
 // 자루 번호(base.sheet)를 씁니다. 주머니에는 만듦새까지 해서 스물넷이 있지만
 // 시트는 손으로 그린 열두 장뿐입니다 — **만듦새가 달라도 실루엣은 같은
 // 자루**이므로 원본의 시트를 그대로 빌립니다. 무쇠 장검과 장검은 색만 다릅니다.
+// ── 곰의 시트 ───────────────────────────────────────────
+// 곰은 무기를 안 듭니다. 그래서 자루마다 한 장인 주인공 시트와 달리
+// **한 장뿐**이고, 격자만 같습니다 (4×2 = 여덟 컷).
+//
+//   윗줄 0~3   걷기. 앞서 가는 동안 돕니다
+//   아랫줄 4~7 무는 것. 한 번 물 때마다 한 바퀴 돌고 걷기로 돌아옵니다
+//
+// `assets/sheets/ally-bear/0..7.png` 를 넣고 `node bake-sheets.js` 를 돌리면
+// 저절로 구워집니다 — 그쪽은 폴더 이름만 보고 훑습니다.
+//
+// 없으면 null 을 돌려줍니다. 그때는 그림 한 장으로 물러섭니다.
+function bearSheet(scene) {
+  const key = 'sheet-ally-bear';
+  if (typeof SHEET_ART === 'undefined' || !SHEET_ART[key]) return null;
+  if (!scene.textures.exists(key)) return null;
+  const n = SHEET_ART[key].n || 8;
+  // 여덟 컷이 아니면 반으로 갈라 씁니다. 넷이면 걷기 둘 · 무는 것 둘입니다.
+  const half = Math.max(1, Math.floor(n / 2));
+  const walk = [];
+  const bite = [];
+  for (let i = 0; i < half; i++) walk.push(i);
+  for (let i = half; i < n; i++) bite.push(i);
+  return { key, n, walk, bite: bite.length ? bite : walk };
+}
+
 function sheetKey(job, weapon) {
   const n = weapon.base && weapon.base.sheet !== undefined ? weapon.base.sheet : 0;
   return 'sheet-w-' + job.key + '-' + n;

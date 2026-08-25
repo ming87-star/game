@@ -567,6 +567,71 @@ const check = (ok, what, note) => {
   check(숨.곰움직임, '**곰이 숨을 쉼** (적들처럼 눌렸다 늘어남)');
   check(숨.부하움직임, '**부하가 숨을 쉼** (눌리는 대신 뜹니다 — 땅을 안 딛으니까)');
 
+  // ── 곰의 몸짓 시트를 받을 준비가 되어 있는가 ────────────
+  // 곰은 **적이 아닙니다.** 판 내내 곁에서 보고 있는 것이라 눌렸다 늘어나는
+  // 것만으로는 모자랍니다 — 주인공은 아니어도 주인공처럼 보여야 합니다.
+  //
+  // 그림은 아직 없습니다. 그래서 여기서 **가짜 시트를 끼워 넣고** 코드가
+  // 그것을 잡아서 컷을 넘기는지만 봅니다. 그림이 오는 날 코드를 새로 짜는
+  // 것보다, 코드를 미리 세워 두고 그림만 떨어뜨리는 쪽이 낫습니다.
+  // 앞의 검사가 사령술사로 끝났습니다 — 곰사냥꾼으로 돌아가야 곰이 섭니다.
+  await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'hunter' }));
+  await page.waitForFunction(() => window.__scene && window.__scene.player
+    && window.__scene.job.key === 'hunter', null, { timeout: 8000 });
+  await page.waitForTimeout(300);
+
+  const 시트준비 = await page.evaluate(async () => {
+    const s = window.__scene;
+    // 있는 곰 그림 한 장을 여덟 칸짜리 시트인 척 등록합니다.
+    const src = s.textures.get('ally-bear').getSourceImage();
+    const cv = document.createElement('canvas');
+    cv.width = src.width * 4; cv.height = src.height * 2;
+    const c = cv.getContext('2d');
+    for (let i = 0; i < 8; i++) {
+      c.drawImage(src, (i % 4) * src.width, Math.floor(i / 4) * src.height);
+    }
+    SHEET_ART['sheet-ally-bear'] = { url: cv.toDataURL(), n: 8,
+      fw: src.width, fh: src.height, hero: src.height, foot: src.width / 2, ground: src.height };
+    s.textures.addSpriteSheet('sheet-ally-bear', cv,
+      { frameWidth: src.width, frameHeight: src.height });
+
+    // 곰을 새로 세웁니다 — 이제 시트를 잡아야 합니다.
+    s.clearBear();
+    s.updateBear(s.time.now, 16);
+    const b = s.bear;
+    const out = { 시트잡음: !!b.sheet, 스프라이트: b.sprite.type };
+    if (!b.sheet) return out;
+    out.걷기 = b.sheet.walk;
+    out.무는것 = b.sheet.bite;
+
+    const 걷다 = new Set();
+    for (let i = 0; i < 40; i++) { s.stepBearFrame(s.time.now + i * 200, true); 걷다.add(b.frame); }
+    out.걷다본컷 = [...걷다].sort((x, y) => x - y);
+
+    b.biting = b.sheet.bite.length; b.frame = b.sheet.bite[0]; b.frameAt = 0;
+    const 물다 = new Set([b.frame]);
+    for (let i = 0; i < 12; i++) { s.stepBearFrame(s.time.now + 1e5 + i * 120, true); 물다.add(b.frame); }
+    out.물다본컷 = [...물다].sort((x, y) => x - y);
+
+    s.stepBearFrame(s.time.now + 2e5, false);
+    out.서있을때 = b.frame;
+
+    delete SHEET_ART['sheet-ally-bear'];
+    s.textures.remove('sheet-ally-bear');
+    s.clearBear();
+    return out;
+  });
+  check(시트준비.시트잡음, '곰이 **시트가 있으면 잡습니다**');
+  check(시트준비.스프라이트 === 'Sprite',
+    '시트가 있으면 컷을 넘길 수 있는 것으로 섬', 시트준비.스프라이트);
+  check(JSON.stringify(시트준비.걷다본컷) === JSON.stringify(시트준비.걷기),
+    '걷는 동안 **윗줄을 돕니다**', JSON.stringify(시트준비.걷다본컷));
+  check((시트준비.물다본컷 || []).filter((f) => (시트준비.무는것 || []).includes(f)).length
+    === (시트준비.무는것 || []).length,
+    '물 때 **아랫줄을 한 바퀴 돕니다**', JSON.stringify(시트준비.물다본컷));
+  check(시트준비.서있을때 === (시트준비.걷기 || [])[0],
+    '서 있으면 첫 컷에 멈춥니다 (제자리걸음 안 함)', '컷 ' + 시트준비.서있을때);
+
   console.log(bad ? `\n${bad}건 어긋남` : '\n지팡이 넷 · 연타 · 부하 · 곰이 다 제 일을 합니다');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
   await browser.close();

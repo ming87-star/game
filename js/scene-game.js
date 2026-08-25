@@ -2163,20 +2163,29 @@ class GameScene extends Phaser.Scene {
   // 꼭대기로 가 버리고, 그러면 이건 직업이 아니라 방치 게임이 됩니다.
   spawnBear(atX, atY) {
     const c = CFG.bear;
-    const sprite = this.add.image(atX, atY, 'ally-bear').setDepth(9);
+    // ── 시트가 있으면 시트로 ──────────────────────────
+    // 곰은 **적이 아닙니다.** 적은 두세 대 치고 지나가는 것이지만 곰은 판
+    // 내내 곁에서 보고 있는 것이라, 눌렸다 늘어나는 것만으로는 모자랍니다.
+    // 주인공은 아니어도 **주인공처럼 보여야** 합니다.
+    //
+    // 시트가 없으면 그림 한 장으로 물러섭니다 — 그때는 적들과 같은 트윈을
+    // 겁니다. 아예 안 움직이는 것보다는 낫습니다.
+    const 시트 = bearSheet(this);
+    const sprite = 시트
+      ? this.add.sprite(atX, atY, 시트.key, 0).setDepth(9)
+      : this.add.image(atX, atY, 'ally-bear').setDepth(9);
     sprite.setAlpha(0);
     this.tweens.add({ targets: sprite, alpha: 1, duration: 260 });
-    // ── 숨 쉬게 합니다 ────────────────────────────────
-    // 시트는 **주인공에게만** 있습니다. 판 위의 나머지는 전부 그림 한 장에
-    // 눌렸다 늘어나는 트윈 하나입니다 (js/enemies.js) — 그 박자가 놈마다
-    // 달라서, 움직임만 봐도 거인인지 돌진병인지 갈립니다.
-    //
-    // 곰과 부하에게는 그게 없었습니다. **곁에 선 적들은 다 숨 쉬는데 내 편
-    // 둘만 굳어** 있었습니다. 거인(900ms)과 비슷하게 무겁게 잡습니다.
-    this.tweens.add({ targets: sprite, scaleX: 1.06, scaleY: 0.94,
-      duration: 760, yoyo: true, repeat: -1 });
+    if (!시트) {
+      this.tweens.add({ targets: sprite, scaleX: 1.06, scaleY: 0.94,
+        duration: 760, yoyo: true, repeat: -1 });
+    }
     this.bear = {
       sprite,
+      sheet: 시트,
+      frame: 0,
+      frameAt: 0,
+      biting: 0,        // 남은 무는 컷 수. 0 이면 걷기입니다
       hp: Math.max(1, Math.round(this.maxHp * c.hp)),
       maxHp: Math.max(1, Math.round(this.maxHp * c.hp)),
       nextHitAt: 0,
@@ -2243,11 +2252,14 @@ class GameScene extends Phaser.Scene {
       s.y += dy / dist * Math.min(step, dist);
     }
     s.setFlipX(dx < -2 ? true : dx > 2 ? false : s.flipX);
+    this.stepBearFrame(time, dist > 4);
 
     // ── 칩니다 ────────────────────────────────────────
     if (time < b.nextHitAt || !먹이) return;
     if (Phaser.Math.Distance.Between(먹이.x, 먹이.y, s.x, s.y) > c.reach) return;
     b.nextHitAt = time + c.tickMs;
+    // 무는 컷으로 넘어갑니다 (아랫줄 4~7). 다 돌면 걷기로 돌아옵니다.
+    if (b.sheet) { b.biting = b.sheet.bite.length; b.frame = b.sheet.bite[0]; b.frameAt = time; }
     const 살아있었나 = 먹이.hp;
     this.hitEnemy(먹이, Math.max(1, Math.round(this.weapon.dmg * c.dmgShare)));
     // 곰이 문 자리가 보이게 짧게 밀었다 돌아옵니다.
@@ -2263,6 +2275,35 @@ class GameScene extends Phaser.Scene {
       this.time.delayedCall(90, () => s.active && s.clearTint());
       if (b.hp <= 0) this.downBear(time);
     }
+  }
+
+  // ── 곰의 컷 넘기기 ──────────────────────────────────────
+  // 무는 중이면 아랫줄을 한 바퀴 돌고, 아니면 걷는 동안 윗줄을 돕니다.
+  // 서 있을 때는 걷기의 첫 컷에 멈춥니다 — 제자리걸음을 하면 안 됩니다.
+  stepBearFrame(time, 움직이나) {
+    const b = this.bear;
+    if (!b || !b.sheet) return;
+    const c = CFG.bear;
+    const sh = b.sheet;
+
+    if (b.biting > 0) {
+      if (time - b.frameAt < c.biteMs) return;
+      b.frameAt = time;
+      b.biting--;
+      const i = sh.bite.length - b.biting;
+      b.frame = b.biting > 0 ? sh.bite[i] : sh.walk[0];
+      b.sprite.setFrame(b.frame);
+      return;
+    }
+    if (!움직이나) {
+      if (b.frame !== sh.walk[0]) { b.frame = sh.walk[0]; b.sprite.setFrame(b.frame); }
+      return;
+    }
+    if (time - b.frameAt < c.walkMs) return;
+    b.frameAt = time;
+    const at = sh.walk.indexOf(b.frame);
+    b.frame = sh.walk[(at + 1) % sh.walk.length];
+    b.sprite.setFrame(b.frame);
   }
 
   // 도깨비불 — 주인공을 도는 불꽃 둘. 겨누지 않아도 닿으면 들어갑니다.
