@@ -115,6 +115,27 @@ class Weapon {
   get bounce() { return this.relicSum('bounce'); }
   get homing() { return !!this.base.homing; }
 
+  // ── 자루가 스스로 지닌 것 넷 ────────────────────────────
+  // 마법사의 지팡이는 피해만 주지 않습니다 (js/classes.js). 여기 있던 넷은
+  // 지금까지 **유물에만** 붙어 있었습니다 — 자루도 지닐 수 있게 엽니다.
+  //
+  // 관통만 유물과 더합니다. 「관통하는 기름」을 꿰뚫는 지팡이에 발라 두면
+  // 더 깊이 뚫리는 것이 자연스럽습니다. 나머지 셋은 자루의 것이거나 아니거나
+  // 둘 중 하나라 더하지 않습니다.
+
+  // 맞은 자리가 계속 탑니다. 한 대의 몇 할이 지속 피해로 얹히는가.
+  get burn() { return this.base.burn || 0; }
+
+  // 뒤에 선 것까지 꿰뚫습니다. 이만큼 더 지나갑니다.
+  get pierce() { return (this.base.pierce || 0) + this.relicSum('pierceOil'); }
+
+  // 닿은 자리가 터집니다. 곁에 선 것도 함께 맞습니다.
+  get aoe() { return this.base.aoe || 0; }
+
+  // 몸을 감싸는 것이 함께 섭니다. 받는 피해를 이만큼 나눕니다
+  // (1.3 이면 100 이 77 로 들어옵니다). 없으면 1 입니다.
+  get shield() { return this.base.shield || 1; }
+
   // 도적의 절도. 유물이 있으면 확률과 액수가 함께 오릅니다.
   get stealChance() { return this.job.steal + this.relicSum('stealBonus'); }
   get stealAmount() { return 1 + this.relicSum('stealAmount'); }

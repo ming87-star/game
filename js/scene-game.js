@@ -1930,7 +1930,8 @@ class GameScene extends Phaser.Scene {
     // 이 길로 들어서면 화살이 곧게만 날아갑니다(위 update() 의 화살 휘는
     // 처리가 hitSet 붙은 것은 건너뜁니다) — 뚫고 지나가는 화살이 도중에
     // 휘면 그건 더는 "관통"으로 안 보입니다.
-    const pierce = this.weapon.relicSum('pierceOil');
+    // 자루가 지닌 관통과 기름의 관통을 더합니다 (js/weapon.js 의 pierce).
+    const pierce = this.weapon.pierce;
     if (pierce > 0) { b.hitSet = new Set(); b.pierce = pierce; }
     this.physics.velocityFromRotation(
       Phaser.Math.Angle.Between(x, y, target.x, target.y), CFG.arrowSpeed, b.body.velocity);
@@ -1979,6 +1980,7 @@ class GameScene extends Phaser.Scene {
       // 관통하는 기름을 바른 화살도 이 길을 탑니다(아래 fireArrow). 파동은
       // 기름이 없어도 원래 꿰뚫으므로, 여기서 기름 상태를 걸어도 안전합니다.
       this.applyOil(enemy);
+      this.splash({ x: bullet.x, y: bullet.y }, enemy, bullet.dmg);
       if (bullet.pierce > 0) { bullet.pierce--; return; }
       bullet.destroy();
       return;
@@ -1989,6 +1991,7 @@ class GameScene extends Phaser.Scene {
     bullet.destroy();
     this.hitEnemy(enemy, dmg);
     this.applyOil(enemy);
+    this.splash(at, enemy, dmg);
 
     // 메아리 활 — 맞은 자리에서 다른 적에게 한 번 더 튕깁니다.
     if (bounce > 0) {
@@ -1999,6 +2002,39 @@ class GameScene extends Phaser.Scene {
                         Phaser.Math.Distance.Between(b.x, b.y, at.x, at.y))[0];
       if (next) this.fireArrow(at.x, at.y, next, Math.round(dmg * 0.8), bounce - 1);
     }
+  }
+
+  // ── 터지는 것 ───────────────────────────────────────────
+  // 마법사의 터지는 지팡이·화염폭풍. 닿은 자리에서 터져 **곁에 선 것도**
+  // 맞습니다 (CFG.aoe).
+  //
+  // 맞은 놈 자신은 빼고 셈합니다 — 이미 온전히 맞았습니다. 곁의 것은
+  // 절반만 들어갑니다.
+  //
+  // **날아가는 것에만 답니다.** 근접은 이미 사거리 안을 한 번에 훑으므로
+  // (swing 의 hit 목록) 광역을 또 얹으면 같은 일을 두 번 하는 셈입니다.
+  // 마법사는 원거리라 이 자리를 지납니다.
+  splash(at, hit, dmg) {
+    const n = this.weapon.aoe;
+    if (!n) return;
+    const c = CFG.aoe;
+    const 몫 = Math.max(1, Math.round(dmg * c.share));
+    let 터짐 = false;
+    this.enemies.getChildren().forEach((e) => {
+      if (!e.active || e === hit || !this.targetable(e)) return;
+      if (Phaser.Math.Distance.Between(e.x, e.y, at.x, at.y) > c.radius) return;
+      터짐 = true;
+      this.hitEnemy(e, 몫);
+    });
+    // 터진 자국 — 아무도 안 맞아도 보여 줍니다. 안 보여 주면 이 지팡이가
+    // 무엇을 하는 자루인지 영영 안 읽힙니다.
+    const ring = this.add.circle(at.x, at.y, 10, 0xffab40, 0.36).setDepth(9);
+    this.tweens.add({
+      targets: ring, radius: c.radius, alpha: 0, duration: 220,
+      onUpdate: () => ring.setRadius(ring.radius),
+      onComplete: () => ring.destroy(),
+    });
+    return 터짐;
   }
 
   // 도깨비불 — 주인공을 도는 불꽃 둘. 겨누지 않아도 닿으면 들어갑니다.
@@ -2038,10 +2074,18 @@ class GameScene extends Phaser.Scene {
   applyOil(enemy) {
     if (!enemy.active) return;
     const w = this.weapon;
-    if (w.hasRelic('hotoil')) {
+    // **자루가 스스로 태우기도 합니다** (마법사의 불의 지팡이·화염폭풍).
+    // 기름과 같은 자리를 쓰되, 몫은 자루가 정합니다 — 기름은 어느 자루에
+    // 발라도 같은 몫이지만, 지팡이는 그 지팡이의 성격입니다.
+    //
+    // 기름을 함께 바르고 있으면 **센 쪽 하나만** 걸립니다. 겹쳐서 두 번
+    // 타면 불 붙이는 유물 하나로 마법사가 통째로 다른 직업이 됩니다.
+    const 기름 = w.hasRelic('hotoil') ? CFG.relicFx.hotoil.dmgShare : 0;
+    const 몫 = Math.max(기름, w.burn);
+    if (몫 > 0) {
       const c = CFG.relicFx.hotoil;
       enemy.burnLeft = c.ticks;
-      enemy.burnDmg = Math.max(1, Math.round(w.dmg * c.dmgShare));
+      enemy.burnDmg = Math.max(1, Math.round(w.dmg * 몫));
       enemy.burnNextAt = this.time.now + c.tickMs;
       if (!enemy.burnRing) {
         enemy.burnRing = this.add.circle(enemy.x, enemy.y, 16, c.tint, 0.4).setDepth(8);
@@ -2775,6 +2819,14 @@ class GameScene extends Phaser.Scene {
     // 회피 뒤에 두는 것은 맞습니다 — 흘려 넘긴 대는 애초에 가면이 나설 일이
     // 없고, 나서면 공짜로 얻은 회피에 가면을 하나 버리는 셈이 됩니다.
     if (this.trophies.blockWithMask()) return;
+
+    // ── 보호막 — 자루가 지닌 것 ──────────────────────────
+    // 마법사의 수호의 지팡이·대마법사의 지팡이가 몸을 감쌉니다.
+    // **방어력보다 먼저** 나눕니다 — 나중에 두면 갑옷이 깎은 뒤의 몫만
+    // 줄여서, 두꺼운 사람에게는 거의 아무것도 안 하게 됩니다.
+    // 갈라진 가면을 방어력 앞에 둔 것과 같은 까닭입니다.
+    const shield = this.weapon.shield;
+    if (shield > 1) amount = Math.max(1, Math.round(amount / shield));
 
     // 방어력만큼 덜 맞습니다. 아무리 두꺼워도 한 대는 아프도록 최소 1은 들어갑니다.
     const taken = Math.max(1, Math.round(amount * (1 - this.armor / 100)));
