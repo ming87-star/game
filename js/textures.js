@@ -68,6 +68,117 @@ function buildTextures(scene) {
   g.fillCircle(25, 14, 2);
   bake('player-rogue', 40, 48);
 
+  // ── 새 직업 다섯의 몸 ───────────────────────────────────
+  // 판 안의 주인공은 `player-<직업>` 입니다. 앞의 셋은 art/*.svg 에서 오는데
+  // 다섯은 그 그림이 아직 없습니다 — 그러면 **초록 X 상자**가 서 있습니다
+  // (Phaser 의 __MISSING). 오류는 안 납니다.
+  //
+  // 고르는 화면의 초상화(face-*)를 그대로 쓸 수는 없습니다. 옆모습이 아니고,
+  // 곰사냥꾼은 **곰이 붙어 있어서** 판에서도 곰이 늘 따라다니게 됩니다.
+  //
+  // 그래서 도형으로 다섯을 세웁니다. 규격은 앞의 셋과 같습니다 —
+  // **오른쪽을 보고**, 발이 바닥에 닿고, 실루엣 열쇠가 하나씩 있습니다
+  // (ART.md 2.5절의 그 열쇠입니다).
+
+  // 권법사 — 맨손. 한 팔을 앞으로 뻗고 한 발을 듭니다.
+  g.clear();
+  g.fillStyle(0xffe0b2, 1);
+  g.fillRoundedRect(12, 20, 18, 20, 6);        // 몸 (도복)
+  g.fillStyle(0xffd54f, 1);
+  g.fillRect(12, 30, 18, 5);                   // 띠
+  g.fillRoundedRect(2, 24, 12, 6, 3);          // 뒤로 날리는 띠 자락
+  g.fillStyle(0xffe0b2, 1);
+  g.fillRoundedRect(28, 22, 10, 6, 3);         // 뻗은 팔
+  g.fillCircle(36, 25, 4);                     // 주먹
+  g.fillRoundedRect(14, 38, 7, 10, 3);         // 디딘 다리
+  g.fillRoundedRect(22, 38, 8, 6, 3);          // 든 다리
+  g.fillStyle(0xffccbc, 1);
+  g.fillCircle(21, 13, 8);                     // 머리
+  g.fillStyle(0xeceff1, 1);
+  g.fillRoundedRect(13, 6, 16, 6, 3);          // 흰 머리
+  bake('player-monk', 40, 48);
+
+  // 곰사냥꾼 — 두꺼운 털가죽, 앞으로 낮게 든 활.
+  g.clear();
+  // 활은 이 직업의 실루엣 열쇠입니다 — **몸 밖으로 확실히 나와야** 합니다.
+  // 처음에 몸에 붙여 두었더니 작은 호 하나로 보여서 궁수와 안 갈렸습니다.
+  g.lineStyle(4, 0x5d4037, 1);
+  g.beginPath();
+  g.arc(28, 26, 17, Phaser.Math.DegToRad(-64), Phaser.Math.DegToRad(64), false);
+  g.strokePath();                              // 앞으로 크게 든 활
+  g.lineStyle(1.6, 0xd7ccc8, 1);
+  g.lineBetween(35.5, 10, 35.5, 42);           // 시위
+  g.fillStyle(0xa1887f, 1);
+  g.fillRoundedRect(7, 19, 22, 23, 6);         // 두꺼운 몸
+  g.fillStyle(0xbcaaa4, 1);
+  g.fillRoundedRect(5, 17, 26, 8, 4);          // 어깨의 털가죽
+  g.fillStyle(0x795548, 1);
+  g.fillRoundedRect(9, 40, 18, 8, 3);
+  g.fillStyle(0xffe0b2, 1);
+  g.fillCircle(19, 12, 8);                     // 얼굴
+  g.fillStyle(0x6d4c41, 1);
+  g.fillRoundedRect(11, 4, 17, 8, 4);          // 가죽 모자
+  bake('player-hunter', 46, 48);   // 활이 밖으로 나와서 상자를 넓혔습니다
+
+  // 사령술사 — 얇고 길다. 지팡이와 뒤에 뜬 것 셋.
+  g.clear();
+  g.fillStyle(0x4db6ac, 1);
+  for (let i = 0; i < 3; i++) g.fillCircle(6 + i * 3, 12 + i * 9, 2.6);  // 뒤에 뜬 셋
+  g.fillStyle(0x8d6e63, 1);
+  g.fillRect(31, 6, 3, 42);                    // 지팡이
+  g.fillStyle(0x80cbc4, 1);
+  g.fillCircle(32, 6, 4.5);                    // 끝에 얹힌 것
+  g.fillStyle(0xeceff1, 1);
+  g.fillTriangle(11, 46, 21, 18, 31, 46);      // 늘어진 옷
+  g.fillStyle(0xcfd8dc, 1);
+  g.fillRoundedRect(13, 20, 16, 14, 5);
+  g.fillStyle(0x37474f, 1);
+  g.fillRoundedRect(14, 6, 15, 14, 6);         // 두건 (얼굴이 안 보입니다)
+  g.fillStyle(0x4db6ac, 1);
+  g.fillCircle(19, 14, 2);
+  g.fillCircle(25, 14, 2);                     // 청록 눈 — 적의 노란 눈과 갈립니다
+  bake('player-necro', 40, 48);
+
+  // 마법사 — 머리 위로 솟은 긴 지팡이, 뾰족한 모자.
+  g.clear();
+  g.fillStyle(0x8d6e63, 1);
+  g.fillRect(30, 2, 3, 46);                    // 지팡이 (가장 높이 솟습니다)
+  g.fillStyle(0x4fc3f7, 1);
+  g.fillCircle(31, 3, 5);
+  g.fillStyle(0x42a5f5, 1);
+  g.fillTriangle(9, 46, 20, 20, 30, 46);       // 로브
+  g.fillStyle(0x64b5f6, 1);
+  g.fillRoundedRect(12, 21, 16, 14, 5);
+  g.fillStyle(0xffe0b2, 1);
+  g.fillCircle(20, 14, 7);                     // 얼굴
+  g.fillStyle(0xeceff1, 1);
+  g.fillRoundedRect(14, 17, 13, 7, 3);         // 수염
+  g.fillStyle(0x1e88e5, 1);
+  g.fillTriangle(8, 10, 22, -6, 29, 12);       // 크게 꺾인 뾰족 모자
+  bake('player-wizard', 42, 48);
+
+  // 도굴꾼 — 등에 불룩한 자루, 앞으로 든 곡괭이.
+  g.clear();
+  g.fillStyle(0xa1887f, 1);
+  g.fillCircle(9, 24, 9);                      // 등의 자루
+  g.fillStyle(0x8d6e63, 1);
+  g.fillCircle(7, 20, 5);
+  g.fillStyle(0xd4e157, 1);
+  g.fillRoundedRect(13, 20, 18, 21, 6);        // 몸
+  g.fillStyle(0x9e9d24, 1);
+  g.fillRoundedRect(15, 39, 15, 9, 3);
+  g.fillStyle(0xffe0b2, 1);
+  g.fillCircle(21, 15, 8);                     // 얼굴
+  // 곡괭이는 **머리 위로** 올립니다. 얼굴 높이에 두었더니 가로로 뻗은 머리가
+  // 얼굴을 잘라서 사람으로 안 읽혔습니다.
+  g.fillStyle(0x8d6e63, 1);
+  g.fillRect(31, 4, 3, 26);                    // 곡괭이 자루
+  g.fillStyle(0xcfd8dc, 1);
+  g.fillTriangle(22, 6, 41, 2, 34, 10);        // 머리 (가로로 크게 뻗음)
+  g.fillStyle(0xc0ca33, 1);
+  g.fillRoundedRect(13, 7, 17, 8, 4);          // 두건
+  bake('player-digger', 44, 48);
+
   // ── 적 ────────────────────────────────────────────────
   // 종류마다 실루엣과 색을 다르게 해서 멀리서도 구분되게 합니다.
 

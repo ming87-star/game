@@ -195,6 +195,55 @@ const check = (ok, what, note) => {
   check(await page.evaluate(() => window.__select.picked) === 'warrior',
     '마지막 직업이 잠겼으면 전사로 물러섬');
 
+  // ── 판 안에 설 몸이 있는가 ──────────────────────────────
+  // 고르는 화면은 `face-<직업>`, **판 안은 `player-<직업>`** 입니다. 서로
+  // 다른 그림이라 하나만 있어도 이 화면은 멀쩡해 보입니다 — 그런데 판에
+  // 들어가면 **초록 X 상자**가 서 있습니다 (Phaser 의 __MISSING). 오류는
+  // 안 납니다.
+  //
+  // 실제로 그랬습니다. 새 직업 다섯을 붙이고 고르기 화면까지 다 맞춰 놨는데,
+  // 사령술사로 판에 들어가 보니 주인공이 초록 상자였습니다.
+  // **판 장면에서 봅니다.** 고르기 화면은 buildTextures 를 안 부르므로
+  // 거기서는 player-* 가 하나도 없습니다 (처음에 여기서 재다가 여덟이 다
+  // 없다고 나왔습니다).
+  await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'warrior' }));
+  await page.waitForFunction(() => window.__scene && window.__scene.player,
+    null, { timeout: 8000 });
+
+  const 몸 = await page.evaluate(() => {
+    const s = window.__scene;
+    return CLASSES.map((j) => ({
+      key: j.key, name: j.name,
+      face: s.textures.exists('face-' + j.key),
+      body: s.textures.exists('player-' + j.key),
+    }));
+  });
+  const 없는몸 = 몸.filter((x) => !x.body).map((x) => x.name);
+  const 없는얼굴 = 몸.filter((x) => !x.face).map((x) => x.name);
+  check(없는몸.length === 0, '여덟 다 **판 안에 설 몸**이 있음 (player-*)',
+    없는몸.length ? '없음: ' + 없는몸.join(' · ') : 몸.length + '개 다 있음');
+  check(없는얼굴.length === 0, '여덟 다 고르기 화면에 설 얼굴이 있음 (face-*)',
+    없는얼굴.length ? '없음: ' + 없는얼굴.join(' · ') : 몸.length + '개 다 있음');
+
+  // 몸이 서로 달라야 합니다 — 하나를 돌려 쓰면 판에서 누구인지 안 보입니다.
+  const 다름 = await page.evaluate(() => {
+    const s = window.__scene;
+    const seen = new Map();
+    const 겹침 = [];
+    CLASSES.forEach((j) => {
+      const src = s.textures.get('player-' + j.key).getSourceImage();
+      const c = document.createElement('canvas');
+      c.width = src.width; c.height = src.height;
+      c.getContext('2d').drawImage(src, 0, 0);
+      const sig = c.toDataURL();
+      if (seen.has(sig)) 겹침.push(seen.get(sig) + ' ↔ ' + j.name);
+      else seen.set(sig, j.name);
+    });
+    return 겹침;
+  });
+  check(다름.length === 0, '여덟의 몸이 서로 다름',
+    다름.length ? 다름.join(' · ') : '겹친 것 없음');
+
   console.log(bad ? `\n${bad}건 어긋남` : '\n고르기 화면이 제대로 섭니다');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
   await browser.close();

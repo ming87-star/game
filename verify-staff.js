@@ -1,4 +1,5 @@
-// 마법사의 지팡이 넷(**화상 · 관통 · 광역 · 보호막**)과 권법사의 **연타**.
+// 직업의 능력들 — 마법사의 지팡이 넷(**화상 · 관통 · 광역 · 보호막**),
+// 권법사의 **연타**, 사령술사의 **부하 셋**.
 //
 // 다섯 다 같은 부류입니다 — 자루나 직업에 값이 적혀 있고, 그 값을 읽는
 // 코드가 있어야 비로소 무슨 일이 일어납니다.
@@ -281,7 +282,144 @@ const check = (ok, what, note) => {
   check(남.배수 === 1 && 남.쌓이나 === 9, '권법사가 아니면 연타가 안 걸림',
     '×' + 남.배수);
 
-  console.log(bad ? `\n${bad}건 어긋남` : '\n지팡이 넷과 연타가 다 제 일을 합니다');
+  // ── 부하 (사령술사) ─────────────────────────────────────
+  await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'necro' }));
+  await page.waitForFunction(() => window.__scene && window.__scene.player
+    && window.__scene.job.key === 'necro', null, { timeout: 8000 });
+
+  const 하나 = await page.evaluate(() => {
+    const s = window.__scene;
+    s.clearThralls();
+    const e = s.enemies.create(s.player.x + 60, s.player.y, 'e-crawler');
+    e.body.setAllowGravity(false);
+    e.hp = 1; e.maxHp = 10; e.floor = 1; e.coin = 0; e.def = { key: 'crawler' };
+    s.hitEnemy(e, 999);
+    return (s.thralls || []).length;
+  });
+  check(하나 === 1, '내가 잡으면 그 자리에서 하나 일어섬', 하나 + '마리');
+
+  // 셋까지. 넷째를 잡으면 가장 오래된 것이 물러납니다.
+  const 넘침 = await page.evaluate(() => {
+    const s = window.__scene;
+    s.clearThralls();
+    const 잡기 = () => {
+      const e = s.enemies.create(s.player.x + 60, s.player.y, 'e-crawler');
+      e.body.setAllowGravity(false);
+      e.hp = 1; e.maxHp = 10; e.floor = 1; e.coin = 0; e.def = { key: 'crawler' };
+      s.hitEnemy(e, 999);
+    };
+    for (let i = 0; i < 3; i++) 잡기();
+    const 셋 = s.thralls.length;
+    const 처음것 = s.thralls[0];
+    잡기();
+    return { 셋, 넷째뒤: s.thralls.length, 처음것사라짐: !s.thralls.includes(처음것),
+      max: CFG.thrall.max };
+  });
+  check(넘침.셋 === 3, '셋까지 섬', 넘침.셋 + '/' + 넘침.max);
+  check(넘침.넷째뒤 === 넘침.max, '넷째를 잡아도 셋을 안 넘음', 넘침.넷째뒤 + '마리');
+  check(넘침.처음것사라짐, '넘치면 **가장 오래된 것**이 물러남 (새것이 안 서면 잡을수록 손해)');
+
+  // 판을 바꾸는 넷·보스·박쥐는 안 일어섭니다.
+  const 안섬 = await page.evaluate(() => {
+    const s = window.__scene;
+    const 재기 = (꾸미기) => {
+      s.clearThralls();
+      const e = s.enemies.create(s.player.x + 60, s.player.y, 'e-crawler');
+      e.body.setAllowGravity(false);
+      e.hp = 1; e.maxHp = 10; e.floor = 1; e.coin = 0; e.def = { key: 'crawler' };
+      꾸미기(e);
+      s.hitEnemy(e, 999);
+      return (s.thralls || []).length;
+    };
+    return {
+      보스: 재기((e) => { e.isBoss = true; }),
+      박쥐: 재기((e) => { e.isBat = true; }),
+      개구리: 재기((e) => { e.isGoldFrog = true; e.coin = 0; }),
+    };
+  });
+  check(안섬.보스 === 0, '보스는 안 일어섬');
+  check(안섬.박쥐 === 0, '박쥐는 안 일어섬');
+  check(안섬.개구리 === 0, '황금개구리는 안 일어섬');
+
+  // 실제로 치는가. 적을 하나 세워 두고 시간을 흘립니다.
+  const 침 = await page.evaluate(async () => {
+    const s = window.__scene;
+    s.clearThralls();
+    const 잡기 = () => {
+      const e = s.enemies.create(s.player.x + 60, s.player.y, 'e-crawler');
+      e.body.setAllowGravity(false);
+      e.hp = 1; e.maxHp = 10; e.floor = 1; e.coin = 0; e.def = { key: 'crawler' };
+      s.hitEnemy(e, 999);
+    };
+    잡기(); 잡기();
+    // 부하를 주인공 곁에 붙여 두고 먹이를 하나 세웁니다
+    s.thralls.forEach((t) => { t.sprite.x = s.player.x; t.sprite.y = s.player.y; t.nextHitAt = 0; });
+    const 먹이 = s.enemies.create(s.player.x + 40, s.player.y, 'e-crawler');
+    먹이.body.setAllowGravity(false);
+    먹이.hp = 1e9; 먹이.maxHp = 1e9; 먹이.floor = 1; 먹이.coin = 0; 먹이.def = { key: 'crawler' };
+    const 처음 = 먹이.hp;
+    for (let i = 0; i < 12; i++) {
+      s.updateThralls(s.time.now + i * 800, 16);
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    const 깎임 = 처음 - 먹이.hp;
+    먹이.destroy();
+    return { 깎임, 마리: s.thralls.length };
+  });
+  check(침.깎임 > 0, '**부하가 실제로 칩니다**', 침.깎임 + ' 깎임 (' + 침.마리 + '마리)');
+
+  // 주인공이 맞으면 하나 스러집니다.
+  const 맞음 = await page.evaluate(() => {
+    const s = window.__scene;
+    s.clearThralls();
+    for (let i = 0; i < 3; i++) {
+      const e = s.enemies.create(s.player.x + 60, s.player.y, 'e-crawler');
+      e.body.setAllowGravity(false);
+      e.hp = 1; e.maxHp = 10; e.floor = 1; e.coin = 0; e.def = { key: 'crawler' };
+      s.hitEnemy(e, 999);
+    }
+    const 전 = s.thralls.length;
+    s.armor = 0; s.dodge = 0; s.hp = s.maxHp; s.lastHitAt = -99999;
+    s.hurt(10, null, false);
+    return { 전, 후: s.thralls.length };
+  });
+  check(맞음.후 === 맞음.전 - 1, '**주인공이 맞으면 하나 스러짐**',
+    맞음.전 + ' → ' + 맞음.후);
+
+  // 층을 옮기면 따라옵니다 — 두고 가지 않습니다.
+  const 따라옴 = await page.evaluate(() => {
+    const s = window.__scene;
+    s.clearThralls();
+    const e = s.enemies.create(s.player.x + 60, s.player.y, 'e-crawler');
+    e.body.setAllowGravity(false);
+    e.hp = 1; e.maxHp = 10; e.floor = 1; e.coin = 0; e.def = { key: 'crawler' };
+    s.hitEnemy(e, 999);
+    const t = s.thralls[0];
+    // 주인공을 한 층 위로 옮겨 놓고 몇 프레임 돌립니다
+    const 전거리 = Phaser.Math.Distance.Between(t.sprite.x, t.sprite.y, s.player.x, s.player.y);
+    s.player.y -= CFG.floorHeight;
+    for (let i = 0; i < 60; i++) s.updateThralls(s.time.now, 16);
+    const 후거리 = Phaser.Math.Distance.Between(t.sprite.x, t.sprite.y, s.player.x, s.player.y);
+    return { 전거리: Math.round(전거리), 후거리: Math.round(후거리) };
+  });
+  check(따라옴.후거리 < 60, '**층을 옮기면 따라옴** (두고 가지 않음)',
+    '주인공에서 ' + 따라옴.후거리 + 'px');
+
+  // 사령술사가 아니면 아무 일도 없어야 합니다.
+  await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'warrior' }));
+  await page.waitForFunction(() => window.__scene && window.__scene.player
+    && window.__scene.job.key === 'warrior', null, { timeout: 8000 });
+  const 남2 = await page.evaluate(() => {
+    const s = window.__scene;
+    const e = s.enemies.create(s.player.x + 60, s.player.y, 'e-crawler');
+    e.body.setAllowGravity(false);
+    e.hp = 1; e.maxHp = 10; e.floor = 1; e.coin = 0; e.def = { key: 'crawler' };
+    s.hitEnemy(e, 999);
+    return (s.thralls || []).length;
+  });
+  check(남2 === 0, '사령술사가 아니면 아무것도 안 일어섬', 남2 + '마리');
+
+  console.log(bad ? `\n${bad}건 어긋남` : '\n지팡이 넷 · 연타 · 부하가 다 제 일을 합니다');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
   await browser.close();
   server.close();

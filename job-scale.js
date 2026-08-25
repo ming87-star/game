@@ -99,12 +99,29 @@ function measure(job, f) {
     ? 1 + ((CFG.combo.every - 1) / 2) * CFG.combo.per
     : 1;
 
+  // ── 부하 (사령술사) ──────────────────────────────────
+  // 셋이 각자 주인공 한 대의 dmgShare 로, tickMs 마다 한 번 칩니다
+  // (CFG.thrall). 주인공의 초당 피해에 견줘 얼마인지를 곱합니다.
+  //
+  // **셋을 늘 채워 두는 것으로 안 봅니다.** 맞으면 하나 잃고, 층을 옮기면
+  // 따라오는 데 시간이 걸립니다. 평균 두 마리쯤으로 봅니다 — 그 어림이
+  // 맞는지는 「그럴듯」이 따로 답니다 (js/classes.js 의 사령술사).
+  const 부하 = job.thralls ? 2 : 0;
+
   const 발사체 = (n) => 1 + ((n || 1) - 1) * 0.5;
   const each = pool
     .map((x) => (x.dmgMin + x.dmgMax) / 2 * boost * 발사체(x.shots) * x.acc
       * (1 + (x.burn || 0)) * 연타 / (x.rate / speed) * 1000)
     .sort((a, b) => a - b);
-  const dps = each[Math.floor(each.length / 2)];
+  let dps = each[Math.floor(each.length / 2)];
+  // 부하는 주인공 한 대의 몫으로 제 박자에 칩니다. 자루가 빠르든 느리든
+  // 그 박자는 같으므로, **초당 피해에 곱하는 것이 아니라 더합니다.**
+  if (부하) {
+    const c = CFG.thrall;
+    const 한대 = pool.map((x) => (x.dmgMin + x.dmgMax) / 2 * boost)
+      .sort((a, b) => a - b)[Math.floor(pool.length / 2)];
+    dps += 부하 * 한대 * c.dmgShare * (1000 / c.tickMs);
+  }
 
   // 보호막은 자루마다 다르므로 **그 층 자루들의 한가운데**로 봅니다 —
   // 초당 피해를 한가운데로 보는 것과 같은 이유입니다.

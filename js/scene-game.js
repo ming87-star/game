@@ -38,6 +38,10 @@ class GameScene extends Phaser.Scene {
     this.jumping = false;
     this.floorIndex = 0;
     this.combo = 0;   // 연타 (권법사). 판마다 0 부터입니다
+    // 부하 (사령술사). **장면은 다시 켜도 같은 객체가 쓰입니다** — 여기서
+    // 안 비우면 사령술사로 놀다가 전사로 바꿨을 때 부하가 그대로 따라옵니다
+    // (시험이 잡았습니다). 판이 끝날 때 치우는 것만으로는 모자랍니다.
+    this.clearThralls();
     this.lane = 'mid';
     resetTowerRun(); // 이번 판의 UP 배치를 새로 뽑습니다
 
@@ -2064,6 +2068,82 @@ class GameScene extends Phaser.Scene {
     return 터짐;
   }
 
+  // ── 부하 (사령술사) ─────────────────────────────────────
+  //
+  // **내가 잡은 적만** 일어섭니다 (CFG.thrall). 그래야 「죽인 것을 데려간다」가
+  // 됩니다 — 아무 죽음이나 세우면 그건 소환이지 사령술이 아닙니다.
+  //
+  // 일어서지 않는 것 넷:
+  //   보스        판이 통째로 뒤집힙니다
+  //   박쥐        코인을 훔쳐 달아나는 것이라 내 편이 될 물건이 아닙니다
+  //   판을 바꾸는 넷  오르는 일을 무섭게 하려고 만든 것이라, 내 편이 되면
+  //               그 넷이 하는 일이 사라집니다
+  //   미믹·개구리  적이 아니라 함정과 벌이입니다
+  raiseThrall(enemy) {
+    if (!this.job.thralls || this.dead) return;
+    if (enemy.isBoss || enemy.isBat || enemy.isGoldFrog || enemy.isMimic) return;
+    if (enemy.def && isFoeType(enemy.def)) return;
+    const c = CFG.thrall;
+    this.thralls = this.thralls || [];
+    // 꽉 찼으면 **가장 오래된 것을 보냅니다.** 새로 잡은 것이 안 일어서면
+    // 「셋까지」가 「처음 셋만」이 되어, 잡을수록 손해라는 이상한 판이 됩니다.
+    if (this.thralls.length >= c.max) this.dropThrall(this.thralls[0]);
+
+    const sprite = this.add.image(enemy.x, enemy.y - 4, 'ally-thrall').setDepth(9);
+    sprite.setAlpha(0);
+    this.tweens.add({ targets: sprite, alpha: 1, y: enemy.y - 12, duration: 220 });
+    this.thralls.push({ sprite, nextHitAt: 0, bornAt: this.time.now });
+  }
+
+  dropThrall(t) {
+    if (!t) return;
+    this.thralls = (this.thralls || []).filter((x) => x !== t);
+    const s = t.sprite;
+    this.tweens.add({ targets: s, alpha: 0, y: s.y - 14, duration: 260,
+      onComplete: () => s.destroy() });
+  }
+
+  // 판이 끝나거나 직업이 바뀌면 통째로 치웁니다.
+  clearThralls() {
+    (this.thralls || []).forEach((t) => t.sprite.destroy());
+    this.thralls = null;
+  }
+
+  // 매 프레임. 따라오고, 가까운 것을 치고, 맞으면 죽습니다.
+  updateThralls(time, delta) {
+    if (!this.job.thralls) return;
+    const list = this.thralls;
+    if (!list || !list.length) return;
+    const c = CFG.thrall;
+
+    list.slice().forEach((t, i) => {
+      const s = t.sprite;
+      // ── 따라옵니다 ────────────────────────────────────
+      // 주인공 뒤에 흩어져 섭니다. **곧장 붙지 않고 뒤따릅니다** — 층을
+      // 옮기면 followMs 만큼 늦게 도착합니다. 그 늦음이 「셋을 늘 채워
+      // 두기는 어렵다」를 만듭니다.
+      const 자리 = { x: this.player.x - 26 - i * 20, y: this.player.y - 10 - (i % 2) * 14 };
+      const k = Math.min(1, delta / c.followMs);
+      s.x = Phaser.Math.Linear(s.x, 자리.x, k);
+      s.y = Phaser.Math.Linear(s.y, 자리.y, k);
+
+      // ── 칩니다 ────────────────────────────────────────
+      // 주인공 한 대의 몇 할로, tickMs 마다 한 번. 가장 가까운 것을 봅니다.
+      if (time < t.nextHitAt) return;
+      const 먹이 = this.enemies.getChildren()
+        .filter((e) => this.targetable(e) &&
+          Phaser.Math.Distance.Between(e.x, e.y, s.x, s.y) <= c.reach)
+        .sort((a, b) => Phaser.Math.Distance.Between(a.x, a.y, s.x, s.y) -
+                        Phaser.Math.Distance.Between(b.x, b.y, s.x, s.y))[0];
+      if (!먹이) return;
+      t.nextHitAt = time + c.tickMs;
+      this.hitEnemy(먹이, Math.max(1, Math.round(this.weapon.dmg * c.dmgShare)));
+      // 친 것이 보이게 짧게 밀었다 돌아옵니다.
+      const dx = Phaser.Math.Clamp(먹이.x - s.x, -10, 10);
+      this.tweens.add({ targets: s, x: s.x + dx, duration: 90, yoyo: true });
+    });
+  }
+
   // 도깨비불 — 주인공을 도는 불꽃 둘. 겨누지 않아도 닿으면 들어갑니다.
   // 유물이 없으면(또는 판이 끝나면) 만든 것을 치웁니다.
   updateWisps(time, delta) {
@@ -2250,6 +2330,9 @@ class GameScene extends Phaser.Scene {
     const at = { x: enemy.x, y: enemy.y, floor: enemy.floor, def: enemy.def };
     this.clearOilFx(enemy);
     this.deathBurst(enemy);
+    // **내가 잡은 것만** 일어섭니다. 죽는 그림 뒤, 없애기 전에 부릅니다 —
+    // 자리를 알아야 그 자리에서 일으킬 수 있습니다.
+    this.raiseThrall(enemy);
     enemy.destroy();
     this.kills++;
     if (at.def.onDeath === 'explode') this.explodeAt(at);
@@ -2865,6 +2948,20 @@ class GameScene extends Phaser.Scene {
     // 닳는 속도도 저절로 빨라집니다.
     const worn = this.wearArmor(blocked);
 
+    // ── 부하는 주인공이 맞을 때 함께 스러집니다 ──────────
+    // 「맞으면 죽는다」를 이렇게 답니다. 적이 부하를 따로 노리게 만들 수도
+    // 있지만, 그러면 부하가 **방패**가 됩니다 — 대신 맞아 주는 셋을 달고
+    // 다니는 직업이 되어 「여덟 중 가장 얇다」와 정면으로 부딪힙니다.
+    //
+    // 이쪽은 값을 치릅니다. 한 대 맞으면 체력도 깎이고 부하도 하나 잃으므로,
+    // 사령술사는 **맞으면 두 번 손해**입니다. 얇은 직업이라는 결과 맞습니다.
+    //
+    // 가장 오래된 것부터 보냅니다 — 방금 잡아 세운 것이 바로 스러지면
+    // 잡은 보람이 없습니다.
+    if (this.job.thralls && this.thralls && this.thralls.length) {
+      this.dropThrall(this.thralls[0]);
+    }
+
     this.cameras.main.shake(140, 0.008);
     this.popupHit(taken, blocked, worn);
     this.flashHurt();
@@ -3245,6 +3342,8 @@ class GameScene extends Phaser.Scene {
     this.clearNotices(); // 죽음 화면 위에 알림이 떠 있으면 결과가 안 읽힙니다
     // 도깨비불은 판이 끝나도 저 혼자 돌고 있으면 안 됩니다.
     if (this.wisps) { this.wisps.forEach((w) => w.sprite.destroy()); this.wisps = null; }
+    // 부하도 같이 보냅니다 — 죽은 자리에 셋이 남아 서 있으면 안 됩니다.
+    this.clearThralls();
     // 판을 넘어 남는 기록. 직업 해금이 여기에 기댑니다.
     const wasBest = Save.bestFloor;
     const opened = classesUnlockedBy(this.floorIndex, this.totalCoins);
@@ -3421,6 +3520,7 @@ class GameScene extends Phaser.Scene {
     if (this.floorIndex > 0) this.hud.fadeHint(delta);
 
     this.updateWisps(time, delta);
+    this.updateThralls(time, delta);
     updateEnemies(this, time, delta);
     this.updateOilFx(time);
 
