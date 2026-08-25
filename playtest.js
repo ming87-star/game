@@ -178,7 +178,40 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
     return s.coins < 130 ? 2.5 : 0.5;
   };
 
+  // ── 견주는 창 풀기 ──────────────────────────────────────
+  // 무기를 만나면 판이 멈추고 갈아탈지 묻습니다. **안 눌러 주면 판이 통째로
+  // 거기서 멎습니다.** 이득일 때만 갈아타는 사람으로 잽니다.
+  //
+  // 필드에서도 상점 안에서도 같은 창이라 함수로 빼 둡니다.
+  const swapOpenNow = () => page.evaluate(() =>
+    !!(window.__game.scene.isActive('swap') && window.__swap));
+
+  const resolveSwap = async () => {
+    const spot = await page.evaluate(() => {
+      const sw = window.__swap;
+      const g = window.__scene;
+      const good = g.weapon.dpsOf(sw.entry, false) > g.weapon.dps;
+      return good ? sw.swapAt : sw.keepAt;
+    });
+    await page.mouse.click(...at(spot.x, spot.y));
+    await page.waitForTimeout(400);
+  };
+
   // 상점 버튼을 실제 좌표로 눌러서 UI가 입력을 받는지까지 확인합니다.
+  //
+  // ── 무기 칸은 창을 하나 더 띄웁니다 ──────────────────────
+  // 상점의 무기 칸을 누르면 **상점 위에** 견주는 창이 뜹니다 (js/shop.js 의
+  // offerWeapon → js/scene-swap.js). 그 창은 모달이라, 그때부터 누르는 것이
+  // 전부 **창 뒤로** 들어갑니다 — 남은 칸도, 나가기도.
+  //
+  // 그래서 나가기가 안 먹고 상점이 안 닫히고, 바깥 고리는 `shopOpen` 이
+  // 여전히 참이니 doShop 을 또 부릅니다. **50층에서 남은 점프를 전부
+  // 써 버렸습니다** (200번 중 150번이 상점이었습니다).
+  //
+  // 오류는 한 줄도 안 났습니다. 그냥 50층에서 안 올라갑니다.
+  //
+  // 칸을 하나 누를 때마다 창이 떴는지 보고, 떴으면 **먼저 풀고** 다음 칸으로
+  // 갑니다. 사람이 하는 것과 같은 순서입니다.
   const doShop = async (label) => {
     await page.waitForTimeout(400);
     await shot(page, label);
@@ -190,10 +223,15 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
     for (const r of spots.rows) {
       await page.mouse.click(...at(r.x, r.y));
       await page.waitForTimeout(180);
+      if (await swapOpenNow()) { swapsSeen++; await resolveSwap(); }
     }
     await shot(page, label.replace('.png', '-after.png'));
     await page.mouse.click(...at(spots.exit.x, spots.exit.y));
     await page.waitForTimeout(400);
+
+    // **나가기가 정말 먹었는지 봅니다.** 안 먹었는데 참으로 두면 바깥 고리가
+    // 여기를 끝없이 다시 부릅니다 — 위에서 겪은 그대로입니다.
+    return !(await page.evaluate(() => window.__scene && window.__scene.shop.open));
   };
 
   const log = [];
@@ -206,25 +244,27 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
     if (!s) break;
     if (s.dead) { log.push(`${s.floor}층에서 사망`); break; }
 
-    if (s.shopOpen) {
-      shopsSeen++;
-      await doShop(`shop-${s.floor}.png`);
+    // **견주는 창을 상점보다 먼저 봅니다.** 그 창은 상점 위에 뜨므로,
+    // 상점을 먼저 다루면 창 뒤를 누르게 됩니다.
+    if (s.swapOpen) {
+      swapsSeen++;
+      await resolveSwap();
       continue;
     }
 
-    // 무기를 밟으면 판이 멈추고 갈아탈지 묻습니다. **이걸 안 눌러 주면
-    // 판이 통째로 거기서 멎습니다** — 남은 점프를 전부 멈춘 화면에 씁니다.
-    // 이득일 때만 갈아타는 사람으로 잽니다.
-    if (s.swapOpen) {
-      swapsSeen++;
-      const at2 = await page.evaluate(() => {
-        const sw = window.__swap;
-        const g = window.__scene;
-        const good = g.weapon.dpsOf(sw.entry, false) > g.weapon.dps;
-        return good ? sw.swapAt : sw.keepAt;
-      });
-      await page.mouse.click(...at(at2.x, at2.y));
-      await page.waitForTimeout(400);
+    if (s.shopOpen) {
+      shopsSeen++;
+      const 나섰나 = await doShop(`shop-${s.floor}.png`);
+      if (!나섰나) {
+        // 여기까지 왔으면 나가기가 안 먹은 것입니다. 끝없이 되풀이하지 말고
+        // **왜 안 닫혔는지 남기고** 멈춥니다. 조용히 도는 것보다 낫습니다.
+        const why = await page.evaluate(() => ({
+          swap: window.__game.scene.isActive('swap'),
+          scenes: window.__game.scene.getScenes(true).map((x) => x.scene.key),
+        }));
+        log.push(`${s.floor}층 상점에서 못 나섬 — 겹친 장면 ${why.scenes.join(',')}`);
+        break;
+      }
       continue;
     }
 
@@ -287,17 +327,28 @@ const shot = (page, name) => page.screenshot({ path: path.join(ROOT, 'shots', na
   // 죽었다면 죽음 화면의 세 갈래가 실제로 그려졌는지, 무엇을 계승할 수 있는지 봅니다.
   if (state && state.dead) {
     await shot(page, '05-death.png');
+    // **죽으면 장면이 넘어갑니다.** 죽음 화면에서 「메달 받기」나 만남 컷으로
+    // 옮겨 가면 window.__scene 이 사라져서, 여기서 s.job 을 읽다가 터집니다.
+    // 판 전체를 굴려 놓고 **마지막 한 줄 때문에 아무 결과도 못 보는 것**이
+    // 제일 아깝습니다 (실제로 궁수 판이 그렇게 통째로 날아갔습니다).
     const choices = await page.evaluate(() => {
       const s = window.__scene;
+      if (!s || !s.job) return null;
       return {
         buttons: s.deathChoices ? s.deathChoices.length : 0,
         carry: window.__save.carryWeapon(s.job.key),
         book: window.__save.data.weapons[s.job.key] || {},
       };
     });
-    console.log('죽음 화면: 선택지', choices.buttons + '개',
-      '· 도감', Object.keys(choices.book).length + '단계',
-      '· 계승할 무기:', JSON.stringify(choices.carry));
+    if (choices) {
+      console.log('죽음 화면: 선택지', choices.buttons + '개',
+        '· 도감', Object.keys(choices.book).length + '단계',
+        '· 계승할 무기:', JSON.stringify(choices.carry));
+    } else {
+      const where = await page.evaluate(() =>
+        window.__game.scene.getScenes(true).map((x) => x.scene.key).join(','));
+      console.log('죽음 화면: 이미 다른 장면으로 넘어갔습니다 — ' + where);
+    }
   }
 
   console.log(log.join('\n'));
