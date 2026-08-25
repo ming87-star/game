@@ -428,6 +428,17 @@ const CLASSES = [
     dodgeMax: 0.55,
     // 손이 셋 중 가장 빠릅니다. 가죽과 함께 올렸습니다 — 도적의 값어치는
     // "빠르다"인데 2.5는 궁수(2.05)와 그리 벌어져 보이지 않았습니다.
+    //
+    // **한계는 그대로 두고 자루 쪽을 20% 늦췄습니다** (아래 rate).
+    // 직업이 여덟이 되면서 도적이 혼자 위에 남았는데(전사 100 기준 191),
+    // 회피를 0.90 → 0.70 → 0.55 로 두 번 내려도 169 였습니다. 성장을 아예
+    // 없애도 152 였고요 — **세기가 회피가 아니라 자루에 있었습니다.**
+    // 자루 기본 화력이 전사의 1.63배(369 대 227)였습니다.
+    //
+    // 늦춰도 성격은 안 깨집니다. 첫 단도가 212 → 254ms 인데 궁수가 330,
+    // 전사가 410 이라 **여전히 여덟 중 가장 빠릅니다.** 도적이 파는 것은
+    // 「빠름」 하나가 아니라 빠름·회피·절도 셋이고, 그중 하나만 조금
+    // 무디게 한 것입니다.
     speedCap: 2.8,
     // +1 하나가 제값을 다 주지는 않습니다. 공격 속도가 워낙 빨라서
     // 공격력까지 온전히 붙으면 곱해진 값이 감당이 안 됩니다.
@@ -462,62 +473,62 @@ const CLASSES = [
     // 도적은 날이 짧아 art 가 dagger 입니다 — 자루가 짧고 코등이가 작아,
     // 같은 검이라도 전사 것과 실루엣이 갈립니다.
     weapons: [
-      { key: 'dagger', name: '단도', dmg: 40, rate: 212, reach: 78, depth: 0,
+      { key: 'dagger', name: '단도', dmg: 40, rate: 254, reach: 78, depth: 0,
         forge: 'keen', sheet: 0, color: 0xcfd8dc,
         detail: '짧고 빠릅니다',
         lore: '품에 넣고 다니라고 만든 것. 짧은 만큼 늦는 법이 없습니다.',
         icon: { art: 'dagger', hw: 3.6, len: 0.40, guard: 'none', notch: true } },
-      { key: 'hunting', name: '사냥칼', dmg: 41, rate: 205, reach: 82, depth: 40,
+      { key: 'hunting', name: '사냥칼', dmg: 41, rate: 246, reach: 82, depth: 40,
         forge: 'iron', sheet: 1, color: 0x90caf9,
         detail: '가르는 데 익숙한 날',
         lore: '가죽을 벗기던 날. 쓰던 사람이 무엇을 벗겼는지는 묻지 않는 것이 예의였습니다.',
         icon: { art: 'dagger', hw: 4.0, len: 0.44, guard: 'bar', gw: 9 } },
-      { key: 'twindagger', name: '쌍단도', dmg: 42, rate: 198, reach: 86, depth: 80,
+      { key: 'twindagger', name: '쌍단도', dmg: 42, rate: 238, reach: 86, depth: 80,
         forge: 'black', sheet: 2, color: 0xa5d6a7, spread: 0.24,
         detail: '두 손이 번갈아 들어갑니다',
         lore: '왼손과 오른손이 서로를 기다리지 않습니다.',
         icon: { art: 'dagger', twin: true, hw: 4.4, len: 0.44, guard: 'bar', gw: 11 } },
-      { key: 'fang', name: '독니', dmg: 43, rate: 191, reach: 91, depth: 120,
+      { key: 'fang', name: '독니', dmg: 43, rate: 229, reach: 91, depth: 120,
         forge: 'silver', sheet: 3, color: 0x9ccc65,
         detail: '휘어진 끝이 걸립니다',
         lore: '끝이 갈고리처럼 휘었습니다. 들어갈 때보다 나올 때가 더 아픕니다.',
         icon: { art: 'dagger', hw: 4.0, len: 0.45, curve: 1.3, guard: 'none' } },
-      { key: 'shadow', name: '그림자단검', dmg: 43, rate: 184, reach: 95, depth: 160,
+      { key: 'shadow', name: '그림자단검', dmg: 43, rate: 221, reach: 95, depth: 160,
         forge: 'keen', sheet: 4, color: 0xce93d8, acc: 0.95,
         detail: '보이지 않는 자리로 들어갑니다',
         lore: '등 뒤로 도는 법을 아는 날. 정면으로 들고 선 사람은 없었다고 합니다.',
         icon: { art: 'dagger', hw: 4.0, len: 0.48, guard: 'bar', gw: 10, gem: true } },
-      { key: 'moon', name: '월아도', dmg: 45, rate: 178, reach: 98, depth: 200,
+      { key: 'moon', name: '월아도', dmg: 45, rate: 214, reach: 98, depth: 200,
         forge: 'iron', sheet: 5, color: 0xff8a65, spread: 0.26,
         detail: '반달처럼 휘었습니다',
         lore: '반달처럼 휘었습니다. 벤 자리도 반달 모양이라고들 합니다.',
         icon: { art: 'dagger', hw: 5.0, len: 0.50, curve: 1.8, guard: 'bar', gw: 10 } },
-      { key: 'bolt', name: '뇌전비수', dmg: 46, rate: 172, reach: 101, depth: 250,
+      { key: 'bolt', name: '뇌전비수', dmg: 46, rate: 206, reach: 101, depth: 250,
         forge: 'black', sheet: 6, color: 0x81d4fa,
         detail: '찌른 자리가 저려옵니다',
         lore: '찌른 자리가 한참 뒤에 저려 옵니다. 그동안이 도망칠 시간입니다.',
         icon: { art: 'dagger', hw: 4.0, len: 0.50, guard: 'wing', gw: 11, gem: true } },
-      { key: 'dragonfang', name: '용아단검', dmg: 48, rate: 166, reach: 104, depth: 300,
+      { key: 'dragonfang', name: '용아단검', dmg: 48, rate: 199, reach: 104, depth: 300,
         forge: 'keen', sheet: 7, color: 0xffb74d,
         detail: '이빨을 갈아 만들었다고 합니다',
         lore: '이빨을 갈아 만들었다고 합니다. 갈아 낸 쪽이 이빨인지 사람인지는 모릅니다.',
         icon: { art: 'dagger', hw: 4.8, len: 0.52, curve: 1.1, guard: 'cross', gw: 12 } },
-      { key: 'dark', name: '그믐비수', dmg: 49, rate: 160, reach: 107, depth: 350,
+      { key: 'dark', name: '그믐비수', dmg: 49, rate: 192, reach: 107, depth: 350,
         forge: 'silver', sheet: 8, color: 0xf48fb1,
         detail: '달이 없는 밤의 것',
         lore: '달이 없는 밤에만 꺼냈습니다. 달이 있는 밤에는 보이니까요.',
         icon: { art: 'dagger', hw: 4.2, len: 0.53, curve: 1.6, guard: 'bar', gw: 10, gem: true } },
-      { key: 'soul', name: '사혼도', dmg: 51, rate: 155, reach: 110, depth: 400,
+      { key: 'soul', name: '사혼도', dmg: 51, rate: 186, reach: 110, depth: 400,
         forge: 'iron', sheet: 9, color: 0xfff59d,
         detail: '베인 자리가 늦게 아픕니다',
         lore: '베인 줄 모르고 걷다가 멈춘다고 합니다. 그 자리에서 늦게 아파 옵니다.',
         icon: { art: 'dagger', hw: 5.2, len: 0.55, curve: 1.2, guard: 'ring', gw: 12 } },
-      { key: 'abyssfang', name: '심연의이빨', dmg: 53, rate: 150, reach: 113, depth: 450,
+      { key: 'abyssfang', name: '심연의이빨', dmg: 53, rate: 180, reach: 113, depth: 450,
         forge: 'keen', sheet: 10, color: 0x9575cd, spread: 0.30, acc: 0.88,
         detail: '두 날이 제멋대로 들어갑니다',
         lore: '두 날이 서로 다른 것을 노립니다. 쥔 사람의 뜻은 셋째입니다.',
         icon: { art: 'dagger', twin: true, hw: 5.0, len: 0.54, guard: 'wing', gw: 13, gem: true } },
-      { key: 'skyfang', name: '천살단검', dmg: 55, rate: 145, reach: 116, depth: 500,
+      { key: 'skyfang', name: '천살단검', dmg: 55, rate: 174, reach: 116, depth: 500,
         forge: 'black', sheet: 11, color: 0x80cbc4,
         detail: '가장 빠르고 가장 무겁게',
         lore: '가장 빠르고 가장 무겁게. 둘을 함께 가진 물건은 이것 하나뿐입니다.',
@@ -562,7 +573,7 @@ const CLASSES = [
       // 사이의 거리가 직업마다 달라서, 같은 걸음을 쓰면 뒤집히는 지점이
       // 서른여덟에서 마흔둘까지 흩어집니다. 셋 다 **마흔에서** 뒤집혀야
       // 「마흔」이 약속이 됩니다.
-      { key: 'nameless', name: '무명비수', dmg: 16, rate: 212, reach: 74, depth: 120,
+      { key: 'nameless', name: '무명비수', dmg: 16, rate: 254, reach: 74, depth: 120,
         sheet: 0, color: 0x9e9e9e, plusMax: 50, plusStep: 0.331,
         detail: '맨몸은 약합니다. 대신 +1 을 쉰까지 받습니다',
         lore: '이름을 새기지 않은 날. 새길 만한 일을 아직 안 했기 때문이라고, 간 이가 말했다고 합니다.',
