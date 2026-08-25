@@ -75,8 +75,26 @@ function measure(job, f) {
   return { dps, ehp, dodge, armor, score: dps * ehp / 1000 };
 }
 
+// ── 값을 바꿔 보기 ──────────────────────────────────────
+// **고치기 전에 재 봅니다.** 수치 하나를 바꾸면 여덟 직업 스물여덟 쌍이
+// 같이 움직이는데, 코드를 고쳐 놓고 재면 되돌릴 때 손이 갑니다.
+//
+//   node job-scale.js --set rogue.dodgeMax=0.70
+//   node job-scale.js --set rogue.dodgeMax=0.70 --set warrior.hp=240
+const 바꾼것 = [];
+process.argv.forEach((a, i) => {
+  if (a !== '--set') return;
+  const m = /^([a-z]+)\.([A-Za-z]+)=(-?[\d.]+)$/.exec(process.argv[i + 1] || '');
+  if (!m) { console.error('--set 은 직업.값=수 꼴입니다 (예: rogue.dodgeMax=0.70)'); process.exit(1); }
+  const job = CLASSES.find((j) => j.key === m[1]);
+  if (!job) { console.error('그런 직업이 없습니다: ' + m[1]); process.exit(1); }
+  바꾼것.push(job.name + ' ' + m[2] + ' ' + job[m[2]] + ' → ' + m[3]);
+  job[m[2]] = Number(m[3]);
+});
+
 const pad = (s, n) => String(s).padStart(n);
 
+if (바꾼것.length) console.log('\n바꿔 본 값: ' + 바꾼것.join(' · '));
 console.log('\n초당 피해 × 실질 체력 — 도적을 100 으로 (강화 ' + STACKS + '단)\n');
 console.log('  층    직업    초당 피해   회피   방어   실질 체력      점수   도적 대비');
 console.log('  ' + '─'.repeat(72));

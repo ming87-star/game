@@ -242,6 +242,33 @@ const check = (ok, label, got) => {
   check(lotto.marks === 2000, '이겼든 졌든 **그 줄에 결과가 적힘** (꽝도 보여야 합니다)',
     lotto.marks + '/2000');
 
+  // ── 회피 한계는 두 값이 짝입니다 ─────────────────────────
+  // 도적의 dodgeMax(js/classes.js)와 CFG.dodge.hardMax 둘 다 0.70 이라야
+  // 한계가 정말 0.70 입니다. **하나만 내리면 조용히 되돌아갑니다** —
+  // 상점의 「한계」가 dodgeMax 를 한 번에 +0.05 씩 밀어 올리므로, hardMax 가
+  // 0.90 으로 남아 있으면 네 번 사서 도로 0.90 이 됩니다. 화면에는 아무
+  // 이상이 없고 그냥 **도적이 다시 세집니다.**
+  // 회피는 갑옷을 안 입는 직업의 것이라 도적으로 갈아탑니다.
+  await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'rogue' }));
+  await page.waitForFunction(() => window.__scene && window.__scene.job
+    && window.__scene.job.key === 'rogue', null, { timeout: 8000 });
+  const cap = await page.evaluate(() => {
+    const s = window.__scene;
+    const 처음 = { dodgeMax: s.dodgeMax, hardMax: CFG.dodge.hardMax, job: s.job.key };
+    // 「한계」를 스무 번 삽니다. 살 수 있는 것보다 훨씬 많이.
+    for (let i = 0; i < 20; i++) applyShopEffect(s, 'cap', { mark() {} });
+    return { 처음, 끝: s.dodgeMax, 회피: s.dodge, 직업설정: classByKey('rogue').dodgeMax };
+  });
+  check(cap.처음.job === 'rogue', '도적으로 재고 있음', cap.처음.job);
+  check(cap.처음.hardMax === cap.직업설정,
+    '절대 천장과 도적의 회피 한계가 같은 값',
+    'hardMax ' + cap.처음.hardMax + ' · dodgeMax ' + cap.직업설정);
+  check(cap.끝 <= cap.직업설정 + 1e-9,
+    '「한계」를 스무 번 사도 회피 한계가 안 넘어감',
+    cap.처음.dodgeMax + ' → ' + cap.끝.toFixed(2) + ' (한계 ' + cap.직업설정 + ')');
+  check(cap.회피 <= cap.직업설정 + 1e-9, '실제 회피도 그 위로 안 감',
+    cap.회피.toFixed(2));
+
   console.log(bad ? `\n${bad}건 어긋남` : '\n상점의 새 물건 모두 맞음');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
   await browser.close();
