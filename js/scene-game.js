@@ -2093,6 +2093,12 @@ class GameScene extends Phaser.Scene {
     const sprite = this.add.image(enemy.x, enemy.y - 4, 'ally-thrall').setDepth(9);
     sprite.setAlpha(0);
     this.tweens.add({ targets: sprite, alpha: 1, y: enemy.y - 12, duration: 220 });
+    // 부하는 **눌리는 대신 뜹니다.** 땅을 딛지 않는 것이라 눌렸다 늘어나면
+    // 발이 있는 것처럼 보입니다. 셋이 같은 박자로 흔들리면 한 덩어리로
+    // 보이므로 조금씩 어긋나게 겁니다.
+    this.tweens.add({ targets: sprite, scaleY: 1.08, scaleX: 0.94,
+      duration: 620 + (this.thralls ? this.thralls.length * 90 : 0),
+      yoyo: true, repeat: -1 });
     this.thralls.push({ sprite, nextHitAt: 0, bornAt: this.time.now });
   }
 
@@ -2160,6 +2166,15 @@ class GameScene extends Phaser.Scene {
     const sprite = this.add.image(atX, atY, 'ally-bear').setDepth(9);
     sprite.setAlpha(0);
     this.tweens.add({ targets: sprite, alpha: 1, duration: 260 });
+    // ── 숨 쉬게 합니다 ────────────────────────────────
+    // 시트는 **주인공에게만** 있습니다. 판 위의 나머지는 전부 그림 한 장에
+    // 눌렸다 늘어나는 트윈 하나입니다 (js/enemies.js) — 그 박자가 놈마다
+    // 달라서, 움직임만 봐도 거인인지 돌진병인지 갈립니다.
+    //
+    // 곰과 부하에게는 그게 없었습니다. **곁에 선 적들은 다 숨 쉬는데 내 편
+    // 둘만 굳어** 있었습니다. 거인(900ms)과 비슷하게 무겁게 잡습니다.
+    this.tweens.add({ targets: sprite, scaleX: 1.06, scaleY: 0.94,
+      duration: 760, yoyo: true, repeat: -1 });
     this.bear = {
       sprite,
       hp: Math.max(1, Math.round(this.maxHp * c.hp)),

@@ -528,6 +528,45 @@ const check = (ok, what, note) => {
   });
   check(!남3, '곰사냥꾼이 아니면 곰이 안 섬');
 
+  // ── 내 편 둘도 숨을 쉬는가 ──────────────────────────────
+  // 시트는 **주인공에게만** 있습니다. 판 위의 나머지는 전부 그림 한 장에
+  // 눌렸다 늘어나는 트윈 하나입니다 (js/enemies.js) — 그 박자가 놈마다
+  // 달라서 움직임만 봐도 갈립니다.
+  //
+  // 곰과 부하에게는 그게 없었습니다. **곁에 선 적들은 다 숨 쉬는데 내 편
+  // 둘만 굳어** 있었습니다. 오류가 나는 것도 아니고 그림이 빠진 것도 아니라
+  // 눈으로만 알 수 있는 부류라, 여기서 잽니다.
+  const 숨 = await page.evaluate(async () => {
+    const s = window.__scene;
+    const 재기 = (o) => ({ sx: o.scaleX, sy: o.scaleY });
+    const 같나 = (a, b) => Math.abs(a.sx - b.sx) < 0.004 && Math.abs(a.sy - b.sy) < 0.004;
+
+    // 곰
+    window.__game.scene.start('game', { jobKey: 'hunter' });
+    await new Promise((r) => setTimeout(r, 700));
+    const s2 = window.__scene;
+    s2.updateBear(s2.time.now, 16);
+    const 곰1 = 재기(s2.bear.sprite);
+    await new Promise((r) => setTimeout(r, 420));
+    const 곰2 = 재기(s2.bear.sprite);
+
+    // 부하
+    window.__game.scene.start('game', { jobKey: 'necro' });
+    await new Promise((r) => setTimeout(r, 700));
+    const s3 = window.__scene;
+    const e = s3.enemies.create(s3.player.x + 60, s3.player.y, 'e-crawler');
+    e.body.setAllowGravity(false);
+    e.hp = 1; e.maxHp = 10; e.floor = 1; e.coin = 0; e.def = { key: 'crawler' };
+    s3.hitEnemy(e, 999);
+    await new Promise((r) => setTimeout(r, 320));
+    const 부1 = 재기(s3.thralls[0].sprite);
+    await new Promise((r) => setTimeout(r, 380));
+    const 부2 = 재기(s3.thralls[0].sprite);
+    return { 곰움직임: !같나(곰1, 곰2), 부하움직임: !같나(부1, 부2) };
+  });
+  check(숨.곰움직임, '**곰이 숨을 쉼** (적들처럼 눌렸다 늘어남)');
+  check(숨.부하움직임, '**부하가 숨을 쉼** (눌리는 대신 뜹니다 — 땅을 안 딛으니까)');
+
   console.log(bad ? `\n${bad}건 어긋남` : '\n지팡이 넷 · 연타 · 부하 · 곰이 다 제 일을 합니다');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
   await browser.close();
