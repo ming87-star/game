@@ -21,7 +21,7 @@ function buildTextures(scene) {
   g.fillRoundedRect(3, 20, 32, 24, 4);        // 어깨 갑옷
   g.fillStyle(0x78909c, 1);
   g.fillRect(6, 26, 26, 5);                    // 가슴 띠
-  g.fillStyle(0xef9a9a, 1);
+  g.fillStyle(0x1c4ac8, 1);                    // 군청 — art/player-warrior.svg 와 같은 색
   g.fillRoundedRect(9, 40, 20, 8, 3);          // 허리 아래
   g.fillStyle(0x90a4ae, 1);
   g.fillRoundedRect(8, 4, 22, 18, 6);          // 투구
