@@ -51,6 +51,9 @@ const WANT = [
   'e-diver', 'e-ghost',
   'e-shover', 'e-slammer', 'e-lancer', 'e-zapper',
   'bat-thief', 'bat-biter',
+  // 내 편 둘 — 곰사냥꾼의 곰과 사령술사의 부하 (ART.md 2.5절).
+  // 적과 같은 자리에 서므로 적 목록 바로 뒤에 둡니다.
+  'ally-bear', 'ally-thrall',
   // 발판 위에 놓이는 것 스무 장. 가짜는 진짜와 **짝을 이뤄야** 합니다 —
   // 하나만 갈아 끼우면 다가가기 전과 뒤의 그림체가 달라져서 미리 들킵니다.
   'item-plus', 'item-fake-plus', 'item-plus-anvil', 'item-plus-hammer',
@@ -120,7 +123,7 @@ const ON_PURPOSE = new Set([
   // 새 직업. 판에서는 시트가 돌고 고르는 화면에는 face-* 로 구워지므로,
   // 이 파일 자체는 스프라이트로 안 굽습니다 (위 셋과 같은 까닭).
   // 직업이 게임에 붙는 날 PORTRAITS 에 face-monk 를 더하세요.
-  'player-monk',
+  'player-monk', 'player-hunter', 'player-necro', 'player-wizard', 'player-digger',
   // 처음에 그렸던 남자 상인. 상점 주인은 여자로 갔지만 그림은 멀쩡하므로
   // 이름만 바꿔 남겨 둡니다 — 나중에 다른 사람으로 쓸 자리가 있을 겁니다.
   'shop-keeper-man', 'shop-npc-man',

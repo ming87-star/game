@@ -144,6 +144,102 @@ const SUBJECTS = [
         + 'Gold accent #FFD54F on the sash and the wraps. '
         + 'NOTHING on him is red, crimson, scarlet or orange.' },
 
+  // 곰사냥꾼 — 열쇠가 **활**인데 궁수도 활입니다. 검정에서 활 하나로는
+  // 둘이 같은 그림이 되므로 ART.md 2.5절이 자세로 가르라고 못박았습니다.
+  // 궁수는 곧게 서서 겨누고, 이쪽은 **활을 내린 채** 무겁게 섭니다.
+  { name: 'player-hunter', group: 'player', w: 42, h: 48, anchor: 'bottom',
+    style: ['player-warrior', 'player-rogue'],
+    what: 'A bear hunter hero: a heavy, thick-set, wide-legged figure standing planted and '
+        + 'braced, weight low, shoulders hunched forward. '
+        + 'THE BOW IS THE MOST IMPORTANT THING IN THIS PICTURE. He carries a huge LONGBOW, '
+        + 'taller than he is, gripped in one fist and held STRAIGHT OUT TO ONE SIDE, his arm '
+        + 'stretched fully away from his body so the whole bow stands clear of him in open '
+        + 'space. There must be a WIDE GAP OF EMPTY BACKGROUND between the bow and his torso, '
+        + 'visible along its entire length — the bow must never cross, overlap or touch his '
+        + 'body, his fur or his legs. Its upper limb rises above his head and its lower limb '
+        + 'reaches below his knee, so the bow is a tall separate shape beside him. '
+        + 'The bow is NOT drawn and NOT aimed: no arrow nocked, no raised aiming arm, the '
+        + 'string slack and the bow simply carried at rest. '
+        + 'He wears a bear-skull as a HOOD with the SNOUT jutting forward over his brow, and '
+        + 'a fur mantle over the SHOULDERS ONLY — cropped short at the chest, not a full '
+        + 'body-covering pelt, so that it never swallows the bow or the outline of his legs. '
+        + 'Below the mantle he is in close-fitting leather with his legs clearly separated. '
+        + 'A bearded, weather-beaten older face under the skull hood. '
+        + 'Muted grey-brown hide #BCAAA4 with darker brown leather. '
+        + 'He must NOT read like the slim upright archer: the archer stands tall and draws '
+        + 'the bow, this man stands wide and low and carries it at rest out to one side. '
+        + 'Nothing on him is red, crimson, scarlet or orange.' },
+
+  // 사령술사 — 부하 셋이 열쇠인데, **몸에 붙으면 검정에서 안 세어집니다.**
+  // 셋을 몸에서 떼어 놓는 것이 이 한 장의 전부입니다.
+  { name: 'player-necro', group: 'player', w: 40, h: 48, anchor: 'bottom',
+    style: ['player-warrior', 'player-rogue'],
+    what: 'A necromancer hero: a gaunt hooded figure in a long tattered robe, standing with '
+        + 'one hand raised and fingers curled as if pulling something up out of the ground. '
+        + 'The hood is deep and the face inside it is bone-pale and skull-like. '
+        + 'THREE SMALL SPIRITS FLOAT BEHIND HIM, arranged in a loose diagonal fan over one '
+        + 'shoulder. Each is roughly one fifth of his height, a simple rounded wisp with two '
+        + 'glowing eyes and a trailing tail. '
+        + 'CRITICAL: all three float in CLEAR EMPTY AIR with an obvious gap of background '
+        + 'between each spirit and his body, and between each spirit and the next. They must '
+        + 'never touch him and never touch each other or overlap — a viewer must be able to '
+        + 'count exactly three separate shapes in a solid black silhouette. '
+        + 'The robe hem is torn into ragged points that flare out from his legs. '
+        + 'Bone white #ECEFF1 and cold teal #4DB6AC. Nothing is red, crimson or orange.' },
+
+  // 마법사 — 지팡이가 머리 위로 솟는 것과 뾰족한 모자, 세로로 긴 열쇠 둘.
+  { name: 'player-wizard', group: 'player', w: 40, h: 48, anchor: 'bottom',
+    style: ['player-warrior', 'player-rogue'],
+    what: 'A wizard hero: he holds a LONG STAFF upright in one hand, and the staff clearly '
+        + 'rises WELL ABOVE THE TOP OF HIS HAT — the shaft is a thin straight line running up '
+        + 'past his head with a glowing crystal at its tip. '
+        + 'He wears a tall WIDE-BRIMMED POINTED HAT, the cone bent over slightly at the tip, '
+        + 'and a long robe with wide sleeves. A long beard hangs down over the robe. '
+        + 'The robe hem and the sleeve cuffs flare out away from the body. '
+        + 'Sky blue #4FC3F7 robe with deeper blue shadow and a pale glowing crystal. '
+        + 'Nothing on him is red, crimson, scarlet or orange.' },
+
+  // 도굴꾼 — 윤곽이 앞뒤 양쪽으로 튀어나오는 유일한 사람입니다.
+  { name: 'player-digger', group: 'player', w: 42, h: 48, anchor: 'bottom',
+    style: ['player-warrior', 'player-rogue'],
+    what: 'A tomb robber hero, leaning forward under a load. '
+        + 'A big fat BULGING SACK is roped to his BACK and sticks out well behind him, '
+        + 'lumpy with the shapes of the loot inside and tied shut at the top. '
+        + 'In his other hand he carries a PICKAXE held out FORWARD, its head at the front so '
+        + 'the tool clearly juts out past his body on the opposite side from the sack. '
+        + 'So his outline breaks outward in BOTH directions — sack behind, pickaxe ahead. '
+        + 'He wears scrappy light gear with no armour at all: a cloth head wrap, goggles '
+        + 'pushed up on his forehead, rolled sleeves, and straps and buckles across his chest. '
+        + 'Lean and wiry, clearly the least protected of the heroes. '
+        + 'Dusty lime #D4E157 and worn brown leather. Nothing is red, crimson or orange.' },
+
+  // ── 판 위에 서는 편 둘 (ART.md 2.5절) ─────────────────
+  // 주인공이 아니라 **적과 같은 자리에 서는 그림**입니다. 그래서 가장 중요한
+  // 것은 예쁨이 아니라 「저건 내 편이다」가 한눈에 붙는 것입니다. 적과
+  // 헷갈리면 안 때려야 할 것을 때리고 피해야 할 것을 안 피합니다.
+  { name: 'ally-bear', group: 'enemy', w: 48, h: 38, anchor: 'bottom',
+    style: ['e-crawler', 'e-brute'],
+    what: 'A big shaggy brown BEAR walking forward on all four legs, seen from the side, '
+        + 'head low and shoulders humped, clearly an animal and not a monster. '
+        + 'It is the bear hunter\'s companion and fights on the player\'s side, so it must '
+        + 'read as FRIENDLY, not as a monster: kind round eyes, no fangs bared, no snarl, '
+        + 'no spikes, no horns, no armour plating, no glowing parts. '
+        + 'It wears a wide PALE BAND collared around its neck, light and clearly visible '
+        + 'against the dark fur — that band is how a player tells it apart from the monsters. '
+        + 'Warm brown fur #8D6E63 with a lighter muzzle, pale grey-brown band #BCAAA4. '
+        + 'Nothing on it is red, crimson or orange.' },
+
+  { name: 'ally-thrall', group: 'enemy', w: 22, h: 24, anchor: 'bottom',
+    style: ['e-crawler'],
+    what: 'A SMALL floating spirit wisp summoned by the necromancer — a simple rounded ghostly '
+        + 'shape with a trailing wispy tail below it instead of legs, and two large friendly '
+        + 'glowing eyes. Very small and simple, with almost no detail. '
+        + 'It fights on the player\'s side, so it must NOT look monstrous: no fangs, no claws, '
+        + 'no horns, no spikes, no angry brows. '
+        + 'It is bone white and cold teal — pale and luminous — so it never gets mistaken for '
+        + 'one of the dark saturated monsters. Bone white #ECEFF1, teal glow #4DB6AC. '
+        + 'Nothing on it is red, crimson or orange.' },
+
   // 적 열둘 — 무엇이 위험한지가 실루엣에 보여야 합니다 (ART.md 3절)
   //
   // anchor: 땅을 딛는 놈은 'bottom'. 모델이 그려 주는 비율이 표의 비율과 안 맞아
