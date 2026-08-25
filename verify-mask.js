@@ -102,6 +102,31 @@ const check = (ok, label, got) => {
   });
 
   check(scan.시트수 >= 12, '시트를 두루 봤음', scan.시트수 + '장');
+
+  // ── 한 직업의 시트는 **전부거나 전무**여야 합니다 ────────
+  // 시트가 없는 자루로 갈아타면 setWeapon 이 그대로 물러납니다 (js/motion.js
+  // 의 「시트가 없으면 그대로 둡니다」). 앞 자루의 시트가 그냥 남습니다.
+  //
+  // 그러면 **곡괭이를 들고 삽을 휘두르는 사람**이 됩니다. 오류는 안 납니다.
+  //
+  // 새 직업 다섯의 시트가 들어올 때 한 직업을 절반만 채우고 넘어가면 바로
+  // 이 자리입니다 (ART.md 2.6절).
+  const 반쪽 = await page.evaluate(() => {
+    const out = [];
+    CLASSES.forEach((job) => {
+      const pool = buildWeaponPool(job);
+      // 만듦새를 걷어낸 **자루 갈래**로 셉니다 — 시트는 갈래마다 하나입니다.
+      const 갈래 = [...new Set(pool.map((w, i) => sheetKey(job, { index: i, base: w })))];
+      const 있는것 = 갈래.filter((k) => typeof SHEET_ART !== 'undefined' && SHEET_ART[k]);
+      if (있는것.length && 있는것.length < 갈래.length) {
+        out.push(job.name + ' ' + 있는것.length + '/' + 갈래.length);
+      }
+    });
+    return out;
+  });
+  check(반쪽.length === 0,
+    '한 직업의 시트가 **반쪽으로 남아 있지 않음** (전부거나 전무)',
+    반쪽.length ? 반쪽.join(' · ') : '반쪽인 직업 없음');
   check(scan.어긋남.length === 0,
     '모든 자루 · 모든 컷에서 머리를 맞힘', scan.잰컷 + '컷 중 어긋남 ' + scan.어긋남.length);
   scan.어긋남.slice(0, 12).forEach((m) => console.log('        ' + m));
