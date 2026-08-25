@@ -50,6 +50,24 @@ const PLUS_PACE = 0.055;   // 층당 +1 을 마주치는 빈도 (survey.js 와 �
 const STACKS = Number(process.argv[2]) || Math.max(1, Math.round(45 * PLUS_PACE));
 const FLOORS = [0, 50, 120, 250, 400, 550];
 
+// ── 아직 안 붙은 직업 다섯 ──────────────────────────────
+//   node job-scale.js --draft
+// draft-jobs.js 의 초안을 여덟 줄로 함께 세웁니다. 이름 예순 개를 짓기 전에
+// **숫자부터 맞춰 놓으려고** 있는 길입니다.
+const DRAFT_ON = process.argv.includes('--draft');
+let 칸값 = 1;
+let 기준칸 = 2;
+if (DRAFT_ON) {
+  const d = require('./draft-jobs.js');
+  칸값 = d.칸값;
+  기준칸 = d.기준칸;
+  d.DRAFT.forEach((x) => CLASSES.push(d.expand(x)));
+}
+
+// 유물 칸이 몇이냐도 세기입니다. 기준(2칸)에서 벗어난 만큼 곱합니다 —
+// 까닭과 어림한 값은 draft-jobs.js 아래쪽에 있습니다.
+const 칸보정 = (job) => Math.pow(칸값, (job.relicMax || 기준칸) - 기준칸);
+
 // 한 직업을 한 층에서 재서 { dps, ehp, score } 를 냅니다.
 function measure(job, f) {
   const pool = weaponPoolAt(job, f);
@@ -72,7 +90,7 @@ function measure(job, f) {
   // 한 대에 실제로 들어오는 몫은 (1−회피)×(1−방어/100). 실질 체력은 그 몫으로 나눈 값.
   const taken = (1 - dodge) * (1 - armor / 100);
   const ehp = job.hp / taken;
-  return { dps, ehp, dodge, armor, score: dps * ehp / 1000 };
+  return { dps, ehp, dodge, armor, score: dps * ehp / 1000 * 칸보정(job) };
 }
 
 // ── 값을 바꿔 보기 ──────────────────────────────────────
@@ -118,15 +136,44 @@ for (const f of FLOORS) {
   console.log('');
 }
 
+// 새 직업이 앉을 자리. 지금 셋이 53(전사) ~ 100(도적) 이므로 그 한가운데를
+// 기본으로 둡니다 — 어디에 앉힐지는 **해금이 얼마나 어려운가**로 정할 일이라
+// (전사는 공짜라 약하고 도적은 700층이라 셉니다) 아직 안 정했습니다.
+//   node job-scale.js --draft 85
+const TARGET = Number(process.argv.slice(2).find((a) => /^\d+$/.test(a) && Number(a) > 10)) || 75;
+
 console.log('  층을 가로질러 고른 값 (도적 = 100)\n');
 CLASSES.forEach((job) => {
   const v = totals[job.key];
   const avg = v.reduce((a, b) => a + b, 0) / v.length;
   const lo = Math.min(...v);
   const hi = Math.max(...v);
-  console.log('    ' + job.name + pad(avg.toFixed(0), 8) +
-    '     (' + lo.toFixed(0) + ' ~ ' + hi.toFixed(0) + ')');
+  const 칸 = job.relicMax || 기준칸;
+  console.log('    ' + job.name.padEnd(5) + pad(avg.toFixed(0), 6) +
+    '   (' + lo.toFixed(0) + '~' + hi.toFixed(0) + ')' +
+    '   유물 ' + 칸 + '칸');
 });
+
+// ── 표에 안 잡히는 이득은 「몇 배여야 하는가」로 냅니다 ────
+// 짐작한 값을 곱해서 점수를 맞추면, **깎는 값도 제가 정하고 수치도 제가
+// 정하는 셈이라 어떤 답이든 나옵니다.** 사령술사가 낮으면 부하 값을 올리면
+// 되고 높으면 내리면 됩니다. 그건 재는 것이 아니라 맞추는 것입니다.
+//
+// 거꾸로 냅니다 — 수치는 성격에서만 정하고, **「그 능력이 몇 배어치여야
+// 이 자리에 서는가」를 셈이 내놓습니다.** 그 배수가 말이 되는지는 사람이
+// 판단할 일이고, 말이 안 되면 그때 수치를 고칩니다.
+const 초안 = CLASSES.filter((j) => j.표에안잡힘);
+if (초안.length) {
+  console.log('\n  표에 안 잡히는 이득이 **몇 배어치여야** 목표 ' + TARGET + ' 에 서는가\n');
+  초안.forEach((job) => {
+    const v = totals[job.key];
+    const avg = v.reduce((a, b) => a + b, 0) / v.length;
+    console.log('    ' + job.name.padEnd(5) + '지금 ' + pad(avg.toFixed(0), 3) +
+      '  →  ×' + (TARGET / avg).toFixed(1) + '   ' + job.표에안잡힘);
+  });
+  console.log('\n  ×1.0 근처면 수치가 맞은 것이고, ×2 를 넘으면 그 능력 하나로');
+  console.log('  메우기 어렵다는 뜻입니다 — **수치를 올려야 합니다.**');
+}
 
 // ── 새 직업이 들어올 자리 ────────────────────────────────
 // 지금 셋이 실제로 얼마나 벌어져 있는지를 먼저 봐야, 새 직업에게 무엇을
