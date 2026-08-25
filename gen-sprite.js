@@ -54,6 +54,21 @@ const BG = [
   'leave a small clean margin all around.',
 ].join(' ');
 
+// ── 사람은 넷 다 같은 비례여야 합니다 ────────────────────
+// gen-sheet.js 가 같은 문제로 한 번 데었습니다. 궁수에게 "slim tall body" 라고
+// 적었더니 혼자 **7등신 실사 비례**로 나와서, 전사·도적(4등신) 옆에 세우면
+// 딴 게임 사람이었습니다. 여기서도 권법사가 6~7등신 소년으로 왔습니다.
+//
+// **키나 체격은 몸이 아니라 자세와 옷으로 말하게 하고, 비례는 여기서 못박습니다.**
+// 직업 고르기 격자는 여덟을 한 화면에 나란히 세우는 자리라(ART.md 2.5절)
+// 하나만 비례가 달라도 그 칸만 튑니다.
+const PROPORTION = [
+  'PROPORTIONS (identical for every hero in this game): a chunky CHIBI build about four heads',
+  'tall — a big head, a short sturdy torso, short thick limbs, large hands and boots.',
+  'NOT a realistic six-, seven- or eight-head figure, not slender, not lanky, not tall,',
+  'not a teenager and not a young adult body.',
+].join(' ');
+
 const FORBID = [
   // 아이템에서 자꾸 무생물에 눈을 그려 옵니다 — 폭탄 · 모루 · 망치 · 약병에
   // 만화 눈이 달려 나왔습니다. 적과 주인공만 눈을 가집니다.
@@ -69,16 +84,161 @@ const FORBID = [
 // 범위와 어긋나므로 표를 먼저 고쳐야 합니다.
 const SUBJECTS = [
   // 주인공 셋 — 발이 그림 맨 아래에 닿아야 합니다
+  // 붉은 망토는 군청으로 옮겨졌습니다 (recolor-warrior.js · STORY.md 3절).
+  // **그림 파일만 옮기고 이 글은 안 고쳐 뒀었습니다** — 그대로 뒀으면 다시
+  // 뽑는 날 붉은 전사가 돌아옵니다. 색을 옮길 때는 그림과 주문서를 같이.
   { name: 'player-warrior', group: 'player', w: 38, h: 48, anchor: 'bottom',
     what: 'A warrior hero for a tower climbing game: broad angular pauldrons, a horned helmet '
-        + 'with a red crest, sturdy wide stance, red and steel-grey armour, a sword held small '
-        + 'at his side. Broadest of the three heroes. Red accent #EF9A9A.' },
+        + 'with a deep navy-blue crest, sturdy wide stance, navy-blue and steel-grey armour, '
+        + 'a sword held small at his side. Broadest of the three heroes. Navy accent #133286. '
+        + 'Nothing on him is red.' },
   { name: 'player-archer', group: 'player', w: 42, h: 48, anchor: 'bottom',
     what: 'An archer hero: a sharply pointed hood, a bow slung across the back, a slim tall body, '
         + 'light leather gear. Narrower and taller-looking than the warrior. Green accent #A5D6A7.' },
   { name: 'player-rogue', group: 'player', w: 40, h: 48, anchor: 'bottom',
     what: 'A rogue hero: crouched low, a cloak streaming back, hood and a face covering, '
         + 'two short daggers. Lowest and widest stance of the three. Purple accent #CE93D8.' },
+
+  // ── 새로 들어오는 다섯 (ART.md 2.5절) ──────────────────
+  // 직업 고르기가 격자가 되면서 카드가 초상화 하나뿐이 되고, 잠긴 칸은
+  // **속이 하나도 안 보이는 검정 + 외곽선 1px** 로 나옵니다. 그래서 규칙이
+  // 하나 더 붙습니다 — **몸 밖으로 나오는 것이 하나씩 있어야 합니다.**
+  // 윤곽선 안쪽의 무늬·색·얼굴은 검정에서 전부 사라집니다.
+  //
+  // 그린 뒤에는 반드시 재 보세요 (게임과 같은 조건으로 칠해 줍니다):
+  //   CHROME_PATH=... node sil-check.js assets/player-monk.png
+  //
+  // 권법사가 가장 어렵습니다. 맨손이라 몸 밖으로 나오는 것이 가장 적은데,
+  // **손에 아무것도 없다는 것 자체가 열쇠**라 무기를 쥐여 주면 안 됩니다.
+  // 그래서 튀어나오는 것을 넷으로 나눠 걸었습니다 — 위로 상투, 앞으로 든
+  // 무릎, 뒤로 날리는 띠, 옆으로 벌린 손.
+  { name: 'player-monk', group: 'player', w: 38, h: 48, anchor: 'bottom',
+    // 첫 판이 6~7등신 소년으로 왔습니다. 말로만 4등신이라고 하면 모델이
+    // 제 결로 갑니다 — 이미 서 있는 둘을 붙여서 비례를 재게 합니다.
+    //
+    // 이 그림은 **gemini-3.1-flash-image** 로 뽑았습니다. 그리던 날 pro 가
+    // 열한 번 내리 503 이었습니다. 참조 둘이 붓과 비례를 잡아 줘서 flash 로도
+    // 셋 옆에 세울 만하게 나왔습니다 — 참조가 없었으면 못 바꿨을 겁니다.
+    //   GEMINI_IMAGE_MODEL=gemini-3.1-flash-image node gen-sprite.js player-monk
+    // (2.5-flash 는 마젠타를 못 걷어내고 분홍 배경째로 왔습니다)
+    style: ['player-warrior', 'player-rogue'],
+    what: 'A bare-handed martial artist hero, mid-stance, caught in one dynamic pose. '
+        + 'HIS HANDS ARE COMPLETELY EMPTY — no weapon, no staff, no sword, no shield, '
+        + 'nothing held and nothing strapped to him. That emptiness is the point. '
+        + 'He stands on one leg with the OTHER KNEE LIFTED HIGH in front of him, thigh '
+        + 'roughly level, so the raised leg clearly juts out from the body. '
+        + 'Both hands are open with the fingers spread, held away from the torso — one '
+        + 'forward, one drawn back — so there is clear empty space between arm and chest. '
+        + 'A long cloth SASH tied at his waist streams out BEHIND him, well clear of the '
+        + 'body, a separate ribbon of cloth. '
+        + 'His hair is gathered into a TOPKNOT that sticks up above the crown of his head. '
+        + 'He is an OLD MASTER, weathered and well past his prime years: iron-grey hair, '
+        + 'a short grey chin beard jutting forward, a heavy lined brow, deep-set narrow eyes '
+        + 'and a hard set mouth. He must clearly read as an old veteran, NOT as a boy, '
+        + 'NOT as a teenager, NOT as a smooth-faced young man. '
+        + 'Old but not frail — corded, wiry muscle on the bare arms, and he holds the stance '
+        + 'with complete steadiness. '
+        + 'He wears a sleeveless cream off-white tunic and loose trousers cropped at the '
+        + 'shin, with cloth wraps around his forearms, hands and shins. '
+        + 'No armour and no bulk — the opposite of the broad-shouldered warrior. '
+        + 'Gold accent #FFD54F on the sash and the wraps. '
+        + 'NOTHING on him is red, crimson, scarlet or orange.' },
+
+  // 곰사냥꾼 — 열쇠가 **활**인데 궁수도 활입니다. 검정에서 활 하나로는
+  // 둘이 같은 그림이 되므로 ART.md 2.5절이 자세로 가르라고 못박았습니다.
+  // 궁수는 곧게 서서 겨누고, 이쪽은 **활을 내린 채** 무겁게 섭니다.
+  { name: 'player-hunter', group: 'player', w: 42, h: 48, anchor: 'bottom',
+    style: ['player-warrior', 'player-rogue'],
+    what: 'A bear hunter hero: a heavy, thick-set, wide-legged figure standing planted and '
+        + 'braced, weight low, shoulders hunched forward. '
+        + 'THE BOW IS THE MOST IMPORTANT THING IN THIS PICTURE. He carries a huge LONGBOW, '
+        + 'taller than he is, gripped in one fist and held STRAIGHT OUT TO ONE SIDE, his arm '
+        + 'stretched fully away from his body so the whole bow stands clear of him in open '
+        + 'space. There must be a WIDE GAP OF EMPTY BACKGROUND between the bow and his torso, '
+        + 'visible along its entire length — the bow must never cross, overlap or touch his '
+        + 'body, his fur or his legs. Its upper limb rises above his head and its lower limb '
+        + 'reaches below his knee, so the bow is a tall separate shape beside him. '
+        + 'The bow is NOT drawn and NOT aimed: no arrow nocked, no raised aiming arm, the '
+        + 'string slack and the bow simply carried at rest. '
+        + 'He wears a bear-skull as a HOOD with the SNOUT jutting forward over his brow, and '
+        + 'a fur mantle over the SHOULDERS ONLY — cropped short at the chest, not a full '
+        + 'body-covering pelt, so that it never swallows the bow or the outline of his legs. '
+        + 'Below the mantle he is in close-fitting leather with his legs clearly separated. '
+        + 'A bearded, weather-beaten older face under the skull hood. '
+        + 'Muted grey-brown hide #BCAAA4 with darker brown leather. '
+        + 'He must NOT read like the slim upright archer: the archer stands tall and draws '
+        + 'the bow, this man stands wide and low and carries it at rest out to one side. '
+        + 'Nothing on him is red, crimson, scarlet or orange.' },
+
+  // 사령술사 — 부하 셋이 열쇠인데, **몸에 붙으면 검정에서 안 세어집니다.**
+  // 셋을 몸에서 떼어 놓는 것이 이 한 장의 전부입니다.
+  { name: 'player-necro', group: 'player', w: 40, h: 48, anchor: 'bottom',
+    style: ['player-warrior', 'player-rogue'],
+    what: 'A necromancer hero: a gaunt hooded figure in a long tattered robe, standing with '
+        + 'one hand raised and fingers curled as if pulling something up out of the ground. '
+        + 'The hood is deep and the face inside it is bone-pale and skull-like. '
+        + 'THREE SMALL SPIRITS FLOAT BEHIND HIM, arranged in a loose diagonal fan over one '
+        + 'shoulder. Each is roughly one fifth of his height, a simple rounded wisp with two '
+        + 'glowing eyes and a trailing tail. '
+        + 'CRITICAL: all three float in CLEAR EMPTY AIR with an obvious gap of background '
+        + 'between each spirit and his body, and between each spirit and the next. They must '
+        + 'never touch him and never touch each other or overlap — a viewer must be able to '
+        + 'count exactly three separate shapes in a solid black silhouette. '
+        + 'The robe hem is torn into ragged points that flare out from his legs. '
+        + 'Bone white #ECEFF1 and cold teal #4DB6AC. Nothing is red, crimson or orange.' },
+
+  // 마법사 — 지팡이가 머리 위로 솟는 것과 뾰족한 모자, 세로로 긴 열쇠 둘.
+  { name: 'player-wizard', group: 'player', w: 40, h: 48, anchor: 'bottom',
+    style: ['player-warrior', 'player-rogue'],
+    what: 'A wizard hero: he holds a LONG STAFF upright in one hand, and the staff clearly '
+        + 'rises WELL ABOVE THE TOP OF HIS HAT — the shaft is a thin straight line running up '
+        + 'past his head with a glowing crystal at its tip. '
+        + 'He wears a tall WIDE-BRIMMED POINTED HAT, the cone bent over slightly at the tip, '
+        + 'and a long robe with wide sleeves. A long beard hangs down over the robe. '
+        + 'The robe hem and the sleeve cuffs flare out away from the body. '
+        + 'Sky blue #4FC3F7 robe with deeper blue shadow and a pale glowing crystal. '
+        + 'Nothing on him is red, crimson, scarlet or orange.' },
+
+  // 도굴꾼 — 윤곽이 앞뒤 양쪽으로 튀어나오는 유일한 사람입니다.
+  { name: 'player-digger', group: 'player', w: 42, h: 48, anchor: 'bottom',
+    style: ['player-warrior', 'player-rogue'],
+    what: 'A tomb robber hero, leaning forward under a load. '
+        + 'A big fat BULGING SACK is roped to his BACK and sticks out well behind him, '
+        + 'lumpy with the shapes of the loot inside and tied shut at the top. '
+        + 'In his other hand he carries a PICKAXE held out FORWARD, its head at the front so '
+        + 'the tool clearly juts out past his body on the opposite side from the sack. '
+        + 'So his outline breaks outward in BOTH directions — sack behind, pickaxe ahead. '
+        + 'He wears scrappy light gear with no armour at all: a cloth head wrap, goggles '
+        + 'pushed up on his forehead, rolled sleeves, and straps and buckles across his chest. '
+        + 'Lean and wiry, clearly the least protected of the heroes. '
+        + 'Dusty lime #D4E157 and worn brown leather. Nothing is red, crimson or orange.' },
+
+  // ── 판 위에 서는 편 둘 (ART.md 2.5절) ─────────────────
+  // 주인공이 아니라 **적과 같은 자리에 서는 그림**입니다. 그래서 가장 중요한
+  // 것은 예쁨이 아니라 「저건 내 편이다」가 한눈에 붙는 것입니다. 적과
+  // 헷갈리면 안 때려야 할 것을 때리고 피해야 할 것을 안 피합니다.
+  { name: 'ally-bear', group: 'enemy', w: 48, h: 38, anchor: 'bottom',
+    style: ['e-crawler', 'e-brute'],
+    what: 'A big shaggy brown BEAR walking forward on all four legs, seen from the side, '
+        + 'head low and shoulders humped, clearly an animal and not a monster. '
+        + 'It is the bear hunter\'s companion and fights on the player\'s side, so it must '
+        + 'read as FRIENDLY, not as a monster: kind round eyes, no fangs bared, no snarl, '
+        + 'no spikes, no horns, no armour plating, no glowing parts. '
+        + 'It wears a wide PALE BAND collared around its neck, light and clearly visible '
+        + 'against the dark fur — that band is how a player tells it apart from the monsters. '
+        + 'Warm brown fur #8D6E63 with a lighter muzzle, pale grey-brown band #BCAAA4. '
+        + 'Nothing on it is red, crimson or orange.' },
+
+  { name: 'ally-thrall', group: 'enemy', w: 22, h: 24, anchor: 'bottom',
+    style: ['e-crawler'],
+    what: 'A SMALL floating spirit wisp summoned by the necromancer — a simple rounded ghostly '
+        + 'shape with a trailing wispy tail below it instead of legs, and two large friendly '
+        + 'glowing eyes. Very small and simple, with almost no detail. '
+        + 'It fights on the player\'s side, so it must NOT look monstrous: no fangs, no claws, '
+        + 'no horns, no spikes, no angry brows. '
+        + 'It is bone white and cold teal — pale and luminous — so it never gets mistaken for '
+        + 'one of the dark saturated monsters. Bone white #ECEFF1, teal glow #4DB6AC. '
+        + 'Nothing on it is red, crimson or orange.' },
 
   // 적 열둘 — 무엇이 위험한지가 실루엣에 보여야 합니다 (ART.md 3절)
   //
@@ -553,6 +713,7 @@ const FACING = {
 function promptFor(s) {
   const parts = [s.what];
   if (s.group === 'boss') parts.push(BOSS_RULES);
+  if (s.group === 'player') parts.push(PROPORTION);
   parts.push(STYLE);
   parts.push(s.bg === 'none' || s.bg === 'opaque' ? BG_OPAQUE : BG);
   parts.push(FORBID);
@@ -596,15 +757,21 @@ function refOf(subject) {
 // 서므로, 그림체가 다르면 「저건 적인가」를 한 박자 늦게 판단하게 됩니다
 // (ART.md 8.9절). 말로 "3등신 · 두꺼운 외곽선" 이라고 적어도 모델은 제 결로
 // 그립니다. 이미 그려 놓은 것을 **물려야** 합니다.
+//
+// 등신 수를 여기 글로 박아 두면 안 됩니다. 한동안 "three-head chibi" 라고
+// 적혀 있었는데, 그건 상점 사람들 이야기였습니다 — 주인공 넷은 4등신입니다
+// (gen-sheet.js 의 PROPORTION). 주인공에 이 규칙을 물리는 날 글과 그림이
+// 서로 다른 말을 하게 됩니다. **비례는 붙인 그림에서 재게 시킵니다.**
 const STYLE_RULE = [
   'The attached images are STYLE REFERENCES from this same game — a hero and a monster',
   'that already exist. They are NOT the character you are drawing: do not copy their',
   'costume, their colours, their weapon or their pose.',
-  'Copy the DRAWING STYLE exactly: the same chunky three-head chibi proportions, the same',
-  'big head to small body ratio, the same thick dark outline weight, the same flat cel',
-  'shading in three or four hard steps with no soft gradients, the same low saturation,',
-  'the same amount of detail. Put your drawing next to them and they must look like they',
-  'were painted by the same hand for the same game.',
+  'Copy the DRAWING STYLE exactly: MATCH THE HEAD-TO-BODY RATIO OF THE ATTACHED PICTURES —',
+  'measure it off them rather than choosing your own — along with the same chunky chibi',
+  'build, the same thick dark outline weight, the same flat cel shading in three or four',
+  'hard steps with no soft gradients, the same low saturation, the same amount of detail.',
+  'Put your drawing next to them and they must look like they were painted by the same',
+  'hand for the same game.',
 ].join(' ');
 
 // 같은 **사람**을 두 장으로 그릴 때 씁니다. 실루엣을 베끼는 `like` 와도,
