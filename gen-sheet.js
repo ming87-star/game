@@ -79,7 +79,12 @@ const HEROES = {
     who: 'a heavy BEAR HUNTER: a bear skull worn as a hood with the snout jutting over his brow, '
        + 'a shaggy fur mantle over the shoulders only, close leather below, and a bearded '
        + 'weather-beaten older face. Wide, low and thick-set. '
-       + 'Grey-brown hide #BCAAA4 with darker brown leather. Nothing on him is red.',
+       + 'Grey-brown hide #BCAAA4 with darker brown leather. Nothing on him is red. '
+       + 'He uses a BOW, but he must never be mistaken for the archer class: the archer is '
+       + 'slim and stands tall and draws the string up beside the cheek, while this man is '
+       + 'broad and heavy and keeps everything LOW — a stout thick-limbed hunting bow held '
+       + 'down around waist height, knees bent, weight planted, shoulders hunched forward. '
+       + 'Draw him alone: NO bear and no other animal anywhere in the frame.',
   },
   necro: {
     w: 40, h: 48,
@@ -689,6 +694,26 @@ async function slice(oven, png, job) {
 // 그래서 두 가지를 바꿨습니다.
 //   · 자리로 세지 않고 **key 로 찾습니다** — 직업이 더 늘어도 안 어긋납니다
 //   · 한 자루도 못 찾으면 **소리 내고 멈춥니다** (아래) — 조용히 0개는 안 됩니다
+// ── 아직 손 안 댄 무기표를 건너뛰는 자리 ─────────────────
+// 곰사냥꾼의 무기 열둘이 **도적 것을 그대로 베낀 것**입니다. 이름·피해·연사·
+// 사거리가 한 글자도 안 다릅니다 (단도·사냥칼·쌍단도… 도적과 같은 열둘).
+// 아직 주제를 안 입힌 자리이지 균형을 잡은 근접 직업이 아닙니다.
+//
+// 그런데 이 사람이 무엇을 드는지는 이미 정해져 있습니다 — **활**입니다.
+// ART.md 2.5절(실루엣 열쇠)과 2.6절(판 위에서 드는 것)이 둘 다 활이라 적고
+// 있고, 이미 그려 올린 초상화도 활을 들고 있습니다. 능력 자체가 "곰을 앞서
+// 보내고 본인은 뒤에서 활로 쏜다"입니다.
+//
+// 그래서 그림은 **설계를 따라 활로** 그립니다. 무기표가 주제를 입는 날
+// icon.art 가 bow 가 되면 이 자리는 저절로 쓸모없어지므로 지우면 됩니다.
+// 그때까지 이 줄이 없으면 활 든 초상화로 고른 사람이 판에서 단검을 휘두릅니다.
+//
+// 이름도 함께 덮습니다. 갈래만 활로 바꾸고 이름을 "단도"로 두면 모델에게
+// 서로 다른 말을 하는 셈이라, 단검처럼 생긴 활이 나옵니다.
+const KIND_FIX = {
+  hunter: { kind: 'bow', label: 'a hunting bow' },
+};
+
 function weaponsOf(job) {
   const src = fs.readFileSync(path.join(ROOT, 'js', 'classes.js'), 'utf8');
   const at = src.indexOf(`key: '${job}'`);
@@ -718,10 +743,11 @@ function weaponsOf(job) {
     'a mythic weapon of overwhelming presence',
     'the ultimate weapon, vast and radiant',
   ];
+  const fix = KIND_FIX[job];
   return found.map(([, name, color, art, rest], i) => ({
     key: `w-${job}-${i}`,
-    label: name,
-    kind: art,
+    label: fix ? fix.label : name,
+    kind: fix ? fix.kind : art,
     twin: /twin: *true/.test(rest || ''),
     look: `${GRADE[i]}. Its dominant colour is #${color.slice(2)}. `
         + (/twin: *true/.test(rest || '') ? 'The character wields TWO of them, one in each hand. ' : '')
