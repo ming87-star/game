@@ -2471,7 +2471,11 @@ class GameScene extends Phaser.Scene {
         e.slowRing.setPosition(e.x, e.y);
         if (time >= e.slowUntil) {
           e.slowRing.destroy(); e.slowRing = null; e.slowMul = 1;
-        } else if (e.body) {
+        } else if (e.body && !e.isGoldFrog) {
+          // **황금개구리는 안 느려집니다.** 맞아도 멈추지 않고 계속 뛰는 것이
+          // 이 놈의 전부입니다 — 전사의 기절이 개구리를 빼는 것과 같은
+          // 까닭입니다 (stunEnemy). 차가운 기름 하나로 쫓는 일이 통째로
+          // 없어지면, 그 기름을 든 사람에게만 다른 게임이 됩니다.
           e.body.velocity.x *= e.slowMul;
           e.body.velocity.y *= e.slowMul;
         }

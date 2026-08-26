@@ -526,7 +526,182 @@ const check = (ok, label, got) => {
   check(tells.every((x) => x.same), '안내 창의 이름과 판의 이름이 같음',
     tells.map((x) => x.name).join(' · '));
 
-  console.log(bad ? `\n${bad}건 어긋남` : '\n판을 바꾸는 넷 모두 맞음');
+  // ═══ 황금개구리 ═════════════════════════════════════════
+  //
+  // 판을 바꾸는 넷과 같은 부류입니다 — **눈에 안 보이는 규칙**으로 굴러갑니다.
+  // 넷이 「닿으면 무슨 일이 난다」라면 이놈은 「달아난다」입니다.
+  //
+  // 예전에는 나타나고 2.6초를 그냥 서성이다가 2.6초에 한 층씩 올랐습니다.
+  // 재 보니 **쫓을 일이 아예 없었습니다** — 한 층도 안 뛰고 0.5초 만에 한두
+  // 대로 끝났습니다. 「달아나는 것」이 아니라 「거기 있는 것」이었습니다.
+  // 그래서 셋을 한꺼번에 고쳤고(첫 점프 · 오르는 속도 · 체력), 셋 다 여기서
+  // 잽니다. 값이 하나만 되돌아가도 쫓는 일이 통째로 없어집니다.
+  //
+  // 자세한 저울질은 `node frog-chase.js` 입니다 — 여기는 그 값이 제자리에
+  // 있는지만 봅니다.
+
+  // 개구리 하나를 주인공 한 층 위에 세웁니다 — 판이 세우는 자리와 같습니다.
+  const 개구리세우기 = (floor) => page.evaluate((층) => {
+    const s = window.__scene;
+    s.dead = false; s.hp = s.maxHp = 1e9;
+    s.floorIndex = 층; s.lane = 'mid';
+    for (let i = 층 - 3; i <= 층 + 12; i++) s.addFloor(i);
+    const f = s.floors.get(층);
+    const here = f.slots.mid || LANES.map((l) => f.slots[l]).find(Boolean);
+    s.player.setPosition(here.x, here.y - 34);
+    // **카메라를 같이 옮깁니다.** 안 옮기면 갓 세운 개구리가 화면 밖으로
+    // 판정되어 그 프레임에 사라집니다 (setup 이 하는 것과 같은 까닭).
+    s.cameras.main.setScroll(0, s.player.y - CFG.height * 0.5);
+    s.enemies.getChildren().slice().forEach((x) => x.destroy());
+    const up = s.floors.get(층 + 1);
+    const 자리 = LANES.map((l) => up.slots[l]).find(Boolean);
+    const e = spawnGoldFrog(s, 자리.x, 자리.y - 50, 층 + 1);
+    window.__frog = e;
+    return { 섰나: !!e, 체력: e && e.hp, 코인: e && e.coin,
+      층차: e ? Math.round((s.player.y - e.y) / CFG.floorHeight) : null };
+  }, floor);
+
+  const 개구리 = await 개구리세우기(120);
+  check(개구리.섰나, '황금개구리가 섬');
+  check(개구리.층차 === 1, '한 층 위에 섬 (판이 세우는 자리)', 개구리.층차 + '층 위');
+
+  // ── 나타나자마자 뜁니다 ─────────────────────────────────
+  // **첫 점프가 늦으면 나머지가 다 무의미합니다.** 개구리는 두어 초면 잡히는
+  // 놈이라, 그동안 제자리에 있으면 쫓는 일이 아예 안 생깁니다.
+  const 첫점프 = await page.evaluate(async () => {
+    const s = window.__scene;
+    const e = window.__frog;
+    const 처음층 = e.frogFloor;
+    const t0 = s.time.now;
+    let 뜬때 = -1;
+    for (let i = 0; i < 60; i++) {
+      if (e.frogHopping || e.frogFloor > 처음층) { 뜬때 = s.time.now - t0; break; }
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    return { 뜬때: Math.round(뜬때), 적힌값: CFG.goldfrog.firstHopMs,
+      한층: CFG.goldfrog.climbEvery + CFG.goldfrog.climbMs };
+  });
+  check(첫점프.뜬때 >= 0, '**나타나자마자 뜁니다**',
+    Math.round(첫점프.뜬때) + 'ms 만에 (적힌 값 ' + 첫점프.적힌값 + 'ms)');
+  check(첫점프.뜬때 < 700, '첫 점프가 늦지 않음 (서성이다 잡히지 않게)',
+    첫점프.뜬때 + 'ms');
+  check(첫점프.한층 <= 1600, '한 층 오르는 데 걸리는 시간이 짧음 (쫓아야 하게)',
+    첫점프.한층 + 'ms');
+
+  // ── 계속 오릅니다 ───────────────────────────────────────
+  const 계속오름 = await page.evaluate(async () => {
+    const s = window.__scene;
+    const e = window.__frog;
+    const 처음 = e.frogFloor;
+    for (let i = 0; i < 45 && e.active; i++) await new Promise((r) => setTimeout(r, 100));
+    return { 오른층: e.active ? e.frogFloor - 처음 : null, 살았나: e.active };
+  });
+  check(계속오름.오른층 === null || 계속오름.오른층 >= 2,
+    '가만두면 계속 위로 오름',
+    계속오름.살았나 ? 계속오름.오른층 + '층 오름' : '사라짐');
+
+  // ── 가만히 두면 사라집니다 ──────────────────────────────
+  // 「놓칠 수 있어야 한다」의 반대쪽 값입니다. 안 쫓아온 사람을 위해 영영
+  // 매달아 둘 이유가 없고, 등장 한도만 차지합니다.
+  await 개구리세우기(160);
+  const 사라짐 = await page.evaluate(async () => {
+    const s = window.__scene;
+    const e = window.__frog;
+    const t0 = s.time.now;
+    for (let i = 0; i < 200 && e.active; i++) await new Promise((r) => setTimeout(r, 80));
+    return { 걸림: Math.round(s.time.now - t0), 사라졌나: !e.active,
+      한도: CFG.goldfrog.vanishAbove };
+  });
+  check(사라짐.사라졌나, '**가만히 두면 달아나 사라짐** (놓칠 수 있어야 합니다)',
+    (사라짐.걸림 / 1000).toFixed(1) + '초 · ' + 사라짐.한도 + '층 위');
+  check(사라짐.걸림 > 3000, '그렇다고 곧바로 사라지지는 않음 (쫓을 짬은 있게)',
+    (사라짐.걸림 / 1000).toFixed(1) + '초');
+
+  // ── 맞아도 안 멈춥니다 ──────────────────────────────────
+  // **이놈의 전부가 이것입니다.** 한 번이라도 멎으면 그 자리에서 잡히고,
+  // 그러면 달아나는 놈이 아니라 서 있는 과녁이 됩니다.
+  await 개구리세우기(200);
+  const 안멈춤 = await page.evaluate(() => {
+    const s = window.__scene;
+    const e = window.__frog;
+    e.hp = e.maxHp = 1e9;
+
+    // (1) 전사의 기절이 안 걸립니다.
+    const 전 = e.stunUntil || 0;
+    s.job.stun = 1;                       // 전사가 아니어도 걸어 봅니다
+    s.stunEnemy(e);
+    const 기절 = (e.stunUntil || 0) > 전;
+
+    // (2) 차가운 기름이 안 얼립니다. **속도를 실제로 재야 합니다** —
+    //     slowMul 이 붙었는지만 보면 「붙었지만 안 쓰인다」를 못 봅니다.
+    e.slowUntil = s.time.now + 5000;
+    e.slowMul = 0.3;
+    e.slowRing = e.slowRing || s.add.circle(e.x, e.y, 16, 0x81d4fa, 0.4);
+    e.body.velocity.x = 100;
+    s.updateOilFx(s.time.now);
+    const 개구리속도 = e.body.velocity.x;
+    // 견줄 짝 — 보통 적은 같은 자리에서 느려져야 합니다.
+    const f = s.floors.get(s.floorIndex);
+    const 자리 = LANES.map((l) => f.slots[l]).find(Boolean);
+    const 남 = spawnEnemy(s, 자리.x, 자리.y - 50, s.floorIndex, 'crawler');
+    남.slowUntil = s.time.now + 5000;
+    남.slowMul = 0.3;
+    남.slowRing = s.add.circle(남.x, 남.y, 16, 0x81d4fa, 0.4);
+    남.body.velocity.x = 100;
+    s.updateOilFx(s.time.now);
+    const 남속도 = 남.body.velocity.x;
+    남.destroy();
+
+    return { 기절, 개구리속도: Math.round(개구리속도), 남속도: Math.round(남속도) };
+  });
+  check(!안멈춤.기절, '**때려도 기절 안 함** (전사에게 잡혀 서 있지 않게)');
+  check(안멈춤.개구리속도 === 100,
+    '**차가운 기름에 안 얼음** (기름 하나로 쫓는 일이 없어지지 않게)',
+    '개구리 ' + 안멈춤.개구리속도 + ' 그대로');
+  check(안멈춤.남속도 < 100, '보통 적은 같은 자리에서 얼음 (기름은 멀쩡히 돕니다)',
+    '보통 적 100 → ' + 안멈춤.남속도);
+
+  // (3) 뛰는 도중에 맞아도 뛰던 것을 끝냅니다.
+  const 뛰다맞음 = await page.evaluate(async () => {
+    const s = window.__scene;
+    const e = window.__frog;
+    e.hp = e.maxHp = 1e9;
+    for (let i = 0; i < 60 && !e.frogHopping; i++) await new Promise((r) => setTimeout(r, 30));
+    if (!e.frogHopping) return { 못잡음: true };
+    const 처음층 = e.frogFloor;
+    const 처음y = e.y;
+    for (let i = 0; i < 8; i++) s.hitEnemy(e, 1);   // 뛰는 동안 여덟 대
+    for (let i = 0; i < 40 && e.frogHopping; i++) await new Promise((r) => setTimeout(r, 30));
+    return { 오름: e.frogFloor - 처음층, 올라갔나: e.y < 처음y - 40 };
+  });
+  check(!뛰다맞음.못잡음 && 뛰다맞음.오름 === 1,
+    '**뛰는 도중에 맞아도 그 점프를 끝냄**',
+    뛰다맞음.못잡음 ? '뛰는 순간을 못 잡음' : 뛰다맞음.오름 + '층 올라감');
+
+  // ── 여러 대 때려야 잡힙니다 ─────────────────────────────
+  // 「열심히 때려야」입니다. 한두 대에 끝나면 쫓는 것이 값을 못 합니다.
+  const 대수 = await page.evaluate(() => {
+    const hp = Math.round((CFG.enemy.baseHp + 100 * CFG.enemy.hpPerFloor)
+      * enemyHpScale(100) * CFG.goldfrog.hpScale);
+    const 잰다 = (c) => {
+      const n = buildWeaponPool(c).length;
+      const w = new Weapon(c, Math.floor(n / 2));
+      const 한대 = w.dmg * (c.attack === 'melee' ? 1 : (w.shots || 1)) * w.accuracy;
+      return Math.max(1, Math.ceil(hp / 한대));
+    };
+    const 다 = CLASSES.map(잰다);
+    return { hp, 가장적게: Math.min(...다), 가장많이: Math.max(...다),
+      평균: Math.round(다.reduce((a, b) => a + b, 0) / 다.length) };
+  });
+  check(대수.가장적게 >= 4,
+    '**가장 센 직업도 네 대 위** (지나가다 툭 쳐서 잡히지 않게)',
+    '가장 적게 드는 직업이 ' + 대수.가장적게 + '대');
+  check(대수.가장많이 <= 16, '가장 약한 직업도 열여섯 대 아래 (쫓는 동안 못 잡지 않게)',
+    '가장 많이 드는 직업이 ' + 대수.가장많이 + '대');
+  check(대수.평균 >= 6 && 대수.평균 <= 12, '한가운데 자루로 열 대 안팎',
+    '여덟 직업 평균 ' + 대수.평균 + '대 (체력 ' + 대수.hp + ')');
+
+  console.log(bad ? `\n${bad}건 어긋남` : '\n판을 바꾸는 넷과 황금개구리 모두 맞음');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
   await browser.close();
   server.close();

@@ -633,7 +633,10 @@ function spawnGoldFrog(scene, x, y, floor) {
   e.speed = g.paceSpeed;
   e.floor = floor;
   e.frogFloor = floor;                       // 지금 딛고 있는 층
-  e.frogClimbAt = scene.time.now + g.climbEvery;
+  // **나타나자마자 뜁니다.** 예전에는 climbEvery(2.6초)를 그냥 기다렸는데,
+  // 그동안 개구리는 발판 위를 서성이기만 해서 「달아나는 것」이 아니라
+  // 「거기 있는 것」이었습니다 — 쫓을 짬도 없이 두 대에 끝났습니다.
+  e.frogClimbAt = scene.time.now + g.firstHopMs;
   e.contactDamage = Math.round(g.dmg * (1 + floor * CFG.enemy.dmgPerFloor));
   e.coin = Math.round(g.coinBase * (1 + floor * g.coinPerFloor));
   e.phase = Math.random() * Math.PI * 2;
