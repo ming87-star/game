@@ -446,10 +446,20 @@ const check = (ok, what, note) => {
   const 곰생김 = await page.evaluate(() => {
     const s = window.__scene;
     s.updateBear(s.time.now, 16);
-    return { 있나: !!s.bear, hp: s.bear && s.bear.hp, 그림: s.bear && s.bear.sprite.texture.key };
+    return { 있나: !!s.bear, hp: s.bear && s.bear.hp,
+      그림: s.bear && s.bear.sprite.texture.key,
+      시트: !!(s.bear && s.bear.sheet),
+      시트있음: !!SHEET_ART['sheet-ally-bear'] };
   });
   check(곰생김.있나, '판이 시작되면 곰이 섬');
-  check(곰생김.그림 === 'ally-bear', '곰 그림을 씀', 곰생김.그림);
+  // **시트가 오기 전과 온 뒤가 다릅니다.** 어느 쪽 하나로 못박으면 그림이
+  // 오는 날 시험이 틀리고, 시험을 고치느라 「시트를 쓰는가」를 안 보게
+  // 됩니다. 시트가 있으면 시트를, 없으면 한 장 그림을 — 둘 다 잽니다.
+  check(곰생김.그림 === (곰생김.시트있음 ? 'sheet-ally-bear' : 'ally-bear'),
+    곰생김.시트있음 ? '곰이 **시트를 씁니다**' : '시트가 없어 한 장 그림으로 물러섬',
+    곰생김.그림);
+  check(곰생김.시트 === 곰생김.시트있음,
+    '시트가 실려 있으면 곰이 그것을 잡음', 곰생김.시트 ? '잡음' : '한 장');
   check(곰생김.hp > 0, '곰에게 체력이 있음', 곰생김.hp);
 
   // 한 층 위의 적에게 갑니다 — **내가 아직 안 간 층**입니다.
@@ -572,12 +582,43 @@ const check = (ok, what, note) => {
       return hi - lo;
     };
 
-    // 곰
+    // 곰 — **시트가 오면서 재는 것이 달라집니다.**
+    // 시트를 쓰는 곰은 눌렸다 늘어나지 않습니다 (spawnBear 가 트윈을 안
+    // 겁니다). 대신 **컷이 넘어갑니다.** 굳었는지를 보는 것은 그대로이되,
+    // 무엇을 보고 그것을 아는지가 바뀝니다.
     window.__game.scene.start('game', { jobKey: 'hunter' });
     await new Promise((r) => setTimeout(r, 700));
     const s2 = window.__scene;
     s2.updateBear(s2.time.now, 16);
-    const 곰폭 = await 폭재기(() => s2.bear.sprite);
+    let 곰폭 = 0;
+    let 곰컷 = 0;
+    if (s2.bear.sheet) {
+      // **판이 저 혼자 도는 동안** 컷이 넘어가야 합니다. 손으로
+      // stepBearFrame 을 불러 보는 것은 아래에서 따로 하고, 여기서는
+      // update() 가 실제로 그것을 부르는지를 봅니다.
+      //
+      // **곰을 걷게 해 두어야 합니다.** 가만두면 곰은 주인공 앞 제자리에
+      // 서고, 서 있는 곰은 첫 컷에 멈추는 것이 옳습니다 — 그걸 재면 멀쩡한
+      // 곰을 굳었다고 하게 됩니다(실제로 그렇게 한 번 틀렸습니다).
+      // 멀찍이 먹이를 세워 걸어가는 동안을 잽니다.
+      s2.enemies.getChildren().slice().forEach((e) => e.destroy());
+      const 멀리 = s2.enemies.create(s2.player.x + 420, s2.player.y - 40, 'e-crawler');
+      멀리.body.setAllowGravity(false);
+      멀리.hp = 1e9; 멀리.maxHp = 1e9; 멀리.floor = s2.floorIndex; 멀리.coin = 0;
+      멀리.def = { key: 'crawler' };
+      const 본컷 = new Set();
+      for (let i = 0; i < 16; i++) {
+        // 곰이 닿기 전에 먹이를 더 멀리 물립니다 — 계속 걷게 하려는 것입니다.
+        멀리.x = s2.bear.sprite.x + 300;
+        본컷.add(s2.bear.frame);
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      곰컷 = 본컷.size;
+      멀리.destroy();
+    } else {
+      곰폭 = await 폭재기(() => s2.bear.sprite);
+    }
+    const 곰시트 = !!s2.bear.sheet;
 
     // 부하
     window.__game.scene.start('game', { jobKey: 'necro' });
@@ -588,49 +629,45 @@ const check = (ok, what, note) => {
     e.hp = 1; e.maxHp = 10; e.floor = 1; e.coin = 0; e.def = { key: 'crawler' };
     s3.hitEnemy(e, 999);
     const 부폭 = await 폭재기(() => s3.thralls[0].sprite);
-    return { 곰폭: Number(곰폭.toFixed(4)), 부폭: Number(부폭.toFixed(4)) };
+    return { 곰폭: Number(곰폭.toFixed(4)), 곰컷, 곰시트,
+      부폭: Number(부폭.toFixed(4)) };
   });
-  check(숨.곰폭 > 0.01, '**곰이 숨을 쉼** (적들처럼 눌렸다 늘어남)',
-    '폭 ' + 숨.곰폭);
+  check(숨.곰시트 ? 숨.곰컷 > 1 : 숨.곰폭 > 0.01,
+    숨.곰시트 ? '**곰이 저 혼자 걷습니다** (판이 도는 동안 컷이 넘어감)'
+      : '**곰이 숨을 쉼** (적들처럼 눌렸다 늘어남)',
+    숨.곰시트 ? 숨.곰컷 + '컷 봄' : '폭 ' + 숨.곰폭);
   check(숨.부폭 > 0.01, '**부하가 숨을 쉼** (눌리는 대신 뜹니다 — 땅을 안 딛으니까)',
     '폭 ' + 숨.부폭);
 
-  // ── 곰의 몸짓 시트를 받을 준비가 되어 있는가 ────────────
+  // ── 곰의 몸짓 시트 ──────────────────────────────────────
   // 곰은 **적이 아닙니다.** 판 내내 곁에서 보고 있는 것이라 눌렸다 늘어나는
   // 것만으로는 모자랍니다 — 주인공은 아니어도 주인공처럼 보여야 합니다.
   //
-  // 그림은 아직 없습니다. 그래서 여기서 **가짜 시트를 끼워 넣고** 코드가
-  // 그것을 잡아서 컷을 넘기는지만 봅니다. 그림이 오는 날 코드를 새로 짜는
-  // 것보다, 코드를 미리 세워 두고 그림만 떨어뜨리는 쪽이 낫습니다.
+  // 그림이 오기 전에는 여기서 **가짜 시트를 끼워 넣고** 코드가 그것을 잡는지만
+  // 봤습니다. 이제 진짜가 왔으므로(assets/sheets/ally-bear/) 진짜를 잽니다 —
+  // 가짜를 겹쳐 끼우면 진짜를 덮어쓰고, 끝에 지우면 **뒤따르는 검사에서 곰이
+  // 시트를 잃습니다.**
+  //
   // 앞의 검사가 사령술사로 끝났습니다 — 곰사냥꾼으로 돌아가야 곰이 섭니다.
   await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'hunter' }));
   await page.waitForFunction(() => window.__scene && window.__scene.player
     && window.__scene.job.key === 'hunter', null, { timeout: 8000 });
   await page.waitForTimeout(300);
 
-  const 시트준비 = await page.evaluate(async () => {
+  const 시트준비 = await page.evaluate(() => {
     const s = window.__scene;
-    // 있는 곰 그림 한 장을 여덟 칸짜리 시트인 척 등록합니다.
-    const src = s.textures.get('ally-bear').getSourceImage();
-    const cv = document.createElement('canvas');
-    cv.width = src.width * 4; cv.height = src.height * 2;
-    const c = cv.getContext('2d');
-    for (let i = 0; i < 8; i++) {
-      c.drawImage(src, (i % 4) * src.width, Math.floor(i / 4) * src.height);
-    }
-    SHEET_ART['sheet-ally-bear'] = { url: cv.toDataURL(), n: 8,
-      fw: src.width, fh: src.height, hero: src.height, foot: src.width / 2, ground: src.height };
-    s.textures.addSpriteSheet('sheet-ally-bear', cv,
-      { frameWidth: src.width, frameHeight: src.height });
-
-    // 곰을 새로 세웁니다 — 이제 시트를 잡아야 합니다.
     s.clearBear();
     s.updateBear(s.time.now, 16);
     const b = s.bear;
-    const out = { 시트잡음: !!b.sheet, 스프라이트: b.sprite.type };
+    const out = { 시트잡음: !!b.sheet, 스프라이트: b.sprite.type,
+      실림: !!SHEET_ART['sheet-ally-bear'] };
     if (!b.sheet) return out;
     out.걷기 = b.sheet.walk;
     out.무는것 = b.sheet.bite;
+    out.컷수 = b.sheet.n;
+    // 시트는 4배로 그려 구우므로 그대로 얹으면 곰이 발판을 덮습니다.
+    out.배율 = Number(b.sprite.scaleX.toFixed(3));
+    out.높이 = Math.round(b.sprite.displayHeight);
 
     const 걷다 = new Set();
     for (let i = 0; i < 40; i++) { s.stepBearFrame(s.time.now + i * 200, true); 걷다.add(b.frame); }
@@ -643,13 +680,11 @@ const check = (ok, what, note) => {
 
     s.stepBearFrame(s.time.now + 2e5, false);
     out.서있을때 = b.frame;
-
-    delete SHEET_ART['sheet-ally-bear'];
-    s.textures.remove('sheet-ally-bear');
-    s.clearBear();
     return out;
   });
-  check(시트준비.시트잡음, '곰이 **시트가 있으면 잡습니다**');
+  check(시트준비.실림, '구운 곰 시트가 실려 있음 (`sheet-ally-bear`)');
+  check(시트준비.시트잡음, '곰이 **시트를 잡습니다**');
+  check(시트준비.컷수 === 8, '여덟 컷', 시트준비.컷수 + '컷');
   check(시트준비.스프라이트 === 'Sprite',
     '시트가 있으면 컷을 넘길 수 있는 것으로 섬', 시트준비.스프라이트);
   check(JSON.stringify(시트준비.걷다본컷) === JSON.stringify(시트준비.걷기),
@@ -659,6 +694,81 @@ const check = (ok, what, note) => {
     '물 때 **아랫줄을 한 바퀴 돕니다**', JSON.stringify(시트준비.물다본컷));
   check(시트준비.서있을때 === (시트준비.걷기 || [])[0],
     '서 있으면 첫 컷에 멈춥니다 (제자리걸음 안 함)', '컷 ' + 시트준비.서있을때);
+  // 한 컷이 163×127 입니다. 그대로 얹으면 발판(165)을 통째로 덮습니다 —
+  // **오류가 안 나고 그냥 화면을 가리는** 부류라 여기서 재 둡니다.
+  check(시트준비.높이 > 30 && 시트준비.높이 < 90,
+    '곰이 발판을 덮지 않을 만큼으로 줄어 섬',
+    '높이 ' + 시트준비.높이 + 'px (배율 ×' + 시트준비.배율 + ')');
+
+  // ── 여덟 컷이 정말 여덟인가 ─────────────────────────────
+  // 시트가 실려 있고 컷이 넘어가도, **그려진 것이 다 같으면** 곰은 미끄러지는
+  // 조각상입니다. 오류도 안 나고 컷 번호도 멀쩡히 바뀝니다.
+  //
+  // 그리고 컷마다 몸이 딴 자리에 서 있으면 걷는 것이 아니라 **떠는 것**으로
+  // 보입니다 — 시트는 한 자리(foot/ground)를 기준으로 얹히니까요.
+  const 컷들 = await page.evaluate(async () => {
+    const 싣기 = (u) => new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = u; });
+    const d = SHEET_ART['sheet-ally-bear'];
+    if (!d) return null;
+    const img = await 싣기(d.url);
+    const fw = d.fw, fh = d.fh;
+    const 줄 = Math.round(img.width / fw);
+    const 뜨기 = (k) => {
+      const c = document.createElement('canvas');
+      c.width = fw; c.height = fh;
+      const x = c.getContext('2d');
+      x.drawImage(img, (k % 줄) * fw, Math.floor(k / 줄) * fh, fw, fh, 0, 0, fw, fh);
+      return x.getImageData(0, 0, fw, fh).data;
+    };
+    const 컷 = [...Array(d.n)].map((_, k) => 뜨기(k));
+    // 두 컷이 몇 할이나 다른가.
+    const 다름 = (a, b) => {
+      let n = 0;
+      for (let i = 0; i < a.length; i += 4) {
+        if (Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1])
+          + Math.abs(a[i + 2] - b[i + 2]) + Math.abs(a[i + 3] - b[i + 3]) > 40) n++;
+      }
+      return Math.round(n / (a.length / 4) * 1000) / 10;
+    };
+    // 몸이 어디에 섰는가.
+    const 틀 = (a) => {
+      let x0 = 1e9, x1 = -1, y1 = -1, 참 = 0;
+      for (let y = 0; y < fh; y++) for (let x = 0; x < fw; x++) {
+        if (a[(y * fw + x) * 4 + 3] > 60) {
+          참++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y > y1) y1 = y;
+        }
+      }
+      return { cx: (x0 + x1) / 2, 발: y1, 참 };
+    };
+    const 틀들 = 컷.map(틀);
+    const 이웃 = [0, 1, 2, 3].map((k) => 다름(컷[k], 컷[(k + 1) % 4]))
+      .concat([4, 5, 6, 7].map((k) => 다름(컷[k], 컷[4 + ((k - 4 + 1) % 4)])));
+    const 가운데 = 틀들.map((t) => t.cx);
+    const 발 = 틀들.map((t) => t.발);
+    return {
+      줄, fw, fh,
+      가장비슷한이웃: Math.min(...이웃),
+      걷기와물기: Math.min(...[0, 1, 2, 3].map((k) => 다름(컷[k], 컷[k + 4]))),
+      빈컷: 틀들.filter((t) => t.참 < fw * fh * 0.05).length,
+      가운데흔들림: Math.round(Math.max(...가운데) - Math.min(...가운데)),
+      발흔들림: Math.max(...발) - Math.min(...발),
+    };
+  });
+  if (!컷들) {
+    check(false, '구운 곰 시트를 읽을 수 있음');
+  } else {
+    check(컷들.빈컷 === 0, '빈 컷이 없음', 컷들.빈컷 + '개');
+    check(컷들.가장비슷한이웃 > 8,
+      '**이웃한 컷이 서로 다름** (같으면 미끄러지는 조각상입니다)',
+      '가장 비슷한 이웃도 ' + 컷들.가장비슷한이웃 + '% 다름');
+    check(컷들.걷기와물기 > 8, '무는 줄이 걷는 줄과 다름',
+      '가장 비슷한 짝도 ' + 컷들.걷기와물기 + '% 다름');
+    // 한 컷이 163 이므로 8px 은 5% — 화면에서는 0.35배로 줄어 3px 아래입니다.
+    check(컷들.가운데흔들림 <= 8, '컷마다 몸이 같은 자리에 섬 (안 떨림)',
+      '가운데 ' + 컷들.가운데흔들림 + 'px / ' + 컷들.fw);
+    check(컷들.발흔들림 <= 8, '발밑이 컷마다 같은 높이',
+      '발 ' + 컷들.발흔들림 + 'px / ' + 컷들.fh);
+  }
 
   // ═══ 다섯의 전용 유물 ═══════════════════════════════════
   //
