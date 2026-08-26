@@ -74,16 +74,21 @@ const HEROES = {
        + 'and no blade of any kind. Whatever the weapon is called, it is something WORN on his '
        + 'hands (wraps, rings, gauntlets), never something held.',
   },
+  // **무게를 몸으로 말하면 안 됩니다.** 처음에 "heavy · wide · thick-set ·
+  // broad" 를 늘어놓았더니 혼자 6등신 어른으로 나와서, 넷 옆에 세우니 딴
+  // 게임 사람이었습니다. 궁수의 "slim tall body" 와 똑같은 자리입니다.
+  // 무게는 **자세와 차림**이 말하게 하고, 비례는 PROPORTION 에 맡깁니다.
   hunter: {
     w: 42, h: 48,
-    who: 'a heavy BEAR HUNTER: a bear skull worn as a hood with the snout jutting over his brow, '
+    who: 'a BEAR HUNTER: a bear skull worn as a hood with the snout jutting over his brow, '
        + 'a shaggy fur mantle over the shoulders only, close leather below, and a bearded '
-       + 'weather-beaten older face. Wide, low and thick-set. '
+       + 'weather-beaten older face. '
        + 'Grey-brown hide #BCAAA4 with darker brown leather. Nothing on him is red. '
-       + 'He uses a BOW, but he must never be mistaken for the archer class: the archer is '
-       + 'slim and stands tall and draws the string up beside the cheek, while this man is '
-       + 'broad and heavy and keeps everything LOW — a stout thick-limbed hunting bow held '
-       + 'down around waist height, knees bent, weight planted, shoulders hunched forward. '
+       + 'He uses a BOW, but he must never be mistaken for the archer class. The difference '
+       + 'is entirely in the STANCE and the GEAR, never in the body: the archer stands upright '
+       + 'and draws the string up beside his cheek, while this man plants his feet apart, '
+       + 'bends his knees, drops his weight and holds a stout hunting bow LOW, around waist '
+       + 'height. The fur mantle and the skull hood do the rest. '
        + 'Draw him alone: NO bear and no other animal anywhere in the frame.',
   },
   necro: {
@@ -186,6 +191,13 @@ const PORTRAIT_RULE = [
   'Do NOT copy its pose or its framing: that portrait is one posed figure seen near front-on,',
   'and what you are drawing is eight side-view frames of an attack, facing right.',
   'Ignore any companion animal or floating creature in the portrait — draw the person alone.',
+  '',
+  'TAKE THE BUILD FROM THE PROPORTION SAMPLE, NOT FROM THE PORTRAIT. The portrait tells you',
+  'WHO this is — the face, the hair and headgear, the clothing, the colours. The proportion',
+  'sample tells you HOW BIG the pieces are — head against body, limb thickness, figure height.',
+  'Where the two disagree, the proportion sample wins: match its big-head four-head chibi build',
+  'even if the portrait looks taller or more realistic than that. Every class in this game',
+  'stands at the same build, and a class drawn at adult proportions reads as a different game.',
 ].join(' ');
 
 // 무기 종류마다 몸이 다르게 움직입니다 (js/motion.js 의 MOTIONS 와 같은 갈래).
@@ -287,6 +299,12 @@ const BG = [
 // 사람 크기는 굽는 자리에서 다시 맞추므로(bake-sheets.js 가 여덟 컷을 합쳐
 // 한 배율로 잽니다) 작게 그려도 화면에서는 같은 키로 섭니다.
 const LONG = new Set(['staff', 'spear', 'pick', 'bow']);
+
+// 긴 무기라고 다 같은 종이가 맞는 것은 아닙니다. **어느 쪽으로 긴지**가
+// 다릅니다 — 지팡이와 곡괭이는 쏘고 내리찍을 때 가로로 뻗고, 활은 세워 든
+// 채라 세로로 깁니다. 활을 21:9(396×336) 로 받았더니 여덟 컷 모두 활 끝이
+// 칸 위아래에 닿았습니다. 활은 16:9(344×384) 가 맞습니다.
+const WIDE = new Set(['staff', 'spear', 'pick']);
 const LONG_RULE = [
   'THIS WEAPON IS LONGER THAN THE CHARACTER IS TALL, and in some frames it is raised or swung',
   'diagonally, which makes it reach much further than the body does.',
@@ -486,11 +504,12 @@ async function generate(job, weapon) {
       : REF_RULE);
   }
   parts.push({ text: (head.length ? head.join('\n\n') + '\n\n' : '') + promptFor(job, weapon) });
-  // 긴 무기는 **더 넓은 종이**를 받습니다. 지팡이는 쏘는 순간 가로로 뻗는데
-  // 16:9 로 받으면 칸이 344×384 라 세로로 길어서, 가로로 뻗는 것이 갈 데가
-  // 없습니다. 21:9 면 칸이 396×336 이 되어 가로가 52px 넓어집니다. 문구로 네
-  // 판을 다시 뽑아도 안 잡히던 것이라, 종이를 바꾸는 쪽이 맞습니다.
-  return callImage(parts, LONG.has(weapon.kind) ? '21:9' : '16:9');
+  // **가로로 뻗는 무기만** 더 넓은 종이를 받습니다. 지팡이는 쏘는 순간 가로로
+  // 뻗는데 16:9 로 받으면 칸이 344×384 라 세로로 길어서 갈 데가 없습니다.
+  // 21:9 면 칸이 396×336 이 되어 가로가 52px 넓어집니다. 문구로 네 판을 다시
+  // 뽑아도 안 잡히던 것이라, 종이를 바꾸는 쪽이 맞습니다.
+  // 활은 반대입니다 — 세워 든 채라 세로로 길어서 16:9 가 맞습니다.
+  return callImage(parts, WIDE.has(weapon.kind) ? '21:9' : '16:9');
 }
 
 async function callImage(parts, aspectRatio) {
@@ -694,30 +713,20 @@ async function slice(oven, png, job) {
 // 그래서 두 가지를 바꿨습니다.
 //   · 자리로 세지 않고 **key 로 찾습니다** — 직업이 더 늘어도 안 어긋납니다
 //   · 한 자루도 못 찾으면 **소리 내고 멈춥니다** (아래) — 조용히 0개는 안 됩니다
-// ── 아직 손 안 댄 무기표를 건너뛰는 자리 ─────────────────
-// 곰사냥꾼의 무기 열둘이 **도적 것을 그대로 베낀 것**입니다. 이름·피해·연사·
-// 사거리가 한 글자도 안 다릅니다 (단도·사냥칼·쌍단도… 도적과 같은 열둘).
-// 아직 주제를 안 입힌 자리이지 균형을 잡은 근접 직업이 아닙니다.
-//
-// 그런데 이 사람이 무엇을 드는지는 이미 정해져 있습니다 — **활**입니다.
-// ART.md 2.5절(실루엣 열쇠)과 2.6절(판 위에서 드는 것)이 둘 다 활이라 적고
-// 있고, 이미 그려 올린 초상화도 활을 들고 있습니다. 능력 자체가 "곰을 앞서
-// 보내고 본인은 뒤에서 활로 쏜다"입니다.
-//
-// 그래서 그림은 **설계를 따라 활로** 그립니다. 무기표가 주제를 입는 날
-// icon.art 가 bow 가 되면 이 자리는 저절로 쓸모없어지므로 지우면 됩니다.
-// 그때까지 이 줄이 없으면 활 든 초상화로 고른 사람이 판에서 단검을 휘두릅니다.
-//
-// 이름도 함께 덮습니다. 갈래만 활로 바꾸고 이름을 "단도"로 두면 모델에게
-// 서로 다른 말을 하는 셈이라, 단검처럼 생긴 활이 나옵니다.
-const KIND_FIX = {
-  hunter: { kind: 'bow', label: 'a hunting bow' },
-};
-
 function weaponsOf(job) {
   const src = fs.readFileSync(path.join(ROOT, 'js', 'classes.js'), 'utf8');
-  const at = src.indexOf(`key: '${job}'`);
-  if (at < 0) throw new Error(`js/classes.js 에 '${job}' 직업이 없습니다`);
+  // **직업의 key 만 잡아야 합니다.** 그냥 `key: 'hunter'` 를 찾으면 궁수의
+  // 무기 하나가 먼저 걸립니다 — 궁수 자루 중에 key 가 'hunter' 인 「사냥활」이
+  // 있습니다. 그러면 그 자리에서 다음 weapons 를 집어 **도적의 무기표**를
+  // 곰사냥꾼 것으로 읽습니다. 실제로 그랬고, 곰사냥꾼이 단검을 든다고
+  // 잘못 읽어서 요청서와 코드가 싸우는 줄 알았습니다 — 코드는 처음부터
+  // 활이라고 말하고 있었습니다.
+  //
+  // 직업의 key 는 네 칸 들여쓰기로 혼자 한 줄을 씁니다. 자루의 key 는
+  // `{ key: '…', name: …` 처럼 한 줄 안에 있습니다. 줄 전체로 맞춥니다.
+  const line = src.match(new RegExp(`^    key: '${job}',$`, 'm'));
+  if (!line) throw new Error(`js/classes.js 에 '${job}' 직업이 없습니다`);
+  const at = src.indexOf(line[0]);
   const blk = src.slice(at).split('weapons: [')[1];
   if (!blk) throw new Error(`'${job}' 에 weapons 목록이 없습니다`);
   // 종류는 무기마다 다릅니다 — 전사 넷째는 창이고, 쌍(twin) 이면 두 자루입니다.
@@ -743,11 +752,10 @@ function weaponsOf(job) {
     'a mythic weapon of overwhelming presence',
     'the ultimate weapon, vast and radiant',
   ];
-  const fix = KIND_FIX[job];
   return found.map(([, name, color, art, rest], i) => ({
     key: `w-${job}-${i}`,
-    label: fix ? fix.label : name,
-    kind: fix ? fix.kind : art,
+    label: name,
+    kind: art,
     twin: /twin: *true/.test(rest || ''),
     look: `${GRADE[i]}. Its dominant colour is #${color.slice(2)}. `
         + (/twin: *true/.test(rest || '') ? 'The character wields TWO of them, one in each hand. ' : '')
@@ -830,11 +838,19 @@ function planFor(args) {
       });
       // 경계선에 길게 얹힌 컷을 **소리 내어** 알립니다. 잘린 채로도 게임은
       // 멀쩡히 돌아갑니다 — 불꼬리가 곧게 잘린 자국이 남을 뿐입니다.
+      // **배경이 안 걷혔는지** 먼저 봅니다. 모델이 순수 마젠타가 아니라 연분홍
+      // 위에 그려 오는 일이 있는데, 그러면 걷어낼 것을 못 찾아 배경이 통째로
+      // 그림으로 남습니다. 컷마다 분홍 네모를 두른 주인공이 서게 되는데,
+      // **오류는 안 납니다.** 잰 경계가 칸을 거의 다 채우면 그 꼴입니다.
+      const fill = (cut.union.w * cut.union.h) / (cut.cell.w * cut.cell.h);
+      const 안걷힘 = fill > 0.85;
+
       const CUT = 12;   // 이보다 길게 얹히면 스쳐 지난 것이 아니라 잘린 것입니다
       const cutAt = (cut.edge || [])
         .map((n, i) => (n >= CUT ? `${i}(${n}px)` : null)).filter(Boolean);
       console.log(`칸 ${cut.cell.w}×${cut.cell.h} · 합친 경계 ${cut.union.w}×${cut.union.h}`
         + (empty ? `  ← 빈 칸 ${empty}개` : '')
+        + (안걷힘 ? `  ← 배경이 안 걷혔습니다 (칸의 ${(fill * 100) | 0}% · 마젠타가 아닌 데 그렸습니다)` : '')
         + (cutAt.length ? `  ← 칸을 넘어 잘림: 컷 ${cutAt.join(' ')}` : ''));
     } catch (e) {
       console.log('실패 — ' + e.message);
