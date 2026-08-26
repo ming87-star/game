@@ -1576,6 +1576,10 @@ class GameScene extends Phaser.Scene {
     // 연타 — **이 대에 실릴 배수를 먼저 잡아 두고** 그 다음에 셈틀을 올립니다.
     // 순서를 바꾸면 첫 대가 이미 한 칸 쌓인 채로 들어갑니다.
     const 연타 = this.comboMul();
+    // 「뒷손」 — 연타가 다 찬 그 한 대는 **사거리 안 모두에게** 들어갑니다.
+    // 판정은 bumpCombo 앞이라야 합니다. 뒤에서 보면 이미 0 으로 풀려 있습니다.
+    const 뒷손 = w.hasRelic('backhand') &&
+      (this.combo || 0) === CFG.combo.every - 1;
     this.bumpCombo();
 
     const nearest = hit.reduce((a, b) => (this.meleeDist(a) < this.meleeDist(b) ? a : b));
@@ -1634,6 +1638,29 @@ class GameScene extends Phaser.Scene {
       this.applyOil(e);
       this.stunEnemy(e);
     });
+
+    // ── 뒷손 ──────────────────────────────────────────
+    // 권법사의 사거리는 여덟 중 가장 짧습니다(58~88). 그래서 「사거리 안
+    // 전체」는 평소에 거의 한 놈입니다 — 그 한 대만 세게 해서는 앞의 아홉
+    // 대와 다를 것이 없습니다.
+    //
+    // **한 번 크게 터뜨립니다.** 지팡이의 광역과 같은 길을 쓰되(splash)
+    // 반지름을 사거리의 두 배로 잡아, 그 한 대만은 발판을 덮습니다.
+    if (뒷손 && hit.length) {
+      const at = { x: this.player.x, y: this.player.y - 6 };
+      const 몫 = Math.max(1, Math.round(w.dmg * 연타 * CFG.combo.backhandShare));
+      let 맞음 = 0;
+      this.enemies.getChildren().forEach((e) => {
+        if (!this.targetable(e) || hit.includes(e)) return;
+        if (Phaser.Math.Distance.Between(e.x, e.y, at.x, at.y) > w.reach * 2) return;
+        맞음++;
+        this.hitEnemy(e, 몫);
+      });
+      const ring = this.add.circle(at.x, at.y, 12, 0xffd54f, 0.32).setDepth(9);
+      this.tweens.add({ targets: ring, radius: w.reach * 2, alpha: 0, duration: 240,
+        onUpdate: () => ring.setRadius(ring.radius), onComplete: () => ring.destroy() });
+      this.popup(맞음 ? '뒷손 ' + (맞음 + hit.length) + '!' : '뒷손!', '#ffd54f');
+    }
   }
 
   // ── 연타 (권법사) ───────────────────────────────────────
@@ -1805,8 +1832,12 @@ class GameScene extends Phaser.Scene {
     const inRange = (e) => this.targetable(e) &&
       e.y <= this.player.y + CFG.aimBelow &&
       this.meleeDist(e) <= w.range;
+    // 가까운 것부터 노립니다. 다만 **곰이 문 놈이 먼저**입니다 —
+    // 이 게임에는 겨누기가 없어서(탭하면 자동으로 맞힙니다), 정렬을 안
+    // 바꾸면 「곰이 문 적에게 크게」가 우연에 기댑니다 (「사냥꾼의 표식」).
+    const 표 = (e) => (e.hunted && this.time.now < e.hunted ? 0 : 1);
     const pool = this.enemies.getChildren().filter(inRange)
-      .sort((a, b) => this.meleeDist(a) - this.meleeDist(b));
+      .sort((a, b) => (표(a) - 표(b)) || (this.meleeDist(a) - this.meleeDist(b)));
     if (!pool.length) { this.subTarget = null; return; }
 
     // 한 번 노린 적은 죽거나 사거리를 벗어날 때까지 계속 노립니다.
@@ -1833,7 +1864,12 @@ class GameScene extends Phaser.Scene {
         // 활은 그래서 "몇 발은 빗나가고 몇 발은 크게 들어가는" 손맛이 됩니다.
         if (!at) return;
         if (!w.hits()) return this.missFx(at);
-        this.fireArrow(this.player.x, this.player.y - 6, at, w.rollDamage(), w.bounce);
+        // 「사냥꾼의 표식」 — 곰이 문 놈에게는 더 아프게 들어갑니다.
+        // 겨눔은 위 정렬이 이미 그쪽을 앞세웠습니다.
+        const 표몫 = (at.hunted && this.time.now < at.hunted)
+          ? w.relicMul('huntMarkMul') : 1;
+        this.fireArrow(this.player.x, this.player.y - 6, at,
+          Math.max(1, Math.round(w.rollDamage() * 표몫)), w.bounce);
       });
     }
   }
@@ -2099,7 +2135,31 @@ class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: sprite, scaleY: 1.08, scaleX: 0.94,
       duration: 620 + (this.thralls ? this.thralls.length * 90 : 0),
       yoyo: true, repeat: -1 });
-    this.thralls.push({ sprite, nextHitAt: 0, bornAt: this.time.now });
+    // 맞는 만큼은 **유물이 안 붙은 몸**을 자로 잽니다 (baseHp).
+    //
+    // 처음에는 t.maxHp 에 몫을 곱했습니다. 그러면 「썩지 않는 것」이 체력을
+    // 두 배로 올려도 **맞는 대도 두 배**가 되어, 버티는 횟수가 그대로였습니다 —
+    // 유물이 아무 일도 안 하는데 오류도 안 나는 부류입니다. 자를 고정해야
+    // 체력을 올린 것이 곧 오래 버티는 것이 됩니다.
+    const baseHp = Math.max(1, Math.round(this.maxHp * c.hp));
+    const hp = Math.max(1, Math.round(baseHp * this.thrallToughMul()));
+    this.thralls.push({ sprite, hp, maxHp: hp, baseHp, nextHitAt: 0, bornAt: this.time.now });
+  }
+
+  // 「썩지 않는 것」 — 부하가 더 오래 버팁니다 (js/relics.js).
+  // **안 죽게 하는 것이 아니라 잘 안 삭게** 합니다 — 안 죽으면 강한 적
+  // 앞에서 약한 아군을 달고 싸우는 판이 됩니다.
+  thrallToughMul() {
+    return this.weapon ? this.weapon.relicMul('thrallHpMul') : 1;
+  }
+
+  hurtThrall(t, dmg) {
+    if (!t || t.hp <= 0) return;
+    t.hp -= dmg;
+    const s = t.sprite;
+    s.setTint(0xff8a80);
+    this.time.delayedCall(90, () => s.active && s.clearTint());
+    if (t.hp <= 0) this.dropThrall(t);
   }
 
   dropThrall(t) {
@@ -2144,10 +2204,20 @@ class GameScene extends Phaser.Scene {
                         Phaser.Math.Distance.Between(b.x, b.y, s.x, s.y))[0];
       if (!먹이) return;
       t.nextHitAt = time + c.tickMs;
+      const 살아있었나 = 먹이.hp;
       this.hitEnemy(먹이, Math.max(1, Math.round(this.weapon.dmg * c.dmgShare)));
       // 친 것이 보이게 짧게 밀었다 돌아옵니다.
       const dx = Phaser.Math.Clamp(먹이.x - s.x, -10, 10);
       this.tweens.add({ targets: s, x: s.x + dx, duration: 90, yoyo: true });
+
+      // ── 되받습니다 ────────────────────────────────────
+      // 곰과 같은 규칙입니다. 문 상대가 살아 있으면 제가 깎입니다 —
+      // **단단한 놈에게 셋을 붙이면 셋이 갈립니다.** 그게 「강한 적 앞에서
+      // 부하가 약하다」에 대한 답입니다. 서 있다 사라지는 것이 아니라
+      // 싸우다 죽습니다.
+      if (먹이.active && 먹이.hp > 0 && 살아있었나 > 0) {
+        this.hurtThrall(t, Math.max(1, Math.round(t.baseHp * c.backMul)));
+      }
     });
   }
 
@@ -2258,6 +2328,9 @@ class GameScene extends Phaser.Scene {
     if (time < b.nextHitAt || !먹이) return;
     if (Phaser.Math.Distance.Between(먹이.x, 먹이.y, s.x, s.y) > c.reach) return;
     b.nextHitAt = time + c.tickMs;
+    // 「사냥꾼의 표식」 — 곰이 문 놈에게 표를 남깁니다. 화살이 그쪽을 먼저
+    // 노리고(shoot 의 정렬) 더 아프게 들어갑니다.
+    if (this.weapon.hasRelic('huntmark')) 먹이.hunted = time + CFG.bear.markMs;
     // 무는 컷으로 넘어갑니다 (아랫줄 4~7). 다 돌면 걷기로 돌아옵니다.
     if (b.sheet) { b.biting = b.sheet.bite.length; b.frame = b.sheet.bite[0]; b.frameAt = time; }
     const 살아있었나 = 먹이.hp;
@@ -3121,7 +3194,8 @@ class GameScene extends Phaser.Scene {
     // 가장 오래된 것부터 보냅니다 — 방금 잡아 세운 것이 바로 스러지면
     // 잡은 보람이 없습니다.
     if (this.job.thralls && this.thralls && this.thralls.length) {
-      this.dropThrall(this.thralls[0]);
+      const t = this.thralls[0];
+      this.hurtThrall(t, Math.max(1, Math.round(t.baseHp * CFG.thrall.hurtShare)));
     }
 
     this.cameras.main.shake(140, 0.008);

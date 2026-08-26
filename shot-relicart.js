@@ -1,4 +1,4 @@
-// 유물 그림 서른 장을 한 장에 펼쳐 찍습니다 — 눈으로 견주려는 것입니다.
+// 유물 그림 서른다섯 장을 한 장에 펼쳐 찍습니다 — 눈으로 견주려는 것입니다.
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
@@ -39,7 +39,7 @@ const OUT = process.env.OUT_DIR || ROOT;
     scene.cameras.main.setScroll(0, 0);
 
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
-    scene.add.text(270, 18, '유물 그림 서른 장', font(24, '#ffffff')).setOrigin(0.5);
+    scene.add.text(270, 18, '유물 그림 서른다섯 장', font(24, '#ffffff')).setOrigin(0.5);
 
     const cols = 5;
     const cellW = 104;
@@ -59,7 +59,7 @@ const OUT = process.env.OUT_DIR || ROOT;
     return 빠진것;
   });
 
-  console.log(missing.length ? '그림이 없는 유물: ' + missing.join(', ') : '서른 장 모두 있음');
+  console.log(missing.length ? '그림이 없는 유물: ' + missing.join(', ') : '서른다섯 장 모두 있음');
   await page.waitForTimeout(400);
   await page.screenshot({ path: path.join(OUT, 'relic-art.png') });
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');

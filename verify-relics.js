@@ -1,4 +1,4 @@
-// ── 유물 서른 개 ─────────────────────────────────────────
+// ── 유물 서른다섯 개 ────────────────────────────────────
 //
 // 아홉이던 유물을 서른으로 늘렸습니다. 새로 들어온 스물하나 중 눈으로는
 // 안 보이는 규칙을 가진 것들을 재 봅니다 — 기름은 정말 겹쳐 안 쓰이는지,
@@ -62,8 +62,10 @@ const check = (ok, label, got) => {
     archer: relicsFor('archer').length,
     rogue: relicsFor('rogue').length,
   }));
-  check(roster.total === 30, '유물 서른 개', roster.total + '개');
-  check(new Set(roster.keys).size === 30, '열쇠가 서로 다 다름');
+  // 서른다섯 — 공용 서른에 직업 전용 다섯(js/relics.js 의 맨 아래)입니다.
+  // 하나하나가 무슨 일을 하는지는 verify-staff.js 가 잽니다.
+  check(roster.total === 35, '유물 서른다섯 개', roster.total + '개');
+  check(new Set(roster.keys).size === 35, '열쇠가 서로 다 다름');
   // 강철 살갗·흑철갑옷은 needsArmor — 도적 목록에서 빠져야 합니다.
   check(roster.rogue < roster.warrior,
     '갑옷 없는 도적은 needsArmor 유물만큼 적게 봄',

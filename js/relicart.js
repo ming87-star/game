@@ -1,4 +1,4 @@
-// 유물 그림 서른 장.
+// 유물 그림 서른다섯 장.
 //
 // 예전에는 유니코드 기호였습니다 (≋ ◇ ❦ ☉ …). 기호는 무엇인지 알려 주기는
 // 하는데, 글꼴마다 모양이 다르고 없는 글자는 네모로 뜨고, 무엇보다 **갖고
@@ -122,7 +122,7 @@ function rCoin(g, x, y, r) {
   g.fillCircle(x - r * 0.28, y - r * 0.28, r * 0.34);
 }
 
-// ── 서른 장 ──────────────────────────────────────────────
+// ── 서른다섯 장 ──────────────────────────────────────────────
 // 그리는 자리는 48×48, 한가운데가 (24, 24) 입니다.
 const RELIC_ART = {
   // ── 기존 아홉 ─────────────────────────────────────────
@@ -553,9 +553,162 @@ const RELIC_ART = {
     rLine(g, ICON.stroke, 1);
     g.lineBetween(24, 4, 24, 44);
   },
+
+  // ── 다섯의 전용 유물 (직업 색) ────────────────────────
+  // 앞의 서른 장은 결마다 색을 묶었지만(오르는 것 하늘빛, 때리는 것 붉은빛…),
+  // 이 다섯은 **직업 색을 그대로 씁니다** — 도감을 훑을 때 「이건 내 것」이
+  // 색만으로 먼저 읽히게 하려는 것입니다. 권법사 금빛, 곰사냥꾼 잿빛,
+  // 사령술사 청록, 마법사 하늘빛, 도굴꾼 연둣빛 (js/classes.js 의 color).
+
+  // 뒷손 — 주먹 하나와, 그 둘레로 끊어져 퍼진 테.
+  //
+  // 처음에는 온전한 동그라미 둘을 두르고 주먹도 같은 금빛으로 칠했더니,
+  // 48px 에서 **훈장**으로 보였습니다 — 테 안에 든 금빛 덩어리. 테를 네
+  // 토막으로 끊고(끊긴 테는 동그라미가 아니라 퍼지는 것으로 읽힙니다)
+  // 주먹을 한 단 짙게 해서, 눈이 둘을 갈라 볼 수 있게 했습니다.
+  backhand: (g) => {
+    rLine(g, 0xffe082, 2.0);
+    [0, 1, 2, 3].forEach((i) => {
+      const a = Math.PI * (0.28 + i * 0.5);
+      g.beginPath();
+      g.arc(24, 25, 21, a, a + Math.PI * 0.34, false);
+      g.strokePath();
+    });
+    const t = rTone(0xf9a825);
+    rFill(g, t.base);
+    // 손등이 이쪽을 봅니다 — 뒷손이니까.
+    g.fillRoundedRect(13, 19, 22, 15, 4);
+    g.strokeRoundedRect(13, 19, 22, 15, 4);
+    g.fillStyle(t.dark, 1);
+    g.fillRect(14, 29, 20, 4);
+    // 손가락 마디 넷 — 사이가 보여야 주먹으로 읽힙니다.
+    rFill(g, iconShade(0xf9a825, 1.45));
+    [13, 18.5, 24, 29.5].forEach((x) => {
+      g.fillRoundedRect(x, 15, 4.5, 7, 2);
+      g.strokeRoundedRect(x, 15, 4.5, 7, 2);
+    });
+    // 엄지.
+    rFill(g, t.base);
+    g.fillRoundedRect(32, 27, 7, 6, 3);
+    g.strokeRoundedRect(32, 27, 7, 6, 3);
+  },
+
+  // 사냥꾼의 표식 — 겹친 테 안에 곰 발자국.
+  // 테만 있으면 그냥 과녁이고, 발자국만 있으면 그냥 짐승입니다.
+  // 「곰이 문 자리에 표가 남는다」는 둘이 겹쳐야 읽힙니다.
+  huntmark: (g) => {
+    rLine(g, 0xe57373, 1.5);
+    g.strokeCircle(24, 24, 21);
+    g.strokeCircle(24, 24, 15);
+    // 눈금 넷 — 이것이 있어야 그냥 두른 테가 아니라 겨눈 자리로 읽힙니다.
+    g.lineBetween(24, 1, 24, 8);
+    g.lineBetween(24, 40, 24, 47);
+    g.lineBetween(1, 24, 8, 24);
+    g.lineBetween(40, 24, 47, 24);
+    const t = rTone(0xbcaaa4);
+    rFill(g, t.base);
+    // 발바닥.
+    g.fillEllipse(24, 28, 17, 12);
+    g.strokeEllipse(24, 28, 17, 12);
+    // 발가락 넷.
+    [[16, 19, 3.4], [21, 16, 3.8], [27, 16, 3.8], [32, 19, 3.4]].forEach(([x, y, r]) => {
+      g.fillCircle(x, y, r);
+      g.strokeCircle(x, y, r);
+    });
+    g.fillStyle(t.dark, 1);
+    g.fillEllipse(20, 31, 7, 5);
+  },
+
+  // 썩지 않는 것 — 오래되었는데 금 하나 안 간 뼈.
+  //
+  // 처음에는 해골로 그렸다가 걷어냈습니다. 도감에 이미 「처형인의 표식」
+  // 해골이 있어서 48px 에서 둘을 가를 수가 없었고, 무엇보다 해골은
+  // 「죽음」이지 「버팀」이 아닙니다. 금 없는 굵은 뼈 하나를 세우면
+  // 둘 다 풀립니다.
+  undying: (g) => {
+    const t = rTone(0xdcede9);
+    rFill(g, t.base);
+    g.fillRoundedRect(19, 12, 10, 25, 3);
+    g.strokeRoundedRect(19, 12, 10, 25, 3);
+    [[19, 10], [29, 10], [19, 39], [29, 39]].forEach(([x, y]) => {
+      g.fillCircle(x, y, 6.5);
+      g.strokeCircle(x, y, 6.5);
+    });
+    // 빛은 오른쪽에서 옵니다.
+    g.fillStyle(t.dark, 1);
+    g.fillRect(20, 13, 4, 23);
+    g.fillStyle(ICON.shine, 0.6);
+    g.fillEllipse(27, 22, 3, 12);
+    // 안 삭았다는 표 — 청록 빛이 양옆을 따라 섭니다.
+    rLine(g, 0x4db6ac, 1.6);
+    g.lineBetween(11, 17, 11, 31);
+    g.lineBetween(37, 17, 37, 31);
+    rFill(g, 0x4db6ac);
+    g.fillCircle(11, 24, 2.6);
+    g.fillCircle(37, 24, 2.6);
+  },
+
+  // 마르지 않는 샘물 — 돌테를 넘어 솟는 물. 방울이 위로 튑니다.
+  // 아래로 떨어뜨리면 「새는 것」이 되므로 방울은 반드시 올라가야 합니다.
+  spring: (g) => {
+    const t = rTone(0x4fc3f7);
+    // 솟는 물기둥.
+    rFill(g, t.lit);
+    // 아래로 벌어지면 갓으로 보입니다. 기둥은 거의 곧게 세우고 머리만
+    // 둥글게 말아야 「솟는다」가 읽힙니다.
+    iconPoly(g, [[21, 9], [27, 9], [29, 26], [19, 26]]);
+    g.fillCircle(24, 9, 3.6);
+    g.strokeCircle(24, 9, 3.6);
+    rFill(g, t.base);
+    g.fillEllipse(24, 27, 26, 9);
+    g.strokeEllipse(24, 27, 26, 9);
+    // 돌테.
+    rFill(g, 0x8d9aa8);
+    g.fillRoundedRect(9, 30, 30, 8, 3);
+    g.strokeRoundedRect(9, 30, 30, 8, 3);
+    g.fillStyle(0x6b7783, 1);
+    [13, 21, 29].forEach((x) => { g.fillRect(x, 31, 2, 6); });
+    // 튀어 오른 방울 셋.
+    rFill(g, t.lit);
+    [[13, 15, 3], [35, 13, 3.4], [24, 4, 2.6]].forEach(([x, y, r]) => {
+      g.fillCircle(x, y, r);
+      g.strokeCircle(x, y, r);
+    });
+    g.fillStyle(ICON.shine, 0.7);
+    g.fillEllipse(21, 16, 3, 7);
+  },
+
+  // 많이 질수록 — 짐이 그득한 배낭. 옆으로 오르는 갈매기 둘.
+  heavier: (g) => {
+    const t = rTone(0xd4e157);
+    rFill(g, t.base);
+    g.fillRoundedRect(11, 15, 26, 26, 5);
+    g.strokeRoundedRect(11, 15, 26, 26, 5);
+    g.fillStyle(t.dark, 1);
+    g.fillRect(12, 33, 24, 7);
+    // 덮개.
+    rFill(g, iconShade(0xd4e157, 0.78));
+    g.fillRoundedRect(9, 14, 30, 11, 4);
+    g.strokeRoundedRect(9, 14, 30, 11, 4);
+    // 잠금 끈.
+    rFill(g, ICON.grip);
+    g.fillRoundedRect(21, 22, 6, 8, 2);
+    // 그득해서 위로 삐져나온 것들.
+    rFill(g, 0x8d6e63);
+    g.fillRect(14, 5, 4, 10);
+    rFill(g, 0xb0bec5);
+    g.fillTriangle(30, 4, 27, 15, 34, 15);
+    // 무거울수록 세진다 — 오르는 표.
+    rLine(g, 0xf0f4c3, 1.6);
+    [30, 37].forEach((y) => {
+      g.beginPath();
+      g.moveTo(39, y); g.lineTo(43, y - 5); g.lineTo(47, y);
+      g.strokePath();
+    });
+  },
 };
 
-// 서른 장을 구워 `relic-<열쇠>` 로 등록합니다.
+// 서른다섯 장을 구워 `relic-<열쇠>` 로 등록합니다.
 // 이미 있는 키는 건너뜁니다 — 손으로 그린 그림이 먼저 실려 있으면 그쪽이
 // 이깁니다 (js/artset.js 와 같은 약속).
 function buildRelicIcons(scene) {

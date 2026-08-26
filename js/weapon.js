@@ -58,8 +58,8 @@ class Weapon {
 
   get plusValue() { return this.plus * (this.job.plusScale || 1); }
   get boost() { return 1 + this.plusValue * this.plusStep; }
-  get dmgMin() { return Math.max(1, Math.round(this.base.dmgMin * this.boost)); }
-  get dmgMax() { return Math.max(1, Math.round(this.base.dmgMax * this.boost)); }
+  get dmgMin() { return Math.max(1, Math.round(this.base.dmgMin * this.boost * this.heavier)); }
+  get dmgMax() { return Math.max(1, Math.round(this.base.dmgMax * this.boost * this.heavier)); }
   // 가운뎃값. 초당 피해처럼 "그래서 얼마냐"에 답할 때 씁니다.
   get dmg() { return Math.round((this.dmgMin + this.dmgMax) / 2); }
 
@@ -124,17 +124,33 @@ class Weapon {
   // 둘 중 하나라 더하지 않습니다.
 
   // 맞은 자리가 계속 탑니다. 한 대의 몇 할이 지속 피해로 얹히는가.
-  get burn() { return this.base.burn || 0; }
+  get burn() { return (this.base.burn || 0) * this.relicMul('springMul'); }
 
   // 뒤에 선 것까지 꿰뚫습니다. 이만큼 더 지나갑니다.
-  get pierce() { return (this.base.pierce || 0) + this.relicSum('pierceOil'); }
+  get pierce() {
+    return Math.round((this.base.pierce || 0) * this.relicMul('springMul'))
+      + this.relicSum('pierceOil');
+  }
 
   // 닿은 자리가 터집니다. 곁에 선 것도 함께 맞습니다.
   get aoe() { return this.base.aoe || 0; }
 
   // 몸을 감싸는 것이 함께 섭니다. 받는 피해를 이만큼 나눕니다
   // (1.3 이면 100 이 77 로 들어옵니다). 없으면 1 입니다.
-  get shield() { return this.base.shield || 1; }
+  // 「마르지 않는 샘물」이 지팡이에 걸린 것을 세게 합니다 (js/relics.js).
+  // 보호막만 따로 낮게 곱합니다 — 받는 피해를 **나누는** 값이라 같은 배수를
+  // 쓰면 수호의 지팡이가 1.3 → 1.95 가 되어 절반 아래로 떨어집니다.
+  get shield() {
+    const base = this.base.shield || 1;
+    if (base <= 1) return 1;
+    return 1 + (base - 1) * this.relicMul('springShieldMul');
+  }
+
+  // 「많이 질수록」 — 지닌 유물 하나당 공격력이 오릅니다 (자기도 셉니다).
+  get heavier() {
+    const step = this.relicSum('heavierStep');
+    return step > 0 ? 1 + this.relics.length * step : 1;
+  }
 
   // 도적의 절도. 유물이 있으면 확률과 액수가 함께 오릅니다.
   get stealChance() { return this.job.steal + this.relicSum('stealBonus'); }

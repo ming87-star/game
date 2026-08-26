@@ -368,23 +368,41 @@ const check = (ok, what, note) => {
   });
   check(침.깎임 > 0, '**부하가 실제로 칩니다**', 침.깎임 + ' 깎임 (' + 침.마리 + '마리)');
 
-  // 주인공이 맞으면 하나 스러집니다.
+  // 주인공이 맞으면 부하가 깎이고, 다 깎여야 스러집니다.
+  //
+  // 예전에는 **한 대에 하나씩 곧장 사라졌습니다.** 그러면 부하는 싸우다
+  // 죽는 것이 아니라 서 있다 사라지는 것이라, 체력을 올려 주는 유물(썩지
+  // 않는 것)이 붙을 자리 자체가 없었습니다.
   const 맞음 = await page.evaluate(() => {
     const s = window.__scene;
-    s.clearThralls();
-    for (let i = 0; i < 3; i++) {
+    const 세우기 = () => {
       const e = s.enemies.create(s.player.x + 60, s.player.y, 'e-crawler');
       e.body.setAllowGravity(false);
       e.hp = 1; e.maxHp = 10; e.floor = 1; e.coin = 0; e.def = { key: 'crawler' };
       s.hitEnemy(e, 999);
-    }
-    const 전 = s.thralls.length;
-    s.armor = 0; s.dodge = 0; s.hp = s.maxHp; s.lastHitAt = -99999;
-    s.hurt(10, null, false);
-    return { 전, 후: s.thralls.length };
+    };
+    const 한대 = () => {
+      s.armor = 0; s.dodge = 0; s.hp = s.maxHp; s.lastHitAt = -99999;
+      s.hurt(10, null, false);
+    };
+    s.clearThralls();
+    세우기();
+    const t = s.thralls[0];
+    const 처음 = t.hp;
+    한대();
+    const 한대뒤 = t.hp;
+    let 횟수 = 1;
+    while (s.thralls.length && 횟수 < 20) { 한대(); 횟수++; }
+    return { 처음, 한대뒤, 횟수, 남음: s.thralls.length,
+      share: CFG.thrall.hurtShare };
   });
-  check(맞음.후 === 맞음.전 - 1, '**주인공이 맞으면 하나 스러짐**',
-    맞음.전 + ' → ' + 맞음.후);
+  check(맞음.한대뒤 < 맞음.처음 && 맞음.한대뒤 > 0,
+    '**주인공이 맞으면 부하가 깎임** (한 대에 사라지지 않음)',
+    맞음.처음 + ' → ' + 맞음.한대뒤);
+  check(맞음.남음 === 0, '다 깎이면 스러짐', 맞음.횟수 + '대째');
+  check(맞음.횟수 === Math.ceil(1 / 맞음.share),
+    '버티는 대 수가 적힌 몫과 맞음',
+    맞음.횟수 + '대 (몫 ' + 맞음.share + ')');
 
   // 층을 옮기면 따라옵니다 — 두고 가지 않습니다.
   const 따라옴 = await page.evaluate(() => {
@@ -539,16 +557,27 @@ const check = (ok, what, note) => {
   const 숨 = await page.evaluate(async () => {
     const s = window.__scene;
     const 재기 = (o) => ({ sx: o.scaleX, sy: o.scaleY });
-    const 같나 = (a, b) => Math.abs(a.sx - b.sx) < 0.004 && Math.abs(a.sy - b.sy) < 0.004;
+
+    // **두 점만 재면 안 됩니다.** 숨은 오르내리는 것이라, 두 점이 마루를
+    // 사이에 두고 마주 앉으면 값이 같게 나옵니다 — 멀쩡히 숨 쉬는데 굳었다고
+    // 하는 시험이 됩니다(실제로 그렇게 한 번 틀렸습니다). 한 주기 넘게
+    // 여러 번 재서 **폭**을 봅니다.
+    const 폭재기 = async (뽑기) => {
+      let lo = 9, hi = -9;
+      for (let i = 0; i < 14; i++) {
+        const v = 재기(뽑기()).sy;
+        lo = Math.min(lo, v); hi = Math.max(hi, v);
+        await new Promise((r) => setTimeout(r, 110));
+      }
+      return hi - lo;
+    };
 
     // 곰
     window.__game.scene.start('game', { jobKey: 'hunter' });
     await new Promise((r) => setTimeout(r, 700));
     const s2 = window.__scene;
     s2.updateBear(s2.time.now, 16);
-    const 곰1 = 재기(s2.bear.sprite);
-    await new Promise((r) => setTimeout(r, 420));
-    const 곰2 = 재기(s2.bear.sprite);
+    const 곰폭 = await 폭재기(() => s2.bear.sprite);
 
     // 부하
     window.__game.scene.start('game', { jobKey: 'necro' });
@@ -558,14 +587,13 @@ const check = (ok, what, note) => {
     e.body.setAllowGravity(false);
     e.hp = 1; e.maxHp = 10; e.floor = 1; e.coin = 0; e.def = { key: 'crawler' };
     s3.hitEnemy(e, 999);
-    await new Promise((r) => setTimeout(r, 320));
-    const 부1 = 재기(s3.thralls[0].sprite);
-    await new Promise((r) => setTimeout(r, 380));
-    const 부2 = 재기(s3.thralls[0].sprite);
-    return { 곰움직임: !같나(곰1, 곰2), 부하움직임: !같나(부1, 부2) };
+    const 부폭 = await 폭재기(() => s3.thralls[0].sprite);
+    return { 곰폭: Number(곰폭.toFixed(4)), 부폭: Number(부폭.toFixed(4)) };
   });
-  check(숨.곰움직임, '**곰이 숨을 쉼** (적들처럼 눌렸다 늘어남)');
-  check(숨.부하움직임, '**부하가 숨을 쉼** (눌리는 대신 뜹니다 — 땅을 안 딛으니까)');
+  check(숨.곰폭 > 0.01, '**곰이 숨을 쉼** (적들처럼 눌렸다 늘어남)',
+    '폭 ' + 숨.곰폭);
+  check(숨.부폭 > 0.01, '**부하가 숨을 쉼** (눌리는 대신 뜹니다 — 땅을 안 딛으니까)',
+    '폭 ' + 숨.부폭);
 
   // ── 곰의 몸짓 시트를 받을 준비가 되어 있는가 ────────────
   // 곰은 **적이 아닙니다.** 판 내내 곁에서 보고 있는 것이라 눌렸다 늘어나는
@@ -632,7 +660,356 @@ const check = (ok, what, note) => {
   check(시트준비.서있을때 === (시트준비.걷기 || [])[0],
     '서 있으면 첫 컷에 멈춥니다 (제자리걸음 안 함)', '컷 ' + 시트준비.서있을때);
 
-  console.log(bad ? `\n${bad}건 어긋남` : '\n지팡이 넷 · 연타 · 부하 · 곰이 다 제 일을 합니다');
+  // ═══ 다섯의 전용 유물 ═══════════════════════════════════
+  //
+  // 위의 능력들과 **똑같은 부류**입니다 — js/relics.js 에 값이 적혀 있고, 그
+  // 값을 읽는 코드가 있어야 비로소 무슨 일이 일어납니다. 값만 적어 두면 유물
+  // 카드는 멀쩡히 뜨고 고를 수도 있는데 **아무 일도 안 일어납니다.**
+  //
+  // 실제로 그런 일이 하나 있었습니다. 「썩지 않는 것」이 부하의 체력을 두 배로
+  // 올리는데, 부하가 맞는 대도 제 체력에 비례하고 있어서 **버티는 횟수가
+  // 그대로**였습니다. 값도 맞고 코드도 돌고 오류도 안 나는데 유물이 없는 것과
+  // 같았습니다. 그래서 여기서도 「값이 붙었는가」가 아니라 **「그래서 무엇이
+  // 달라지는가」**를 잽니다.
+
+  // ── 누구에게 나오는가 ───────────────────────────────────
+  // 다섯은 다 전용입니다. 남의 것이 섞이면 유물 셋을 펼치는 자리가 고를 수
+  // 없는 카드로 채워집니다.
+  const 전용 = { monk: 'backhand', hunter: 'huntmark', necro: 'undying',
+    wizard: 'spring', digger: 'heavier' };
+  const 배정 = await page.evaluate((표) => {
+    const 다섯 = Object.values(표);
+    const out = {};
+    CLASSES.forEach((c) => {
+      out[c.key] = relicsFor(c.key).map((r) => r.key).filter((k) => 다섯.includes(k));
+    });
+    return out;
+  }, 전용);
+  Object.entries(전용).forEach(([job, key]) => {
+    check(배정[job].length === 1 && 배정[job][0] === key,
+      '전용 유물이 제 직업에게만 나옴 — ' + job,
+      배정[job].join(', ') || '없음');
+  });
+  const 남들 = ['warrior', 'archer', 'rogue'];
+  check(남들.every((k) => (배정[k] || []).length === 0),
+    '나머지 셋에게는 다섯 중 아무것도 안 나옴',
+    남들.map((k) => k + ':' + ((배정[k] || []).join('/') || '없음')).join(' · '));
+
+  // ── 뒷손 (권법사) ───────────────────────────────────────
+  // 사거리 안 하나만 치던 것이, 열 번째에는 **사거리 두 배 안 모두**에게.
+  await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'monk' }));
+  await page.waitForFunction(() => window.__scene && window.__scene.player
+    && window.__scene.job.key === 'monk', null, { timeout: 8000 });
+
+  const 뒷손 = await page.evaluate(() => {
+    const s = window.__scene;
+    // 셋을 세웁니다 — 사거리 안 · 사거리 밖 두 배 안 · 두 배 밖.
+    const 한판 = (유물, 쌓임) => {
+      s.weapon = new Weapon(s.job, 0);
+      if (유물) s.weapon.takeRelic(relicByKey('backhand'));
+      const w = s.weapon;
+      w.hits = () => true;
+      w.rollDamage = () => 1000;
+      s.enemies.getChildren().slice().forEach((e) => e.destroy());
+      const 세우기 = (dx) => {
+        const e = s.enemies.create(s.player.x + dx, s.player.y, 'e-crawler');
+        e.body.setAllowGravity(false);
+        e.hp = 1e9; e.maxHp = 1e9; e.floor = 1; e.coin = 0; e.def = { key: 'crawler' };
+        return e;
+      };
+      const 안 = 세우기(w.reach * 0.5);
+      const 곁 = 세우기(w.reach * 1.5);
+      const 밖 = 세우기(w.reach * 2.6);
+      s.combo = 쌓임;
+      s.lastSwingAt = -99999;
+      s.swing(s.time.now);
+      const r = { 안: 1e9 - 안.hp, 곁: 1e9 - 곁.hp, 밖: 1e9 - 밖.hp };
+      [안, 곁, 밖].forEach((e) => e.destroy());
+      return r;
+    };
+    const every = CFG.combo.every;
+    return {
+      열번째: 한판(true, every - 1),
+      그냥한대: 한판(true, 0),
+      유물없이: 한판(false, every - 1),
+      share: CFG.combo.backhandShare,
+    };
+  });
+  check(뒷손.유물없이.곁 === 0, '유물이 없으면 사거리 밖은 안 맞음 (열 번째라도)',
+    뒷손.유물없이.곁 + ' 들어감');
+  check(뒷손.그냥한대.곁 === 0, '유물이 있어도 **여느 대에는** 사거리 밖이 무사함',
+    뒷손.그냥한대.곁 + ' 들어감');
+  check(뒷손.열번째.곁 > 0, '**열 번째 한 대가 사거리 밖 곁의 놈에게도 들어감**',
+    뒷손.열번째.곁 + ' 들어감');
+  check(뒷손.열번째.밖 === 0, '사거리 두 배 밖은 안 맞음', 뒷손.열번째.밖 + ' 들어감');
+  check(뒷손.열번째.안 > 0 && 뒷손.열번째.곁 < 뒷손.열번째.안,
+    '곁에 튄 것은 제 대보다 작음 (몫 ' + 뒷손.share + ')',
+    뒷손.열번째.안 + ' vs ' + 뒷손.열번째.곁);
+
+  // ── 사냥꾼의 표식 (곰사냥꾼) ────────────────────────────
+  await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'hunter' }));
+  await page.waitForFunction(() => window.__scene && window.__scene.player
+    && window.__scene.job.key === 'hunter', null, { timeout: 8000 });
+  await page.waitForTimeout(300);
+
+  // (1) 곰이 물면 표가 남는가.
+  const 표남음 = await page.evaluate(() => {
+    const s = window.__scene;
+    const 물리기 = (유물) => {
+      s.weapon = new Weapon(s.job, 0);
+      if (유물) s.weapon.takeRelic(relicByKey('huntmark'));
+      s.enemies.getChildren().slice().forEach((e) => e.destroy());
+      const e = s.enemies.create(s.player.x + 30, s.player.y - 20, 'e-crawler');
+      e.body.setAllowGravity(false);
+      e.hp = 1e9; e.maxHp = 1e9; e.floor = s.floorIndex; e.coin = 0; e.def = { key: 'crawler' };
+      s.clearBear();
+      s.updateBear(s.time.now, 16);
+      s.bear.sprite.setPosition(e.x, e.y);
+      s.bear.nextHitAt = 0;
+      s.updateBear(s.time.now, 16);
+      const 표 = e.hunted || 0;
+      e.destroy();
+      return 표 - s.time.now;
+    };
+    return { 유물: 물리기(true), 없이: 물리기(false), markMs: CFG.bear.markMs };
+  });
+  check(표남음.유물 > 0, '**곰이 물면 그 놈에게 표가 남음**',
+    Math.round(표남음.유물) + 'ms 남음 (' + 표남음.markMs + ')');
+  check(표남음.없이 <= 0, '유물이 없으면 표가 안 남음');
+
+  // (2) 표가 있는 놈을 **먼저 겨누는가.** 이것이 없으면 유물이 우연에 기댑니다.
+  const 먼저겨눔 = await page.evaluate(() => {
+    const s = window.__scene;
+    const 재기 = (표찍기) => {
+      s.weapon = new Weapon(s.job, 0);
+      s.weapon.takeRelic(relicByKey('huntmark'));
+      s.enemies.getChildren().slice().forEach((e) => e.destroy());
+      const 세우기 = (dx) => {
+        const e = s.enemies.create(s.player.x + dx, s.player.y - 4, 'e-crawler');
+        e.body.setAllowGravity(false);
+        e.hp = 1e9; e.maxHp = 1e9; e.floor = s.floorIndex; e.coin = 0; e.def = { key: 'crawler' };
+        return e;
+      };
+      const 가까운 = 세우기(50);
+      const 먼놈 = 세우기(200);
+      if (표찍기) 먼놈.hunted = s.time.now + CFG.bear.markMs;
+      s.subTarget = null;
+      s.lastSubAt = -99999;
+      const 쏨 = s.fireArrow;
+      s.fireArrow = () => {};
+      s.shoot(s.time.now);
+      s.fireArrow = 쏨;
+      const 고른것 = s.subTarget === 먼놈 ? '먼놈' : (s.subTarget === 가까운 ? '가까운' : '없음');
+      [가까운, 먼놈].forEach((e) => e.destroy());
+      s.subTarget = null;
+      return 고른것;
+    };
+    return { 표있을때: 재기(true), 표없을때: 재기(false) };
+  });
+  check(먼저겨눔.표없을때 === '가까운', '표가 없으면 늘 하던 대로 가까운 것부터',
+    먼저겨눔.표없을때);
+  check(먼저겨눔.표있을때 === '먼놈', '**표가 있으면 멀어도 그 놈을 먼저 겨눔**',
+    먼저겨눔.표있을때);
+
+  // (3) 실제로 더 아프게 들어가는가. 화살에 실린 값을 받아 적습니다 —
+  //     날아가 맞는 것까지 기다리면 물리에 기대게 되어 시험이 흔들립니다.
+  //     활은 당겼다 놓느라 화살이 늦게 나가는데(after), 그 사이에 판이
+  //     저 혼자 쏜 화살이 섞여 들어옵니다. 재는 동안만 늦춤을 걷습니다.
+  const 표몫 = await page.evaluate(() => {
+    const s = window.__scene;
+    const 늦춤 = s.after;
+    s.after = (ms, fn) => fn();
+    const 재기 = (표찍기, 유물) => {
+      s.weapon = new Weapon(s.job, 0);
+      if (유물) s.weapon.takeRelic(relicByKey('huntmark'));
+      const w = s.weapon;
+      w.hits = () => true;
+      w.rollDamage = () => 1000;
+      s.enemies.getChildren().slice().forEach((e) => e.destroy());
+      const e = s.enemies.create(s.player.x + 80, s.player.y - 4, 'e-crawler');
+      e.body.setAllowGravity(false);
+      e.hp = 1e9; e.maxHp = 1e9; e.floor = s.floorIndex; e.coin = 0; e.def = { key: 'crawler' };
+      if (표찍기) e.hunted = s.time.now + CFG.bear.markMs;
+      const 적힘 = [];
+      const 쏨 = s.fireArrow;
+      s.fireArrow = (x, y, at, dmg) => { 적힘.push(dmg); };
+      s.subTarget = null;
+      s.lastSubAt = -99999;
+      s.shoot(s.time.now);
+      s.fireArrow = 쏨;
+      e.destroy();
+      s.subTarget = null;
+      return 적힘[0] || 0;
+    };
+    const out = {
+      표: 재기(true, true),
+      맨: 재기(false, true),
+      유물없이표: 재기(true, false),
+      배수: relicByKey('huntmark').huntMarkMul,
+    };
+    s.after = 늦춤;
+    return out;
+  });
+  check(표몫.맨 > 0, '표가 없는 놈에게도 화살은 나감', 표몫.맨);
+  check(표몫.표 > 표몫.맨, '**표가 있는 놈에게 더 크게 들어감**',
+    표몫.맨 + ' → ' + 표몫.표);
+  check(Math.abs(표몫.표 / 표몫.맨 - 표몫.배수) < 0.02,
+    '더 아픈 만큼이 적힌 값과 맞음',
+    (표몫.표 / 표몫.맨).toFixed(2) + ' ≈ ' + 표몫.배수);
+  check(표몫.유물없이표 === 표몫.맨,
+    '유물이 없으면 표가 있어도 그대로 (표는 유물이 만드는 것)', 표몫.유물없이표);
+
+  // ── 썩지 않는 것 (사령술사) ─────────────────────────────
+  await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'necro' }));
+  await page.waitForFunction(() => window.__scene && window.__scene.player
+    && window.__scene.job.key === 'necro', null, { timeout: 8000 });
+
+  const 썩지않음 = await page.evaluate(() => {
+    const s = window.__scene;
+    const 재기 = (유물) => {
+      s.weapon = new Weapon(s.job, 0);
+      if (유물) s.weapon.takeRelic(relicByKey('undying'));
+      s.clearThralls();
+      s.enemies.getChildren().slice().forEach((e) => e.destroy());
+      const e = s.enemies.create(s.player.x + 60, s.player.y, 'e-crawler');
+      e.body.setAllowGravity(false);
+      e.hp = 1; e.maxHp = 10; e.floor = 1; e.coin = 0; e.def = { key: 'crawler' };
+      s.hitEnemy(e, 999);
+      const t = s.thralls[0];
+      const 체력 = t.maxHp;
+      // **몇 대를 버티는가.** 체력만 올리고 맞는 대도 같이 오르면
+      // 유물이 아무 일도 안 한 것입니다 — 여기가 그것을 잡습니다.
+      let 대 = 0;
+      while (s.thralls.length && 대 < 40) {
+        s.armor = 0; s.dodge = 0; s.hp = s.maxHp; s.lastHitAt = -99999;
+        s.hurt(10, null, false);
+        대++;
+      }
+      return { 체력, 대 };
+    };
+    return { 없이: 재기(false), 유물: 재기(true),
+      배수: relicByKey('undying').thrallHpMul };
+  });
+  check(썩지않음.유물.체력 === 썩지않음.없이.체력 * 썩지않음.배수,
+    '유물을 들면 부하의 체력이 적힌 배수만큼',
+    썩지않음.없이.체력 + ' → ' + 썩지않음.유물.체력);
+  check(썩지않음.유물.대 > 썩지않음.없이.대,
+    '**그래서 실제로 더 오래 버팀** (체력만 오르고 끝나지 않음)',
+    썩지않음.없이.대 + '대 → ' + 썩지않음.유물.대 + '대');
+  check(썩지않음.유물.대 === 썩지않음.없이.대 * 썩지않음.배수,
+    '버티는 대 수가 배수만큼 늘어남',
+    썩지않음.없이.대 + ' × ' + 썩지않음.배수 + ' = ' + 썩지않음.유물.대);
+
+  // ── 마르지 않는 샘물 (마법사) ───────────────────────────
+  await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'wizard' }));
+  await page.waitForFunction(() => window.__scene && window.__scene.player
+    && window.__scene.job.key === 'wizard', null, { timeout: 8000 });
+
+  const 샘물 = await page.evaluate(() => {
+    const s = window.__scene;
+    const pool = buildWeaponPool(s.job);
+    const 쥐기 = (이름, 유물) => {
+      s.weapon = new Weapon(s.job, pool.findIndex((w) => w.name.includes(이름)));
+      if (유물) s.weapon.takeRelic(relicByKey('spring'));
+      return s.weapon;
+    };
+    // 적힌 값
+    const 불1 = 쥐기('불의 지팡이', false).burn;
+    const 불2 = 쥐기('불의 지팡이', true).burn;
+    const 관1 = 쥐기('꿰뚫는 지팡이', false).pierce;
+    const 관2 = 쥐기('꿰뚫는 지팡이', true).pierce;
+    const 막1 = 쥐기('수호의 지팡이', false).shield;
+    const 막2 = 쥐기('수호의 지팡이', true).shield;
+
+    // 실제로 더 타는가
+    const 태우기 = (유물) => {
+      쥐기('불의 지팡이', 유물);
+      s.enemies.getChildren().slice().forEach((e) => e.destroy());
+      const e = s.enemies.create(s.player.x + 40, s.player.y, 'e-crawler');
+      e.body.setAllowGravity(false);
+      e.hp = 1e9; e.maxHp = 1e9; e.floor = 1; e.coin = 0; e.def = { key: 'crawler' };
+      s.applyOil(e);
+      const r = e.burnDmg;
+      e.destroy();
+      return r;
+    };
+    // 실제로 덜 아픈가
+    const 맞기 = (유물) => {
+      쥐기('수호의 지팡이', 유물);
+      s.armor = 0; s.dodge = 0; s.hp = s.maxHp; s.lastHitAt = -99999;
+      s.hurt(100, null, false);
+      return s.maxHp - s.hp;
+    };
+    return {
+      불1, 불2, 관1, 관2, 막1: Number(막1.toFixed(4)), 막2: Number(막2.toFixed(4)),
+      탐1: 태우기(false), 탐2: 태우기(true),
+      아픔1: 맞기(false), 아픔2: 맞기(true),
+      mul: relicByKey('spring').springMul, smul: relicByKey('spring').springShieldMul,
+    };
+  });
+  check(Math.abs(샘물.불2 / 샘물.불1 - 샘물.mul) < 1e-6,
+    '화상이 적힌 배수만큼 세짐', 샘물.불1 + ' → ' + 샘물.불2);
+  check(샘물.탐2 > 샘물.탐1, '**한 틱에 실제로 더 탐**', 샘물.탐1 + ' → ' + 샘물.탐2);
+  check(샘물.관2 > 샘물.관1, '관통이 세짐 (더 많이 뚫음)', 샘물.관1 + ' → ' + 샘물.관2);
+  check(Math.abs(샘물.막2 - (1 + (샘물.막1 - 1) * 샘물.smul)) < 1e-6,
+    '보호막은 **1 위의 몫에만** 배수가 붙음 (통째로 곱하면 절반 아래로 떨어집니다)',
+    '×' + 샘물.막1 + ' → ×' + 샘물.막2);
+  check(샘물.아픔2 < 샘물.아픔1, '**같은 대를 맞아도 더 덜 아픔**',
+    샘물.아픔1 + ' → ' + 샘물.아픔2);
+
+  // ── 많이 질수록 (도굴꾼) ────────────────────────────────
+  await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'digger' }));
+  await page.waitForFunction(() => window.__scene && window.__scene.player
+    && window.__scene.job.key === 'digger', null, { timeout: 8000 });
+
+  const 많이 = await page.evaluate(() => {
+    const s = window.__scene;
+    const 채우기 = (n) => {
+      s.weapon = new Weapon(s.job, 0);
+      if (n > 0) s.weapon.takeRelic(relicByKey('heavier'));
+      // 나머지는 아무 유물이나 — 세는 것은 **수**입니다.
+      const 남 = relicsFor('digger').filter((r) => r.key !== 'heavier');
+      for (let i = 0; i < n - 1; i++) s.weapon.takeRelic(남[i]);
+      return { 칸: s.weapon.relics.length, 최소: s.weapon.dmgMin, 최대: s.weapon.dmgMax };
+    };
+    const 굴리기 = () => {
+      let 합 = 0;
+      for (let i = 0; i < 600; i++) 합 += s.weapon.rollDamage();
+      return 합 / 600;
+    };
+    const 맨몸 = 채우기(0);
+    const 맨몸굴림 = 굴리기();
+    const 하나 = 채우기(1);
+    const 하나굴림 = 굴리기();
+    const 다섯 = 채우기(5);
+    const 다섯굴림 = 굴리기();
+    // 유물은 있는데 이 유물만 없는 판 — 수만 세고 끝나면 안 됩니다.
+    s.weapon = new Weapon(s.job, 0);
+    relicsFor('digger').filter((r) => r.key !== 'heavier').slice(0, 4)
+      .forEach((r) => s.weapon.takeRelic(r));
+    const 남들만 = { 칸: s.weapon.relics.length, 최대: s.weapon.dmgMax };
+    return { 맨몸, 하나, 다섯, 남들만, step: relicByKey('heavier').heavierStep,
+      relicMax: s.job.relicMax,
+      굴림: { 맨몸: 맨몸굴림, 하나: 하나굴림, 다섯: 다섯굴림 } };
+  });
+  check(많이.하나.최대 > 많이.맨몸.최대,
+    '**자기도 셉니다** — 하나만 들어도 세짐',
+    많이.맨몸.최대 + ' → ' + 많이.하나.최대 + ' (칸 ' + 많이.하나.칸 + ')');
+  check(많이.다섯.칸 === 5 && 많이.다섯.최대 > 많이.하나.최대,
+    '칸을 채울수록 더 세짐', 많이.하나.최대 + ' → ' + 많이.다섯.최대);
+  check(Math.abs(많이.다섯.최대 / 많이.맨몸.최대 - (1 + 5 * 많이.step)) < 0.02,
+    '세지는 만큼이 적힌 값과 맞음',
+    (많이.다섯.최대 / 많이.맨몸.최대).toFixed(3) + ' ≈ ' + (1 + 5 * 많이.step).toFixed(2));
+  check(많이.남들만.최대 === 많이.맨몸.최대,
+    '이 유물이 없으면 칸을 채워도 그대로 (칸이 아니라 유물이 세는 것)',
+    '칸 ' + 많이.남들만.칸 + ' · ' + 많이.남들만.최대);
+  check(많이.굴림.다섯 > 많이.굴림.맨몸 * 1.15,
+    '**굴려 본 대가 실제로 더 아픔**',
+    많이.굴림.맨몸.toFixed(1) + ' → ' + 많이.굴림.다섯.toFixed(1));
+  check(많이.relicMax === 5, '도굴꾼의 칸이 다섯 (다섯째까지 셀 수 있음)',
+    많이.relicMax + '칸');
+
+  console.log(bad ? `\n${bad}건 어긋남` : '\n지팡이 넷 · 연타 · 부하 · 곰 · 전용 유물 다섯이 다 제 일을 합니다');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
   await browser.close();
   server.close();
