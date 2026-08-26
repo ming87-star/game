@@ -160,9 +160,16 @@ const SWINGS = {
   fist: 'a bare-handed combination: coil back with the hips, drive one straight punch out to full '
       + 'extension, snap it back, then throw the other fist across, finishing in a low ready guard '
       + '— hands stay empty and open or fisted throughout',
-  staff: 'a staff cast: plant the staff, draw it back and up as power gathers at its tip, then '
-       + 'swing the tip forward and down to point at the target as the spell releases, and settle '
-       + 'back upright — the staff is cast with, never thrust like a spear',
+  // 지팡이는 **긋지 않습니다.** 처음에 "휘두른다"고 적었더니 모델이 칼처럼
+  // 크게 그어서 꼬리를 길게 달았고, 그 꼬리가 칸을 넘어 잘렸습니다 — 세 판을
+  // 다시 뽑아도 그대로였습니다. 문구를 세게 하는 것으로는 안 잡힙니다.
+  // **그을 일을 아예 없앴습니다** — 겨누고 터뜨리는 동작이라 꼬리가 안 생깁니다.
+  staff: 'a staff cast: plant the staff, raise it as light gathers into a tight ball at its tip, '
+       + 'then level the tip at the target and release, and settle back upright. '
+       + 'The staff barely travels — it is aimed and fired, not swung. '
+       + 'DO NOT draw any sweeping arc, swoosh, crescent, ribbon, comet tail or motion trail: '
+       + 'the magic is a COMPACT BURST held close around the tip of the staff, no wider than the '
+       + 'character\'s head, and it must never streak across the frame',
   pick: 'an overhead pickaxe swing: haul the pick up and back over one shoulder, rise onto the '
       + 'toes, then bring it down hard in a full arc, burying the point low, and recover',
 };
@@ -207,6 +214,35 @@ const BG = [
   'No text, no watermark, no signature, no border, no frame.',
 ].join(' ');
 
+// 지팡이·창·곡괭이는 사람보다 깁니다. 사람을 칸에 맞춰 그리면 무기가 칸을
+// 넘고, 그러면 **끝이 잘린 채로 구워집니다** — 사령술사 첫 판이 여덟 컷 중
+// 여섯에서 칸에 닿아 있었습니다(여백 0px). 오류는 안 납니다. 지팡이 끝이
+// 없어질 뿐입니다.
+//
+// 그래서 긴 무기에는 "사람을 더 작게 그려서라도 무기를 다 넣어라"를 붙입니다.
+// 사람 크기는 굽는 자리에서 다시 맞추므로(bake-sheets.js 가 여덟 컷을 합쳐
+// 한 배율로 잽니다) 작게 그려도 화면에서는 같은 키로 섭니다.
+const LONG = new Set(['staff', 'spear', 'pick', 'bow']);
+const LONG_RULE = [
+  'THIS WEAPON IS LONGER THAN THE CHARACTER IS TALL, and in some frames it is raised or swung',
+  'diagonally, which makes it reach much further than the body does.',
+  'EVERYTHING YOU DRAW MUST FIT INSIDE ITS OWN CELL — the figure, the whole weapon from the butt',
+  'of the shaft to the very tip, AND every effect: flames, glows, energy trails, smear arcs,',
+  'sparks, projectiles and magic. Leave a clear band of empty magenta, at least a tenth of the',
+  'cell wide, between the outermost thing you draw and every edge of that cell.',
+  'Nothing may touch a cell edge and nothing may cross into a neighbouring frame. A trail that',
+  'runs off the edge comes back as a hard straight cut across the picture, and a piece that',
+  'crosses over lands as a floating scrap in the next frame.',
+  'If it does not all fit: FIRST make the effects smaller and shorter — an arc that sweeps a',
+  'quarter circle reads just as fast as one that sweeps a half circle — and if it still does not',
+  'fit, DRAW THE WHOLE CHARACTER SMALLER until everything fits with room to spare.',
+  'A smaller figure with a whole weapon is right; a big figure with a cut-off tip is wrong.',
+  'Keep the character the same size in all eight frames.',
+  'CONCRETELY: draw the standing figure at only about HALF the height of its cell, not two',
+  'thirds — that spare room is what the raised staff and the trailing effects need. The',
+  'character will be scaled back up afterwards, so a small figure here costs nothing.',
+].join(' ');
+
 function promptFor(job, weapon) {
   const hero = HEROES[job];
   const swing = SWINGS[weapon.kind] || SWINGS.sword;
@@ -222,6 +258,7 @@ function promptFor(job, weapon) {
     'CRITICAL: it is the exact same character and the exact same weapon in all frames — identical '
       + 'armour, identical colours, identical proportions, identical size. Only the pose changes.',
     PROPORTION, GRID, STYLE, BG,
+    ...(LONG.has(weapon.kind) ? [LONG_RULE] : []),
     // 배경 규칙을 맨 끝에 한 번 더 둡니다. 지시문이 길어지면 앞쪽이 묻혀서
     // 흰 칸 위에 그려 오는 일이 생깁니다.
     'FINAL REMINDER: the entire background, in every cell and between all cells, is flat pure '
@@ -361,7 +398,13 @@ async function generate(job, weapon) {
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY },
       body: JSON.stringify({
         contents: [{ parts }],
-        generationConfig: { imageConfig: { aspectRatio: '16:9' } },
+        // 긴 무기는 **더 넓은 종이**를 받습니다. 지팡이는 쏘는 순간 가로로
+        // 뻗는데 16:9 로 받으면 칸이 344×384 라 세로로 길어서, 가로로 뻗는
+        // 것이 갈 데가 없습니다. 21:9 면 칸이 392×336 이 되어 가로가 48px
+        // 넓어집니다. 문구로 네 판을 다시 뽑아도 안 잡히던 것이라, 종이를
+        // 바꾸는 쪽이 맞습니다.
+        generationConfig: { imageConfig: {
+          aspectRatio: LONG.has(weapon.kind) ? '21:9' : '16:9' } },
       }) });
   const text = await res.text();
   if (!res.ok) throw new Error('HTTP ' + res.status + ' · ' + text.slice(0, 200));
@@ -517,7 +560,29 @@ async function slice(oven, png, job) {
       oc.drawImage(c, b.sx + ux0, b.sy + uy0, uw, uh, offX, offY, dw, dh);
       return { url: o.toDataURL('image/png') };
     });
-    return { frames, union: { w: uw, h: uh }, cell: { w: Math.round(cw), h: Math.round(ch) } };
+    // 칸 가장자리에 그림이 닿았으면 **잘린 것**입니다. 여기서 안 세면 조용히
+    // 끝이 날아간 시트가 구워집니다 — 오류도 안 나고 화면도 그럴듯합니다.
+    // **칸 경계선 위에 그림이 몇 픽셀이나 얹혔는지** 셉니다.
+    //
+    // 처음에는 "경계까지의 여백"으로 쟀는데 너무 시끄러웠습니다 — 지팡이 끝이
+    // 경계에 닿기만 해도 걸리는데, 닿는 것과 **잘리는 것**은 다릅니다. 끝이
+    // 딱 맞게 닿은 것은 멀쩡하고, 잘린 것은 경계선을 따라 **길게** 얹힙니다
+    // (불꼬리가 칸을 넘으면 곧은 자국이 그어집니다).
+    // 그래서 경계선에 얹힌 길이를 세고, 길면 그때 알립니다.
+    const edge = [];
+    for (let r = 0; r < a.rows; r++) for (let q = 0; q < a.cols; q++) {
+      const sx = Math.round(q * cw), sy = Math.round(r * ch);
+      const ex = Math.round((q + 1) * cw) - 1, ey = Math.round((r + 1) * ch) - 1;
+      let n = 0;
+      const on = (X, Y) => { if (p[(Y * c.width + X) * 4 + 3] > 24) n++; };
+      for (let Y = sy; Y <= ey; Y++) { on(sx, Y); on(ex, Y); }
+      for (let X = sx; X <= ex; X++) { on(X, sy); on(X, ey); }
+      edge.push(n);
+    }
+    return { frames, edge, union: { w: uw, h: uh },
+             cell: { w: Math.round(cw), h: Math.round(ch) } };
+    return { frames, tight, union: { w: uw, h: uh },
+             cell: { w: Math.round(cw), h: Math.round(ch) } };
   }, { b64: png.toString('base64'), cols: COLS, rows: ROWS, tol: TOL, feather: FEATHER,
        w: hero.w, h: hero.h, bake: BAKE });
 }
@@ -643,8 +708,14 @@ function planFor(args) {
         fs.writeFileSync(path.join(dir, `${i}.png`),
           Buffer.from(f.url.slice(f.url.indexOf(',') + 1), 'base64'));
       });
-      console.log(`칸 ${cut.cell.w}×${cut.cell.h} · 합친 경계 ${cut.union.w}×${cut.union.h}` +
-                  (empty ? `  ← 빈 칸 ${empty}개` : ''));
+      // 경계선에 길게 얹힌 컷을 **소리 내어** 알립니다. 잘린 채로도 게임은
+      // 멀쩡히 돌아갑니다 — 불꼬리가 곧게 잘린 자국이 남을 뿐입니다.
+      const CUT = 12;   // 이보다 길게 얹히면 스쳐 지난 것이 아니라 잘린 것입니다
+      const cutAt = (cut.edge || [])
+        .map((n, i) => (n >= CUT ? `${i}(${n}px)` : null)).filter(Boolean);
+      console.log(`칸 ${cut.cell.w}×${cut.cell.h} · 합친 경계 ${cut.union.w}×${cut.union.h}`
+        + (empty ? `  ← 빈 칸 ${empty}개` : '')
+        + (cutAt.length ? `  ← 칸을 넘어 잘림: 컷 ${cutAt.join(' ')}` : ''));
     } catch (e) {
       console.log('실패 — ' + e.message);
     }
