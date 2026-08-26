@@ -104,6 +104,65 @@ const HEROES = {
   },
 };
 
+// ── 사람이 아닌 것 (ART.md 2.6절) ─────────────────────────
+// 곰사냥꾼의 곰은 적이 아닙니다. 적은 두세 대 치고 지나가는 것이지만 곰은
+// **판 내내 곁에서 보고 있는 것**이라, 굳어 있으면 그 한 판이 통째로
+// 어색해집니다. 그래서 주인공은 아니어도 시트를 받습니다.
+//
+// 주인공 시트와 다른 것 둘.
+//   · 무기가 없으므로 **한 장뿐**입니다 (주인공은 자루마다 한 장이라 열둘)
+//   · 공격 여덟 컷이 아니라 **걷기 넷 + 무는 것 넷**입니다. 곰은 늘 움직이고
+//     있으므로 걷기가 없으면 미끄러지듯 흘러갑니다
+//
+// 굽는 쪽은 손댈 것이 없습니다 — bake-sheets.js 는 assets/sheets/ 아래
+// **폴더 이름만 보고** 훑고, js/motion.js 의 bearSheet 가 'sheet-ally-bear'
+// 를 이미 기다리고 있습니다 (앞 반을 걷기, 뒤 반을 무는 것으로 씁니다).
+const CRITTERS = {
+  'ally-bear': {
+    w: 48, h: 38,
+    ref: 'ally-bear.png',
+    who: 'a big shaggy brown BEAR walking on all four legs, seen from the side, head low and '
+       + 'shoulders humped. It is a companion that fights on the player\'s side, so it must read '
+       + 'as an ANIMAL and never as a monster: kind round eyes, no bared fangs, no snarl, no '
+       + 'spikes, no horns, no armour, no glowing parts. It wears a wide PALE BAND around its '
+       + 'neck. Warm brown fur #8D6E63 with a lighter muzzle, pale grey-brown band #BCAAA4. '
+       + 'Nothing on it is red.',
+    // 첫 판은 여덟 컷이 거의 같은 곰이었습니다. "걷기"·"무는 것"이라고만
+    // 적으면 모델이 서 있는 곰을 여덟 번 그립니다 — 자세가 안 벌어지면
+    // 이어 붙여도 안 움직입니다. **컷마다 무엇이 달라야 하는지를 적습니다.**
+    cycle: 'The EIGHT frames are TWO separate short loops, not one long action. '
+         + 'THE POSES MUST DIFFER STRONGLY FROM FRAME TO FRAME — push each one to an extreme. '
+         + 'If two frames look nearly the same, the animation does not move at all.\n\n'
+         + 'FRAMES 1-4 (top row) — a WALK CYCLE that loops seamlessly back into frame 1:\n'
+         + 'frame 1: front-left and rear-right legs stretched far apart, body at its LOWEST, head down.\n'
+         + 'frame 2: legs gathered under the body and passing each other, body at its HIGHEST, head up.\n'
+         + 'frame 3: the opposite legs stretched far apart, body at its LOWEST again, head down.\n'
+         + 'frame 4: legs gathered and passing again, body at its HIGHEST, head up.\n'
+         + 'The stride must be wide and obvious. The bear stays in the same spot in its cell.\n\n'
+         + 'FRAMES 5-8 (bottom row) — ONE BIG BITE, and it must look violent and committed:\n'
+         + 'frame 5: WIND UP — the whole head and chest rear back and UP, weight shifted onto the '
+         + 'hind legs, front paws lifting off the ground, jaws starting to part.\n'
+         + 'frame 6: JAWS WIDE OPEN at the top of the rear-back, mouth gaping as far as it will go, '
+         + 'teeth and tongue showing, head high and pulled back — this is the biggest pose in the sheet.\n'
+         + 'frame 7: THE SNAP — the whole body lunges FORWARD and DOWN, head thrust far out in front '
+         + 'past the front paws, jaws clamping shut, shoulders driving over the front legs.\n'
+         + 'frame 8: settle back down onto all four legs into the same standing pose frame 1 begins '
+         + 'from, so it can return to walking.',
+  },
+};
+
+function sizeOf(key) { return HEROES[key] || CRITTERS[key]; }
+
+const CRITTER_REF = [
+  'The attached image is THIS EXACT CREATURE, already drawn — the same one that walks on the',
+  'platforms in this game. Copy it: the same body shape and proportions, the same fur colour and',
+  'shading, the same face and eyes, the same neck band, the same outline weight and art style.',
+  'A player watches this animal walk beside them for a whole run, so it must be the same animal',
+  'they already know, not a different bear.',
+  'Take only the creature from it — you are drawing eight animation frames on a magenta grid,',
+  'not one posed picture.',
+].join(' ');
+
 // 고르는 화면에서 본 사람과 판 위의 사람이 같아야 합니다 (ART.md 2.6절).
 // 0단계 시트를 그릴 때만 붙입니다 — 1단계부터는 baseFor 가 그 직업의 0단계
 // 시트를 물리므로, 초상화까지 겹쳐 붙이면 참조가 셋이 되어 서로 다툽니다.
@@ -243,7 +302,25 @@ const LONG_RULE = [
   'character will be scaled back up afterwards, so a small figure here costs nothing.',
 ].join(' ');
 
+// 짐승에는 무기도 등신도 없습니다. PROPORTION(4등신 사람)을 붙이면 곰이
+// 두 발로 서고, SWINGS 를 붙이면 앞발로 칼을 휘두릅니다 — 실제로 사람 규격을
+// 그대로 물렸다가 그 꼴을 볼 뻔했습니다. 틀을 아예 따로 씁니다.
+function critterPrompt(key) {
+  const c = CRITTERS[key];
+  return [
+    `A sprite sheet of ${COLS * ROWS} animation frames of the SAME creature: ${c.who}`,
+    c.cycle,
+    'CRITICAL: it is the exact same creature in all eight frames — identical fur, identical '
+      + 'colours, identical proportions, identical size, standing on the same ground line. '
+      + 'Only the pose changes. It faces RIGHT in every single frame.',
+    GRID, STYLE, BG,
+    'FINAL REMINDER: the entire background, in every cell and between all cells, is flat pure '
+      + 'magenta #FF00FF. Not white. Not grey. Not a card or a panel. Magenta.',
+  ].join('\n\n');
+}
+
 function promptFor(job, weapon) {
+  if (CRITTERS[job]) return critterPrompt(job);
   const hero = HEROES[job];
   const swing = SWINGS[weapon.kind] || SWINGS.sword;
   return [
@@ -366,6 +443,19 @@ const REF_RULE = [
 ].join(' ');
 
 async function generate(job, weapon) {
+  // ── 짐승은 참조가 하나뿐입니다 — 판에 서 있는 그 그림 ──
+  // 2.6절이 "같은 곰이어야 한다"고 못박은 자리입니다. 발판 위의 곰
+  // (assets/ally-bear.png)과 다른 곰이 걸어 다니면 안 됩니다.
+  if (CRITTERS[job]) {
+    const c = CRITTERS[job];
+    const f = path.join(ROOT, 'assets', c.ref);
+    const parts = [];
+    if (fs.existsSync(f)) {
+      parts.push({ inlineData: { mimeType: 'image/png', data: fs.readFileSync(f).toString('base64') } });
+    }
+    parts.push({ text: (fs.existsSync(f) ? CRITTER_REF + '\n\n' : '') + promptFor(job, null) });
+    return callImage(parts, '21:9');
+  }
   // 첫 자리는 하나뿐입니다 — 0단계에는 비례 견본이, 그 위 단계에는 인물 기준이
   // 옵니다. 둘이 같이 붙는 일은 없습니다.
   const base = baseFor(job, weapon);
@@ -391,6 +481,14 @@ async function generate(job, weapon) {
       : REF_RULE);
   }
   parts.push({ text: (head.length ? head.join('\n\n') + '\n\n' : '') + promptFor(job, weapon) });
+  // 긴 무기는 **더 넓은 종이**를 받습니다. 지팡이는 쏘는 순간 가로로 뻗는데
+  // 16:9 로 받으면 칸이 344×384 라 세로로 길어서, 가로로 뻗는 것이 갈 데가
+  // 없습니다. 21:9 면 칸이 396×336 이 되어 가로가 52px 넓어집니다. 문구로 네
+  // 판을 다시 뽑아도 안 잡히던 것이라, 종이를 바꾸는 쪽이 맞습니다.
+  return callImage(parts, LONG.has(weapon.kind) ? '21:9' : '16:9');
+}
+
+async function callImage(parts, aspectRatio) {
   const res = await fetch(
     'https://generativelanguage.googleapis.com/v1beta/models/' +
       encodeURIComponent(MODEL) + ':generateContent',
@@ -398,13 +496,7 @@ async function generate(job, weapon) {
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY },
       body: JSON.stringify({
         contents: [{ parts }],
-        // 긴 무기는 **더 넓은 종이**를 받습니다. 지팡이는 쏘는 순간 가로로
-        // 뻗는데 16:9 로 받으면 칸이 344×384 라 세로로 길어서, 가로로 뻗는
-        // 것이 갈 데가 없습니다. 21:9 면 칸이 392×336 이 되어 가로가 48px
-        // 넓어집니다. 문구로 네 판을 다시 뽑아도 안 잡히던 것이라, 종이를
-        // 바꾸는 쪽이 맞습니다.
-        generationConfig: { imageConfig: {
-          aspectRatio: LONG.has(weapon.kind) ? '21:9' : '16:9' } },
+        generationConfig: { imageConfig: { aspectRatio } },
       }) });
   const text = await res.text();
   if (!res.ok) throw new Error('HTTP ' + res.status + ' · ' + text.slice(0, 200));
@@ -416,7 +508,7 @@ async function generate(job, weapon) {
 // ── 자르기 ─────────────────────────────────────────────────
 // 여기가 이 스크립트의 핵심입니다. 컷마다 따로 맞추면 안 됩니다.
 async function slice(oven, png, job) {
-  const hero = HEROES[job];
+  const hero = sizeOf(job);
   return oven.evaluate(async (a) => {
     const img = new Image();
     await new Promise((res, rej) => {
@@ -640,7 +732,9 @@ function weaponsOf(job) {
 function planFor(args) {
   const todo = [];
   for (const a of args) {
-    if (HEROES[a]) todo.push(...weaponsOf(a).map((w) => ({ job: a, w })));
+    // 짐승은 자루가 없으므로 한 장뿐입니다.
+    if (CRITTERS[a]) todo.push({ job: a, w: { key: a, label: a, kind: null } });
+    else if (HEROES[a]) todo.push(...weaponsOf(a).map((w) => ({ job: a, w })));
     else {
       const job = a.split('-')[1];
       const one = (weaponsOf(job) || []).find((w) => w.key === a);
@@ -663,13 +757,13 @@ function planFor(args) {
     if (!plan.length) { console.error('그런 것이 없습니다'); process.exit(1); }
     plan.forEach(({ job, w }, i) => {
       if (i) console.log('\n' + '─'.repeat(70) + '\n');
-      const refs = [
+      const refs = CRITTERS[job] ? [`판 위의 그림 ${CRITTERS[job].ref}`] : [
         baseFor(job, w) && '그 직업 0단계 시트',
         !baseFor(job, w) && anchorFor(job, w) && '전사 0단계 시트(비례)',
         !baseFor(job, w) && portraitFor(job, w) && `초상화 player-${job}.png`,
         refFor(job, w) && '자세 안내',
       ].filter(Boolean);
-      console.log(`### ${w.key}  ${w.label} (${w.kind})`
+      console.log(`### ${w.key}  ${w.label}${w.kind ? ' (' + w.kind + ')' : ''}`
         + (refs.length ? '   참조: ' + refs.join(' · ') : '   참조: 없음'));
       console.log('\n' + promptFor(job, w));
     });

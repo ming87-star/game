@@ -31,6 +31,15 @@
 // 38×48 이었습니다 — 그림은 상자보다 조금 커도 됩니다. 부딪히는 것은 상자니까.
 const HERO_H = 52;
 
+// 곰이 화면에서 차지하는 높이. 그림 한 장으로 서던 때의 상자가 48×38 이라
+// (gen-sprite.js 의 ally-bear) 그 키를 그대로 잇습니다 — 시트로 갈아탄다고
+// 곰이 갑자기 커지면 안 됩니다.
+//
+// **이 줄이 없으면 곰이 3.4배로 섭니다.** 시트는 4배로 그려 굽기 때문에 한 컷이
+// 163×127 인데, 그림 한 장은 48×38 입니다. 주인공은 HERO_H 로 나눠 주고 있었지만
+// 곰에는 그런 자리가 없었고, 오류도 안 납니다 — 곰이 발판을 다 덮을 뿐입니다.
+const BEAR_H = 38;
+
 // 물리 몸 한가운데에서 발바닥까지. 물리 몸 그림이 38×48 이고 발이 그 바닥에
 // 닿게 그려져 있었으므로 절반인 24 입니다. 시트의 `ground` 줄을 여기 맞춥니다.
 const FEET_DY = 24;
@@ -397,14 +406,18 @@ function bearSheet(scene) {
   const key = 'sheet-ally-bear';
   if (typeof SHEET_ART === 'undefined' || !SHEET_ART[key]) return null;
   if (!scene.textures.exists(key)) return null;
-  const n = SHEET_ART[key].n || 8;
+  const s = SHEET_ART[key];
+  const n = s.n || 8;
+  // 주인공과 같은 셈입니다 (this.scale = HERO_H / d.hero). 시트는 크게 그려
+  // 굽고, 화면에서 얼마나 될지는 여기서 정합니다.
+  const scale = s.hero ? BEAR_H / s.hero : 1;
   // 여덟 컷이 아니면 반으로 갈라 씁니다. 넷이면 걷기 둘 · 무는 것 둘입니다.
   const half = Math.max(1, Math.floor(n / 2));
   const walk = [];
   const bite = [];
   for (let i = 0; i < half; i++) walk.push(i);
   for (let i = half; i < n; i++) bite.push(i);
-  return { key, n, walk, bite: bite.length ? bite : walk };
+  return { key, n, scale, walk, bite: bite.length ? bite : walk };
 }
 
 function sheetKey(job, weapon) {

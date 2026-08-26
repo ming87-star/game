@@ -144,9 +144,19 @@ async function boot(browser, port, jobIndex) {
       cut: rig.cut,
       key: rig.key,
       onScreen: +(rig.scale * rig.data.hero).toFixed(1),
-      sheets: Object.keys(SHEET_ART).length,
+      // **자루 시트만** 셉니다. 여기를 전부로 세면 곰 시트(sheet-ally-bear)가
+      // 들어오는 날 자루 수가 하나 늘어서, 그리기에 성공한 날 검사가 틀립니다.
+      // 실제로 그랬습니다 — 여든넷을 기대하는데 여든다섯이 나왔습니다.
+      sheets: Object.keys(SHEET_ART).filter((k) => k.startsWith('sheet-w-')).length,
+      allies: Object.keys(SHEET_ART).filter((k) => k.startsWith('sheet-ally-')),
       missing,
       started,
+      // bearSheet() 로는 못 잽니다 — 그것은 텍스처가 올라와 있어야 하는데,
+      // 곰 시트는 곰사냥꾼일 때만 실립니다 (js/artset.js). 여기서는 전사로
+      // 돌고 있으므로 늘 null 입니다. 그래서 **재료를 직접** 봅니다.
+      bear: (typeof SHEET_ART !== 'undefined' && SHEET_ART['sheet-ally-bear'])
+        ? { h: BEAR_H, img: SPRITE_ART['ally-bear'] && SPRITE_ART['ally-bear'].h }
+        : null,
       clash,
       // 발판 위 UP 칸이 쓰는 그림. 무기 아이콘의 실제 크기입니다.
       iconSize: (() => {
@@ -176,6 +186,16 @@ async function boot(browser, port, jobIndex) {
     '시트를 그린 직업은 열둘을 다 채웠음',
     motion.started.length + '직업 · ' + motion.sheets + '자루'
       + (motion.missing.length ? ' · 빠짐 ' + motion.missing.join(',') : ''));
+
+  // 곰은 자루가 없으므로 위 셈과 따로 봅니다.
+  //
+  // **시트로 갈아탈 때 곰이 커지면 안 됩니다.** 시트는 4배로 그려 굽고
+  // (한 컷 163×127) 그림 한 장은 1배(48×38)라, 안 줄이면 3.4배로 서서
+  // 발판을 다 덮습니다. 주인공은 HERO_H 로 나눠 주고 있었지만 곰에는 그
+  // 자리가 없었습니다 — 오류도 안 나고 그림도 멀쩡해서 눈으로만 잡힙니다.
+  check(!motion.bear || motion.bear.h === motion.bear.img,
+    '곰 시트를 얹어도 그림 한 장일 때와 같은 키',
+    motion.bear ? `BEAR_H ${motion.bear.h} · 그림 ${motion.bear.img}` : '시트 아직 없음');
 
   check(motion.picks.join(' · ') ===
     '전사0=sword · 전사3=spear · 도적0=dagger · 도적2=daggerTwin · 궁수0=bow · 궁수3=crossbow',

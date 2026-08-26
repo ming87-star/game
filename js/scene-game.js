@@ -2241,8 +2241,11 @@ class GameScene extends Phaser.Scene {
     // 시트가 없으면 그림 한 장으로 물러섭니다 — 그때는 적들과 같은 트윈을
     // 겁니다. 아예 안 움직이는 것보다는 낫습니다.
     const 시트 = bearSheet(this);
+    // 시트는 4배로 그려 구우므로 (한 컷 163×127) 그대로 얹으면 곰이 발판을
+    // 다 덮습니다. 주인공과 같이 잰 키로 나눠 줍니다 — 그 셈은 시트를 아는
+    // 쪽(js/motion.js 의 bearSheet)이 합니다.
     const sprite = 시트
-      ? this.add.sprite(atX, atY, 시트.key, 0).setDepth(9)
+      ? this.add.sprite(atX, atY, 시트.key, 0).setDepth(9).setScale(시트.scale)
       : this.add.image(atX, atY, 'ally-bear').setDepth(9);
     sprite.setAlpha(0);
     this.tweens.add({ targets: sprite, alpha: 1, duration: 260 });
