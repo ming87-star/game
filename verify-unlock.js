@@ -132,8 +132,37 @@ const server = http.createServer((req, res) => {
   };
   console.log('');
 
+  // ── 열리는 사람마다 만날 글이 있는가 ──────────────────
+  //
+  // **이것이 없으면 아무 일도 안 일어나고 오류도 안 납니다.** MeetScene 의
+  // init 은 `CFG.story.meetings` 에 글이 없는 직업을 **조용히 걸러 냅니다** —
+  // 걸러 내고 나면 목록이 비고, create 가 곧바로 leave 로 빠집니다. 죽음
+  // 화면에서 다음 화면으로 그냥 넘어가는 것과 구분이 안 됩니다.
+  //
+  // 실제로 그랬습니다. 직업을 여덟으로 늘리면서 **새로 들어온 다섯의 글을
+  // 아무도 안 썼고**, 다섯 중 넷이 궁수보다 먼저 열리는데 그동안 해금 순간이
+  // 통째로 비어 있었습니다. 아래 「열린 사람이 차례로 나옴」이 그때도
+  // `archer,rogue` 를 기다리고 있어서 **틀린 것을 옳다고 적고 있었습니다.**
+  const 글있나 = await page.evaluate(() => CLASSES
+    .filter((c) => c.unlockFloor || c.unlockCoins)
+    .map((c) => ({ key: c.key, 이름: c.name,
+      글: !!(CFG.story.meetings && CFG.story.meetings[c.key]) })));
+  const 글없는 = 글있나.filter((c) => !c.글).map((c) => c.이름);
+  check(글없는.length === 0,
+    '**열리는 사람 일곱 모두 만날 글이 있음** (없으면 그 해금은 조용히 빈칸)',
+    글없는.length ? '없는 사람: ' + 글없는.join(', ') : 글있나.length + '명 다 있음');
+
   await fresh();
-  // 궁수와 도적이 한꺼번에 열리는 판으로 끝냅니다.
+
+  // **기다리는 이름을 손으로 적지 않습니다.** 직업이 늘 때마다 손으로 적은
+  // 목록은 같이 안 고쳐지고, 그러면 시험이 틀린 것을 옳다고 적습니다.
+  //
+  // 판을 **끝내기 전에** 물어봅니다 — 끝나고 나면 그 사람들이 이미 열려
+  // 있어서(Save.data.unlocked) classesUnlockedBy 가 빈손으로 돌아옵니다.
+  const 열릴것 = await page.evaluate(() =>
+    classesUnlockedBy(700, 2000).map((c) => c.key).sort());
+
+  // 한 판에 오를 수 있는 만큼 올라, 열리는 사람이 여럿인 판으로 끝냅니다.
   await runEnd(700, 2000);
   await page.waitForTimeout(500);
 
@@ -145,15 +174,21 @@ const server = http.createServer((req, res) => {
     ? { live: true, jobs: window.__meet.jobs.slice(), at: window.__meet.at }
     : { live: false }));
   check(met.live, '해금되면 고른 뒤에 만남 컷이 나옴');
-  check(met.live && met.jobs.join(',') === 'archer,rogue',
-    '열린 사람이 차례로 나옴', met.jobs && met.jobs.join(' → '));
+  // 나오는 차례는 CLASSES 에 앉은 순서라 해금 조건 순서와 다릅니다.
+  // 여기서 볼 것은 **하나도 안 빠졌는가**이지 차례가 아닙니다.
+  check(met.live && met.jobs.slice().sort().join(',') === 열릴것.join(','),
+    '**열린 사람이 하나도 안 빠지고 나옴**',
+    (met.jobs || []).join(' → ') + '  (열려야 할 사람 ' + 열릴것.join(', ') + ')');
 
   if (met.live) {
-    await page.mouse.click(270 * 0.75, 400 * 0.75); // 다음 사람
-    await page.waitForTimeout(300);
-    const at = await page.evaluate(() => window.__meet.at);
-    check(at === 1, '탭하면 다음 사람으로', '두 번째 ' + at);
-
+    // 마지막 사람까지 하나씩 넘겨 봅니다 — 둘로 못박으면 셋이 열리는 날
+    // 셋째가 안 나와도 시험이 지나갑니다.
+    for (let i = 1; i < met.jobs.length; i++) {
+      await page.mouse.click(270 * 0.75, 400 * 0.75);
+      await page.waitForTimeout(300);
+      const at = await page.evaluate(() => (window.__meet ? window.__meet.at : -1));
+      check(at === i, '탭하면 다음 사람으로 (' + (i + 1) + '번째)', at);
+    }
     await page.mouse.click(270 * 0.75, 400 * 0.75); // 끝내기
     await page.waitForTimeout(800);
   }
