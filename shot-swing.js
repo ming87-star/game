@@ -1,5 +1,6 @@
 // 게임 안에서 실제로 휘두르는 것을 빠르게 여러 장 찍어 한 줄로 붙입니다.
-//   CHROME_PATH=... node shot-swing.js [warrior|archer|rogue] [단계]
+//   CHROME_PATH=... node shot-swing.js [직업] [단계]
+//   직업은 warrior·archer·rogue·monk·hunter·necro·wizard·digger
 const fs=require('fs'),path=require('path'),http=require('http');
 const {chromium}=require('playwright');
 const ROOT=__dirname;
@@ -18,8 +19,15 @@ const server=http.createServer((req,res)=>{
  await page.goto('http://localhost:'+port+'/',{waitUntil:'networkidle'});
  await page.evaluate(j=>window.localStorage.setItem('tower-climb-v1',JSON.stringify({
    bestFloor:0,deaths:0,runs:0,bestCoins:0,medals:0,weapons:{},boosts:{},
-   relics:{},unlocked:{archer:true,rogue:true},lastJob:j,sawStory:true})),job);
+   // 찍는 도구이므로 여덟을 다 열어 둡니다. 셋만 열어 두었더니 도굴꾼 카드가
+   // 잠긴 채라 jobAt 이 잠긴 칸을 짚고, 눌러도 아무 일이 안 났습니다.
+   relics:{},unlocked:{archer:true,rogue:true,monk:true,hunter:true,
+     necro:true,wizard:true,digger:true},lastJob:j,sawStory:true})),job);
  await page.reload({waitUntil:'networkidle'});
+ // 켜면 타이틀이 먼저 섭니다 (js/scene-title.js). 사람처럼 한 번 지나야
+ // 고르기 화면이 뜹니다 — 안 지나면 window.__select 가 없어서 멎습니다.
+ await page.waitForFunction(()=>window.__title&&window.__title.ready,null,{timeout:8000});
+ await page.evaluate(()=>window.__title.go());
  await page.waitForTimeout(900);
  // 자리를 손으로 적지 않고 화면에 물어봅니다 — 고르기 화면이 카드에서
  // 격자로 바뀌면서, 적어 둔 좌표는 오류 없이 엉뚱한 데를 눌렀습니다.

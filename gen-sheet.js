@@ -36,8 +36,10 @@ const TOL = 112, FEATHER = 70;
 const HEROES = {
   warrior: {
     w: 38, h: 48,
-    who: 'a knight: broad angular shoulder armour, a horned helmet with a red crest, '
-       + 'steel-grey armour with red cloth. Red accent #EF9A9A.',
+    // 망토를 군청으로 옮길 때(recolor-warrior.js) **이 글은 안 고쳐 뒀었습니다.**
+    // 그림 파일만 바꾸고 주문서를 두면 다시 뽑는 날 붉은 전사가 돌아옵니다.
+    who: 'a knight: broad angular shoulder armour, a horned helmet with a deep navy-blue crest, '
+       + 'steel-grey armour with navy-blue cloth. Navy accent #133286. Nothing on him is red.',
   },
   archer: {
     w: 42, h: 48,
@@ -56,7 +58,71 @@ const HEROES = {
     who: 'a rogue: hood and a face covering, a cloak, a low crouched stance. '
        + 'Purple accent #CE93D8.',
   },
+
+  // ── 새 직업 다섯 (ART.md 2.6절) ────────────────────────
+  // 고르는 화면의 초상화(assets/player-*.png)와 **같은 사람**이어야 합니다.
+  // 그래서 아래 글과 함께 그 초상화를 참조로 붙입니다 (portraitFor).
+  // 글만으로는 얼굴과 차림이 판마다 흔들립니다.
+  monk: {
+    w: 38, h: 48,
+    who: 'an OLD BARE-HANDED MARTIAL ARTIST: iron-grey hair in a topknot, a short grey chin '
+       + 'beard, a heavily lined weathered face, a sleeveless cream off-white tunic, loose '
+       + 'trousers cropped at the shin, and cloth wraps on his forearms and shins. '
+       + 'Lean and wiry with no armour. A long sash at his waist streams behind him. '
+       + 'He is old but not frail. Gold accent #FFD54F. Nothing on him is red. '
+       + 'HIS HANDS ARE EMPTY IN EVERY SINGLE FRAME — he carries no sword, no staff, no stick '
+       + 'and no blade of any kind. Whatever the weapon is called, it is something WORN on his '
+       + 'hands (wraps, rings, gauntlets), never something held.',
+  },
+  hunter: {
+    w: 42, h: 48,
+    who: 'a heavy BEAR HUNTER: a bear skull worn as a hood with the snout jutting over his brow, '
+       + 'a shaggy fur mantle over the shoulders only, close leather below, and a bearded '
+       + 'weather-beaten older face. Wide, low and thick-set. '
+       + 'Grey-brown hide #BCAAA4 with darker brown leather. Nothing on him is red.',
+  },
+  necro: {
+    w: 40, h: 48,
+    who: 'a gaunt NECROMANCER: a deep hood with a bone-pale skull-like face inside it, a long '
+       + 'tattered robe whose hem is torn into ragged points, and thin bony hands. '
+       + 'Bone white #ECEFF1 and cold teal #4DB6AC. Nothing on him is red.',
+  },
+  wizard: {
+    w: 40, h: 48,
+    who: 'a WIZARD: a tall wide-brimmed POINTED HAT bent over at the tip, a long robe with wide '
+       + 'sleeves, and a long beard hanging over the robe. '
+       + 'Sky blue #4FC3F7 robe with deeper blue shadow. Nothing on him is red. '
+       + 'He must never be mistaken for the necromancer: the wizard has a POINTED HAT and a full '
+       + 'clean robe, the necromancer has a plain deep HOOD and a ragged torn hem.',
+  },
+  digger: {
+    w: 42, h: 48,
+    who: 'a TOMB ROBBER: a cloth head wrap with goggles pushed up on his forehead, rolled '
+       + 'sleeves, straps and buckles across his chest, and NO armour at all — lean and wiry. '
+       + 'A big fat BULGING SACK is roped to his BACK and sticks out behind him in every frame. '
+       + 'Dusty lime #D4E157 and worn brown leather. Nothing on him is red.',
+  },
 };
+
+// 고르는 화면에서 본 사람과 판 위의 사람이 같아야 합니다 (ART.md 2.6절).
+// 0단계 시트를 그릴 때만 붙입니다 — 1단계부터는 baseFor 가 그 직업의 0단계
+// 시트를 물리므로, 초상화까지 겹쳐 붙이면 참조가 셋이 되어 서로 다툽니다.
+function portraitFor(job, weapon) {
+  if (weapon.key !== `w-${job}-0`) return null;
+  const f = path.join(ROOT, 'assets', `player-${job}.png`);
+  return fs.existsSync(f) ? fs.readFileSync(f).toString('base64') : null;
+}
+
+const PORTRAIT_RULE = [
+  'One of the attached images is the CHARACTER PORTRAIT: this exact same character, already',
+  'drawn, standing in a single posed shot. Take the person from it — the same face, the same',
+  'hair and headgear, the same clothing and its cut, the same colours, the same build.',
+  'A player picks this character off a card showing that portrait and must recognise the same',
+  'person on the platform a moment later.',
+  'Do NOT copy its pose or its framing: that portrait is one posed figure seen near front-on,',
+  'and what you are drawing is eight side-view frames of an attack, facing right.',
+  'Ignore any companion animal or floating creature in the portrait — draw the person alone.',
+].join(' ');
 
 // 무기 종류마다 몸이 다르게 움직입니다 (js/motion.js 의 MOTIONS 와 같은 갈래).
 // 갈래를 그림으로 말하는 낱말. js/classes.js 의 icon.art 값이 열쇠입니다.
@@ -68,6 +134,16 @@ const KIND_WORD = {
   bow: 'BOW — a curved limb with a drawn bowstring, shooting arrows',
   crossbow: 'CROSSBOW — a horizontal bow mounted crosswise on a wooden stock with a trigger, '
           + 'held like a rifle, NOT a hand bow',
+  // 새 직업 다섯이 들고 오는 갈래 셋. 이것이 없으면 KIND_WORD[kind] 가
+  // undefined 라 갈래 이름 자리에 'fist' 같은 날말이 그대로 들어갑니다.
+  //
+  // **짧은 이름씨로 적으세요.** 틀이 이 말을 한 문장에 두 번 끼웁니다
+  // ("wielding X, which is A X … must read as a X"). 길게 적으면 그 문장이
+  // 통째로 두 번 나와서 읽히지도 않고 뒤의 지시를 밀어냅니다. 못 박을 것은
+  // 갈래 이름이 아니라 직업 설명(who)이나 동작(SWINGS)에 넣습니다.
+  fist: 'BARE FIST — empty hands, wrapped in cloth or fitted with knuckle guards, holding nothing',
+  staff: 'long STAFF — a tall wooden shaft with a crystal, skull or knot of bone at its upper tip',
+  pick: 'PICKAXE — a heavy head mounted crosswise on a shaft, one long spike curving to a point',
 };
 
 const SWINGS = {
@@ -81,6 +157,14 @@ const SWINGS = {
      + 'then lower the bow',
   crossbow: 'a crossbow shot: raise the crossbow to the shoulder, brace against the recoil, '
           + 'fire, then lower it and work the lever',
+  fist: 'a bare-handed combination: coil back with the hips, drive one straight punch out to full '
+      + 'extension, snap it back, then throw the other fist across, finishing in a low ready guard '
+      + '— hands stay empty and open or fisted throughout',
+  staff: 'a staff cast: plant the staff, draw it back and up as power gathers at its tip, then '
+       + 'swing the tip forward and down to point at the target as the spell releases, and settle '
+       + 'back upright — the staff is cast with, never thrust like a spear',
+  pick: 'an overhead pickaxe swing: haul the pick up and back over one shoulder, rise onto the '
+      + 'toes, then bring it down hard in a full arc, burying the point low, and recover',
 };
 
 const STYLE = [
@@ -250,18 +334,23 @@ async function generate(job, weapon) {
   const base = baseFor(job, weapon);
   const anchor = base ? null : anchorFor(job, weapon);
   const ref = refFor(job, weapon);
+  // 새 직업은 0단계에 초상화를 함께 물립니다 — 그 직업의 0단계 시트가 아직
+  // 없어서 baseFor 가 빈손이고, 비례 견본(전사)만으로는 **사람이 안 정해집니다.**
+  const portrait = base ? null : portraitFor(job, weapon);
   const parts = [];
   // 붙이는 차례가 곧 "첫째 그림 · 둘째 그림"입니다. 지시문이 그 차례를 가리킵니다.
   if (base) parts.push({ inlineData: { mimeType: 'image/png', data: base } });
   if (anchor) parts.push({ inlineData: { mimeType: 'image/png', data: anchor } });
+  if (portrait) parts.push({ inlineData: { mimeType: 'image/png', data: portrait } });
   if (ref) parts.push({ inlineData: { mimeType: 'image/png', data: ref } });
   const head = [];
   if (base) head.push(BASE_RULE);
   if (anchor) head.push(ANCHOR_RULE);
+  if (portrait) head.push(PORTRAIT_RULE);
   if (ref) {
     // 그림이 둘이면 몇 번째인지 가리켜 줘야 합니다. 하나뿐이면 그냥 "첨부한 그림".
-    head.push(base || anchor
-      ? REF_RULE.replace('The attached image is', 'The SECOND attached image is')
+    head.push(base || anchor || portrait
+      ? REF_RULE.replace('The attached image is', 'The LAST attached image is')
       : REF_RULE);
   }
   parts.push({ text: (head.length ? head.join('\n\n') + '\n\n' : '') + promptFor(job, weapon) });
@@ -434,15 +523,30 @@ async function slice(oven, png, job) {
 }
 
 // ── 무엇을 그리는가 — js/classes.js 의 무기 표에서 뽑습니다 ──
+// **js/classes.js 를 읽어 옵니다. 그 파일이 바뀌면 여기가 조용히 멎습니다.**
+// 실제로 한 번 멎어 있었습니다 — 자리로 세던 것(order 배열의 몇 번째)이
+// 직업이 셋에서 여덟으로 늘면서 어긋났고, 무기 한 줄의 생김새도 바뀌었습니다
+// ({ name: … } 앞에 key 가 붙었습니다). 여덟 직업 모두 자루를 0개로 읽고 있었고
+// **오류는 안 났습니다** — 그릴 것이 없으니 조용히 아무것도 안 했습니다.
+//
+// 그래서 두 가지를 바꿨습니다.
+//   · 자리로 세지 않고 **key 로 찾습니다** — 직업이 더 늘어도 안 어긋납니다
+//   · 한 자루도 못 찾으면 **소리 내고 멈춥니다** (아래) — 조용히 0개는 안 됩니다
 function weaponsOf(job) {
   const src = fs.readFileSync(path.join(ROOT, 'js', 'classes.js'), 'utf8');
-  const order = ['warrior', 'archer', 'rogue'];
-  const blk = src.split('weapons: [')[order.indexOf(job) + 1];
+  const at = src.indexOf(`key: '${job}'`);
+  if (at < 0) throw new Error(`js/classes.js 에 '${job}' 직업이 없습니다`);
+  const blk = src.slice(at).split('weapons: [')[1];
+  if (!blk) throw new Error(`'${job}' 에 weapons 목록이 없습니다`);
   // 종류는 무기마다 다릅니다 — 전사 넷째는 창이고, 쌍(twin) 이면 두 자루입니다.
   // 여기를 job 으로 뭉뚱그리면 창을 베는 그림이 나옵니다.
   const found = [...blk.matchAll(
-    /\{ name: '([^']+)'[\s\S]*?color: (0x[0-9a-fA-F]+)[\s\S]*?icon: \{ art: '([a-z]+)'([^}]*)\}/g)]
+    /\{ key: '[^']+', name: '([^']+)'[\s\S]*?color: (0x[0-9a-fA-F]+)[\s\S]*?icon: \{ art: '([a-z]+)'([^}]*)\}/g)]
     .slice(0, 12);
+  if (found.length !== 12) {
+    throw new Error(`'${job}' 의 자루를 ${found.length}개밖에 못 읽었습니다 — `
+      + 'js/classes.js 의 생김새가 바뀌었는지 보세요 (열둘이어야 합니다)');
+  }
   const GRADE = [
     'a plain worn starting weapon, simple and unadorned',
     'a plain but solid weapon',
@@ -468,15 +572,8 @@ function weaponsOf(job) {
   }));
 }
 
-(async () => {
-  if (!KEY && !process.argv.includes("--reslice")) { console.error('GEMINI_API_KEY 가 없습니다'); process.exit(1); }
-  fs.mkdirSync(RAW, { recursive: true });
-  fs.mkdirSync(OUT, { recursive: true });
-
-  const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
-  if (!args.length) { console.error('직업(warrior) 이나 무기(w-warrior-0) 를 주세요'); process.exit(1); }
-
-  let todo = [];
+function planFor(args) {
+  const todo = [];
   for (const a of args) {
     if (HEROES[a]) todo.push(...weaponsOf(a).map((w) => ({ job: a, w })));
     else {
@@ -485,6 +582,40 @@ function weaponsOf(job) {
       if (one) todo.push({ job, w: one });
     }
   }
+  return todo;
+}
+
+(async () => {
+  const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+  if (!args.length) { console.error('직업(warrior) 이나 무기(w-warrior-0) 를 주세요'); process.exit(1); }
+
+  // ── --prompt — 열쇠 없이 주문서만 봅니다 ────────────────
+  // gen-sprite.js · gen-story.js 와 같은 규칙입니다. 열쇠가 없거나 저쪽이
+  // 멎어 있을 때도 **무엇을 시키는지는 읽을 수 있어야** 합니다. 이 도구가
+  // js/classes.js 를 읽어 오므로, 자루를 제대로 세는지 보는 자리이기도 합니다.
+  if (process.argv.includes('--prompt')) {
+    const plan = planFor(args);
+    if (!plan.length) { console.error('그런 것이 없습니다'); process.exit(1); }
+    plan.forEach(({ job, w }, i) => {
+      if (i) console.log('\n' + '─'.repeat(70) + '\n');
+      const refs = [
+        baseFor(job, w) && '그 직업 0단계 시트',
+        !baseFor(job, w) && anchorFor(job, w) && '전사 0단계 시트(비례)',
+        !baseFor(job, w) && portraitFor(job, w) && `초상화 player-${job}.png`,
+        refFor(job, w) && '자세 안내',
+      ].filter(Boolean);
+      console.log(`### ${w.key}  ${w.label} (${w.kind})`
+        + (refs.length ? '   참조: ' + refs.join(' · ') : '   참조: 없음'));
+      console.log('\n' + promptFor(job, w));
+    });
+    return;
+  }
+
+  if (!KEY && !process.argv.includes("--reslice")) { console.error('GEMINI_API_KEY 가 없습니다'); process.exit(1); }
+  fs.mkdirSync(RAW, { recursive: true });
+  fs.mkdirSync(OUT, { recursive: true });
+
+  const todo = planFor(args);
   if (!todo.length) { console.error('그런 것이 없습니다'); process.exit(1); }
 
   const browser = await chromium.launch({

@@ -109,10 +109,18 @@ async function boot(browser, port, jobIndex) {
       pace[k] = +(windup / strike).toFixed(2);
     });
 
-    // 서른여섯 자루가 화면에서 같은 키로 서는가. 무기마다 휘두르는 폭이
-    // 달라 인물이 다르게 구워졌으므로 잰 키로 나눠 줍니다.
+    // 시트가 있는 직업은 **열둘이 다 있어야** 합니다. 부분만 있으면 그 자루로
+    // 갈아탈 때 setWeapon 이 그대로 물러나서 앞 자루의 시트가 남습니다 —
+    // 곡괭이를 들고 삽을 휘두르는 사람이 되고, 오류는 안 납니다 (ART.md 2.6절).
+    //
+    // 직업 수를 여기 숫자로 박아 두면 안 됩니다. 한동안 서른여섯(직업 셋)으로
+    // 박혀 있었는데, 도굴꾼 시트가 들어오자 마흔여덟이 되어 **그리기에 성공한
+    // 날 검사가 틀렸습니다.** 몇 직업까지 그렸는지는 그때그때 다르므로,
+    // **시트가 하나라도 있는 직업**만 골라서 그 직업이 열둘을 다 채웠는지 봅니다.
+    const started = CLASSES.map((c) => c.key)
+      .filter((j) => SHEET_ART['sheet-w-' + j + '-0']);
     const missing = [];
-    ['warrior', 'archer', 'rogue'].forEach((j) => {
+    started.forEach((j) => {
       for (let t = 0; t < 12; t++) if (!SHEET_ART['sheet-w-' + j + '-' + t]) missing.push(j + t);
     });
 
@@ -138,6 +146,7 @@ async function boot(browser, port, jobIndex) {
       onScreen: +(rig.scale * rig.data.hero).toFixed(1),
       sheets: Object.keys(SHEET_ART).length,
       missing,
+      started,
       clash,
       // 발판 위 UP 칸이 쓰는 그림. 무기 아이콘의 실제 크기입니다.
       iconSize: (() => {
@@ -163,9 +172,10 @@ async function boot(browser, port, jobIndex) {
     '시트 이름이 무기 아이콘 이름을 안 덮음 (발판 위 UP 칸이 무기로 보임)',
     motion.clash.length ? '겹침: ' + motion.clash.join(' ') : '무기 아이콘 ' + motion.iconSize);
 
-  check(motion.sheets === 36 && !motion.missing.length,
-    '무기 서른여섯 자루의 시트가 다 있음',
-    motion.sheets + '자루' + (motion.missing.length ? ' · 빠짐 ' + motion.missing.join(',') : ''));
+  check(motion.sheets === motion.started.length * 12 && !motion.missing.length,
+    '시트를 그린 직업은 열둘을 다 채웠음',
+    motion.started.length + '직업 · ' + motion.sheets + '자루'
+      + (motion.missing.length ? ' · 빠짐 ' + motion.missing.join(',') : ''));
 
   check(motion.picks.join(' · ') ===
     '전사0=sword · 전사3=spear · 도적0=dagger · 도적2=daggerTwin · 궁수0=bow · 궁수3=crossbow',
