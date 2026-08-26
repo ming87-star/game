@@ -25,13 +25,14 @@ const RAW = path.join(ROOT, 'shots', 'story-raw');   // shots/ 는 .gitignore �
 const PREV = path.join(ROOT, 'shots', 'story-prev');
 const KEEP = process.argv.includes('--keep');
 
+// **이번 일에는 쓰지 마세요.** 이것은 「구도는 그대로」라고 시키는 말이라,
+// 열한 장을 1인칭으로 갈아엎는 일과는 정반대입니다 — 예전 그림을 물리면
+// 3인칭 구도가 그대로 따라옵니다. 색 하나만 고칠 일이 또 생기면 그때
+// 되살리세요 (ART.md 11절).
 const KEEP_NOTE = [
   'The FIRST attached image is the previous version of this exact same picture.',
-  'Redraw it: keep the composition, the camera angle, the framing, the pose, the lighting,',
-  'the mood and every prop exactly where they already are. Same picture, same moment.',
-  'Change ONLY the colour of the knight\'s cloth — his crest, cloak and tabard — from red',
-  'to deep navy blue. Everything else stays as it is, including how much of his face the',
-  'helmet hides.',
+  'Redraw it: keep the composition, the camera angle, the framing, the lighting and the mood',
+  'exactly as they are. Change ONLY what the instructions below say to change.',
 ].join(' ');
 const OUT = path.join(ROOT, 'art');   // bake-story.js 가 art/ 에서 읽습니다
 
@@ -83,84 +84,106 @@ const LETTER_STYLE = [
   'No Latin letters and no words other than the two Korean lines given.',
 ].join(' ');
 
-// ── 붉은 것은 하나여야 합니다 ───────────────────────────
-// 이야기의 마지막에 붉은 겉옷 하나가 나옵니다. 그것이 이 게임에서 유일하게
-// 붉은 것이라야 뜻이 섭니다 (README 「붉은 것은 하나여야 합니다」). 그래서
-// 판 안의 전사를 군청으로 옮겼고(recolor-warrior.js), 이 컷들도 같은 군청
-// 이어야 합니다 — 프롤로그의 그와 발판 위의 그가 같은 사람이라야 하니까요.
+// ── 주인공이 아니라 카메라가 고정입니다 (ART.md 7.97절) ────
+// 예전에는 「1~4컷의 기사와 만남 컷에 쓰러진 사람이 같은 사람」이 규칙이라
+// 여기에 주인공 고정 문장(HERO)이 있었습니다. 직업이 여덟이 되면서 **그
+// 사람이 누구인지 그림이 정할 수가 없어졌습니다** — 어느 직업으로 오르든
+// 같은 기사가 쓰러져 있으면 그 판의 나와 그림 속의 내가 다른 사람입니다.
 //
-// **색은 판 안의 전사에서 재서 가져왔습니다** (h228 · 채도 0.73 · 밝기 0.25).
-// 그림 쪽은 한 단 밝게 잡습니다(#133286 · 밝기 0.30). 배경이 h218 · 채도
-// 0.40 · 밝기 0.14 라 같은 밝기로 칠하면 천이 벽에 붙습니다.
+// 그래서 사람을 빼고 **시점**을 남겼습니다. 열한 장 전부 주인공의 눈이고,
+// 주인공은 그림에 안 나옵니다. 이어져야 하는 것은 얼굴이 아니라 카메라입니다.
 //
-// 천이 실루엣을 떠받칠 필요는 없습니다. 재 보니 사람을 배경에서 떼는 것은
-// **강철**입니다 — 네 컷 모두 강철이 밝기 0.50, 배경이 0.14 로 0.36 이나
-// 벌어져 있습니다. 붉은 천은 그 위에 얹힌 강조였지 실루엣의 뼈대가 아니라,
-// 군청으로 바꿔도 사람이 묻히지 않습니다.
-//
-// 타이틀(title-art)은 이 규칙 밖입니다 — 횃불과 불똥은 붉어야 불이고,
-// 타이틀은 이야기를 말하는 자리가 아니라 「이런 게임이다」를 보여 주는
-// 자리입니다. 지금 그림 그대로 둡니다.
-const HERO = [
-  'The knight: broad angular shoulder armour, a horned helmet with a deep navy-blue crest,',
-  'steel-grey armour with deep navy-blue cloth, and one large sword.',
-  'His face is almost entirely hidden by the helmet. Navy accent colour #133286.',
-  'The navy cloth is a clear step brighter and more saturated than the blue-grey stone',
-  'behind it, so it never blends into the wall.',
-  'NOTHING anywhere in the picture may be red, crimson, scarlet, maroon or orange —',
-  'not the crest, not the cloak, not the cloth, not the straps, and no light, flame,',
-  'ember, torch or glow. There is no red in this world.',
+// 붉은 것은 여전히 하나뿐입니다 (STORY.md 3절).
+const CAMERA = [
+  'FIRST PERSON: the frame IS the main character\'s own eyes. We see only what they see.',
+  'NEVER draw the main character: no face, no body, no back view, no fallen body lying on the',
+  'ground, no weapon in hand, no armour, no cloak, and no reflection of them in water, glass',
+  'or polished metal.',
+  'A BARE hand or a BARE FOOT may enter from the very bottom edge of the frame, and nothing',
+  'more: the sleeve or leg fades away into darkness.',
+  'That hand or foot must be BARE SKIN. No glove, no gauntlet, no bracer, no ring, no',
+  'jewellery, no armour plate, no weapon — and on a foot, NO BOOT, NO SHOE, NO SANDAL and no',
+  'wrapping of any kind. If drawing a bare foot looks wrong, show a bare hand instead, or',
+  'show neither.',
+  'Nothing anywhere in the picture may be red, crimson, scarlet, maroon or orange — no cloth,',
+  'no light, no flame, no ember, no glow. There is no red in this world.',
 ].join(' ');
 
+// 참조로 잇는 것도 사람이 아니라 **세계와 시점**입니다. 이제 그릴 사람이
+// 없으므로 물려받을 것은 탑의 결과 카메라 높이입니다.
 const REF_NOTE = [
-  'Use the attached image(s) as the exact visual reference for the knight and for the world:',
-  'keep the same armour silhouette, the horned helmet with its navy-blue crest, the same colours,',
-  'proportions, art style, palette and lighting. Same character, same tower, a different moment.',
+  'Use the attached image(s) as the visual reference for THE WORLD and THE CAMERA, never for',
+  'a character: the same cold dark-blue stone tower, the same wall texture and masonry, the',
+  'same palette, the same lighting and mood, the same painting style, and the same',
+  'first-person eye-level framing. Same place, same eyes, a different moment.',
+  'Do NOT copy any person out of them.',
 ].join(' ');
 
 // scene = 그 장면에서만 다른 것. 위의 두 덩어리는 자동으로 붙습니다.
 const SCENES = [
+  // ── 오프닝 넷 (ART.md 7.97절) ──────────────────────────
+  // 기억을 잃고 탑 바닥에서 깨어난 사람이 오르기 시작하는 네 장면을,
+  // **그 사람의 눈으로** 봅니다. 그 사람은 그림에 안 나옵니다.
   {
     name: 'story-1',
     refs: [],
     scene: [
-      'The knight lies fallen on the cold stone floor in darkness and has just opened his eyes.',
-      'Nobody else is present. Only a faint shaft of pale light falls from far above.',
-      'Stillness and silence. He has lost his memory and does not know where he is.',
+      'The moment of waking on the floor of the tower. The camera lies right down on the cold',
+      'stone: the grain and grit of the flagstones fill the near foreground, very close and a',
+      'little out of focus, and the edges of the frame are still dark as if the eyes are only',
+      'half open. Far above, a faint shaft of pale light falls through the gloom.',
+      'A BARE hand presses flat against the stone at the very bottom edge of the frame,',
+      'pushing up. Stillness and silence, and nobody else here.',
     ].join(' '),
   },
   {
     name: 'story-2',
     refs: ['story-1'],
     scene: [
-      'Extreme upward perspective from behind the knight, over his shoulders.',
-      'The knight is small and low in the frame, seen from behind, head tilted back.',
-      'Above him the tower shaft climbs forever: tier after tier of stone ledges, broken',
-      'platforms and arched openings shrinking into blackness, receding far past the top of',
-      'the frame. The top is NOT visible and there is NO ceiling, NO dome, NO closed roof —',
-      'only depth going up and up until it disappears. A tiny pinprick of pale light',
-      'impossibly far above. There are no stairs leading down anywhere.',
-      'The scale should feel crushing: the climb is impossibly tall.',
+      'THE CAMERA POINTS STRAIGHT UP AT THE SKY-LESS TOP OF THE TOWER — flat on its back on the',
+      'floor, lens aimed vertically. The floor is therefore NOT in this picture at all, and no',
+      'hand or foot appears: the frame is filled edge to edge by the shaft climbing away above.',
+      'This must look nothing like the previous picture, which looked along the floor — this one',
+      'looks up the barrel of the tower.',
+      'Tier after tier of stone ledges, broken platforms and arched openings ring the shaft and',
+      'shrink into blackness as they recede, getting smaller and closer together toward the',
+      'centre of the frame in a deep vertical perspective.',
+      'CRITICAL: the tower NEVER CLOSES. There is NO ceiling, NO dome, NO vault, NO roof and no',
+      'flat surface across the top — the walls just keep going until they vanish into darkness.',
+      'If you find yourself drawing a circular ceiling, you have drawn it wrong: it is an open',
+      'shaft with no end.',
+      'A tiny pinprick of pale light impossibly far up. The scale should feel crushing.',
     ].join(' '),
   },
   {
     name: 'story-3',
     refs: ['story-1', 'story-2'],
     scene: [
-      'The knight traces an ancient carved stone relief on the tower wall with his gloved hand.',
-      'The worn relief faintly depicts an enormous horned crowned being at the top of the tower.',
-      'Raking side light picks out the carving. Close, quiet, curious.',
+      'Standing close to the tower wall and looking at an ancient carved stone relief, seen from',
+      'near enough that the carving fills most of the frame. The worn relief faintly depicts an',
+      'enormous horned crowned being at the top of the tower. Raking side light picks out the',
+      'cut edges of the stone. Quiet and curious.',
+      'If a hand is shown at all, only BARE fingertips entering from the bottom edge of the',
+      'frame, reaching toward the carving.',
     ].join(' '),
   },
   {
     name: 'story-4',
     refs: ['story-1', 'story-3'],
     scene: [
-      'Back view of the knight as he steps up onto the first stone platform, sword in hand.',
-      'Above him three diverging paths are faintly visible in the gloom.',
-      'A moment of resolve — he has decided to climb.',
+      'STANDING UPRIGHT on the first stone platform, at head height now — not lying down any',
+      'more — and looking ahead and slightly UP into the tower.',
+      'THREE SEPARATE WAYS UP are the subject of this picture and must be unmistakable: three',
+      'distinct routes climbing away from this platform and diverging as they rise — three',
+      'stone stairways, or three ledges leading to three different arched openings — clearly',
+      'three, clearly going up, and clearly going to different places. Do not draw one path,',
+      'and do not draw a wall of identical arches.',
+      'The near edge of the platform drops away into darkness at the bottom of the frame, and',
+      'only BARE toes enter at that very bottom edge.',
+      'A moment of resolve: the way up is chosen here.',
     ].join(' '),
   },
+
   // ── 타이틀 화면 배경 ─────────────────────────────────
   // 켜면 가장 먼저 서는 화면입니다. 컷씬이 아니라 **화면을 통째로 덮는**
   // 그림이라 혼자만 세로로 깁니다 (9:16).
@@ -245,100 +268,95 @@ const SCENES = [
     ].join(' '),
   },
 
+  // ── 탑에서 만나는 사람 일곱 (ART.md 7.97절) ────────────
+  // 일곱 다 **바닥에 쓰러져 누운 내 눈높이**입니다. 상대는 늘 나보다 위에
+  // 있고, 카메라는 낮고, 시선은 위를 향합니다. 내 몸은 안 나옵니다.
+  //
+  // **나를 보는지 안 보는지가 그 사람의 전부입니다.** 일곱이 그 하나로
+  // 갈립니다 — 들여다보는 궁수, 손을 뻗는 사령술사, 금화를 보는 도적,
+  // 저만치서 안 보는 권법사, 등을 돌린 도굴꾼, 어둠에 잠긴 마법사,
+  // 그리고 코를 대는 곰.
   {
     name: 'meet-archer',
     refs: ['story-1', 'story-4'],
     scene: [
-      'An archer stands over the fallen knight, looking down at him.',
-      'The arrow they have just loosed has pierced a monster lying dead beside them.',
-      'They are lowering their bow, the string still settling.',
-      'The archer wears a pointed hood, has a slender tall build, and holds a bow;',
-      'green tones #A5D6A7. Their face is clearly visible and catches the light —',
-      'they are the protagonist of the next story. The knight stays navy, the archer green:',
-      'the two must read as different people at a glance.',
-    ].join(' '),
-  },
-  {
-    name: 'meet-rogue',
-    refs: ['story-1', 'meet-archer'],
-    scene: [
-      'A rogue is going through the fallen knight\'s pack and has just frozen mid-motion.',
-      'Gold coins are scattered across the dark stone floor, catching the light.',
-      'The rogue is crouched down LOW and close to the ground, knees deeply bent,',
-      'body coiled near the floor beside the knight — not standing, not upright.',
-      'Hood and a cloth face covering. They hold TWO daggers, one in each hand,',
-      'both blades clearly visible.',
-      'They look straight out at the viewer from the darkness. Purple tones #CE93D8.',
-      'The knight stays navy, the rogue purple: the two must read as different people at a glance.',
-    ].join(' '),
-  },
-
-  // ── 새 직업 다섯의 만남 컷 (ART.md 7.95절) ─────────────
-  // 일곱 장이 다 같은 상황입니다 — **쓰러진 사람을 누군가가 내려다보는 장면.**
-  // 그 한 장면이 왜 다음 판에 저 사람으로 오르는지와 왜 내가 또 바닥에서
-  // 시작하는지를 한꺼번에 설명합니다.
-  //
-  // 그래서 다섯 다 story-1(쓰러진 기사)과 앞서 그린 만남 컷을 물립니다.
-  // 쓰러진 사람이 판마다 다른 사람이면 그 설명이 무너집니다.
-  {
-    name: 'meet-monk',
-    refs: ['story-1', 'meet-archer'],
-    scene: [
-      'An old bare-handed martial artist crouches beside the fallen knight.',
-      'A weapon dropped from the knight lies on the stone between them; the old man has just',
-      'picked it up, looked at it, and is setting it back DOWN on the ground — his fingers are',
-      'opening to release it.',
-      'HIS HANDS HOLD NOTHING and he carries no weapon anywhere on him: no sword, no staff,',
-      'no blade. Only cloth wraps around his hands and forearms. That emptiness is the whole',
-      'point of this character.',
-      'He has iron-grey hair in a topknot, a short grey beard, a lined weathered face, a',
-      'sleeveless cream tunic and a long sash. Gold tones #FFD54F.',
-      'The knight stays navy, the old man gold: the two must read as different people at a glance.',
+      'LOOKING UP FROM THE FLOOR: the camera lies on the stone, tilted upward, and everything is',
+      'seen from that low angle looking up.',
+      'An archer has just lowered their bow and is LEANING DOWN OVER THE CAMERA to look right',
+      'into it — their face is close, clearly lit and clearly visible, meeting our eyes. They',
+      'are the protagonist of the next story.',
+      'Beyond them and higher up, a monster lies dead with an arrow through it.',
+      'A sharply pointed hood, a slender build, light leather gear, a bow. Green tones #A5D6A7.',
+      'One BARE hand rests on the stone at the very bottom edge of the frame, as in the other',
+      'pictures in this set — it is the only part of us that shows.',
     ].join(' '),
   },
   {
     name: 'meet-necro',
     refs: ['story-1', 'meet-archer'],
     scene: [
-      'A hooded figure has bent down to LIFT the fallen knight onto their back — hands already',
-      'under his shoulders, taking the weight. The movement is unhurried and practised, as if',
-      'they have carried someone like this many times before.',
-      'A bone staff is held in one hand or leans against them. Under the deep hood the face is',
-      'bone-pale. A long robe with a hem torn into ragged points. Cold teal tones #4DB6AC.',
-      'There are NO spirits, NO ghosts and NO summoned creatures anywhere in this picture —',
-      'what they are carrying away here is a person, not a corpse to raise.',
-      'The knight stays navy, the hooded figure pale teal: the two must read as different',
-      'people at a glance.',
+      'LOOKING UP FROM THE FLOOR, the same low tilted-up camera.',
+      'A hooded figure has crouched down and is REACHING ONE HAND STRAIGHT TOWARD THE CAMERA —',
+      'the open hand comes forward into the frame, the nearest thing in the picture, about to',
+      'take hold. They have bent low to lift, and the movement is unhurried and practised, as',
+      'if they have done this many times before. Their face is near and calm.',
+      'A bone staff lies on the ground beside them, laid down rather than held.',
+      'A deep hood over a bone-pale face, a long robe with a hem torn into ragged points.',
+      'Cold teal tones #4DB6AC. No spirits, no ghosts, no summoned creatures anywhere.',
+    ].join(' '),
+  },
+  {
+    name: 'meet-rogue',
+    refs: ['story-1', 'meet-archer'],
+    scene: [
+      'LOOKING UP FROM THE FLOOR, the same low tilted-up camera.',
+      'A rogue crouches low nearby, but THEIR EYES ARE NOT ON THE CAMERA — they look past it',
+      'and downward at gold coins scattered across the stone. Their gaze must clearly miss us.',
+      'The coins lie strewn across the lower part of the frame, close to the camera, catching',
+      'the light.',
+      'A hood and a cloth face covering, a low coiled crouch, TWO daggers, one in each hand.',
+      'Purple tones #CE93D8.',
+    ].join(' '),
+  },
+  {
+    name: 'meet-monk',
+    refs: ['story-1', 'meet-archer'],
+    scene: [
+      'LOOKING UP FROM THE FLOOR, the same low tilted-up camera.',
+      'An old bare-handed martial artist stands SOME DISTANCE AWAY, alone, quietly working',
+      'through a stance by himself. He is not looking at the camera at all and has not come',
+      'over. He is small in the frame because he is far off.',
+      'HIS HANDS HOLD NOTHING — cloth wraps around his hands and forearms, and no weapon',
+      'anywhere on him. On the stone near the camera a weapon someone dropped lies where it',
+      'fell, and he does not look at that either.',
+      'Iron-grey hair in a topknot, a short grey beard, a lined weathered face, a sleeveless',
+      'tunic and a long sash. Gold tones #FFD54F.',
     ].join(' '),
   },
   {
     name: 'meet-digger',
-    refs: ['story-1', 'meet-rogue'],
+    refs: ['story-1', 'meet-archer'],
     scene: [
-      'A tomb robber kneels beside the fallen knight and is LAYING HIM OUT STRAIGHT with both',
-      'hands — straightening his arms at his sides, arranging him to rest properly. The hands',
-      'are grubby with earth.',
-      'CRITICAL: they are NOT searching him, NOT going through his pack, NOT taking anything,',
-      'and there are NO coins anywhere in the picture. This is care, not robbery — it must never',
-      'be mistaken for the rogue rifling through his belongings.',
-      'A big bulging sack is roped to their back and a PICKAXE stands propped upright in the',
-      'ground beside them. Cloth head wrap, goggles pushed up on the forehead, no armour.',
-      'Dusty lime tones #D4E157.',
-      'The knight stays navy, the robber dusty lime: the two must read as different people.',
+      'LOOKING UP FROM THE FLOOR, the same low tilted-up camera.',
+      'A tomb robber has their BACK FULLY TURNED to the camera and is digging into the tower',
+      'wall, absorbed in it. Their face is not visible at all — we never see it. They have not',
+      'noticed us.',
+      'A big bulging sack is roped to their back, and a pickaxe is in their hands or propped',
+      'beside them. A cloth head wrap, no armour. Dusty lime tones #D4E157.',
     ].join(' '),
   },
   {
     name: 'meet-wizard',
     refs: ['story-1', 'meet-archer'],
     scene: [
-      'A wizard stands over the fallen knight, and A LONG STAFF IS PLANTED UPRIGHT IN THE',
-      'GROUND beside the knight, standing on its own — that planted staff is the centre of',
-      'this picture.',
-      'At the top of the staff ONE single element is gathered: a clear ball of blue-white ICE',
-      'and frost, and nothing else — no fire, no lightning, no other magic competing with it.',
-      'The wizard wears a tall wide-brimmed pointed hat bent at the tip, a long robe with wide',
-      'sleeves, and a long beard. Sky blue tones #4FC3F7.',
-      'The knight stays navy, the wizard sky blue: the two must read as different people.',
+      'LOOKING UP FROM THE FLOOR, the same low tilted-up camera.',
+      'ALMOST EVERYTHING IS DARK. The only bright thing in the picture is a single point of',
+      'light gathered at the tip of a tall staff — a clear ball of blue-white ICE and frost,',
+      'and nothing else. It is the one light source and it leaves the rest of the frame deep',
+      'in shadow.',
+      'The wizard stands holding that staff, but their FACE IS LOST IN THE DARKNESS under the',
+      'brim of a tall pointed hat — we cannot tell whether they have seen us or not.',
+      'A long robe with wide sleeves. Sky blue tones #4FC3F7.',
     ].join(' '),
   },
   {
@@ -346,17 +364,16 @@ const SCENES = [
     refs: ['story-1', 'meet-archer'],
     assets: ['ally-bear'],
     scene: [
-      'THE BEAR IS IN FRONT AND THE MAN IS BEHIND — this is the one picture where the animal',
-      'leads. A big shaggy brown bear has lowered its head right down to the fallen knight and',
-      'is touching its nose to him, checking him. It is closest to the viewer and closest to',
-      'the knight.',
+      'LOOKING UP FROM THE FLOOR, the same low tilted-up camera.',
+      'A BIG BROWN BEAR\'S FACE FILLS THE FRAME. It has lowered its head right down to the',
+      'camera and pressed its nose almost against it, snuffling at us — its muzzle and eyes',
+      'are the nearest and largest thing in the picture, looking straight into the lens.',
       'One of the attached images is that exact bear, already drawn: copy it — the same fur',
-      'colour and shading, the same face, the same PALE BAND around its neck, the same friendly',
+      'colour and shading, the same face, the same PALE BAND around its neck, a friendly',
       'animal with no bared fangs.',
-      'Behind the bear, further back and smaller in the frame, a hunter stands watching: a bear',
-      'skull worn as a hood, a shaggy fur mantle over the shoulders, and a big heavy bow held',
-      'low at his side. Grey-brown tones #BCAAA4.',
-      'The knight stays navy: he, the bear and the hunter must all read apart at a glance.',
+      'FAR BEHIND AND ABOVE the bear, small in the frame, a hunter stands watching: a bear',
+      'skull worn as a hood, a shaggy fur mantle, and a big heavy bow held low.',
+      'Grey-brown tones #BCAAA4.',
     ].join(' '),
   },
 ];
@@ -370,7 +387,7 @@ function promptFor(s) {
   parts.push(s.scene);
   // 사람이 안 나오는 그림에는 주인공 문장을 안 붙입니다 — 붙이면 글자만
   // 그려 달라고 해 놓고 기사를 그려 넣습니다.
-  if (!s.noHero) parts.push(HERO);
+  if (!s.noHero) parts.push(CAMERA);
   // 화풍 덩어리를 통째로 바꿔 끼우는 장면도 있습니다 (제목 글자). 컷씬용
   // STYLE 에는 「글자 금지 · 로고 금지 · 배경은 돌탑 안」이 박혀 있어서,
   // 글자를 그려 달라는 그림에 붙이면 **요청문이 스스로와 싸웁니다.**
