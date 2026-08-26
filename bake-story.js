@@ -84,8 +84,18 @@ const FULL = process.argv.includes('--full');
 //
 // 뒤의 둘은 **알파가 살아 있어야** 합니다. 배경 그림 위에 얹히는 것이라,
 // 알파가 죽으면 검은 판때기가 그림 위에 놓입니다.
+// 만남 컷은 **직업 수만큼** 있습니다. 여기 손으로 적어 두면 직업이 늘 때
+// 같이 안 늘어서, 그린 그림이 조용히 안 실립니다 — 실제로 다섯을 그려 놓고
+// 굽는 목록에 둘만 있어서 아무것도 안 붙었습니다.
+// js/classes.js 에서 끌어옵니다. 처음부터 열려 있는 전사만 뺍니다.
+const MEET = (() => {
+  const src = fs.readFileSync(path.join(__dirname, 'js', 'classes.js'), 'utf8');
+  return [...src.matchAll(/^    key: '([a-z]+)',$/gm)]
+    .map((m) => m[1]).filter((k) => k !== 'warrior').map((k) => 'meet-' + k);
+})();
+
 const WANT = ['story', 'story-1', 'story-2', 'story-3', 'story-4',
-  'title-art', 'title-logo', 'title-hint', 'meet-archer', 'meet-rogue'];
+  'title-art', 'title-logo', 'title-hint', ...MEET];
 
 // 넷 중 먼저 찾은 것을 씁니다. webp 가 같은 화질에서 가장 가볍습니다.
 const EXTS = ['.webp', '.jpg', '.jpeg', '.png'];

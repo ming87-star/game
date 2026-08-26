@@ -272,6 +272,93 @@ const SCENES = [
       'The knight stays navy, the rogue purple: the two must read as different people at a glance.',
     ].join(' '),
   },
+
+  // ── 새 직업 다섯의 만남 컷 (ART.md 7.95절) ─────────────
+  // 일곱 장이 다 같은 상황입니다 — **쓰러진 사람을 누군가가 내려다보는 장면.**
+  // 그 한 장면이 왜 다음 판에 저 사람으로 오르는지와 왜 내가 또 바닥에서
+  // 시작하는지를 한꺼번에 설명합니다.
+  //
+  // 그래서 다섯 다 story-1(쓰러진 기사)과 앞서 그린 만남 컷을 물립니다.
+  // 쓰러진 사람이 판마다 다른 사람이면 그 설명이 무너집니다.
+  {
+    name: 'meet-monk',
+    refs: ['story-1', 'meet-archer'],
+    scene: [
+      'An old bare-handed martial artist crouches beside the fallen knight.',
+      'A weapon dropped from the knight lies on the stone between them; the old man has just',
+      'picked it up, looked at it, and is setting it back DOWN on the ground — his fingers are',
+      'opening to release it.',
+      'HIS HANDS HOLD NOTHING and he carries no weapon anywhere on him: no sword, no staff,',
+      'no blade. Only cloth wraps around his hands and forearms. That emptiness is the whole',
+      'point of this character.',
+      'He has iron-grey hair in a topknot, a short grey beard, a lined weathered face, a',
+      'sleeveless cream tunic and a long sash. Gold tones #FFD54F.',
+      'The knight stays navy, the old man gold: the two must read as different people at a glance.',
+    ].join(' '),
+  },
+  {
+    name: 'meet-necro',
+    refs: ['story-1', 'meet-archer'],
+    scene: [
+      'A hooded figure has bent down to LIFT the fallen knight onto their back — hands already',
+      'under his shoulders, taking the weight. The movement is unhurried and practised, as if',
+      'they have carried someone like this many times before.',
+      'A bone staff is held in one hand or leans against them. Under the deep hood the face is',
+      'bone-pale. A long robe with a hem torn into ragged points. Cold teal tones #4DB6AC.',
+      'There are NO spirits, NO ghosts and NO summoned creatures anywhere in this picture —',
+      'what they are carrying away here is a person, not a corpse to raise.',
+      'The knight stays navy, the hooded figure pale teal: the two must read as different',
+      'people at a glance.',
+    ].join(' '),
+  },
+  {
+    name: 'meet-digger',
+    refs: ['story-1', 'meet-rogue'],
+    scene: [
+      'A tomb robber kneels beside the fallen knight and is LAYING HIM OUT STRAIGHT with both',
+      'hands — straightening his arms at his sides, arranging him to rest properly. The hands',
+      'are grubby with earth.',
+      'CRITICAL: they are NOT searching him, NOT going through his pack, NOT taking anything,',
+      'and there are NO coins anywhere in the picture. This is care, not robbery — it must never',
+      'be mistaken for the rogue rifling through his belongings.',
+      'A big bulging sack is roped to their back and a PICKAXE stands propped upright in the',
+      'ground beside them. Cloth head wrap, goggles pushed up on the forehead, no armour.',
+      'Dusty lime tones #D4E157.',
+      'The knight stays navy, the robber dusty lime: the two must read as different people.',
+    ].join(' '),
+  },
+  {
+    name: 'meet-wizard',
+    refs: ['story-1', 'meet-archer'],
+    scene: [
+      'A wizard stands over the fallen knight, and A LONG STAFF IS PLANTED UPRIGHT IN THE',
+      'GROUND beside the knight, standing on its own — that planted staff is the centre of',
+      'this picture.',
+      'At the top of the staff ONE single element is gathered: a clear ball of blue-white ICE',
+      'and frost, and nothing else — no fire, no lightning, no other magic competing with it.',
+      'The wizard wears a tall wide-brimmed pointed hat bent at the tip, a long robe with wide',
+      'sleeves, and a long beard. Sky blue tones #4FC3F7.',
+      'The knight stays navy, the wizard sky blue: the two must read as different people.',
+    ].join(' '),
+  },
+  {
+    name: 'meet-hunter',
+    refs: ['story-1', 'meet-archer'],
+    assets: ['ally-bear'],
+    scene: [
+      'THE BEAR IS IN FRONT AND THE MAN IS BEHIND — this is the one picture where the animal',
+      'leads. A big shaggy brown bear has lowered its head right down to the fallen knight and',
+      'is touching its nose to him, checking him. It is closest to the viewer and closest to',
+      'the knight.',
+      'One of the attached images is that exact bear, already drawn: copy it — the same fur',
+      'colour and shading, the same face, the same PALE BAND around its neck, the same friendly',
+      'animal with no bared fangs.',
+      'Behind the bear, further back and smaller in the frame, a hunter stands watching: a bear',
+      'skull worn as a hood, a shaggy fur mantle over the shoulders, and a big heavy bow held',
+      'low at his side. Grey-brown tones #BCAAA4.',
+      'The knight stays navy: he, the bear and the hunter must all read apart at a glance.',
+    ].join(' '),
+  },
 ];
 
 function promptFor(s) {
@@ -345,6 +432,14 @@ async function generate(scene) {
   // 참조를 먼저 넣어야 지시문이 그 그림을 가리킵니다.
   for (const ref of scene.refs) {
     const file = path.join(RAW, ref + '.png');
+    if (!fs.existsSync(file)) continue;
+    parts.push({ inlineData: { mimeType: 'image/png', data: fs.readFileSync(file).toString('base64') } });
+  }
+  // 판에 이미 서 있는 그림을 물려야 할 때가 있습니다 — 곰사냥꾼의 만남 컷에
+  // 나오는 곰은 발판 위를 걷는 그 곰이어야 합니다 (ART.md 7.95절).
+  // 이야기 컷끼리 물리는 refs 와 달리 이쪽은 assets/ 에서 끌어옵니다.
+  for (const a of scene.assets || []) {
+    const file = path.join(ROOT, 'assets', a + '.png');
     if (!fs.existsSync(file)) continue;
     parts.push({ inlineData: { mimeType: 'image/png', data: fs.readFileSync(file).toString('base64') } });
   }
