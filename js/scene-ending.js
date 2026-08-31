@@ -280,3 +280,66 @@ class EndingWatchScene extends Phaser.Scene {
     this.scene.start('title');
   }
 }
+
+// 엔딩 크레딧 (STORY.md 5절 11번 · 6절).
+//
+// **아무것도 안 넣습니다.** 한 줄뿐입니다.
+//
+//   Project JHS
+//
+// 꼭대기를 안 그리는 것과 같은 결입니다. 여기에 만든 사람들과 고마운
+// 사람들과 쓴 도구를 늘어놓으면, 방금 본 것이 그 목록의 앞머리가 됩니다.
+//
+// **엔딩을 본 뒤에는 다시 못 합니다.** 「한 판 더」가 되면 방금 본 것이
+// 그냥 해금 보상이 됩니다. 대신 **처음부터 다시 하기**를 둡니다 —
+// 기록을 통째로 지우고 처음으로 돌아가는 길입니다. 닫되 가두지는 않습니다.
+class CreditsScene extends Phaser.Scene {
+  constructor() {
+    super('credits');
+  }
+
+  create() {
+    const cx = CFG.width / 2;
+    this.cameras.main.setBackgroundColor('#05070d');
+    const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
+
+    this.name = this.add.text(cx, CFG.height / 2 - 20, 'Project JHS',
+      font(30, '#e8eaf6')).setOrigin(0.5).setAlpha(0);
+    this.tweens.add({ targets: this.name, alpha: 1, duration: 2200, delay: 900,
+      onComplete: () => this.offerRestart() });
+
+    window.__credits = this;
+  }
+
+  offerRestart() {
+    const cx = CFG.width / 2;
+    const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
+    this.shown = true;
+
+    const box = this.add.rectangle(cx, CFG.height - 190, 300, 62, 0x141826)
+      .setStrokeStyle(1, 0x2f3a5c).setInteractive({ useHandCursor: true }).setAlpha(0);
+    const label = this.add.text(cx, CFG.height - 190, '처음부터 다시 하기',
+      font(21, '#8794b5')).setOrigin(0.5).setAlpha(0);
+    this.restartAt = { x: cx, y: CFG.height - 190 };
+    this.tweens.add({ targets: [box, label], alpha: 1, duration: 900, delay: 1400 });
+
+    // 한 번 더 묻습니다. 여기를 잘못 누르면 **여태 쌓은 것이 전부**
+    // 사라집니다 — 되돌릴 길이 없는 자리에는 문이 둘이라야 합니다.
+    box.on('pointerdown', () => {
+      if (this.asking) return this.wipe();
+      this.asking = true;
+      label.setText('정말 지울까요? 한 번 더');
+      label.setColor('#ef9a9a');
+    });
+  }
+
+  wipe() {
+    if (this.wiping) return;
+    this.wiping = true;
+    Save.reset();
+    const 덮개 = this.add.rectangle(CFG.width / 2, CFG.height / 2,
+      CFG.width, CFG.height, 0xffffff, 0).setDepth(500);
+    this.tweens.add({ targets: 덮개, alpha: 1, duration: 800,
+      onComplete: () => window.location.reload() });
+  }
+}

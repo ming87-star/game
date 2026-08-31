@@ -205,6 +205,24 @@ class GameScene extends Phaser.Scene {
     this.shadowPool = null;
     this.swallowing = false;
 
+    // ── 마지막 판의 붉은 겉옷 (STORY.md 5절 9번) ──────────
+    //
+    // 보는 장면이 끝나면 **평소와 똑같이** 오프닝·직업·무기를 지나 판이
+    // 시작됩니다. 여기서 「특별한 판이 시작됩니다」 같은 말을 얹으면 전부
+    // 망칩니다 — 그래서 알림도, 글도, 소리도 없습니다. 바닥에 놓여
+    // 있을 뿐입니다.
+    //
+    // 자리는 **시작 발판**입니다. 33층에 두면 거기까지 못 가는 사람은
+    // 끝을 못 봅니다 (여는 조건을 층수로 안 잡은 것과 같은 까닭).
+    this.finalCloak = null;
+    if (Save.endingStage === 1 && !this.resume) {
+      const 자리 = this.floors.get(this.floorIndex).slots.mid;
+      this.finalCloak = this.add.image(자리.x, 자리.y - 12, 'cloak-fallen').setDepth(7);
+      // 아주 옅게 오르내립니다. 멈춰 있으면 배경 무늬로 보입니다.
+      this.tweens.add({ targets: this.finalCloak, y: 자리.y - 17,
+        duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    }
+
     window.__scene = this; // 브라우저 콘솔·자동 플레이테스트에서 상태를 보기 위한 통로
 
     // 판이 다 서고 나서 엽니다. 한 박자 두는 것은 첫 화면이 그려지기 전에
@@ -2268,6 +2286,25 @@ class GameScene extends Phaser.Scene {
     }
   }
 
+  // 겉옷에 닿았는가. **줍는 것이 아니라 짚는 것**이라 아무 창도 안 뜨고
+  // 아무것도 안 오릅니다 — 닿으면 그대로 하얗게 차오릅니다.
+  checkFinalCloak() {
+    const 옷 = this.finalCloak;
+    if (!옷 || this.tookCloak || this.dead) return;
+    if (Math.abs(this.player.x - 옷.x) > 30) return;
+    if (Math.abs(this.player.y - 옷.y) > 40) return;
+    this.tookCloak = true;
+    this.physics.pause();
+    this.tweens.add({ targets: 옷, alpha: 0, duration: 500 });
+    const 덮개 = this.add.rectangle(CFG.width / 2, CFG.height / 2,
+      CFG.width, CFG.height, 0xffffff, 0).setScrollFactor(0).setDepth(900);
+    this.tweens.add({ targets: 덮개, alpha: 1, duration: 1400,
+      onComplete: () => {
+        Save.setEndingStage(2);
+        this.scene.start('credits');
+      } });
+  }
+
   // ── 연쇄번개 ────────────────────────────────────────────
   //
   // 맞은 놈에서 곁의 놈으로 튑니다. 튈 때마다 몫이 줄고(CFG.chain.share),
@@ -4257,6 +4294,7 @@ class GameScene extends Phaser.Scene {
     this.updateWisps(time, delta);
     this.updateThralls(time, delta);
     this.tickFields(time);   // 깔린 장판 (마법사)
+    this.checkFinalCloak();  // 마지막 판의 붉은 겉옷 (STORY.md 5절)
     this.updateBear(time, delta);
     updateEnemies(this, time, delta);
     this.updateOilFx(time);

@@ -72,5 +72,40 @@ await 찍기(5,'5-pass');
 await 찍기(7,'6-above');
 await 찍기(9,'7-cloak');
 console.log('마지막 단계', await pg.evaluate(()=>window.__endingwatch.step));
+
+// ── 8~11번 — 마지막 판과 크레딧 ───────────────────────
+// 보는 장면이 끝나면 타이틀로 돌아옵니다. 거기서부터 평소 흐름 그대로
+// 판을 시작해서, 바닥의 겉옷을 짚습니다.
+await pg.waitForFunction(()=>window.__title&&window.__title.ready,null,{timeout:30000});
+const 단계=await pg.evaluate(()=>window.__save.endingStage);
+console.log('보는 장면 뒤 단계', 단계);
+
+await pg.evaluate(()=>{window.__title.scene.start('game',{jobKey:'warrior'});});
+await pg.waitForFunction(()=>window.__scene&&window.__scene.player&&!window.__scene.dead,null,{timeout:15000});
+await pg.waitForTimeout(900);
+const 겉옷=await pg.evaluate(()=>{const s=window.__scene;
+  return {있나:!!s.finalCloak, x:s.finalCloak?Math.round(s.finalCloak.x):null,
+    나x:Math.round(s.player.x)};});
+console.log('판 바닥의 겉옷', JSON.stringify(겉옷));
+await pg.screenshot({path:path.join(OUT,'ending-8-run.png')});
+
+// 짚습니다 — 주인공을 겉옷 자리로 옮기면 update 가 알아봅니다.
+await pg.evaluate(()=>{const s=window.__scene;
+  s.player.x=s.finalCloak.x; s.player.y=s.finalCloak.y;});
+await pg.waitForFunction(()=>window.__credits,null,{timeout:20000});
+await pg.waitForFunction(()=>window.__credits.shown,null,{timeout:20000});
+await pg.waitForTimeout(1800);
+await pg.screenshot({path:path.join(OUT,'ending-9-credits.png')});
+console.log('끝난 뒤 단계', await pg.evaluate(()=>window.__save.endingStage));
+
+// 엔딩 뒤에는 다시 못 합니다 — 타이틀에서 눌러도 크레딧으로 돌아옵니다.
+const 닫힘=await pg.evaluate(async()=>{
+  window.__credits.scene.start('title');
+  await new Promise(r=>setTimeout(r,900));
+  window.__title.go();
+  await new Promise(r=>setTimeout(r,700));
+  return window.__game.scene.getScenes(true).map(x=>x.scene.key).join(',');
+});
+console.log('타이틀에서 시작하면', 닫힘);
 console.log(errs.length?'오류:\n'+errs.join('\n'):'오류 없음');
 await br.close();server.close();})();

@@ -160,6 +160,10 @@ class TitleScene extends Phaser.Scene {
   // 이 갈림이 여기 있는 것이 맞습니다 — 프롤로그가 스스로 "나는 안 나온다"를
   // 판단해서 곧장 넘기면, 그 한 프레임 동안 빈 프롤로그 화면이 깜빡입니다.
   go() {
+    // **엔딩을 본 뒤에는 다시 못 합니다** (STORY.md 6절). 「한 판 더」가
+    // 되면 방금 본 것이 그냥 해금 보상이 됩니다. 크레딧으로 돌려보내면
+    // 거기에 「처음부터 다시 하기」가 있습니다 — 닫되 가두지는 않습니다.
+    if (Save.endingStage >= 2) return this.scene.start('credits');
     this.scene.start(Save.data.sawStory ? 'select' : 'story');
   }
 }
