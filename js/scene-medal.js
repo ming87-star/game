@@ -100,6 +100,18 @@ class MedalScene extends Phaser.Scene {
     if (!Save.spendMedals(item.price)) return;
     Save.addPerk(this.job.key, item.key);
     this.refresh();
+
+    // ── 마흔여덟째를 산 그 순간 ─────────────────────
+    // 여덟 직업의 물건을 다 사면 33층 시퀀스가 열립니다 (STORY.md 5절).
+    // 「다 샀다」가 곧 「내가 할 수 있는 건 다 했다」라, 여는 대사가
+    // 조건을 설명하는 셈입니다.
+    //
+    // **여기서 바로 넘깁니다.** 다음에 켤 때로 미루면 마흔여덟째를 산
+    // 순간과 대사가 떨어져서, 무엇 때문에 열렸는지가 안 보입니다.
+    if (Save.endingStage === 0 && boughtAll()) {
+      Save.setEndingStage(1);
+      return this.scene.start('endingline');
+    }
   }
 
   // 열린 직업마다 몇을 지녔는가. 지금 보고 있는 직업은 색으로 표시합니다.

@@ -67,6 +67,37 @@ function medalItemsFor(job) {
   return MEDAL_ITEMS.filter((it) => !it.needsArmor || job.usesArmor);
 }
 
+// ── 다 샀는가 ──────────────────────────────────────────
+//
+// 33층 시퀀스가 여기에 기댑니다 (STORY.md 5절). 층수가 아니라 **다 산 것**
+// 으로 여는 까닭은, 어떻게 해도 그 층에 못 오르는 사람이 있기 때문입니다.
+// 메달은 못 올라도 오래 하면 쌓이므로, 실력이 아니라 함께 있어 준 시간으로
+// 여는 문이 됩니다.
+//
+// **여덟 직업을 다 세야 합니다.** 지금 고른 직업만 보면 한 직업만 채워도
+// 열려서, 「내가 할 수 있는 건 다 했다」가 거짓말이 됩니다.
+//
+// **아직 안 열린 직업도 셉니다.** 잠긴 직업의 물건은 살 수가 없으니, 그것을
+// 빼고 세면 직업을 덜 연 사람이 오히려 먼저 끝을 보게 됩니다.
+function boughtAll() {
+  return CLASSES.every((job) => {
+    const 진열 = medalItemsFor(job);
+    return 진열.every((it) => Save.hasPerk(job.key, it.key));
+  });
+}
+
+// 몇 개 중 몇 개인가. 화면에 보여 줄 때 씁니다.
+function boughtCount() {
+  let 산것 = 0, 전부 = 0;
+  CLASSES.forEach((job) => {
+    medalItemsFor(job).forEach((it) => {
+      전부++;
+      if (Save.hasPerk(job.key, it.key)) 산것++;
+    });
+  });
+  return { 산것, 전부 };
+}
+
 // 산 것을 실제 상태에 바릅니다. 판이 시작될 때 한 번 불립니다.
 // scene은 GameScene입니다 — maxHp·hp·armor·coins·weapon이 이미 준비된 뒤여야 합니다.
 //

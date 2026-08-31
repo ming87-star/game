@@ -36,6 +36,16 @@ function blankSave() {
     // 둘을 함께 채워야 하지만(classesUnlockedBy), 이 값은 판정이 아니라
     // 「얼마나 왔나」를 보여 주는 눈금입니다.
     bestBy: {},
+    // 33층 시퀀스를 어디까지 봤는가 (STORY.md 5절).
+    //   0  아직 안 열림
+    //   1  여는 대사와 보는 장면(1~7)까지 봤습니다. 이제 마지막 판입니다
+    //   2  끝났습니다 — 다시 못 합니다
+    //
+    // 숫자로 두는 까닭: 「봤다/안 봤다」 두 값으로는 **보는 장면과 마지막
+    // 판 사이**를 못 적습니다. 그 사이에 게임을 끄면 다음에 켰을 때 처음부터
+    // 다시 보여 주게 되고, 그러면 8번의 「평소와 똑같이」가 두 번째부터는
+    // 「또 그 장면」이 됩니다.
+    endingStage: 0,
     lastJob: 'warrior',
     // 오프닝을 이미 봤는지. 처음 켠 사람에게만 저절로 나오고, 그 뒤로는
     // 시작 화면에서 직접 눌러야 다시 나옵니다 — 한 판 더 하려고 켰는데
@@ -197,6 +207,16 @@ const Save = {
     this.perksFor(jobKey)[key] = true;
     this.flush();
   },
+
+  // 33층 시퀀스가 어디까지 왔는가. 뒤로는 안 갑니다 — 한 번 본 것을
+  // 다시 보게 만들 길을 아예 안 둡니다.
+  setEndingStage(n) {
+    if (n <= this.data.endingStage) return;
+    this.data.endingStage = n;
+    this.flush();
+  },
+
+  get endingStage() { return this.data.endingStage || 0; },
 
   setJob(key) {
     this.data.lastJob = key;
