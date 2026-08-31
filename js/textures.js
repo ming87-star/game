@@ -568,6 +568,71 @@ function buildTextures(scene) {
   g.fillRect(0, 0, 18, 3);
   bake('arrow-trail', 18, 3);
 
+  // ── 마법사가 쏘는 것 넷 ────────────────────────────────
+  //
+  // **마법사도 화살을 쏘고 있었습니다.** 위의 `arrow` 를 자루 색으로
+  // 물들여 썼을 뿐이라, 화염폭풍은 분홍 화살이고 서리 지팡이는 흰 화살
+  // 이었습니다 — 깃까지 달린 채로. 유물 아이콘에서 고쳤던 것과 같은
+  // 병이 투사체에 그대로 남아 있었습니다.
+  //
+  // 넷으로 나눕니다. **자루가 지닌 마법에 따라** 고릅니다
+  // (js/weapon.js 의 projectile). 색은 자루 색으로 물들이므로 여기서는
+  // 흰빛 계열로만 그립니다 — 모양이 갈래를 말하고 색이 자루를 말합니다.
+  //
+  // 넷 다 **돌지 않습니다.** 화살은 날아가는 쪽을 향해야 하지만 구슬은
+  // 어느 쪽을 향하든 같습니다 (scene-game.js 의 isArrow).
+
+  // 구슬 — 아무 마법도 안 지닌 자루. 속이 밝고 둘레가 흐립니다.
+  g.clear();
+  g.fillStyle(0xffffff, 0.22);
+  g.fillCircle(9, 9, 9);
+  g.fillStyle(0xffffff, 0.55);
+  g.fillCircle(9, 9, 6);
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(9, 9, 3.2);
+  bake('cast-orb', 18, 18);
+
+  // 불덩이 — 타는 자루. 꼬리가 뒤로 끌립니다.
+  g.clear();
+  g.fillStyle(0xffffff, 0.20);
+  g.fillCircle(15, 9, 9);
+  g.fillStyle(0xffffff, 0.5);
+  g.fillTriangle(0, 9, 12, 4, 12, 14);          // 뒤로 끌리는 꼬리
+  g.fillStyle(0xffffff, 0.75);
+  g.fillCircle(15, 9, 6);
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(16, 9, 3);
+  bake('cast-flame', 26, 18);
+
+  // 번개탄 — 튀는 자루. 네 갈래로 뻗은 별.
+  g.clear();
+  g.fillStyle(0xffffff, 0.22);
+  g.fillCircle(11, 11, 8);
+  g.fillStyle(0xffffff, 1);
+  g.fillTriangle(11, 0, 8, 11, 14, 11);         // 위
+  g.fillTriangle(11, 22, 8, 11, 14, 11);        // 아래
+  g.fillTriangle(0, 11, 11, 8, 11, 14);         // 왼
+  g.fillTriangle(22, 11, 11, 8, 11, 14);        // 오른
+  g.fillStyle(0xffffff, 0.9);
+  g.fillCircle(11, 11, 3.4);
+  bake('cast-spark', 22, 22);
+
+  // 서릿조각 — 꿰뚫거나 얼리는 자루. 모난 결정입니다.
+  g.clear();
+  g.fillStyle(0xffffff, 0.20);
+  g.fillCircle(11, 9, 8);
+  g.fillStyle(0xffffff, 0.9);
+  g.beginPath();
+  g.moveTo(22, 9); g.lineTo(13, 2); g.lineTo(4, 9); g.lineTo(13, 16);
+  g.closePath();
+  g.fillPath();
+  g.fillStyle(0xffffff, 1);
+  g.beginPath();
+  g.moveTo(19, 9); g.lineTo(13, 5); g.lineTo(9, 9); g.lineTo(13, 13);
+  g.closePath();
+  g.fillPath();
+  bake('cast-shard', 24, 18);
+
   // ── 그 밖 ─────────────────────────────────────────────
   g.clear();
   g.fillStyle(0xffd54f, 1);

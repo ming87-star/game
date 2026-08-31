@@ -143,6 +143,25 @@ class Weapon {
   // 장판 — 닿은 자리에 남는 것. 한 대의 몇 할이 그 자리에 깔리는가.
   get field() { return (this.base.field || 0) * this.relicMul('springMul'); }
 
+  // ── 무엇이 날아가는가 ─────────────────────────────────
+  //
+  // **마법사도 화살을 쏘고 있었습니다.** 깃까지 달린 `arrow` 를 자루
+  // 색으로 물들여 쓰는 바람에, 화염폭풍은 분홍 화살이고 서리 지팡이는
+  // 흰 화살이었습니다 — 유물 아이콘의 「관통하는 기름」과 같은 병입니다.
+  //
+  // 지팡이는 **지닌 마법에 따라** 다른 것을 날립니다. 순서가 곧 우선순위
+  // 입니다: 튀는 것 > 타는 것 > 뚫거나 어는 것 > 그냥 구슬. 여럿 지닌
+  // 자루는 가장 눈에 띄는 것을 앞세웁니다.
+  //
+  // 활과 석궁은 그대로 화살입니다 — 화살이 맞으니까요.
+  get projectile() {
+    if (this.job.key !== 'wizard') return 'arrow';
+    if (this.chain > 0) return 'cast-spark';
+    if (this.burn > 0) return 'cast-flame';
+    if (this.pierce > 0 || (this.base.spread || 0) > 0) return 'cast-shard';
+    return 'cast-orb';
+  }
+
   // 몸을 감싸는 것이 함께 섭니다. 받는 피해를 이만큼 나눕니다
   // (1.3 이면 100 이 77 로 들어옵니다). 없으면 1 입니다.
   // 「마르지 않는 샘물」이 지팡이에 걸린 것을 세게 합니다 (js/relics.js).

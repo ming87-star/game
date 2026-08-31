@@ -194,6 +194,10 @@ class GameScene extends Phaser.Scene {
     // 이미 없어진 Text 들이 주머니에 남아 있고, 다음 판에서 그걸 꺼내는 순간
     // 죽은 물건에 글자를 쓰게 됩니다.
     this.textPool = null;
+    // 번개 줄기 주머니. **판마다 비웁니다** — Phaser 는 장면을 다시 쓰므로
+    // 안 비우면 지난 판에서 이미 없어진 Graphics 가 주머니에 남습니다
+    // (textPool 이 같은 병을 앓았습니다).
+    this.boltPool = null;
 
     // 너무 오래 멈춰 있으면 (js/config.js 의 CFG.idle).
     this.idleMs = 0;
@@ -2066,11 +2070,17 @@ class GameScene extends Phaser.Scene {
   }
 
   fireArrow(x, y, target, dmg, bounce) {
-    const b = this.bullets.create(x, y, 'arrow');
+    // 무엇이 날아가는지는 자루가 정합니다 (js/weapon.js 의 projectile).
+    // 지팡이는 화살이 아니라 구슬·불덩이·번개탄·서릿조각을 날립니다.
+    const 그림 = this.weapon.projectile;
+    const b = this.bullets.create(x, y, 그림);
     b.body.setAllowGravity(false);
     b.body.setSize(14, 10);
     b.setTint(this.weapon.color).setDepth(9);
-    b.isArrow = true;
+    // **화살만 돕니다.** 화살은 날아가는 쪽을 향해야 하지만 구슬은 어느
+    // 쪽을 향하든 같습니다 — 돌리면 별이 팽이처럼 돕니다.
+    b.isArrow = 그림 === 'arrow';
+    b.isCast = !b.isArrow;
     b.dmg = dmg;
     b.bounce = bounce;
     b.from = target;
@@ -2111,8 +2121,13 @@ class GameScene extends Phaser.Scene {
   trailArrow(b, time) {
     if (time - (b.lastTrailAt || 0) < 26) return;
     b.lastTrailAt = time;
+    // **꼬리는 날아가는 쪽으로 누워야 합니다.** 화살은 제 몸이 이미 그쪽을
+    // 향하므로 b.rotation 을 그대로 쓰면 되지만, 마법은 안 돕니다 —
+    // 그대로 두면 비스듬히 날아가는 구슬 뒤에 가로줄이 깔립니다.
+    const 각 = b.isCast
+      ? Math.atan2(b.body.velocity.y, b.body.velocity.x) : b.rotation;
     const t = this.add.sprite(b.x, b.y, 'arrow-trail')
-      .setDepth(8).setTint(b.tintTopLeft).setRotation(b.rotation).setAlpha(0.5);
+      .setDepth(8).setTint(b.tintTopLeft).setRotation(각).setAlpha(0.5);
     this.tweens.add({
       targets: t, alpha: 0, scaleX: 0.3, duration: 180,
       onComplete: () => t.destroy(),
@@ -2252,30 +2267,96 @@ class GameScene extends Phaser.Scene {
     return 튄수;
   }
 
-  // 지그재그로 꺾인 줄기 하나. 곧은 선을 그으면 번개로 안 보입니다.
+  // ── 번개 줄기 ───────────────────────────────────────────
+  //
+  // 처음에는 **꺾인 선 하나**를 200ms 동안 지웠습니다. 그러면 번개가
+  // 아니라 「금이 간 자국」으로 보입니다 — 번개는 밝고 **짧아야** 합니다.
+  //
+  // 셋을 겹쳐 긋습니다: 굵고 흐린 겉불 · 가운데 줄기 · 가는 흰 심. 셋이
+  // 서로 다르게 꺾이므로 한 줄이 아니라 **갈래로** 보입니다. 그리고
+  // 양 끝에서 한 번 번쩍입니다 — 닿은 자리가 어디인지가 그것으로 읽힙니다.
+  //
+  // **주머니를 씁니다.** 줄기마다 Graphics 를 새로 만들면 세갈래 × 연쇄 2
+  // 에 한 번에 여섯이 생겼다 사라집니다 (이 판의 textPool·shadowPool 과
+  // 같은 까닭).
+  takeBolt() {
+    this.boltPool = this.boltPool || [];
+    // **주머니에서 꺼낸 것이 이미 죽었을 수 있습니다.** 장면이 아이들을
+    // 통째로 치우는 자리가 있으면(찍기 도구가 그럽니다) 주머니에는 죽은
+    // 껍데기가 남습니다. 그걸 그대로 꺼내 그리면 **아무 일도 안 일어나고
+    // 오류도 안 납니다** — 번개가 조용히 사라집니다. 살아 있는 것이
+    // 나올 때까지 걷어냅니다.
+    let g = null;
+    while (this.boltPool.length && !g) {
+      const 후보 = this.boltPool.pop();
+      if (후보 && 후보.scene) g = 후보;
+    }
+    if (!g) g = this.add.graphics();
+    g.clear().setDepth(11).setActive(true).setVisible(true).setAlpha(1);
+    // **겹칠수록 밝아져야 합니다.** 보통 섞기로 겹쳐 그으면 옅은 파랑이
+    // 어두운 남색 띠로 뭉쳐서, 겉불이 빛이 아니라 그림자로 보였습니다.
+    // 더하기로 섞으면 겹친 자리가 하얗게 타오릅니다 — 번개의 결입니다.
+    g.setBlendMode(Phaser.BlendModes.ADD);
+    return g;
+  }
+
+  giveBolt(g) {
+    g.clear().setVisible(false).setActive(false);
+    this.boltPool = this.boltPool || [];
+    if (this.boltPool.length < 24) this.boltPool.push(g); else g.destroy();
+  }
+
   boltFx(from, to, delay) {
     this.after(delay || 0, () => {
-      const g = this.add.graphics().setDepth(11);
-      g.lineStyle(3, CFG.chain.tint, 0.95);
-      const 칸 = 4;
-      // 옆으로 밀어내는 방향은 **길이와 상관없이 같은 폭**이라야 합니다.
-      // 길이로 나누지 않으면 먼 데로 튈수록 더 크게 흔들려서, 같은 번개가
-      // 거리에 따라 다른 모양이 됩니다.
+      const c = CFG.chain;
+      const g = this.takeBolt();
       const dx = to.x - from.x, dy = to.y - from.y;
       const len = Math.hypot(dx, dy) || 1;
+      // 옆으로 밀어내는 폭은 **길이와 상관없이 같아야** 합니다. 길이로
+      // 안 나누면 먼 데로 튈수록 더 크게 흔들려 모양이 달라집니다.
       const px = -dy / len, py = dx / len;
+      // 겉불 → 줄기 → 심. 뒤로 갈수록 가늘고 밝고 덜 흔들립니다.
+      // 처음에는 맨 바깥을 굵고(7) 옅게(0.22) 깔아 「겉불」로 삼았습니다.
+      // 그런데 획은 가장자리가 딱 떨어져서 옅게 깔면 빛이 아니라 **납작한
+      // 남색 띠**로 보입니다 — 번개에 그림자가 붙은 꼴이었습니다.
+      // 굵은 층을 걷고 셋 다 밝게 갑니다. 번개는 밝은 것입니다.
+      const 겹 = [
+        { w: 4.5, a: 0.38, 흔들: 24, 색: c.tint },
+        { w: 2.2, a: 0.95, 흔들: 14, 색: c.tint },
+        { w: 1.2, a: 1, 흔들: 7, 색: 0xffffff },
+      ];
+      겹.forEach((층) => {
+        g.lineStyle(층.w, 층.색, 층.a);
+        g.beginPath();
+        g.moveTo(from.x, from.y);
+        for (let i = 1; i < 5; i++) {
+          const t = i / 5;
+          const 어긋 = (Math.random() - 0.5) * 층.흔들;
+          g.lineTo(from.x + dx * t + px * 어긋, from.y + dy * t + py * 어긋);
+        }
+        g.lineTo(to.x, to.y);
+        g.strokePath();
+      });
+      // 가지 하나. 번개는 곧게만 가지 않고 도중에 한 번 갈라집니다 —
+      // 이 한 줄이 「전기」와 「그어 놓은 선」을 가릅니다.
+      const 가지t = 0.35 + Math.random() * 0.3;
+      const 가지x = from.x + dx * 가지t, 가지y = from.y + dy * 가지t;
+      g.lineStyle(1.6, 0xffffff, 0.7);
       g.beginPath();
-      g.moveTo(from.x, from.y);
-      for (let i = 1; i < 칸; i++) {
-        const t = i / 칸;
-        // 가는 길에서 옆으로 조금씩 어긋납니다 — 그게 번개의 결입니다.
-        const 어긋 = (Math.random() - 0.5) * 22;
-        g.lineTo(from.x + dx * t + px * 어긋, from.y + dy * t + py * 어긋);
-      }
-      g.lineTo(to.x, to.y);
+      g.moveTo(가지x, 가지y);
+      g.lineTo(가지x + px * 14 + dx * 0.10, 가지y + py * 14 + dy * 0.10);
+      g.lineTo(가지x + px * 22 + dx * 0.18, 가지y + py * 22 + dy * 0.18);
       g.strokePath();
-      this.tweens.add({ targets: g, alpha: 0, duration: 200,
-        onComplete: () => g.destroy() });
+
+      // 양 끝의 섬광. 닿은 자리가 어디인지는 이것으로 읽힙니다.
+      g.fillStyle(c.tint, 0.30);
+      g.fillCircle(to.x, to.y, 12);
+      g.fillStyle(0xffffff, 0.95);
+      g.fillCircle(from.x, from.y, 2.5);
+      g.fillCircle(to.x, to.y, 4);
+      // 200ms 였습니다. 번개는 짧아야 번개입니다.
+      this.tweens.add({ targets: g, alpha: 0, duration: 120,
+        onComplete: () => this.giveBolt(g) });
     });
   }
 
@@ -4093,6 +4174,11 @@ class GameScene extends Phaser.Scene {
       // 화살은 날아가는 쪽을 향해야 합니다. 안 돌리면 옆으로 누워 날아갑니다.
       if (b.isArrow) {
         b.setRotation(Math.atan2(b.body.velocity.y, b.body.velocity.x));
+        this.trailArrow(b, time);
+      } else if (b.isCast) {
+        // 마법은 안 돌고 **숨을 쉽니다.** 크기가 조금씩 오르내려야 죽은
+        // 그림이 아니라 「도는 힘」으로 보입니다.
+        b.setScale(1 + Math.sin(time / 60) * 0.12);
         this.trailArrow(b, time);
       }
       if (b.hitSet) return; // 파동은 직선으로만 나갑니다
