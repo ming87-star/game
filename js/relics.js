@@ -183,18 +183,23 @@ const RELICS = [
   },
   {
     key: 'piercingoil', name: '관통하는 기름', icon: '➳', oilFamily: 'oil',
-    desc: '화살이 하나를 뚫고 하나 더 갑니다',
-    detail: '기름은 하나만 바릅니다 · 화살이 곧게 날아갑니다',
+    // 「화살이 하나를 뚫고」였습니다. 공용 유물인데 활을 쓰지 않는 넷에게는
+    // 글도 효과도 헛돌았습니다 — 근접판을 만들면서 글도 둘 다 담습니다
+    // (근접에서 어떻게 도는지는 CFG.relicFx.piercingoil).
+    desc: '앞의 하나를 뚫고 뒤의 하나까지 닿습니다',
+    detail: '화살도 휘두름도 하나 더 · 기름은 하나만 바릅니다',
     pierceOil: 1,
   },
   {
     key: 'hotoil', name: '뜨거운 기름', icon: '♨', oilFamily: 'oil',
-    desc: '벤 적이 잠깐 불타며 조금씩 더 깎입니다',
+    // 「벤 적이」였습니다. 기름은 자루에 바르는 것이라 화살에도 묻습니다
+    // (scene-game.js 의 applyOil 은 근접과 화살 둘 다에서 불립니다).
+    desc: '맞은 적이 잠깐 불타며 조금씩 더 깎입니다',
     detail: '타는 적은 붉게 보입니다 · 기름은 하나만 바릅니다',
   },
   {
     key: 'coldoil', name: '차가운 기름', icon: '❄', oilFamily: 'oil',
-    desc: '벤 적이 잠깐 느려집니다',
+    desc: '맞은 적이 잠깐 느려집니다',
     detail: '언 적은 파랗게 보입니다 · 기름은 하나만 바릅니다',
   },
 

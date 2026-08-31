@@ -108,6 +108,83 @@ const check = (ok, label, got) => {
     '다른 기름을 바르면 전에 바른 기름이 벗겨짐', oil.after2.join(','));
   check(oil.after2.length === 1, '자리를 더 안 씀 (한 자리를 나눠 씀)', oil.after2.length + '개');
 
+  // ── 2.5 관통하는 기름은 근접에서도 돕니다 ────────────────
+  //
+  // 공용 유물인데 pierce 가 화살에만 걸려 있어, 근접 네 직업에게는 유물
+  // 칸만 잡아먹는 죽은 물건이었습니다. 지금은 근접에서 **사거리 밖 하나가
+  // 더 맞습니다** (scene-game.js 의 swing).
+  //
+  // 재는 법: 사거리 안에 하나, 사거리 밖 두 배 안에 하나를 놓고 한 번
+  // 휘두릅니다. 유물이 없으면 안쪽만, 있으면 둘 다 깎여야 합니다.
+  const pierce = await page.evaluate(() => {
+    const s = window.__scene;
+    s.weapon.hits = () => true;      // 정확도 굴림을 빼야 답이 흔들리지 않습니다
+    const f = s.floors.get(300);
+    s.player.x = f.slots.mid.x;
+    s.player.y = f.slots.mid.y;
+    const reach = s.weapon.reach;
+    const 놓기 = (k) => {
+      const e = spawnEnemy(s, s.player.x + reach * k, s.player.y, 300, 'crawler');
+      e.maxHp = e.hp = 100000;
+      e.hitOnce = true;              // 초전박살·처형인이 안 끼게
+      return e;
+    };
+    const 한판 = (relics) => {
+      s.weapon.relics = relics.map((k) => relicByKey(k));
+      const 안 = 놓기(0.5), 밖 = 놓기(1.5);
+      const 안거리 = s.meleeDist(안), 밖거리 = s.meleeDist(밖);
+      s.lastSwingAt = -99999;
+      s.swing(s.time.now);
+      const r = { 안: 100000 - 안.hp, 밖: 100000 - 밖.hp, 안거리, 밖거리, reach };
+      안.destroy(); 밖.destroy();
+      return r;
+    };
+    const 없이 = 한판([]);
+    const 들고 = 한판(['piercingoil']);
+    return { 없이, 들고 };
+  });
+  // 먼저 자리가 뜻대로 잡혔는지 — 여기가 틀리면 아래가 통째로 헛됩니다.
+  check(pierce.없이.안거리 <= pierce.없이.reach && pierce.없이.밖거리 > pierce.없이.reach,
+    '하나는 사거리 안 · 하나는 밖에 놓임',
+    Math.round(pierce.없이.안거리) + ' / ' + Math.round(pierce.없이.밖거리)
+      + ' (사거리 ' + Math.round(pierce.없이.reach) + ')');
+  check(pierce.없이.안 > 0 && pierce.없이.밖 === 0,
+    '유물이 없으면 사거리 안만 맞음', pierce.없이.안 + ' / ' + pierce.없이.밖);
+  check(pierce.들고.안 > 0 && pierce.들고.밖 > 0,
+    '관통하는 기름을 바르면 사거리 밖 하나가 더 맞음',
+    pierce.들고.안 + ' / ' + pierce.들고.밖);
+
+  // ── 2.6 기름 셋의 글이 갈래를 안 가림 ────────────────────
+  //
+  // 「**벤** 적이 잠깐 불탄다」는 활과 지팡이를 쓰는 넷에게 틀린 말이었습니다.
+  // 기름은 자루에 바르는 것이라 화살에도 묻습니다(applyOil 은 근접과 화살
+  // 둘 다에서 불립니다). 글이 다시 한쪽으로 기울면 여기서 걸립니다.
+  const 기름글 = await page.evaluate(() => ['hotoil', 'coldoil', 'piercingoil'].map((k) => {
+    const r = relicByKey(k);
+    const 글 = r.desc + '  ' + r.detail;
+    const 활 = ['화살', '활'].some((w) => 글.includes(w));
+    const 칼 = ['벤 ', '베는', '휘두', '날붙이', '칼', '검'].some((w) => 글.includes(w));
+    // 한쪽만 말하면 틀린 글입니다. 아무 쪽도 안 말하거나 둘 다 말하면 맞습니다.
+    return { name: r.name, 한쪽: 활 !== 칼 };
+  }));
+  기름글.forEach((o) => check(!o.한쪽, '「' + o.name + '」 글이 한 갈래에만 맞지 않음'));
+
+  // ── 2.7 공용 유물은 갈래에 매인 효과를 갖지 않습니다 ─────
+  //
+  // 갈래에 매인 효과(튕김·물린 자국 등)를 공용 유물에 달면, 그 갈래를 안
+  // 쓰는 직업에게 **아무 일도 안 하는 유물**이 됩니다. 오류도 안 나고 카드도
+  // 멀쩡히 떠서, 눈으로는 영영 못 찾습니다 — 그래서 여기서 잽니다.
+  // (relic-audit.js 가 여덟 직업에 하나하나 대 보는 것과 같은 규칙입니다.)
+  const 매인효과 = await page.evaluate(() => {
+    const 원거리만 = ['bounce', 'huntMarkMul'];
+    const 근접만 = ['wave', 'reachScale', 'falloff', 'stealBonus', 'stealAmount', 'backhand'];
+    return RELICS.filter((r) => !r.jobs)
+      .filter((r) => [...원거리만, ...근접만].some((k) => r[k]))
+      .map((r) => r.name);
+  });
+  check(매인효과.length === 0, '공용 유물에 갈래 전용 효과가 없음',
+    매인효과.length ? 매인효과.join(' · ') : '0개');
+
   // ── 3. 초전박살 — 그 적의 첫 대만 세 배 ─────────────────
   const first = await page.evaluate(() => {
     const s = window.__scene;

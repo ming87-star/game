@@ -1580,6 +1580,25 @@ class GameScene extends Phaser.Scene {
       this.meleeDist(e) <= w.reach);
     if (!hit.length) return; // 허공에 휘두르지는 않습니다
 
+    // ── 관통하는 기름 (근접판) ──────────────────────────
+    // 활은 화살이 앞을 뚫고 더 날아갑니다(fireArrow 의 pierce). 근접은
+    // 사거리 안을 원래 통째로 치므로 그 자리에 얹을 곳이 없었고, 그래서
+    // 이 유물은 근접 네 직업에게 **아무 일도 하지 않았습니다.**
+    //
+    // 여기서는 **팔이 한 놈 너머까지 뻗습니다.** 사거리 밖에서 가장 가까운
+    // 것을 뚫는 수만큼 더 겁니다. 사거리 안에 아무도 없으면 위에서 이미
+    // 돌아갔으니, 「앞의 하나를 뚫고」라는 말 그대로입니다.
+    const 뚫기 = w.pierce;
+    if (뚫기 > 0) {
+      const 너머 = w.reach * CFG.relicFx.piercingoil.meleeReach;
+      this.enemies.getChildren()
+        .filter((e) => this.targetable(e) && !hit.includes(e) &&
+          e.y <= this.player.y + CFG.aimBelow && this.meleeDist(e) <= 너머)
+        .sort((a, b) => this.meleeDist(a) - this.meleeDist(b))
+        .slice(0, 뚫기)
+        .forEach((e) => hit.push(e));
+    }
+
     this.lastSwingAt = now;
     this.swings = (this.swings || 0) + 1;
     // 연타 — **이 대에 실릴 배수를 먼저 잡아 두고** 그 다음에 셈틀을 올립니다.
