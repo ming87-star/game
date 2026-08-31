@@ -1300,6 +1300,144 @@ const check = (ok, what, note) => {
   check(많이.relicMax === 5, '도굴꾼의 칸이 다섯 (다섯째까지 셀 수 있음)',
     많이.relicMax + '칸');
 
+  // ── 마법사의 새 마법 둘 — 연쇄번개와 장판 ───────────────
+  //
+  // 지팡이는 원래 넷을 지녔습니다(태우고·꿰뚫고·터지고·감쌉니다). 넷 다
+  // 「한 대에 얹히는 것」이라 열세 자루가 서로 달라도 손짓이 늘 같았습니다.
+  // 둘을 새로 답니다 — 둘 다 **맞은 자리에서 스스로 퍼지는 것**입니다.
+  //
+  // **판을 마법사로 새로 켜고 잽니다.** 앞 절이 도굴꾼으로 끝나므로 그냥
+  // 이어서 재면 자루 목록이 곡괭이입니다 — findIndex 가 -1 을 돌려주고
+  // weapon.base 가 undefined 가 되어 `rate` 를 읽다 터집니다. 실제로 그랬습니다.
+  await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'wizard' }));
+  await page.waitForFunction(() => window.__scene && window.__scene.player
+    && window.__scene.job.key === 'wizard' && !window.__scene.dead,
+  null, { timeout: 8000 });
+  await page.waitForTimeout(600);
+
+  const 마법 = await page.evaluate(async () => {
+    const s = window.__scene;
+    // 잴 때마다 판을 처음 상태로 (한 층에 오래 서 있으면 그림자가 삼킵니다).
+    const 되돌리기 = () => {
+      s.idleMs = 0; s.idleWarned = false; s.swallowing = false;
+      if (s.clearShadowPool) s.clearShadowPool();
+      s.dead = false; s.hp = s.maxHp;
+      s.clearFields();
+      s.enemies.getChildren().slice().forEach((e) => e.destroy());
+    };
+    const 세우기 = (n, 간격) => {
+      const f = s.floors.get(s.floorIndex);
+      s.player.x = f.slots.mid.x; s.player.y = f.slots.mid.y;
+      const 놈들 = [];
+      for (let i = 0; i < n; i++) {
+        const e = spawnEnemy(s, s.player.x + 60 + i * 간격, s.player.y - 30,
+          s.floorIndex, 'crawler');
+        e.maxHp = e.hp = 200000; e.hitOnce = true;
+        e.stunUntil = s.time.now + 1e9;
+        if (e.body) e.body.setAllowGravity(false);
+        놈들.push(e);
+      }
+      return 놈들;
+    };
+    const 판시계 = (ms) => new Promise((r) => {
+      const 끝 = s.time.now + ms, 벽 = Date.now() + ms * 6 + 800;
+      const 보기 = () => ((s.time.now >= 끝 || Date.now() >= 벽) ? r() : setTimeout(보기, 16));
+      보기();
+    });
+
+    // ── 연쇄번개 ──────────────────────────────────────
+    // 「번개 지팡이」로 셋을 세우고 **한 대만** 쏩니다. 판은 저절로 계속
+    // 쏘므로 문을 잠그고 손으로 한 번 엽니다 — 안 그러면 답이 「3초 동안
+    // 몇 대가 나갔나」까지 섞여 판마다 달라집니다.
+    const 한대 = async (자루, n) => {
+      되돌리기();
+      const 자리 = s.weapon.table.findIndex((w) => w.name === 자루);
+      if (자리 < 0) throw new Error('그 자루가 목록에 없습니다: ' + 자루);
+      s.weapon.index = 자리;
+      s.weapon.plus = 0; s.weapon.haste = 0; s.weapon.mult = 1; s.weapon.relics = [];
+      s.weapon.hits = () => true;
+      s.weapon.rollDamage = () => s.weapon.dmg;
+      const 놈들 = 세우기(n, 34);
+      const 원래 = s.shoot.bind(s);
+      s.shoot = () => {};
+      s.lastSubAt = -99999;
+      원래(s.time.now);
+      await 판시계(3000);
+      s.shoot = 원래;
+      const 맞은수 = 놈들.filter((e) => e.hp < 200000).length;
+      const 합 = 놈들.reduce((a, e) => a + (200000 - e.hp), 0);
+      놈들.forEach((e) => e.destroy());
+      s.clearFields();
+      return { 합, 맞은수, 죽음: s.dead };
+    };
+
+    const 번개하나 = await 한대('번개 지팡이', 1);
+    const 번개셋 = await 한대('번개 지팡이', 3);
+    const 나무셋 = await 한대('나무 지팡이', 3);
+
+    // ── 장판 ──────────────────────────────────────────
+    // 깔린 자리에 서 있는 것만 맞습니다. 하나를 자리 안에, 하나를 밖에
+    // 두고 재면 「자리에 남는다」가 그대로 잡힙니다.
+    되돌리기();
+    const 터짐자리 = s.weapon.table.findIndex((w) => w.name === '터지는 지팡이');
+    if (터짐자리 < 0) throw new Error('터지는 지팡이가 목록에 없습니다');
+    s.weapon.index = 터짐자리;
+    s.weapon.plus = 0; s.weapon.haste = 0; s.weapon.mult = 1; s.weapon.relics = [];
+    const c = CFG.field;
+    const f = s.floors.get(s.floorIndex);
+    s.player.x = f.slots.mid.x; s.player.y = f.slots.mid.y;
+    const 안 = spawnEnemy(s, s.player.x + 200, s.player.y - 30, s.floorIndex, 'crawler');
+    const 밖 = spawnEnemy(s, s.player.x + 200 + c.radius * 2.5, s.player.y - 30,
+      s.floorIndex, 'crawler');
+    [안, 밖].forEach((e) => { e.maxHp = e.hp = 200000; e.hitOnce = true;
+      e.stunUntil = s.time.now + 1e9; if (e.body) e.body.setAllowGravity(false); });
+    // **쏘는 문을 잠급니다.** 안 잠그면 판이 저절로 계속 쏘고, 터지는
+    // 지팡이는 쏠 때마다 장판을 깝니다 — 다 사라졌는지 보려는 자리에서
+    // 새 장판이 계속 깔려 「2장 남음」이 됩니다. 실제로 그랬습니다.
+    const 문잠금 = s.shoot.bind(s);
+    s.shoot = () => {};
+    const 깔림 = s.dropField({ x: 안.x, y: 안.y }, 100);
+    const 깔린수 = s.fields.length;
+    await 판시계(c.ms + 400);
+    s.shoot = 문잠금;
+    const 장판 = { 깔림, 깔린수, 안: 200000 - 안.hp, 밖: 200000 - 밖.hp,
+      남음: s.fields.length };
+    안.destroy(); 밖.destroy();
+    되돌리기();
+
+    // 한 자리에 겹겹이 안 쌓입니다 (CFG.field.maxAt).
+    for (let i = 0; i < 12; i++) {
+      s.dropField({ x: s.player.x + 40 + i * 400, y: s.player.y }, 100);
+    }
+    const 겹침 = s.fields.length;
+    s.clearFields();
+    const 걷힘 = s.fields.length;
+
+    return { 번개하나, 번개셋, 나무셋, 장판, 겹침, 걷힘, maxAt: c.maxAt };
+  });
+
+  check(마법.나무셋.맞은수 === 1,
+    '아무것도 안 지닌 지팡이는 겨눈 하나만 맞힘', 마법.나무셋.맞은수 + '마리');
+  check(마법.번개하나.맞은수 === 1 && 마법.번개셋.맞은수 === 2,
+    '**연쇄번개는 곁의 하나로 옮겨 붙음** (혼자면 옮겨갈 곳이 없음)',
+    마법.번개하나.맞은수 + '마리 → ' + 마법.번개셋.맞은수 + '마리');
+  check(마법.번개셋.합 > 마법.번개하나.합 * 1.4,
+    '옮겨 붙은 만큼 더 들어감',
+    마법.번개하나.합 + ' → ' + 마법.번개셋.합
+      + ' (' + (마법.번개셋.합 / 마법.번개하나.합).toFixed(2) + '배)');
+  check(!마법.번개셋.죽음, '재는 동안 주인공이 멀쩡함 (그림자에 안 삼켜짐)');
+
+  check(마법.장판.깔림 && 마법.장판.깔린수 === 1,
+    '장판이 깔림', 마법.장판.깔린수 + '장');
+  check(마법.장판.안 > 0, '**장판 안에 선 것은 계속 깎임**', 마법.장판.안 + ' 깎임');
+  check(마법.장판.밖 === 0, '**장판 밖은 안 맞음** (자리에 남는 것이라서)',
+    마법.장판.밖 + ' 깎임');
+  check(마법.장판.남음 === 0, '때가 되면 스스로 사라짐', 마법.장판.남음 + '장 남음');
+  check(마법.겹침 === 마법.maxAt,
+    '한 번에 ' + 마법.maxAt + '장까지만 (빠른 자루가 겹겹이 못 쌓게)',
+    마법.겹침 + '장');
+  check(마법.걷힘 === 0, '판이 끝나면 걷힘 (다음 판에 안 남음)', 마법.걷힘 + '장');
+
   console.log(bad ? `\n${bad}건 어긋남` : '\n지팡이 넷 · 연타 · 부하 · 곰 · 전용 유물 다섯이 다 제 일을 합니다');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
   await browser.close();

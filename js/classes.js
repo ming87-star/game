@@ -990,11 +990,23 @@ const CLASSES = [
     //
     // 짐작한 배수를 곱해서 점수를 맞추면 어떤 답이든 나오므로, 배수를
     // 여기 적어 두고 **셈이 그 값으로 앉는 자리를 내게** 합니다.
-    // **화상과 보호막은 이제 표에 잡힙니다** (job-scale 이 burn·shield 를 셉니다).
-    // 남은 것은 여럿에게 닿는 둘뿐이라 1.5 에서 1.2 로 내렸습니다 — 전사의
-    // 사거리와 같은 자리입니다.
-    표에안잡힘: '관통·광역이 여럿에게 닿습니다',
-    그럴듯: 1.2,
+    // **화상·보호막·장판은 표에 잡힙니다** (job-scale 이 burn·shield·field 를
+    // 셉니다). 남은 것은 **여럿에게 닿는 것들**입니다 — 관통·광역, 그리고
+    // 새로 붙은 연쇄번개.
+    //
+    // 1.2 였습니다. 연쇄번개를 달면서 다시 잡았습니다 (node spell-check.js):
+    //
+    //   번개 지팡이(번개 1)          셋 이상 몰리면 ×1.62
+    //   별의 지팡이(번개 1)                        ×1.43
+    //   대마법사의 지팡이(번개 2)                   ×1.62
+    //   사슬 지팡이(꿰뚫기 3 + 번개 2)              ×4.04
+    //
+    //   열세 자루 중 넷이 번개를 지님        0.31
+    //   몰렸을 때 더 들어가는 몫 (평균)      0.55
+    //   몰려 있는 자리는 절반쯤              0.50
+    //   1.2 × (1 + 0.31 × 0.55 × 0.5) ≈ 1.30
+    표에안잡힘: '관통·광역·연쇄번개가 여럿에게 닿습니다',
+    그럴듯: 1.30,
     name: '마법사',
     unlockFloor: 800, unlockCoins: 2400,
     unlockBy: 'digger',   // 도굴꾼으로 오른 판에서만 열립니다
@@ -1026,10 +1038,10 @@ const CLASSES = [
         detail: '맞은 자리가 계속 탑니다',
         lore: '끝이 늘 따뜻합니다. 물에 담가도 식지 않습니다.',
         icon: { art: 'staff', hw: 4.27, len: 0.55 } },
-      { key: 's2', name: '쌍갈래 지팡이', dmg: 34, rate: 324, range: 327, depth: 80,
-        forge: 'black', sheet: 2, color: 0xef9a9a, shots: 2,
-        detail: '한 번에 2갈래로 나갑니다',
-        lore: '한 번 휘두르면 둘이 나갑니다. 어느 쪽이 먼저인지는 모릅니다.',
+      { key: 's2', name: '번개 지팡이', dmg: 34, rate: 324, range: 327, depth: 80,
+        forge: 'black', sheet: 2, color: 0xef9a9a, shots: 2, chain: 1,
+        detail: '한 번에 2갈래로 나갑니다. 맞은 자리에서 곁으로 튑니다',
+        lore: '한 번 휘두르면 둘이 나가고, 닿은 자리에서 한 번 더 옮겨 붙습니다.',
         icon: { art: 'staff', hw: 4.61, len: 0.57 } },
       { key: 's3', name: '꿰뚫는 지팡이', dmg: 49, rate: 315, range: 341, depth: 120,
         forge: 'silver', sheet: 3, color: 0x80deea, pierce: 2,
@@ -1042,9 +1054,9 @@ const CLASSES = [
         lore: '쥐고 있으면 등 뒤가 덜 서늘합니다.',
         icon: { art: 'staff', hw: 5.29, len: 0.62 } },
       { key: 's5', name: '터지는 지팡이', dmg: 49, rate: 299, range: 368, depth: 200,
-        forge: 'keen', sheet: 5, color: 0x9fa8da, aoe: 1,
-        detail: '닿은 자리가 터집니다',
-        lore: '끝에 닿은 것은 그 자리에서 터집니다.',
+        forge: 'keen', sheet: 5, color: 0x9fa8da, aoe: 1, field: 0.30,
+        detail: '닿은 자리가 터지고, 그 자리가 한동안 탑니다',
+        lore: '끝에 닿은 것은 그 자리에서 터지고, 터진 자리는 한참을 탑니다.',
         icon: { art: 'staff', hw: 5.63, len: 0.65 } },
       { key: 's6', name: '세갈래 지팡이', dmg: 29, rate: 291, range: 382, depth: 250,
         forge: 'black', sheet: 6, color: 0xffe082, shots: 3,
@@ -1052,13 +1064,13 @@ const CLASSES = [
         lore: '셋으로 갈라지되 힘도 셋으로 갈립니다.',
         icon: { art: 'staff', hw: 5.97, len: 0.68 } },
       { key: 's7', name: '사슬 지팡이', dmg: 51, rate: 283, range: 395, depth: 300,
-        forge: 'silver', sheet: 7, color: 0xb39ddb, pierce: 3,
-        detail: '뒤에 선 것까지 꿰뚫습니다',
-        lore: '한 줄로 선 것들을 한 번에 꿴다고 합니다.',
+        forge: 'silver', sheet: 7, color: 0xb39ddb, pierce: 3, chain: 2,
+        detail: '뒤에 선 것까지 꿰뚫습니다. 맞은 자리에서 곁으로 두 번 튑니다',
+        lore: '한 줄로 선 것들을 한 번에 꿰고, 꿴 자리마다 옆으로 옮겨 붙습니다.',
         icon: { art: 'staff', hw: 6.31, len: 0.70 } },
       { key: 's8', name: '화염폭풍', dmg: 42, rate: 275, range: 409, depth: 350,
-        forge: 'iron', sheet: 8, color: 0xf48fb1, burn: 0.55, aoe: 1,
-        detail: '맞은 자리가 계속 탑니다. 닿은 자리가 터집니다',
+        forge: 'iron', sheet: 8, color: 0xf48fb1, burn: 0.55, aoe: 1, field: 0.40,
+        detail: '맞은 자리가 계속 탑니다. 닿은 자리가 터지고 한동안 탑니다',
         lore: '불이 번지는 것을 멈추는 법을 아직 아무도 못 찾았습니다.',
         icon: { art: 'staff', hw: 6.65, len: 0.73 } },
       { key: 's9', name: '서리 지팡이', dmg: 61, rate: 266, range: 423, depth: 400,
@@ -1067,13 +1079,14 @@ const CLASSES = [
         lore: '흔들리지 않습니다. 겨눈 곳으로 정확히 갑니다.',
         icon: { art: 'staff', hw: 6.99, len: 0.75 } },
       { key: 's10', name: '별의 지팡이', dmg: 36, rate: 258, range: 436, depth: 450,
-        forge: 'black', sheet: 10, color: 0x90caf9, shots: 3, burn: 0.3,
-        detail: '한 번에 3갈래로 나갑니다. 맞은 자리가 계속 탑니다',
-        lore: '밤하늘을 그대로 담았다고 합니다. 셋이 나가고 셋 다 탑니다.',
+        forge: 'black', sheet: 10, color: 0x90caf9, shots: 3, burn: 0.3, chain: 1,
+        detail: '한 번에 3갈래로 나갑니다. 맞은 자리가 타고 곁으로 튑니다',
+        lore: '밤하늘을 그대로 담았다고 합니다. 셋이 나가고 셋 다 옮겨 붙습니다.',
         icon: { art: 'staff', hw: 7.33, len: 0.78 } },
       { key: 's11', name: '대마법사의 지팡이', dmg: 36, rate: 250, range: 450, depth: 500,
         forge: 'silver', sheet: 11, color: 0xb0bec5, shots: 3, burn: 0.25, shield: 1.2,
-        detail: '한 번에 3갈래로 나갑니다. 맞은 자리가 계속 탑니다. 몸을 감싸는 것이 함께 섭니다',
+        chain: 2, field: 0.25,
+        detail: '셋으로 나가 타고 튀고, 그 자리가 한동안 탑니다. 몸도 감쌉니다',
         lore: '이 지팡이를 든 사람은 더 배울 것이 없다고 합니다.',
         icon: { art: 'staff', hw: 7.67, len: 0.81 } },
       { key: 'nameless', name: '무명지팡이', dmg: 20, rate: 340, range: 282, depth: 120,

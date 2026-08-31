@@ -43,6 +43,7 @@ class GameScene extends Phaser.Scene {
     // (시험이 잡았습니다). 판이 끝날 때 치우는 것만으로는 모자랍니다.
     this.clearThralls();
     this.clearBear();   // 곰 (곰사냥꾼). 같은 까닭으로 여기서 비웁니다
+    this.clearFields(); // 장판 (마법사). 지난 판의 불이 남아 있으면 안 됩니다
     this.lane = 'mid';
     resetTowerRun(); // 이번 판의 UP 배치를 새로 뽑습니다
 
@@ -1705,9 +1706,15 @@ class GameScene extends Phaser.Scene {
       }
       // 공격력은 적마다 새로 굴립니다. 한 번 굴려 나눠 주면 범위가 있는 뜻이
       // 반으로 줄어듭니다 — 화면에 뜨는 숫자 여럿이 늘 똑같아집니다.
-      this.hitEnemy(e, Math.max(1, Math.round(w.rollDamage() * scaleAt(e) * 연타)));
+      const 몫 = Math.max(1, Math.round(w.rollDamage() * scaleAt(e) * 연타));
+      this.hitEnemy(e, 몫);
       this.applyOil(e);
       this.stunEnemy(e);
+      // 자루가 번개나 장판을 지녔으면 근접도 같이 씁니다. 지금은 지팡이만
+      // 지니지만, 「마법사만 되는 것」으로 못 박아 두면 나중에 마법 검
+      // 하나를 넣을 때 여기부터 다시 뜯어야 합니다.
+      this.chainFrom({ x: e.x, y: e.y }, e, 몫);
+      this.dropField({ x: e.x, y: e.y }, 몫);
     });
 
     // ── 뒷손 ──────────────────────────────────────────
@@ -1922,6 +1929,10 @@ class GameScene extends Phaser.Scene {
     // 석궁은 당기는 마디가 없어 늦출 것도 없습니다 — 곧장 나가고 몸이 뒤로 밀립니다.
     const lead = this.playAttackMotion(this.subTarget);
 
+    // 지팡이가 지닌 것이 많을수록 손짓이 크게 보여야 합니다 — 「마법을 쓰는
+    // 만큼 화려하게」. 자루가 지닌 마법 수를 세어 그만큼 크게 터뜨립니다.
+    this.after(lead, () => this.castFx());
+
     const others = pool.filter((e) => e !== this.subTarget);
     for (let i = 0; i < w.shots; i++) {
       const target = i === 0 ? this.subTarget : (others[i - 1] || this.subTarget);
@@ -2120,6 +2131,10 @@ class GameScene extends Phaser.Scene {
       // 기름이 없어도 원래 꿰뚫으므로, 여기서 기름 상태를 걸어도 안전합니다.
       this.applyOil(enemy);
       this.splash({ x: bullet.x, y: bullet.y }, enemy, bullet.dmg);
+      // 꿰뚫는 자루에 번개나 장판이 함께 붙어 있으면 **뚫고 지나가며
+      // 자리마다** 터집니다 — 「사슬 지팡이」가 사슬인 까닭입니다.
+      this.chainFrom({ x: bullet.x, y: bullet.y }, enemy, bullet.dmg);
+      this.dropField({ x: bullet.x, y: bullet.y }, bullet.dmg);
       if (bullet.pierce > 0) { bullet.pierce--; return; }
       bullet.destroy();
       return;
@@ -2131,6 +2146,8 @@ class GameScene extends Phaser.Scene {
     this.hitEnemy(enemy, dmg);
     this.applyOil(enemy);
     this.splash(at, enemy, dmg);
+    this.chainFrom(at, enemy, dmg);
+    this.dropField(at, dmg);
 
     // 메아리 활 — 맞은 자리에서 다른 적에게 한 번 더 튕깁니다.
     if (bounce > 0) {
@@ -2174,6 +2191,152 @@ class GameScene extends Phaser.Scene {
       onComplete: () => ring.destroy(),
     });
     return 터짐;
+  }
+
+  // 지팡이 끝에서 터지는 빛. **자루가 지닌 마법 수만큼 커집니다** —
+  // 나무 지팡이는 아무 일도 안 하고, 대마법사의 지팡이는 크게 번쩍입니다.
+  // 넷을 지녀도 손짓이 똑같으면 「무엇을 들었는가」가 화면에서 안 읽힙니다.
+  castFx() {
+    const w = this.weapon;
+    const 수 = (w.burn > 0 ? 1 : 0) + (w.pierce > 0 ? 1 : 0) + (w.aoe > 0 ? 1 : 0)
+      + (w.shield > 1 ? 1 : 0) + (w.chain > 0 ? 1 : 0) + (w.field > 0 ? 1 : 0);
+    if (!수) return;
+    const x = this.player.x, y = this.player.y - 6;
+    const r = 8 + 수 * 4;
+    const g = this.add.circle(x, y, 6, w.color, 0.55).setDepth(11);
+    this.tweens.add({ targets: g, radius: r, alpha: 0, duration: 200,
+      onUpdate: () => g.setRadius(g.radius), onComplete: () => g.destroy() });
+    // 둘 넘게 지닌 자루는 테두리가 한 겹 더 돕니다.
+    if (수 >= 3) {
+      const ring = this.add.circle(x, y, r * 0.6, w.color, 0).setDepth(11)
+        .setStrokeStyle(2, w.color, 0.8);
+      this.tweens.add({ targets: ring, radius: r * 1.6, alpha: 0, duration: 280,
+        onUpdate: () => ring.setRadius(ring.radius), onComplete: () => ring.destroy() });
+    }
+  }
+
+  // ── 연쇄번개 ────────────────────────────────────────────
+  //
+  // 맞은 놈에서 곁의 놈으로 튑니다. 튈 때마다 몫이 줄고(CFG.chain.share),
+  // 이미 맞은 놈에게는 안 돌아옵니다.
+  //
+  // **메아리 활(bounce)과 다릅니다.** 저쪽은 화살이 실제로 다시 날아가서
+  // 도중에 막히기도 하고 시간도 걸립니다. 번개는 **그 자리에서 곧바로**
+  // 들어갑니다 — 마법이니까요. 대신 거리를 좁게 잡아(170) 발판을 크게
+  // 넘어가지 않습니다. 화면 밖에서 숫자만 뜨면 무슨 일이 난 건지 모릅니다.
+  chainFrom(at, hit, dmg) {
+    const n = this.weapon.chain;
+    if (!n) return 0;
+    const c = CFG.chain;
+    const 맞은것 = new Set([hit]);
+    let 자리 = at;
+    let 몫 = dmg;
+    let 튄수 = 0;
+    for (let i = 0; i < n; i++) {
+      몫 = Math.max(1, Math.round(몫 * c.share));
+      const 다음 = this.enemies.getChildren()
+        .filter((e) => this.targetable(e) && !맞은것.has(e)
+          && Phaser.Math.Distance.Between(e.x, e.y, 자리.x, 자리.y) <= c.radius)
+        .sort((a, b) => Phaser.Math.Distance.Between(a.x, a.y, 자리.x, 자리.y)
+                      - Phaser.Math.Distance.Between(b.x, b.y, 자리.x, 자리.y))[0];
+      if (!다음) break;
+      맞은것.add(다음);
+      튄수++;
+      // 번개 줄기는 **몇 박자 뒤에** 하나씩 뜹니다. 한꺼번에 그리면
+      // 셋이 동시에 번쩍여서 「하나에서 하나로 옮겨 간다」가 안 보입니다.
+      this.boltFx(자리, { x: 다음.x, y: 다음.y }, i * c.ms);
+      const 놈 = 다음, 이몫 = 몫;
+      this.after(i * c.ms, () => { if (this.targetable(놈)) this.hitEnemy(놈, 이몫); });
+      자리 = { x: 다음.x, y: 다음.y };
+    }
+    return 튄수;
+  }
+
+  // 지그재그로 꺾인 줄기 하나. 곧은 선을 그으면 번개로 안 보입니다.
+  boltFx(from, to, delay) {
+    this.after(delay || 0, () => {
+      const g = this.add.graphics().setDepth(11);
+      g.lineStyle(3, CFG.chain.tint, 0.95);
+      const 칸 = 4;
+      // 옆으로 밀어내는 방향은 **길이와 상관없이 같은 폭**이라야 합니다.
+      // 길이로 나누지 않으면 먼 데로 튈수록 더 크게 흔들려서, 같은 번개가
+      // 거리에 따라 다른 모양이 됩니다.
+      const dx = to.x - from.x, dy = to.y - from.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const px = -dy / len, py = dx / len;
+      g.beginPath();
+      g.moveTo(from.x, from.y);
+      for (let i = 1; i < 칸; i++) {
+        const t = i / 칸;
+        // 가는 길에서 옆으로 조금씩 어긋납니다 — 그게 번개의 결입니다.
+        const 어긋 = (Math.random() - 0.5) * 22;
+        g.lineTo(from.x + dx * t + px * 어긋, from.y + dy * t + py * 어긋);
+      }
+      g.lineTo(to.x, to.y);
+      g.strokePath();
+      this.tweens.add({ targets: g, alpha: 0, duration: 200,
+        onComplete: () => g.destroy() });
+    });
+  }
+
+  // ── 장판 ────────────────────────────────────────────────
+  //
+  // 닿은 자리에 남아서 그 안에 선 것을 계속 깎습니다. 태우는 것과 다른
+  // 점은 **자리에 남는다**는 것입니다 — 적이 걸어 들어오면 맞고 걸어
+  // 나가면 안 맞습니다.
+  //
+  // 한 번에 셋까지만 깔립니다(CFG.field.maxAt). 안 막으면 빠른 자루가
+  // 같은 자리에 겹겹이 쌓아 올려서, 초당 피해가 자루 속도에 그대로
+  // 비례해 버립니다 — 마법이 아니라 눈속임이 됩니다.
+  dropField(at, dmg) {
+    const 몫 = this.weapon.field;
+    if (!몫) return false;
+    const c = CFG.field;
+    this.fields = (this.fields || []).filter((f) => f.ring && f.ring.active);
+    // 이미 겹치는 자리에 있으면 새로 안 깔고 **시간만 되돌립니다.**
+    const 겹침 = this.fields.find((f) =>
+      Phaser.Math.Distance.Between(f.x, f.y, at.x, at.y) < c.radius * 0.6);
+    if (겹침) { 겹침.until = this.time.now + c.ms; return true; }
+    while (this.fields.length >= c.maxAt) {
+      const 낡은 = this.fields.shift();
+      if (낡은.ring) 낡은.ring.destroy();
+    }
+    const ring = this.add.circle(at.x, at.y, c.radius, c.tint, 0.18).setDepth(7);
+    ring.setStrokeStyle(2, c.tint, 0.5);
+    this.tweens.add({ targets: ring, alpha: 0.30, duration: 420, yoyo: true, repeat: -1 });
+    // **몫은 한 틱이 아니라 장판 한 판의 몫입니다.** 처음에는 틱마다
+    // 몫을 넣었는데, 2.6초 동안 여섯 번 도니까 field: 0.16 이 실제로는
+    // 0.96 이 되어 **한 대가 두 대**가 됐습니다 (spell-check.js 가 49 짜리
+    // 한 대에 48 이 더 붙는 것을 잡았습니다). 틱 수로 나눠 답니다.
+    const 틱수 = Math.max(1, Math.round(c.ms / c.tickMs));
+    this.fields.push({ x: at.x, y: at.y, ring,
+      until: this.time.now + c.ms, nextAt: 0,
+      dmg: Math.max(1, Math.round(dmg * 몫 / 틱수)) });
+    return true;
+  }
+
+  // 판마다 한 번. 깔린 장판이 제 박자로 안에 선 것을 깎습니다.
+  tickFields(time) {
+    if (!this.fields || !this.fields.length) return;
+    const c = CFG.field;
+    this.fields = this.fields.filter((f) => {
+      if (time >= f.until) { if (f.ring) f.ring.destroy(); return false; }
+      if (time < f.nextAt) return true;
+      f.nextAt = time + c.tickMs;
+      this.enemies.getChildren().forEach((e) => {
+        if (!this.targetable(e)) return;
+        if (Phaser.Math.Distance.Between(e.x, e.y, f.x, f.y) > c.radius) return;
+        this.hitEnemy(e, f.dmg);
+      });
+      return true;
+    });
+  }
+
+  // 판이 끝나면 걷습니다. 안 걷으면 다음 판 첫 층에 지난 판의 불이
+  // 깔린 채로 시작합니다 (Phaser 는 장면을 다시 씁니다).
+  clearFields() {
+    if (this.fields) this.fields.forEach((f) => { if (f.ring) f.ring.destroy(); });
+    this.fields = [];
   }
 
   // ── 부하 (사령술사) ─────────────────────────────────────
@@ -3739,6 +3902,7 @@ class GameScene extends Phaser.Scene {
     // 부하도 같이 보냅니다 — 죽은 자리에 셋이 남아 서 있으면 안 됩니다.
     this.clearThralls();
     this.clearBear();
+    this.clearFields();
     // 판을 넘어 남는 기록. 직업 해금이 여기에 기댑니다.
     const wasBest = Save.bestFloor;
     // 누구로 올랐는지를 함께 넘깁니다 — 해금은 사슬입니다(js/classes.js).
@@ -3917,6 +4081,7 @@ class GameScene extends Phaser.Scene {
 
     this.updateWisps(time, delta);
     this.updateThralls(time, delta);
+    this.tickFields(time);   // 깔린 장판 (마법사)
     this.updateBear(time, delta);
     updateEnemies(this, time, delta);
     this.updateOilFx(time);

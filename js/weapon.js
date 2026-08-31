@@ -135,6 +135,14 @@ class Weapon {
   // 닿은 자리가 터집니다. 곁에 선 것도 함께 맞습니다.
   get aoe() { return this.base.aoe || 0; }
 
+  // 연쇄번개 — 맞은 놈에서 곁으로 이만큼 더 튑니다.
+  // 「마르지 않는 샘물」이 지팡이에 걸린 것을 세게 하므로 여기도 걸립니다
+  // (화상·관통과 같은 자리). 반올림해서 0.5 이상이면 한 번 더 튑니다.
+  get chain() { return Math.round((this.base.chain || 0) * this.relicMul('springMul')); }
+
+  // 장판 — 닿은 자리에 남는 것. 한 대의 몇 할이 그 자리에 깔리는가.
+  get field() { return (this.base.field || 0) * this.relicMul('springMul'); }
+
   // 몸을 감싸는 것이 함께 섭니다. 받는 피해를 이만큼 나눕니다
   // (1.3 이면 100 이 77 로 들어옵니다). 없으면 1 입니다.
   // 「마르지 않는 샘물」이 지팡이에 걸린 것을 세게 합니다 (js/relics.js).
