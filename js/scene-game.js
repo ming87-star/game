@@ -2197,14 +2197,52 @@ class GameScene extends Phaser.Scene {
       터짐 = true;
       this.hitEnemy(e, 몫);
     });
-    // 터진 자국 — 아무도 안 맞아도 보여 줍니다. 안 보여 주면 이 지팡이가
-    // 무엇을 하는 자루인지 영영 안 읽힙니다.
+    // ── 터진 자국 ────────────────────────────────────
+    // 아무도 안 맞아도 보여 줍니다. 안 보여 주면 이 지팡이가 무엇을 하는
+    // 자루인지 영영 안 읽힙니다.
+    //
+    // 고리 하나가 커지며 사라지는 것이 전부였습니다. **두 겹으로** 갑니다:
+    // 안쪽은 작고 밝게 **빨리**, 바깥은 크게 옅게 **느리게**. 빠른 것이
+    // 「퍽」이고 느린 것이 「여파」입니다 — 하나만 있으면 둘 중 하나가
+    // 빠져서 터진 것이 아니라 번진 것으로 보입니다.
+    const 속 = this.add.circle(at.x, at.y, 6, 0xfff3e0, 0.9).setDepth(10);
+    this.tweens.add({
+      targets: 속, radius: c.radius * 0.55, alpha: 0, duration: 110,
+      onUpdate: () => 속.setRadius(속.radius),
+      onComplete: () => 속.destroy(),
+    });
     const ring = this.add.circle(at.x, at.y, 10, 0xffab40, 0.36).setDepth(9);
     this.tweens.add({
-      targets: ring, radius: c.radius, alpha: 0, duration: 220,
+      targets: ring, radius: c.radius, alpha: 0, duration: 260,
       onUpdate: () => ring.setRadius(ring.radius),
       onComplete: () => ring.destroy(),
     });
+
+    // 파편 몇 조각이 사방으로. 고리만 있으면 「원이 커진다」이지
+    // 「터졌다」가 아닙니다.
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + Math.random() * 0.5;
+      const 조각 = this.add.rectangle(at.x, at.y, 5, 2, 0xffcc80, 0.95)
+        .setDepth(10).setRotation(a);
+      const 거리 = c.radius * (0.6 + Math.random() * 0.5);
+      this.tweens.add({
+        targets: 조각, x: at.x + Math.cos(a) * 거리, y: at.y + Math.sin(a) * 거리,
+        alpha: 0, duration: 240 + Math.random() * 120,
+        onComplete: () => 조각.destroy(),
+      });
+    }
+
+    // **화면이 움찔합니다.** 세게 느껴지는 것은 파편 수가 아니라 이것입니다.
+    // 아주 짧고 아주 작게 — 길거나 크면 멀미가 나고, 발판을 딛는 게임이라
+    // 흔들리는 동안 어디를 밟는지 놓칩니다.
+    //
+    // **곁의 것을 실제로 맞혔을 때만, 그것도 가끔.** 처음에는 터질 때마다
+    // 흔들었는데, 광역 자루는 초당 서너 번 쏘므로 지팡이를 드는 순간부터
+    // 화면이 **쉬지 않고 떨립니다.** 그건 타격감이 아니라 멀미입니다.
+    if (터짐 && this.time.now >= (this.nextShakeAt || 0)) {
+      this.nextShakeAt = this.time.now + CFG.aoe.shakeGapMs;
+      this.cameras.main.shake(90, 0.004);
+    }
     return 터짐;
   }
 
@@ -2382,15 +2420,44 @@ class GameScene extends Phaser.Scene {
       const 낡은 = this.fields.shift();
       if (낡은.ring) 낡은.ring.destroy();
     }
-    const ring = this.add.circle(at.x, at.y, c.radius, c.tint, 0.18).setDepth(7);
+    // ── 바닥에 눕힙니다 ──────────────────────────────
+    //
+    // 처음에는 정원(正圓)이었습니다. 그러면 **공중에 뜬 공**으로 보여서
+    // 「바닥에 남는 것」이라는 게 모양으로 안 읽힙니다. 발판은 가로로
+    // 누워 있으니 장판도 납작해야 합니다 — 높이를 폭의 0.45 로 눌러
+    // 비스듬히 내려다본 바닥이 됩니다.
+    const ring = this.add.ellipse(at.x, at.y, c.radius * 2, c.radius * 2 * 0.45,
+      c.tint, 0.18).setDepth(7);
     ring.setStrokeStyle(2, c.tint, 0.5);
     this.tweens.add({ targets: ring, alpha: 0.30, duration: 420, yoyo: true, repeat: -1 });
+
+    // 깔릴 때 한 번 퍼집니다. 「방금 여기 떨어졌다」가 없으면 장판이
+    // 소리 없이 나타나서 언제 생겼는지를 놓칩니다.
+    const 퍼짐 = this.add.ellipse(at.x, at.y, 12, 12 * 0.45, c.tint, 0)
+      .setDepth(7).setStrokeStyle(3, c.tint, 0.9);
+    this.tweens.add({ targets: 퍼짐, scaleX: c.radius * 2 / 12, scaleY: c.radius * 2 / 12,
+      alpha: 0, duration: 260, onComplete: () => 퍼짐.destroy() });
+
+    // 가장자리에서 흔들리는 불꽃 몇 개. 타원 위에 고르게 세우고 저마다
+    // 다른 박자로 오르내리게 해야 **타고 있는 바닥**으로 보입니다.
+    const 불꽃 = [];
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 + Math.random() * 0.6;
+      const fx = at.x + Math.cos(a) * c.radius * 0.72;
+      const fy = at.y + Math.sin(a) * c.radius * 0.72 * 0.45;
+      const t = this.add.triangle(fx, fy, 0, 10, 4, 0, 8, 10, c.tint, 0.75)
+        .setDepth(8).setOrigin(0.5, 1);
+      불꽃.push(t);
+      this.tweens.add({ targets: t, scaleY: 1.7, alpha: 0.35,
+        duration: 260 + Math.random() * 200, yoyo: true, repeat: -1,
+        delay: Math.random() * 240 });
+    }
     // **몫은 한 틱이 아니라 장판 한 판의 몫입니다.** 처음에는 틱마다
     // 몫을 넣었는데, 2.6초 동안 여섯 번 도니까 field: 0.16 이 실제로는
     // 0.96 이 되어 **한 대가 두 대**가 됐습니다 (spell-check.js 가 49 짜리
     // 한 대에 48 이 더 붙는 것을 잡았습니다). 틱 수로 나눠 답니다.
     const 틱수 = Math.max(1, Math.round(c.ms / c.tickMs));
-    this.fields.push({ x: at.x, y: at.y, ring,
+    this.fields.push({ x: at.x, y: at.y, ring, 불꽃,
       until: this.time.now + c.ms, nextAt: 0,
       dmg: Math.max(1, Math.round(dmg * 몫 / 틱수)) });
     return true;
@@ -2401,7 +2468,7 @@ class GameScene extends Phaser.Scene {
     if (!this.fields || !this.fields.length) return;
     const c = CFG.field;
     this.fields = this.fields.filter((f) => {
-      if (time >= f.until) { if (f.ring) f.ring.destroy(); return false; }
+      if (time >= f.until) { this.wipeField(f); return false; }
       if (time < f.nextAt) return true;
       f.nextAt = time + c.tickMs;
       this.enemies.getChildren().forEach((e) => {
@@ -2416,8 +2483,16 @@ class GameScene extends Phaser.Scene {
   // 판이 끝나면 걷습니다. 안 걷으면 다음 판 첫 층에 지난 판의 불이
   // 깔린 채로 시작합니다 (Phaser 는 장면을 다시 씁니다).
   clearFields() {
-    if (this.fields) this.fields.forEach((f) => { if (f.ring) f.ring.destroy(); });
+    if (this.fields) this.fields.forEach((f) => this.wipeField(f));
     this.fields = [];
+  }
+
+  // 장판 한 장을 통째로 걷습니다. **불꽃까지 함께 걷어야** 합니다 —
+  // 고리만 지우면 불꽃 다섯이 바닥에 남아 저 혼자 일렁입니다.
+  wipeField(f) {
+    if (f.ring) f.ring.destroy();
+    if (f.불꽃) f.불꽃.forEach((t) => t.destroy());
+    f.불꽃 = null;
   }
 
   // ── 부하 (사령술사) ─────────────────────────────────────
@@ -2811,15 +2886,34 @@ class GameScene extends Phaser.Scene {
       enemy.burnLeft = c.ticks;
       enemy.burnDmg = Math.max(1, Math.round(w.dmg * 몫));
       enemy.burnNextAt = this.time.now + c.tickMs;
+      // ── 타는 표는 **일렁여야** 합니다 ──────────────
+      // 화상과 냉기가 둘 다 16px 짜리 같은 원이라 **색만** 달랐습니다.
+      // 색은 작은 화면에서 가장 먼저 잃는 단서입니다 — 불은 위로 솟고
+      // 오르내려야 「타고 있다」로 읽힙니다.
       if (!enemy.burnRing) {
-        enemy.burnRing = this.add.circle(enemy.x, enemy.y, 16, c.tint, 0.4).setDepth(8);
+        // **머리 위에 작게.** 처음에는 몸 위에 크게 얹었더니 표시가
+        // 적을 통째로 가렸습니다 — 무엇이 타고 있는지가 안 보이면
+        // 표시가 아니라 가림막입니다.
+        const t = this.add.triangle(enemy.x, enemy.y - 20, 0, 11, 4, 0, 8, 11,
+          c.tint, 0.9).setDepth(8).setOrigin(0.5, 1);
+        this.tweens.add({ targets: t, scaleY: 1.45, scaleX: 0.85, alpha: 0.55,
+          duration: 190, yoyo: true, repeat: -1 });
+        enemy.burnRing = t;
       }
     } else if (w.hasRelic('coldoil')) {
       const c = CFG.relicFx.coldoil;
       enemy.slowUntil = this.time.now + c.ms;
       enemy.slowMul = c.slow;
+      // 언 표는 **모나야** 합니다. 불이 흔들리는 것과 반대로, 얼음은
+      // 각지고 거의 움직이지 않아야 「멎었다」로 읽힙니다.
       if (!enemy.slowRing) {
-        enemy.slowRing = this.add.circle(enemy.x, enemy.y, 16, c.tint, 0.4).setDepth(8);
+        // **속을 비웁니다.** 채운 별을 몸 위에 얹으면 적이 안 보입니다.
+        // 테두리만 두면 「이 놈이 얼었다」를 몸을 가리지 않고 말합니다.
+        const 결정 = this.add.star(enemy.x, enemy.y, 6, 6, 14, c.tint, 0)
+          .setDepth(8).setStrokeStyle(2, c.tint, 0.9);
+        this.tweens.add({ targets: 결정, angle: 18, alpha: 0.6,
+          duration: 900, yoyo: true, repeat: -1 });
+        enemy.slowRing = 결정;
       }
     }
   }
@@ -2838,7 +2932,7 @@ class GameScene extends Phaser.Scene {
   updateOilFx(time) {
     this.enemies.getChildren().forEach((e) => {
       if (e.burnRing) {
-        e.burnRing.setPosition(e.x, e.y);
+        e.burnRing.setPosition(e.x, e.y - 20);  // 불은 머리 위에서 솟습니다
         if (e.burnLeft > 0 && time >= e.burnNextAt) {
           e.burnLeft--;
           e.burnNextAt = time + CFG.relicFx.hotoil.tickMs;

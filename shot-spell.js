@@ -87,5 +87,57 @@ await pg.evaluate(async()=>{const s=window.__scene;
  s.tweens.pauseAll();
 });
 await pg.screenshot({path:process.env.OUT+'/spell-3-ingame.png'});
+// (4) 장판 · 터짐 · 상태 표시
+await pg.evaluate(()=>window.__game.scene.start('game',{jobKey:'wizard'}));
+await pg.waitForFunction(()=>window.__scene&&window.__scene.player&&!window.__scene.dead,null,{timeout:8000});
+await pg.waitForTimeout(900);
+await pg.evaluate(async()=>{const s=window.__scene;
+ s.enemies.getChildren().slice().forEach(e=>e.destroy());
+ s.clearFields();
+ s.weapon.index=s.weapon.table.findIndex(w=>w.name==='화염폭풍');
+ s.weapon.plus=0;s.weapon.haste=0;s.weapon.mult=1;s.weapon.relics=[];
+ const f=s.floors.get(s.floorIndex);
+ s.player.x=f.slots.mid.x; s.player.y=f.slots.mid.y;
+ const 문잠금=s.shoot.bind(s); s.shoot=()=>{};
+ // 장판 둘을 깔고, 그 위에서 터뜨리고, 두 놈에게 불과 얼음을 겁니다.
+ s.dropField({x:s.player.x-110,y:s.player.y+4},120);
+ s.dropField({x:s.player.x+120,y:s.player.y+4},120);
+ const 불놈=spawnEnemy(s,s.player.x-40,s.player.y-26,s.floorIndex,'crawler');
+ const 언놈=spawnEnemy(s,s.player.x+50,s.player.y-26,s.floorIndex,'crawler');
+ [불놈,언놈].forEach(e=>{e.maxHp=e.hp=200000;e.hitOnce=true;
+  e.stunUntil=s.time.now+1e9; if(e.body)e.body.setAllowGravity(false);});
+ s.weapon.relics=[relicByKey('hotoil')]; s.applyOil(불놈);
+ s.weapon.relics=[relicByKey('coldoil')]; s.applyOil(언놈);
+ s.weapon.relics=[];
+ s.splash({x:s.player.x,y:s.player.y-20},불놈,90);
+ await new Promise(r=>setTimeout(r,90));
+ s.tweens.pauseAll();
+ s.shoot=문잠금;
+});
+await pg.screenshot({path:process.env.OUT+'/spell-4-field.png'});
+// (5) 상태 표시 — 불과 얼음만 따로
+// **판을 새로 켭니다.** 앞 컷에서 트윈을 멈춰 세웠으므로 그 컷의 자국들이
+// (제 트윈이 안 끝나 안 지워진 채로) 그대로 남아 있습니다.
+await pg.evaluate(()=>window.__game.scene.start('game',{jobKey:'wizard'}));
+await pg.waitForFunction(()=>window.__scene&&window.__scene.player&&!window.__scene.dead,null,{timeout:8000});
+await pg.waitForTimeout(900);
+await pg.evaluate(async()=>{const s=window.__scene;
+ s.enemies.getChildren().slice().forEach(e=>e.destroy());
+ s.clearFields();
+ const 문잠금=s.shoot.bind(s); s.shoot=()=>{};
+ const f=s.floors.get(s.floorIndex);
+ s.player.x=f.slots.mid.x; s.player.y=f.slots.mid.y;
+ const 불놈=spawnEnemy(s,s.player.x-90,s.player.y-26,s.floorIndex,'crawler');
+ const 언놈=spawnEnemy(s,s.player.x+90,s.player.y-26,s.floorIndex,'crawler');
+ [불놈,언놈].forEach(e=>{e.maxHp=e.hp=200000;e.hitOnce=true;
+  e.stunUntil=s.time.now+1e9; if(e.body)e.body.setAllowGravity(false);});
+ s.weapon.relics=[relicByKey('hotoil')]; s.applyOil(불놈);
+ s.weapon.relics=[relicByKey('coldoil')]; s.applyOil(언놈);
+ s.weapon.relics=[];
+ await new Promise(r=>setTimeout(r,140));
+ s.tweens.pauseAll();
+ s.shoot=문잠금;
+});
+await pg.screenshot({path:process.env.OUT+'/spell-5-status.png'});
 console.log(errs.length?'오류:\n'+errs.join('\n'):'오류 없음');
 await br.close();server.close();})();
