@@ -2135,13 +2135,19 @@ class GameScene extends Phaser.Scene {
     // 「셋까지」가 「처음 셋만」이 되어, 잡을수록 손해라는 이상한 판이 됩니다.
     if (this.thralls.length >= c.max) this.dropThrall(this.thralls[0]);
 
-    const sprite = this.add.image(enemy.x, enemy.y - 4, 'ally-thrall').setDepth(9);
+    // **그려진 것보다 키워서 세웁니다.** 22×24 는 주인공(48)의 절반이라
+    // 내 편인지 바닥에 떨어진 부스러기인지 구분이 안 됐습니다.
+    const sprite = this.add.image(enemy.x, enemy.y - 4, 'ally-thrall')
+      .setDepth(9).setScale(CFG.thrall.scale);
     sprite.setAlpha(0);
     this.tweens.add({ targets: sprite, alpha: 1, y: enemy.y - 12, duration: 220 });
     // 부하는 **눌리는 대신 뜹니다.** 땅을 딛지 않는 것이라 눌렸다 늘어나면
     // 발이 있는 것처럼 보입니다. 셋이 같은 박자로 흔들리면 한 덩어리로
     // 보이므로 조금씩 어긋나게 겁니다.
-    this.tweens.add({ targets: sprite, scaleY: 1.08, scaleX: 0.94,
+    // 숨은 **키운 크기 위에서** 쉬어야 합니다. 1.08 을 그대로 두면
+    // 커진 몸이 숨 쉴 때마다 원래 크기로 쪼그라듭니다.
+    const sc = CFG.thrall.scale;
+    this.tweens.add({ targets: sprite, scaleY: sc * 1.08, scaleX: sc * 0.94,
       duration: 620 + (this.thralls ? this.thralls.length * 90 : 0),
       yoyo: true, repeat: -1 });
     // 맞는 만큼은 **유물이 안 붙은 몸**을 자로 잽니다 (baseHp).
@@ -2199,9 +2205,18 @@ class GameScene extends Phaser.Scene {
       // 옮기면 followMs 만큼 늦게 도착합니다. 그 늦음이 「셋을 늘 채워
       // 두기는 어렵다」를 만듭니다.
       const 자리 = { x: this.player.x - 26 - i * 20, y: this.player.y - 10 - (i % 2) * 14 };
-      const k = Math.min(1, delta / c.followMs);
-      s.x = Phaser.Math.Linear(s.x, 자리.x, k);
-      s.y = Phaser.Math.Linear(s.y, 자리.y, k);
+      // **곰과 같은 규칙입니다** (updateBear). 비례로만 좁히면 마지막 몇
+      // 픽셀에서 한없이 느려지고, 무엇보다 followMs 가 길면 주인공이 오르는
+      // 동안 계속 뒤에 남습니다 — 260 일 때 평균 0.95층 뒤였습니다.
+      const 가로 = 자리.x - s.x;
+      const 세로 = 자리.y - s.y;
+      const 남음 = Math.hypot(가로, 세로);
+      if (남음 > 1) {
+        const k = Math.min(1, delta / c.followMs);
+        const 걸음 = Math.max(남음 * k, c.minStep * delta / 1000);
+        s.x += 가로 / 남음 * Math.min(걸음, 남음);
+        s.y += 세로 / 남음 * Math.min(걸음, 남음);
+      }
 
       // ── 칩니다 ────────────────────────────────────────
       // 주인공 한 대의 몇 할로, tickMs 마다 한 번. 가장 가까운 것을 봅니다.

@@ -423,6 +423,75 @@ const check = (ok, what, note) => {
   check(따라옴.후거리 < 60, '**층을 옮기면 따라옴** (두고 가지 않음)',
     '주인공에서 ' + 따라옴.후거리 + 'px');
 
+  // ── 부하 셋이 제 몫을 하는가 ────────────────────────────
+  //
+  // 셋 다 모자랐습니다 (`node thrall-check.js` 가 저울질합니다).
+  //
+  //   눈에 보이는가   24px — **주인공(48)의 절반**. 거인(34)보다도 작아서
+  //                   내 편인지 바닥의 부스러기인지 구분이 안 됐습니다
+  //   따라오는가      평균 **0.95층 뒤**, 나쁠 때 2.18층 — 곰과 같은 병
+  //   세기가 되는가   셋이 다 붙어도 **주인공의 47%**
+  //
+  // 셋 다 **오류가 안 나는 부류**입니다. 부하는 멀쩡히 서 있고 멀쩡히
+  // 칩니다 — 작고 느리고 약할 뿐입니다.
+  const 부하몫 = await page.evaluate(async () => {
+    const s = window.__scene;
+    s.hp = s.maxHp = 1e9;
+    for (let i = 0; i < 30; i++) s.addFloor(i);
+    const 세우기 = () => {
+      const e = s.enemies.create(s.player.x + 40, s.player.y, 'e-crawler');
+      e.body.setAllowGravity(false);
+      e.hp = 1; e.maxHp = 10; e.floor = s.floorIndex; e.coin = 0; e.def = { key: 'crawler' };
+      s.hitEnemy(e, 999);
+    };
+    s.clearThralls();
+    for (let i = 0; i < CFG.thrall.max; i++) 세우기();
+
+    const 부하키 = Math.round(s.thralls[0].sprite.displayHeight);
+    const 내키 = Math.round(s.player.displayHeight);
+
+    // ── 따라오는가 ───────────────────────────────────
+    // **프레임을 직접 돌립니다.** 시계로 기다리면 헤드리스의 프레임 수에
+    // 따라 값이 달라집니다 — 판 시계로 걸었더니 verify 안에서는 11.48층,
+    // 따로 돌린 도구에서는 0.03층이 나왔습니다. 같은 코드인데요.
+    //
+    // 여기서 묻는 것은 하나입니다 — **주인공이 한 층 오르고 340ms(60fps로
+    // 스물한 프레임)가 지나면 부하가 붙어 있는가.** 프레임을 세어서 돌리면
+    // 판이 몇 프레임을 도는지와 무관하게 늘 같은 답이 나옵니다.
+    const 프레임 = 21;
+    const 뒤 = [];
+    for (let f = 1; f <= 16; f++) {
+      s.floorIndex = f;
+      const 층 = s.floors.get(f);
+      const 발판 = LANES.map((l) => 층.slots[l]).find(Boolean);
+      s.lane = LANES.find((l) => 층.slots[l] === 발판);
+      s.player.setPosition(발판.x, 발판.y - 34);
+      for (let i = 0; i < 프레임; i++) s.updateThralls(s.time.now, 16);
+      if (!s.thralls || !s.thralls.length) continue;
+      뒤.push(Math.max(...s.thralls.map((t) =>
+        (t.sprite.y - s.player.y) / CFG.floorHeight)));
+    }
+    const 끝 = 뒤.slice(-8);
+    const w = s.weapon;
+    const 한마리 = Math.round(w.dmg * CFG.thrall.dmgShare) * 1000 / CFG.thrall.tickMs;
+    return {
+      부하키, 내키,
+      뒤평균: 끝.reduce((a, b) => a + b, 0) / Math.max(1, 끝.length),
+      남음: s.thralls ? s.thralls.length : 0,
+      셋몫: 한마리 * CFG.thrall.max / w.dps,
+    };
+  });
+  check(부하몫.부하키 >= 30,
+    '**부하가 눈에 띄는 크기** (예전에는 주인공의 절반이라 부스러기 같았습니다)',
+    부하몫.부하키 + 'px · 주인공 ' + 부하몫.내키 + 'px');
+  check(부하몫.남음 === 3, '오르는 동안 셋이 다 남음', 부하몫.남음 + '마리');
+  check(부하몫.뒤평균 < 0.4,
+    '**주인공이 쉬지 않고 올라도 붙어 옴** (예전에는 평균 0.95층 뒤였습니다)',
+    부하몫.뒤평균.toFixed(2) + '층 뒤');
+  check(부하몫.셋몫 > 0.6,
+    '**셋이 붙으면 세기가 됨** (예전에는 주인공의 47%)',
+    '주인공의 ' + Math.round(부하몫.셋몫 * 100) + '%');
+
   // 사령술사가 아니면 아무 일도 없어야 합니다.
   await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'warrior' }));
   await page.waitForFunction(() => window.__scene && window.__scene.player
@@ -575,9 +644,15 @@ const check = (ok, what, note) => {
     for (let i = 0; i < 40; i++) s.addFloor(i);
     s.clearBear();
     s.updateBear(s.time.now, 16);
+    // **벽시계로 빠져나갈 길을 함께 둡니다.** 판이 멈추면(죽음 화면·상점)
+    // s.time.now 가 그 자리에 서서 영영 안 돌아옵니다 — 처음에 그렇게
+    // 걸어 놓고 시험이 십 분을 멈춰 있었습니다. 시험은 틀릴지언정
+    // 멈추면 안 됩니다.
     const 판시계 = (ms) => new Promise((r) => {
       const 끝 = s.time.now + ms;
-      const 보기 = () => (s.time.now >= 끝 ? r() : setTimeout(보기, 8));
+      const 벽끝 = Date.now() + ms * 6 + 500;
+      const 보기 = () => ((s.time.now >= 끝 || Date.now() >= 벽끝)
+        ? r() : setTimeout(보기, 8));
       보기();
     });
     const 층차 = [];
