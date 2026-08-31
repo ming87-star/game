@@ -545,6 +545,112 @@ const check = (ok, what, note) => {
   check(쓰러짐.돌아왔나, '**쓰러져도 잠시 뒤에 돌아옴** (판이 끝나지 않음)',
     쓰러짐.reviveMs + 'ms 뒤');
 
+  // ── 곰이 주인공을 앞서 가는가 ───────────────────────────
+  //
+  // 곰사냥꾼의 전부가 「곰이 한 층 앞서 올라가 먼저 싸운다」입니다.
+  // 그런데 **곰이 주인공의 41% 속도**였습니다 —
+  //
+  //   주인공  한 층(165px)을 320ms 에  →  516 px/s
+  //   곰      초당 210px               →  41%
+  //
+  // 쉬지 않고 마흔 층을 오르면 곰이 **스물두 층 뒤**에 처졌습니다. 설계는
+  // 「앞서 간다」인데 수치가 정반대라, 사실상 판에 없는 것과 같았습니다.
+  // 그런데 **오류는 안 납니다** — 곰은 멀쩡히 살아서 저 아래를 걷습니다.
+  //
+  // 재는 데 함정이 셋 있어서 적어 둡니다.
+  //
+  //   1. **판 시계로 세야 합니다.** 벽시계로 기다리면 헤드리스가 초당
+  //      14프레임밖에 안 도는데(실제 판은 60) 곰만 프레임에 매여서, 멀쩡한
+  //      곰이 네 배 느린 것으로 잡힙니다.
+  //   2. **쓰러져 있는 동안은 빼야 합니다.** 죽은 곰이 그 자리에 남는 것은
+  //      「못 따라온다」가 아니라 「죽었다」입니다. 섞으면 어디를 고쳐야
+  //      할지 알 수가 없습니다 (실제로 -14층이 나와서 헤맸습니다).
+  //   3. **주인공을 일정한 박자로 올려야 합니다.** s.jump() 로 몰면 판마다
+  //      발판·상점·보스가 달라 오른 층이 16~44로 널뜁니다.
+  //
+  // 저울질은 `node bear-lead.js` 가 합니다. 여기서는 앞서는지만 봅니다.
+  const 곰앞섬 = await page.evaluate(async () => {
+    const s = window.__scene;
+    s.hp = s.maxHp = 1e9;
+    for (let i = 0; i < 40; i++) s.addFloor(i);
+    s.clearBear();
+    s.updateBear(s.time.now, 16);
+    const 판시계 = (ms) => new Promise((r) => {
+      const 끝 = s.time.now + ms;
+      const 보기 = () => (s.time.now >= 끝 ? r() : setTimeout(보기, 8));
+      보기();
+    });
+    const 층차 = [];
+    let 쓰러짐 = 0, 잼 = 0;
+    for (let f = 1; f <= 24; f++) {
+      s.floorIndex = f;
+      const 층 = s.floors.get(f);
+      const 발판 = LANES.map((l) => 층.slots[l]).find(Boolean);
+      s.lane = LANES.find((l) => 층.slots[l] === 발판);
+      s.player.setPosition(발판.x, 발판.y - 34);
+      s.cameras.main.setScroll(0, s.player.y - CFG.height * 0.5);
+      s.enemies.getChildren().slice().forEach((e) => e.destroy());
+      await 판시계(340);
+      if (!s.bear) continue;
+      잼++;
+      if (s.bear.hp <= 0) { 쓰러짐++; continue; }
+      층차.push((s.player.y - s.bear.sprite.y) / CFG.floorHeight);
+    }
+    const 끝 = 층차.slice(-12);
+    return { 평균: 끝.reduce((a, b) => a + b, 0) / Math.max(1, 끝.length),
+      샘플: 끝.length, 쓰러진몫: 잼 ? 쓰러짐 / 잼 : 1 };
+  });
+  check(곰앞섬.샘플 >= 6, '곰이 살아서 따라다님', 곰앞섬.샘플 + '번 잼');
+  check(곰앞섬.평균 > 0.3,
+    '**주인공이 쉬지 않고 올라도 곰이 앞선다** (예전에는 스물두 층 뒤였습니다)',
+    (곰앞섬.평균 >= 0 ? '+' : '') + 곰앞섬.평균.toFixed(2) + '층');
+  check(곰앞섬.쓰러진몫 < 0.4, '판의 절반을 쓰러져 있지 않음',
+    '쓰러져 있던 몫 ' + Math.round(곰앞섬.쓰러진몫 * 100) + '%');
+
+  // ── 몸으로 막는가 ───────────────────────────────────────
+  // 앞서 가기만 하고 적이 거들떠도 안 보면 그건 앞장이 아니라 산책입니다.
+  const 막음 = await page.evaluate(async () => {
+    const s = window.__scene;
+    s.enemies.getChildren().slice().forEach((e) => e.destroy());
+    s.clearBear();
+    s.updateBear(s.time.now, 16);
+    const b = s.bear;
+    // 곰을 주인공에게서 떼어 놓고, 그 곁에 적을 세웁니다.
+    b.sprite.setPosition(s.player.x + 120, s.player.y - CFG.floorHeight);
+    const e = s.enemies.create(b.sprite.x + 60, b.sprite.y, 'e-crawler');
+    e.body.setAllowGravity(false);
+    e.hp = 1e9; e.maxHp = 1e9; e.floor = s.floorIndex + 1; e.coin = 0;
+    e.def = { key: 'crawler', ground: true, move: 'walk' };
+    e.contactDamage = 20; e.dir = 1; e.speed = 60;
+    // (1) 그 적이 주인공이 아니라 곰을 봅니까.
+    const 봄 = chaseTarget(s, e, s.player) === b.sprite;
+    // (2) 몸이 닿으면 곰이 깎입니까.
+    //
+    // **무는 피해를 막아 놓고 재야 합니다.** 사거리(120)가 몸 닿는 거리(30)
+    // 보다 넓어서, 그냥 재면 되받는 피해가 섞여 들어옵니다 — 처음에 그렇게
+    // 재서 「126000009 깎임」이 나왔습니다. 그 숫자로는 막는 것이 실제로
+    // 도는지 알 수가 없습니다.
+    s.hp = s.maxHp = 200;              // 1e9 로 두면 되받는 값이 억이 됩니다
+    b.nextHitAt = s.time.now + 1e6;    // 이번 프레임에는 물지 않습니다
+    const 처음 = b.hp;
+    e.setPosition(b.sprite.x + 10, b.sprite.y);
+    b.nextTankAt = 0;
+    s.updateBear(s.time.now, 16);
+    const 깎임 = 처음 - b.hp;
+    const 기대 = Math.max(1, Math.round(e.contactDamage * CFG.bear.tankShare));
+    // (3) 멀리 있는 적은 주인공을 봅니다 — 두 층 밖까지 끌면 주인공이
+    //     통째로 안 맞는 판이 됩니다.
+    e.setPosition(s.player.x + 40, s.player.y);
+    const 멀면 = chaseTarget(s, e, s.player) === s.player;
+    e.destroy();
+    return { 봄, 깎임, 멀면, 기대, share: CFG.bear.tankShare };
+  });
+  check(막음.봄, '**같은 층의 적이 주인공 대신 곰을 봄**');
+  check(막음.깎임 === 막음.기대,
+    '**몸이 닿으면 곰이 대신 맞음** (끌기만 하면 막는 게 아닙니다)',
+    막음.깎임 + ' 깎임 (적의 접촉피해 × ' + 막음.share + ')');
+  check(막음.멀면, '멀리 있는 적은 그대로 주인공을 봄 (곰이 다 막아 주면 안 됩니다)');
+
   // 곰사냥꾼이 아니면 곰이 없어야 합니다.
   await page.evaluate(() => window.__game.scene.start('game', { jobKey: 'warrior' }));
   await page.waitForFunction(() => window.__scene && window.__scene.player

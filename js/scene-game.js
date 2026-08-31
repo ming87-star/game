@@ -2317,7 +2317,16 @@ class GameScene extends Phaser.Scene {
     const 위층 = this.floorIndex + c.ahead;
     const 후보 = this.enemies.getChildren().filter((e) => this.targetable(e) &&
       e.floor !== undefined && e.floor >= this.floorIndex && e.floor <= 위층);
-    const 먹이 = 후보.sort((a, b2) => (b2.floor - a.floor) ||
+    // ── 뒤처졌으면 싸움을 놓습니다 ────────────────────
+    // **앞장서는 놈이 뒤에 남으면 그건 앞장이 아닙니다.** 주인공보다
+    // 아래로 내려간 곰은 먹이를 버리고 따라붙습니다.
+    //
+    // 이걸 안 두면 곰이 지나온 층의 적과 계속 싸우느라 처집니다 — 재 보니
+    // 움직임만 볼 때는 +0.33층으로 앞섰는데, 판 그대로 두면 **-4.79층**
+    // 이었습니다(사거리 안에 적이 있던 몫 69%). 움직임을 고쳐도 여기가
+    // 남아 있으면 곰은 여전히 화면 밖입니다.
+    const 뒤처짐 = s.y > this.player.y + CFG.floorHeight * 0.5;
+    const 먹이 = 뒤처짐 ? null : 후보.sort((a, b2) => (b2.floor - a.floor) ||
       (Phaser.Math.Distance.Between(a.x, a.y, s.x, s.y) -
        Phaser.Math.Distance.Between(b2.x, b2.y, s.x, s.y)))[0];
 
@@ -2325,16 +2334,47 @@ class GameScene extends Phaser.Scene {
       ? { x: 먹이.x, y: 먹이.y }
       : { x: this.player.x + 34, y: floorY(Math.min(위층, this.floorIndex + c.ahead)) - 18 };
 
-    const step = c.speed * delta / 1000;
+    // ── 어떻게 가는가 ─────────────────────────────────
+    // **부하와 같은 규칙입니다** (updateThralls) — 남은 거리에 비례해서
+    // 좁힙니다. 멀면 빠르고 가까우면 부드럽습니다.
+    //
+    // 예전에는 초당 210px 로 곧게 걸었습니다. 그런데 주인공은 한 층(165px)을
+    // 320ms 에 오르므로 **초당 516px** 입니다 — 곰이 41% 속도였습니다.
+    // 쉬지 않고 마흔 층을 오르면 곰이 **스물두 층 뒤**에 처졌습니다.
+    // 「곰이 한 층 앞서 올라가 먼저 싸운다」가 이 직업의 전부인데, 수치가
+    // 정반대라 사실상 판에 없는 것과 같았습니다.
+    //
+    // 거리 비례로 바꾸면 **주인공이 아무리 빨라도 안 뒤처집니다.** 그리고
+    // 곰이 갈 곳은 늘 한 층 위라(위 갈곳), 따라잡는 순간 곧바로 앞섭니다.
     const dx = 갈곳.x - s.x;
     const dy = 갈곳.y - s.y;
     const dist = Math.hypot(dx, dy);
     if (dist > 4) {
+      const k = Math.min(1, delta / c.followMs);
+      // 가까울 때 굼떠 보이지 않게 **최소 걸음**을 둡니다. 비례만 쓰면
+      // 마지막 몇 픽셀에서 한없이 느려져 제자리걸음처럼 보입니다.
+      const step = Math.max(dist * k, c.minStep * delta / 1000);
       s.x += dx / dist * Math.min(step, dist);
       s.y += dy / dist * Math.min(step, dist);
     }
     s.setFlipX(dx < -2 ? true : dx > 2 ? false : s.flipX);
     this.stepBearFrame(time, dist > 4);
+
+    // ── 몸으로 막습니다 ───────────────────────────────
+    // 곰에게 달려든 적은 곰을 칩니다 (js/enemies.js 의 chaseTarget).
+    // **끄는 것만 하고 안 맞으면 그건 막는 것이 아닙니다** — 적이 곰을
+    // 향해 걸어오다 몸이 닿으면 그 대가 곰에게 들어갑니다. 그만큼이
+    // 주인공에게 안 갑니다.
+    if (time >= (b.nextTankAt || 0)) {
+      const 닿음 = this.enemies.getChildren().filter((e) => this.targetable(e)
+        && Math.abs(e.y - s.y) < 34
+        && Math.abs(e.x - s.x) < 30 + (e.hitW || 0));
+      if (닿음.length) {
+        b.nextTankAt = time + c.tankMs;
+        const 몫 = 닿음.reduce((a, e) => a + (e.contactDamage || 0), 0);
+        this.hurtBear(Math.max(1, Math.round(몫 * c.tankShare)), time);
+      }
+    }
 
     // ── 칩니다 ────────────────────────────────────────
     if (time < b.nextHitAt || !먹이) return;
@@ -2355,11 +2395,20 @@ class GameScene extends Phaser.Scene {
     // **곰이 죽는 길은 이것 하나입니다.** 때린 상대가 살아 있으면 그만큼
     // 되받습니다 — 약한 놈은 공짜로 치우고 단단한 놈에게는 제가 깎입니다.
     if (먹이.active && 먹이.hp > 0 && 살아있었나 > 0) {
-      b.hp -= Math.max(1, Math.round(this.maxHp * c.hp * c.backMul * 0.2));
-      s.setTint(0xff8a80);
-      this.time.delayedCall(90, () => s.active && s.clearTint());
-      if (b.hp <= 0) this.downBear(time);
+      this.hurtBear(Math.max(1, Math.round(this.maxHp * c.hp * c.backMul * 0.2)), time);
     }
+  }
+
+  // 곰이 깎이는 자리는 둘입니다 — 문 상대가 되받을 때, 그리고 달려든 적을
+  // 몸으로 막을 때. 한 군데로 모아 두어야 「쓰러짐」이 한 곳에서만 납니다.
+  hurtBear(dmg, time) {
+    const b = this.bear;
+    if (!b || b.hp <= 0) return;
+    b.hp -= dmg;
+    const s = b.sprite;
+    s.setTint(0xff8a80);
+    this.time.delayedCall(90, () => s.active && s.clearTint());
+    if (b.hp <= 0) this.downBear(time === undefined ? this.time.now : time);
   }
 
   // ── 곰의 컷 넘기기 ──────────────────────────────────────

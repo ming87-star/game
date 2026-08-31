@@ -199,6 +199,22 @@ function updateEnemies(scene, time, delta) {
 // ── 땅을 딛는 적 ──────────────────────────────────────────
 // 주인공이 멀면 발판 끝에서 돌아서며 순찰합니다. 그래야 올라가 보면 거기 있습니다.
 // 가까워지면 낭떠러지를 개의치 않고 쫓아오다가 그대로 떨어집니다.
+// ── 적이 누구를 보는가 ────────────────────────────────────
+// **곰은 앞장서서 막는 것입니다** (CFG.bear). 앞서 가기만 하고 적이 거들떠도
+// 안 보면 그건 앞장이 아니라 산책입니다.
+//
+// 그 적과 **같은 층에 선 곰**만 시선을 끕니다. 곰은 한 층 위에 서므로,
+// 결과적으로 **주인공이 아직 안 밟은 층을 곰이 맡습니다** — 올라가 보면
+// 이미 정리돼 있거나, 곰이 붙들고 있습니다.
+//
+// 두 층 밖의 곰까지 끌면 주인공이 통째로 안 맞는 판이 되어, 곰사냥꾼이
+// 어려운 직업이 아니라 없는 직업이 됩니다.
+function chaseTarget(scene, e, player) {
+  const b = scene.bear;
+  if (!b || b.hp <= 0 || !b.sprite || !b.sprite.active) return player;
+  return Math.abs(b.sprite.y - e.y) < CFG.floorHeight * 0.6 ? b.sprite : player;
+}
+
 function groundStep(scene, e, player, time) {
   // 기절해 있는 동안은 제자리에 멎습니다 (전사 — scene-game.js 의 stunEnemy).
   // **전사가 버는 시간이 통째로 이 몇 줄입니다.**
@@ -207,15 +223,17 @@ function groundStep(scene, e, player, time) {
     return;
   }
 
-  const near = Math.abs(player.y - e.y) < CFG.floorHeight * CFG.ground.chaseWithin;
-  const dx = player.x - e.x;
+  // 곰이 같은 층에 있으면 곰을 봅니다 (chaseTarget).
+  const 표적 = chaseTarget(scene, e, player);
+  const near = Math.abs(표적.y - e.y) < CFG.floorHeight * CFG.ground.chaseWithin;
+  const dx = 표적.x - e.x;
 
   // 사수는 사거리 안에 들면 멈춰 서서 쏩니다.
   if (e.def.move === 'ranged' && near && Math.abs(dx) < CFG.enemyShot.standoff) {
     e.body.velocity.x = 0;
     if (time > e.nextShotAt) {
       e.nextShotAt = time + CFG.enemyShot.interval * slowMul(scene);
-      fireEnemyShot(scene, e, Phaser.Math.Angle.Between(e.x, e.y, player.x, player.y));
+      fireEnemyShot(scene, e, Phaser.Math.Angle.Between(e.x, e.y, 표적.x, 표적.y));
     }
     return;
   }
