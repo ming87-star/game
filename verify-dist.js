@@ -78,6 +78,29 @@ function 겹치는전역() {
   page.on('pageerror', (e) => errors.push('PAGEERROR: ' + (e.message || '')));
   page.on('console', (m) => { if (m.type() === 'error') errors.push('CONSOLE: ' + m.text()); });
 
+  // ── 0. 뒷문이 안 실렸는가 ─────────────────────────────
+  //
+  // js/devdoor.js 는 주소 끝에 #ending 만 붙이면 저장을 세워 놓고 엔딩으로
+  // 들어가는 문입니다. 만드는 동안에는 있어야 하지만(휴대폰에는 콘솔이
+  // 없습니다), **내놓는 파일에 있으면 누구든 주소 한 글자로 엔딩을 열고
+  // 남의 기록을 지웁니다.** build.js 가 이 파일만 빼고 합칩니다.
+  //
+  // 글자가 없는지 보고 끝내지 않습니다 — **실제로 #ending 을 붙여 켜 보고**
+  // 아무 일도 안 일어나는지 봅니다. 빼는 것을 잊는 날 여기서 걸립니다.
+  check(!/devDoor|DEV_BACKUP/.test(fs.readFileSync(FILE, 'utf8')),
+    '합친 파일에 개발용 뒷문이 안 들어감');
+
+  await page.goto('http://localhost:' + port + '/#ending', { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1200);
+  const 뒷문 = await page.evaluate(() => ({
+    세움: !!(window.__save && window.__save.data.devSeeded),
+    단계: window.__save ? window.__save.endingStage : -1,
+    메달: window.__save ? window.__save.medals : -1,
+  }));
+  check(!뒷문.세움 && 뒷문.단계 === 0 && 뒷문.메달 === 0,
+    '#ending 을 붙여 켜도 아무 일이 없음',
+    `세움 ${뒷문.세움} · 단계 ${뒷문.단계} · 메달 ${뒷문.메달}`);
+
   await page.goto('http://localhost:' + port + '/', { waitUntil: 'networkidle' });
   await page.waitForTimeout(1400);
 

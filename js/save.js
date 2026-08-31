@@ -38,7 +38,7 @@ function blankSave() {
     bestBy: {},
     // 33층 시퀀스를 어디까지 봤는가 (STORY.md 5절).
     //   0  아직 안 열림
-    //   1  여는 대사와 보는 장면(1~7)까지 봤습니다. 이제 마지막 판입니다
+    //   1  열렸습니다 — 마흔여덟째를 산 그 순간
     //   2  끝났습니다 — 다시 못 합니다
     //
     // 숫자로 두는 까닭: 「봤다/안 봤다」 두 값으로는 **보는 장면과 마지막
@@ -46,6 +46,18 @@ function blankSave() {
     // 다시 보여 주게 되고, 그러면 8번의 「평소와 똑같이」가 두 번째부터는
     // 「또 그 장면」이 됩니다.
     endingStage: 0,
+    // 보는 장면(1~7)을 **끝까지 봤는가.**
+    //
+    // 이 칸이 없어서 시퀀스를 통째로 건너뛸 수 있었습니다. 단계는 마흔여덟째를
+    // **사는 순간** 1이 되는데, 바로 뒤에 뜨는 보는 장면은 조작 없이 40초쯤
+    // 갑니다. 그 사이에 창을 닫거나 새로고침하면 다음에 켰을 때 곧장 직업
+    // 고르기로 가고, 판을 켜면 겉옷이 놓여 있고, 짚으면 크레딧입니다 —
+    // **여는 말도 33층도 「내려온 것」도 흰옷도 한 번을 안 보고** 끝납니다.
+    // 전화 한 통이면 일어나는 일입니다.
+    //
+    // 그래서 「샀다」와 「봤다」를 갈랐습니다. 못 본 사람은 타이틀에서 다시
+    // 보는 장면으로 갑니다 (js/scene-title.js).
+    sawEnding: false,
     lastJob: 'warrior',
     // 오프닝을 이미 봤는지. 처음 켠 사람에게만 저절로 나오고, 그 뒤로는
     // 시작 화면에서 직접 눌러야 다시 나옵니다 — 한 판 더 하려고 켰는데
@@ -217,6 +229,15 @@ const Save = {
   },
 
   get endingStage() { return this.data.endingStage || 0; },
+
+  // 보는 장면을 끝까지 봤다고 적습니다 (EndingWatchScene.leave).
+  markEndingSeen() {
+    if (this.data.sawEnding) return;
+    this.data.sawEnding = true;
+    this.flush();
+  },
+
+  get sawEnding() { return !!this.data.sawEnding; },
 
   setJob(key) {
     this.data.lastJob = key;

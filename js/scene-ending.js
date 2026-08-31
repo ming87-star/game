@@ -402,6 +402,10 @@ class EndingWatchScene extends Phaser.Scene {
   leave() {
     if (this.left) return;
     this.left = true;
+    // **여기서야 「봤다」입니다.** 산 순간이 아니라 끝까지 본 순간입니다 —
+    // 그 사이에 창을 닫은 사람은 다음에 켰을 때 처음부터 다시 봅니다
+    // (js/save.js 의 sawEnding).
+    Save.markEndingSeen();
     this.scene.start('title');
   }
 }

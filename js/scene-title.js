@@ -126,6 +126,18 @@ class TitleScene extends Phaser.Scene {
     ['keydown-SPACE', 'keydown-ENTER'].forEach((k) =>
       this.input.keyboard.on(k, () => this.tap()));
 
+    // 뒷문으로 세워 둔 판이면 **화면에 적어 둡니다.** 휴대폰에는 콘솔이
+    // 없어서, 이 줄이 없으면 원래 기록으로 돌아갈 길을 못 찾습니다
+    // (js/devdoor.js).
+    if (Save.data.devSeeded) {
+      const 남은 = Save.data.devLeft;
+      this.add.text(CFG.width / 2, CFG.height - 30,
+        (남은 ? '엔딩 보기 — 메달 상점에 한 칸 남았습니다  ·  ' : '엔딩 보기  ·  ')
+        + '주소 끝을 #restore 로 바꾸면 기록이 돌아옵니다',
+        { fontFamily: 'sans-serif', fontSize: '12px', color: '#4a5578' })
+        .setOrigin(0.5).setDepth(400);
+    }
+
     window.__title = this;
   }
 
@@ -164,6 +176,10 @@ class TitleScene extends Phaser.Scene {
     // 되면 방금 본 것이 그냥 해금 보상이 됩니다. 크레딧으로 돌려보내면
     // 거기에 「처음부터 다시 하기」가 있습니다 — 닫되 가두지는 않습니다.
     if (Save.endingStage >= 2) return this.scene.start('credits');
+    // **못 본 사람은 다시 봅니다.** 시퀀스가 열린 뒤 보는 장면 도중에 창을
+    // 닫으면, 이 줄이 없을 때 곧장 직업 고르기로 갔습니다 — 여는 말도
+    // 33층도 안 보고 겉옷만 짚고 끝났습니다 (js/save.js 의 sawEnding).
+    if (Save.endingStage === 1 && !Save.sawEnding) return this.scene.start('endingline');
     this.scene.start(Save.data.sawStory ? 'select' : 'story');
   }
 }

@@ -138,6 +138,8 @@ const server = http.createServer((req, res) => {
     && window.__title && window.__title.ready, null, { timeout: 30000 });
   const 뒤 = await page.evaluate(() => window.__save.endingStage);
   check(뒤 === 1, '보는 장면이 끝나도 아직 1단계 (겉옷을 안 짚었으니)', 뒤);
+  check(await page.evaluate(() => window.__save.sawEnding),
+    '보는 장면을 끝까지 보면 「봤다」로 적힘');
 
   // ── 마지막 판 — 시작 발판에 붉은 겉옷 ───────────────────
   await page.evaluate(() => window.__title.scene.start('game', { jobKey: 'warrior' }));
@@ -215,6 +217,30 @@ const server = http.createServer((req, res) => {
   });
   check(!한번.지웠나 && 한번.물었나 && 한번.글.includes('한 번 더'),
     '한 번 눌러서는 안 지우고 되묻습니다', 한번.글);
+
+
+  // ── 시퀀스를 건너뛸 수 있는가 ───────────────────────────
+  //
+  // 보는 장면은 조작 없이 40초쯤 갑니다. 그 사이에 창을 닫거나 새로고침하는
+  // 일은 드물지 않습니다 — 전화 한 통이면 됩니다.
+  //
+  // 이 검사가 없을 때 그렇게 끊고 다시 켠 사람은 **곧장 직업 고르기로**
+  // 갔습니다. 판을 켜면 겉옷이 놓여 있고 짚으면 크레딧이니, 여는 말도 33층도
+  // 「내려온 것」도 흰옷도 한 번을 못 보고 엔딩이 끝납니다. 오류는 없습니다.
+  const 끊긴사람 = await page.evaluate(async () => {
+    const 원래 = JSON.parse(window.localStorage.getItem('tower-climb-v1'));
+    원래.endingStage = 1;
+    원래.sawEnding = false;            // 샀지만 못 봤습니다
+    window.localStorage.setItem('tower-climb-v1', JSON.stringify(원래));
+    window.__save.load();
+    window.__credits ? window.__credits.scene.start('title') : window.__title.scene.start('title');
+    await new Promise((r) => setTimeout(r, 900));
+    window.__title.go();
+    await new Promise((r) => setTimeout(r, 800));
+    return window.__game.scene.getScenes(true).map((x) => x.scene.key).join(',');
+  });
+  check(끊긴사람 === 'endingline',
+    '보는 장면 도중에 끊고 다시 켜면 처음부터 다시 봄', 끊긴사람);
 
   console.log(bad ? `\n${bad}건 어긋남` : '\n33층 시퀀스가 열리고, 판과 같은 화면으로 돌고, 닫힙니다');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
