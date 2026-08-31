@@ -1,11 +1,16 @@
 // 33층 시퀀스를 눌러 보고 컷을 찍습니다.
-//   CHROME_PATH=... OUT=... node shot-ending.js
+//   CHROME_PATH=... node shot-ending.js          → shots/ 에 떨어집니다
+//   CHROME_PATH=... OUT=... node shot-ending.js  → 다른 데로 보내고 싶을 때
 const fs=require('fs'),path=require('path'),http=require('http');
 const {chromium}=require('playwright');
 const ROOT=__dirname;const MIME={'.html':'text/html','.js':'text/javascript','.css':'text/css'};
 const server=http.createServer((q,r)=>{const f=path.join(ROOT,q.url==='/'?'index.html':q.url.split('?')[0]);
 fs.readFile(f,(e,b)=>{if(e){r.writeHead(404);return r.end();}r.writeHead(200,{'Content-Type':MIME[path.extname(f)]||'application/octet-stream'});r.end(b);});});
-const OUT=process.env.OUT||ROOT;
+// **기본이 shots/ 입니다.** 예전에는 뿌리로 떨어졌는데, 한 번 돌릴 때마다
+// 2.4MB 짜리 컷 열 장이 저장소 뿌리에 쌓였고 실제로 그대로 커밋됐습니다.
+// shots/ 는 .gitignore 에 들어 있습니다.
+const OUT=process.env.OUT||path.join(ROOT,'shots');
+fs.mkdirSync(OUT,{recursive:true});
 (async()=>{await new Promise(r=>server.listen(9861,r));
 const br=await chromium.launch({executablePath:process.env.CHROME_PATH,args:['--no-sandbox','--use-gl=swiftshader']});
 const pg=await br.newPage({viewport:{width:540,height:960}});

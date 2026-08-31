@@ -1,3 +1,8 @@
 node_modules
 dist/
 shots/
+# 컷은 shots/ 로만 갑니다. 도구가 뿌리에 떨어뜨린 적이 있어 한 겹 더 둡니다
+/ending-*.png
+/wall-*.png
+/cloak*.png
+/art-*.png

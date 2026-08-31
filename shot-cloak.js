@@ -44,14 +44,16 @@ const server = http.createServer((q, r) => {
       { fontFamily: 'sans-serif', fontSize: (n || 15) + 'px', color: '#8794b5' })
       .setOrigin(0.5, 0).setScrollFactor(0).setDepth(50);
     [['cloak-red', '붉은 겉옷'], ['cloak-white', '흰옷'],
-      ['cloak-fallen', '벗겨진 옷'], ['ending-foe', '내려온 것']]
+      ['cloak-falling', '떨어지는 중'], ['cloak-fallen', '바닥에 놓인 옷'],
+      ['ending-foe', '내려온 것']]
+      .filter(([key]) => s.textures.exists(key))
       .forEach(([key, 이름], i) => {
-        const y = 96 + i * 220;
+        const y = 70 + i * 178;
         글(90, y - 34, 이름, 16);
         s.add.image(90, y + 40, key).setScrollFactor(0).setDepth(50);   // 1배
-        글(90, y + 86, '게임 크기', 12);
-        const 큰 = s.add.image(330, y + 40, key).setScrollFactor(0).setDepth(50);
-        큰.setScale(key === 'ending-foe' ? 1.7 : 4.5);
+        글(90, y + 74, '게임 크기', 12);
+        const 큰 = s.add.image(340, y + 60, key).setScrollFactor(0).setDepth(50);
+        큰.setScale(key === 'ending-foe' ? 1.3 : 3.4);
       });
   });
   await pg.waitForTimeout(500);
