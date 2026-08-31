@@ -503,6 +503,102 @@ const check = (ok, label, got) => {
   check(fresh.그림수 >= fresh.총, '판을 안 거쳐도 서른 장이 다 놓임', fresh.그림수 + '장');
   check(fresh.빠진것 === 0, '없는 그림(초록 X 상자)이 하나도 없음', fresh.빠진것 + '개');
 
+  // ── 18. 도굴꾼은 유물 둘을 골라 들고 시작합니다 ─────────
+  //
+  // 다섯 칸은 600층에 가야 다 찹니다(유물은 200층부터 100층마다 하나).
+  // 그때까지 도굴꾼은 남들과 똑같이 둘을 든 채 남들보다 낮은 수치로
+  // 오릅니다 — node relic-pace.js 가 0층에서 가장 센 곰사냥꾼의 39% 라고
+  // 잽니다. 그래서 오르기 전에 둘을 고릅니다.
+  //
+  // 여기서 재는 것: 창이 **직업 값(startRelics)만큼** 열리는가, 고른 것이
+  // 실제로 손에 들리는가, 그 뒤에 판이 다시 흐르는가, 그리고 시작 유물이
+  // 없는 직업에게는 안 열리는가.
+  //
+  // **기다림을 시계로 재지 않습니다.** 헤드리스는 14fps 언저리라, 「1.4초
+  // 자고 나서 창이 떴나 본다」는 뜰 때도 있고 안 뜰 때도 있습니다 — 같은
+  // 코드가 돌릴 때마다 다른 답을 냈습니다. 창이 뜰 때까지 **살펴 가며**
+  // 기다리되, 벽시계로 빠져나갈 길을 둡니다 (시험은 틀릴지언정 멈추면
+  // 안 됩니다).
+  const 고르기 = async (jobKey) => page.evaluate(async (key) => {
+    const 살피기 = (조건, ms) => new Promise((r) => {
+      const 끝 = Date.now() + ms;
+      const 보기 = () => ((조건() || Date.now() >= 끝) ? r() : setTimeout(보기, 25));
+      보기();
+    });
+    window.__game.scene.start('game', { jobKey: key });
+    await 살피기(() => window.__scene && window.__scene.player, 6000);
+    const s = window.__scene;
+    // 창은 판이 다 선 뒤 한 박자 두고 열립니다. 열릴 때까지 봅니다 —
+    // 안 열리는 직업(시작 유물이 없는 직업)이면 여기서 그냥 시간이 갑니다.
+    await 살피기(() => s.choosing, 3000);
+    const 기록 = [];
+    // 창이 뜬 동안 계속 고릅니다. 스무 번이면 어떤 직업이든 넘칩니다 —
+    // 안 끝나면 여기서 멈추는 편이 매달려 있는 것보다 낫습니다.
+    for (let i = 0; i < 20 && s.choosing; i++) {
+      const 머리 = s.children.list.find((o) => o.type === 'Text' && o.text === '시작 유물');
+      const 줄 = s.children.list.find((o) => o.type === 'Text' && / 중 /.test(o.text));
+      기록.push({ 머리: !!머리, 말: 줄 ? 줄.text : null });
+      const c = s.relicChoices[0];
+      const box = s.children.list.find((o) => o.type === 'Rectangle'
+        && Math.abs(o.y - c.y) < 2 && o.width === 460);
+      box.emit('pointerdown');
+      // 다음 장이 뜰 때까지. 남은 차례가 없으면 곧바로 빠져나옵니다.
+      await 살피기(() => s.choosing || s.startPicks === 0, 3000);
+      if (!s.startPicks && !s.choosing) break;
+    }
+    return {
+      기록,
+      든것: s.weapon.relics.map((r) => r.name),
+      고르는중: s.choosing,
+      남은차례: s.startPicks,
+      멈춤: s.physics.world.isPaused,
+      칸: s.relicMax(),
+    };
+  }, jobKey);
+
+  const 도굴 = await 고르기('digger');
+  check(도굴.기록.length === 2, '도굴꾼은 시작 유물 창이 두 번 열림',
+    도굴.기록.length + '번');
+  check(도굴.기록.every((r) => r.머리), '창 머리가 「시작 유물」');
+  check(도굴.기록.map((r) => r.말).join(' · ') === '둘 중 첫 번째 · 둘 중 두 번째',
+    '몇 번째인지 알려 줌', 도굴.기록.map((r) => r.말).join(' · '));
+  check(도굴.든것.length === 2, '고른 둘이 실제로 손에 들림', 도굴.든것.join(' · '));
+  check(도굴.칸 === 5, '다섯 칸은 그대로 (셋이 더 들어갈 자리)', 도굴.칸 + '칸');
+  check(!도굴.고르는중 && !도굴.멈춤, '다 고르면 판이 다시 흐름');
+
+  const 전사 = await 고르기('warrior');
+  check(전사.기록.length === 0, '시작 유물이 없는 직업에게는 안 열림',
+    전사.기록.length + '번');
+  check(전사.든것.length === 0, '전사는 맨손으로 시작', 전사.든것.length + '개');
+
+  // 이어서 진행할 때는 지난 판의 유물이 그대로 따라옵니다 — 여기서 창이
+  // 또 뜨면 죽을 때마다 유물을 두 개씩 더 받는 길이 됩니다.
+  const 이어서 = await page.evaluate(async () => {
+    const 살피기 = (조건, ms) => new Promise((r) => {
+      const 끝 = Date.now() + ms;
+      const 보기 = () => ((조건() || Date.now() >= 끝) ? r() : setTimeout(보기, 25));
+      보기();
+    });
+    window.__game.scene.start('game', {
+      jobKey: 'digger',
+      resume: { floor: 10, hp: 100, maxHp: 185, armor: 20, dodge: 0,
+        armorMax: 56, dodgeMax: 0, charm: false, farsight: false, wards: {},
+        coins: 0, totalCoins: 0, kills: 0, continues: 1, medalBand: 0,
+        seenTypes: [], gatesShown: [],
+        weapon: { index: 0, plus: 0, haste: 0, mult: 0, relics: ['goldhand'] } },
+    });
+    await 살피기(() => window.__scene && window.__scene.player, 6000);
+    const s = window.__scene;
+    // 열릴 리 없지만, 열린다면 그 사이에 열립니다. 그만큼 지켜봅니다.
+    await 살피기(() => s.choosing, 2500);
+    return { 고르는중: s.choosing, 남은차례: s.startPicks,
+      든것: s.weapon.relics.map((r) => r.name) };
+  });
+  check(!이어서.고르는중 && 이어서.남은차례 === 0,
+    '이어서 진행할 때는 시작 유물을 다시 안 고름');
+  check(이어서.든것.join(',') === '황금 손', '지난 판의 유물이 그대로 따라옴',
+    이어서.든것.join(',') || '없음');
+
   console.log(bad ? `\n${bad}건 어긋남` : '\n유물 서른 개 모두 맞음');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
   await browser.close();

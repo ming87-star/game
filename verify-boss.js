@@ -523,20 +523,34 @@ const check = (ok, label, got) => {
   check(mask.back, (mask.regenMs / 1000) + '초 뒤 다시 생김');
 
   // ── 유물 고르기 ────────────────────────────────────────
+  //
+  // **기름은 골라 누르지 않습니다.** 기름 셋(관통·뜨거운·차가운)은 한 자리를
+  // 나눠 쓰므로(oilFamily), 이미 바른 기름이 있으면 자리가 꽉 차 있어도
+  // 「무엇을 버릴까」를 묻지 않고 그대로 바뀝니다 — 그게 맞는 동작입니다.
+  // 그런데 여기서 재려는 것은 **꽉 찼을 때 고르게 하는가**이고, 펼쳐지는
+  // 세 장은 무작위입니다. 기름이 뽑히는 판에서는 시험이 딴 길로 새고,
+  // 그러면 같은 코드가 돌릴 때마다 다른 답을 냅니다 — 실제로 그랬습니다.
+  // 그래서 **기름 아닌 장**을 골라 누릅니다. 기름 길은 아래에서 따로 잽니다.
+  const 기름아닌장 = () => page.evaluate(() => {
+    const s = window.__scene;
+    const c = s.relicChoices.find((x) => !x.relic.oilFamily) || s.relicChoices[0];
+    return { x: c.x, y: c.y, name: c.relic.name, oil: !!c.relic.oilFamily };
+  });
+
   const relic = await page.evaluate(() => {
     const s = window.__scene;
     s.openRelicChoice();
     return {
       choosing: s.choosing,
       cards: s.relicChoices.map((c) => c.relic.name),
-      spots: s.relicChoices.map((c) => ({ x: c.x, y: c.y })),
     };
   });
   check(relic.choosing && relic.cards.length === 3, '유물은 판을 멈추고 세 장을 펼침',
     relic.cards.join(' · '));
   await shot(page, 'v-relic.png');
 
-  await page.mouse.click(...at(relic.spots[0].x, relic.spots[0].y));
+  const spot1 = await 기름아닌장();
+  await page.mouse.click(...at(spot1.x, spot1.y));
   await page.waitForTimeout(500);
   const took = await page.evaluate(() => {
     const s = window.__scene;
@@ -554,7 +568,7 @@ const check = (ok, label, got) => {
   await page.evaluate(() => window.__scene.openRelicChoice());
   const second = await page.evaluate(() => window.__scene.relicChoices.map((c) => c.relic.key));
   check(!second.includes(took.book[0]), '이미 든 유물은 다시 안 뜸', second.join(','));
-  const spot2 = await page.evaluate(() => window.__scene.relicChoices[0]);
+  const spot2 = await 기름아닌장();
   await page.mouse.click(...at(spot2.x, spot2.y));
   await page.waitForTimeout(400);
   const stacked = await page.evaluate(() => window.__scene.weapon.relics.length);
@@ -564,7 +578,7 @@ const check = (ok, label, got) => {
   // 꽉 찬 채로 또 만나면 무엇을 버릴지 한 번 더 고르게 해야 합니다.
   const before2 = await page.evaluate(() => window.__scene.weapon.relics.map((r) => r.key));
   await page.evaluate(() => window.__scene.openRelicChoice());
-  const third = await page.evaluate(() => window.__scene.relicChoices[0]);
+  const third = await 기름아닌장();
   await page.mouse.click(...at(third.x, third.y));
   await page.waitForTimeout(400);
   const swap = await page.evaluate(() => ({
@@ -592,7 +606,7 @@ const check = (ok, label, got) => {
 
   // 그냥 두는 길도 있어야 합니다.
   await page.evaluate(() => window.__scene.openRelicChoice());
-  const fourth = await page.evaluate(() => window.__scene.relicChoices[0]);
+  const fourth = await 기름아닌장();
   await page.mouse.click(...at(fourth.x, fourth.y));
   await page.waitForTimeout(300);
   const keepSpot = await page.evaluate(() => {
@@ -607,6 +621,37 @@ const check = (ok, label, got) => {
   }));
   check(!kept.choosing && kept.held.join(',') === swapped.held.join(','),
     '"그냥 두기"를 고르면 들고 있던 것이 그대로', kept.held.join(','));
+
+  // ── 기름은 꽉 차 있어도 안 묻습니다 ─────────────────────
+  //
+  // 위에서 일부러 비켜 간 길입니다. 자리가 꽉 찬 채로 **기름**을 고르면
+  // 「무엇을 버릴까」를 묻지 않습니다 — 기름은 새 자리를 쓰는 것이 아니라
+  // 이미 바른 기름을 벗겨 내고 그 자리에 발리기 때문입니다. 안 그러면
+  // 기름을 바꿀 때마다 멀쩡한 유물 하나를 내놓아야 합니다.
+  const 기름길 = await page.evaluate(async () => {
+    const s = window.__scene;
+    // 자리를 꽉 채우되(전사는 두 칸) 한 자리는 기름으로 둡니다.
+    s.weapon.relics = [relicByKey('secondheart'), relicByKey('hotoil')];
+    const 전 = s.weapon.relics.map((r) => r.key);
+    const 꽉 = s.weapon.relics.length >= s.relicMax();
+    // 펼치는 세 장은 무작위라 원하는 장을 뽑을 수 없습니다. 뽑는 자리만
+    // 잠깐 바꿔 끼우고 **카드를 실제로 눌러** 그 길을 그대로 탑니다 —
+    // takeRelic 을 직접 부르면 카드가 하는 판단(swapsOil)을 건너뜁니다.
+    const 원래 = window.rollRelicChoices;
+    window.rollRelicChoices = () => [relicByKey('coldoil')];
+    s.openRelicChoice();
+    const 칸 = s.relicChoices[0];
+    const box = s.children.list.find((o) => o.type === 'Rectangle'
+      && Math.abs(o.y - 칸.y) < 2 && o.width === 460);
+    box.emit('pointerdown');
+    await new Promise((r) => setTimeout(r, 300));
+    window.rollRelicChoices = 원래;
+    return { 전, 꽉, 후: s.weapon.relics.map((r) => r.key), 고르는중: s.choosing };
+  });
+  check(기름길.꽉, '자리가 꽉 찬 채로 기름을 만남', 기름길.전.join(','));
+  check(기름길.후.join(',') === 'secondheart,coldoil',
+    '기름은 기름 자리만 바꿔 낍니다 (버릴 것을 안 물음)', 기름길.후.join(','));
+  check(!기름길.고르는중, '그 길에서는 「무엇을 버릴까」가 안 뜸');
 
   const CFG_LEAD = await page.evaluate(() => CFG.bats.warnLeadMs);
 

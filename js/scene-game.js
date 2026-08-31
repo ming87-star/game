@@ -158,7 +158,26 @@ class GameScene extends Phaser.Scene {
     this.notices = [];
     this.noticeParts = null;
     this.noticeTimer = null;
-    this.announceBoosts();
+
+    // ── 시작 유물 (도굴꾼) ────────────────────────────────
+    // 도굴꾼의 다섯 칸은 **600층에 가야 다 찹니다** — 유물은 200층부터
+    // 100층마다 하나뿐입니다. 그때까지는 남들과 똑같이 둘을 든 채 남들보다
+    // 낮은 수치로 오릅니다. `node relic-pace.js` 로 재면 0층에서 곰사냥꾼의
+    // 39%, 400층까지도 47% 입니다 — 「다섯을 드는 사람」이 다섯을 들기 전에
+    // 죽습니다.
+    //
+    // 그래서 **오르기 전에 그만큼 고르고 시작합니다.** 그냥 쥐여 주지 않고
+    // 고르게 하는 것은, 이 직업의 성격이 「많이 든다」이지 「좋은 것을
+    // 받는다」가 아니기 때문입니다.
+    //
+    // 이어서 진행할 때는 안 엽니다 — 그때는 지난 판의 유물이 그대로
+    // 따라옵니다 (applyResume).
+    this.startPicks = this.resume ? 0 : (this.job.startRelics || 0);
+    this.startPicking = false;
+
+    // 시작 유물을 고르는 동안은 알림 줄이 덮개 밑에 깔립니다
+    // (openRelicChoice 가 clearNotices 를 부릅니다). 다 고른 뒤에 알립니다.
+    if (!this.startPicks) this.announceBoosts();
 
     this.hurtFlash = null; // 깜빡임을 흔드는 그릇 { a }. flashHurt 가 만듭니다
     // 흡혈의 초당 주머니. **판마다 비웁니다** — Phaser 는 장면을 다시 쓰므로
@@ -182,6 +201,30 @@ class GameScene extends Phaser.Scene {
     this.swallowing = false;
 
     window.__scene = this; // 브라우저 콘솔·자동 플레이테스트에서 상태를 보기 위한 통로
+
+    // 판이 다 서고 나서 엽니다. 한 박자 두는 것은 첫 화면이 그려지기 전에
+    // 덮개가 먼저 뜨면 「무엇 위에서 고르는지」가 안 보이기 때문입니다.
+    if (this.startPicks > 0) this.time.delayedCall(320, () => this.openStartRelic());
+  }
+
+  // 시작 유물 한 장. 다 고를 때까지 closeChoice 가 다시 부릅니다.
+  openStartRelic() {
+    if (this.dead || !this.scene.isActive()) return;
+    const 전부 = this.job.startRelics || 0;
+    const 번째 = 전부 - this.startPicks + 1;
+    this.startPicks -= 1;
+    this.startPicking = true;
+    // 펼칠 것이 없으면(있을 수 없지만) 여기서 끊습니다 — 안 끊으면
+    // closeChoice 가 안 불려 시작 유물 차례가 영영 안 끝납니다.
+    // 「2 중 1번째」는 숫자가 두 번 서서 읽히지 않습니다. 우리말로 셉니다.
+    const 세기 = ['하나', '둘', '셋', '넷', '다섯'];
+    const 차례 = ['첫', '두', '세', '네', '다섯'];
+    const 아래 = (세기[전부 - 1] || 전부) + ' 중 ' + (차례[번째 - 1] || 번째) + ' 번째';
+    if (!this.openRelicChoice({ 위: '시작 유물', 아래 })) {
+      this.startPicks = 0;
+      this.startPicking = false;
+      this.announceBoosts();
+    }
   }
 
   // ── 이어서 진행하기 ───────────────────────────────────
@@ -2914,12 +2957,16 @@ class GameScene extends Phaser.Scene {
   // ── 유물 고르기 ───────────────────────────────────────
   // 유물은 밟는다고 저절로 붙지 않습니다. 판이 멈추고 세 장이 펼쳐집니다.
   // 유물이 강한 만큼, 무엇을 가져갈지가 판을 가르는 결정이어야 합니다.
-  openRelicChoice() {
+  //
+  // 머리글은 자리마다 다릅니다 — 층에서 밟은 것이면 「유물 / 하나만
+  // 가져갑니다」, 오르기 전에 고르는 것이면 「시작 유물 / 둘 중 첫 번째」.
+  // 펼쳤으면 true 를 돌려줍니다 (시작 유물 차례가 이걸로 이어집니다).
+  openRelicChoice(글 = {}) {
     const picks = rollRelicChoices(this.job.key, this.weapon.relics);
     if (!picks.length) { // 다 모았다면 회복으로 갈음합니다
       this.hp = Math.min(this.maxHp, this.hp + CFG.heal);
       this.popup('+' + CFG.heal, '#a5d6a7');
-      return;
+      return false;
     }
 
     this.choosing = true;
@@ -2932,8 +2979,9 @@ class GameScene extends Phaser.Scene {
     const add = (o) => { parts.push(o.setScrollFactor(0).setDepth(300)); return o; };
 
     add(this.add.rectangle(cx, CFG.height / 2, CFG.width, CFG.height, 0x000000, 0.9));
-    add(this.add.text(cx, 150, '유물', font(24, '#8794b5')).setOrigin(0.5));
-    add(this.add.text(cx, 196, '하나만 가져갑니다', font(34, '#ffd54f')).setOrigin(0.5));
+    add(this.add.text(cx, 150, 글.위 || '유물', font(24, '#8794b5')).setOrigin(0.5));
+    add(this.add.text(cx, 196, 글.아래 || '하나만 가져갑니다',
+      font(34, '#ffd54f')).setOrigin(0.5));
 
     const rows = [];
     picks.forEach((relic, i) => {
@@ -2971,6 +3019,7 @@ class GameScene extends Phaser.Scene {
 
     // 자동 시험에서 카드 자리를 읽어 가기 위한 통로
     this.relicChoices = rows;
+    return true;
   }
 
   // 유물은 CFG.relic.maxHeld 개까지만 듭니다. 꽉 찬 채로 새것을 고르면
@@ -3030,6 +3079,16 @@ class GameScene extends Phaser.Scene {
     this.physics.resume();
     // 카드를 누른 그 탭이 판이 다시 흐른 뒤 점프로 한 번 더 먹히는 것을 막습니다.
     this.tapBlockedUntil = this.time.now + 300;
+
+    // 시작 유물이 아직 남았으면 이어서 엽니다 (도굴꾼). 다 골랐으면 그때
+    // 비로소 「지닌 것」을 알립니다 — 덮개가 떠 있는 동안 알리면 그대로
+    // 지워집니다.
+    if (this.startPicks > 0) {
+      this.time.delayedCall(220, () => this.openStartRelic());
+    } else if (this.startPicking) {
+      this.startPicking = false;
+      this.announceBoosts();
+    }
   }
 
   takeRelic(relic) {
