@@ -217,6 +217,7 @@ const CLASSES = [
     name: '궁수',
     // 한 판 안에서 둘 다 채워야 열립니다 — 멀리 가기만 해서도, 벌기만 해서도 안 됩니다.
     unlockFloor: 500, unlockCoins: 1000,
+    unlockBy: 'warrior',   // 전사로 오른 판에서만 열립니다
     // ── 잠겨 있는 동안 보이는 한 줄 ──────────────────────
     // 격자에서 잠긴 직업은 **새까만 실루엣**이고 이름은 `???` 입니다
     // (js/scene-select.js). 그 아래 서는 한 줄입니다.
@@ -389,6 +390,7 @@ const CLASSES = [
     그럴듯: 1.25,
     name: '도적',
     unlockFloor: 700, unlockCoins: 2000,
+    unlockBy: 'necro',   // 사령술사로 오른 판에서만 열립니다
     rumor: '싸우지 않고 가져가는 사람이 있다고 합니다.',
     blurb: '빠르게 찌르고 훔친다',
     detail: '빨리 찌르고 빠지니 오래 맞고 있을 필요가 없습니다.\n얇은 가죽에 기대어 흘려 넘기고, 잡지 않아도 훔칩니다.',
@@ -671,6 +673,7 @@ const CLASSES = [
     그럴듯: 1.05,
     name: '권법사',
     unlockFloor: 550, unlockCoins: 1400,
+    unlockBy: 'archer',   // 궁수로 오른 판에서만 열립니다
     rumor: '무기 없이 오르는 사람이 있다고 합니다.',
     blurb: '맨손으로 이어 친다',
     detail: '무기를 안 씁니다.\n칠수록 세지다가 열 번째에 크게 들어갑니다.\n그러고는 처음으로 돌아갑니다.',
@@ -779,6 +782,7 @@ const CLASSES = [
     그럴듯: 1.25,
     name: '곰사냥꾼',
     unlockFloor: 1000, unlockCoins: 3000,
+    unlockBy: 'wizard',   // 마법사로 오른 판에서만 열립니다
     rumor: '혼자 오르지 않는 사람이 있다고 합니다.',
     blurb: '곰을 앞서 보낸다',
     detail: '곰이 한 층 앞서 올라가 먼저 싸웁니다.\n쓰러져도 잠시 뒤에 돌아옵니다.\n내 활은 한 발이 무겁고 느립니다.',
@@ -889,6 +893,7 @@ const CLASSES = [
     그럴듯: 1.45,
     name: '사령술사',
     unlockFloor: 600, unlockCoins: 1600,
+    unlockBy: 'monk',   // 권법사로 오른 판에서만 열립니다
     rumor: '쓰러뜨린 것을 두고 가지 않는 사람이 있다고 합니다.',
     blurb: '죽은 것을 데리고 간다',
     detail: '내가 잡은 적이 셋까지 일어나 같이 칩니다.\n맞으면 죽고, 층을 옮기면 따라옵니다.\n여덟 중 가장 얇습니다 — 대신 혼자 싸우지 않습니다.',
@@ -992,6 +997,7 @@ const CLASSES = [
     그럴듯: 1.2,
     name: '마법사',
     unlockFloor: 800, unlockCoins: 2400,
+    unlockBy: 'digger',   // 도굴꾼으로 오른 판에서만 열립니다
     rumor: '같은 손짓으로 다른 것을 부르는 사람이 있다고 합니다.',
     blurb: '지팡이마다 다른 것이 나간다',
     detail: '지팡이가 피해만 주지 않습니다.\n태우고, 꿰뚫고, 터지고, 감쌉니다.\n무엇을 드느냐가 곧 어떻게 싸우느냐입니다.',
@@ -1092,6 +1098,7 @@ const CLASSES = [
     그럴듯: 1.0,
     name: '도굴꾼',
     unlockFloor: 750, unlockCoins: 2200,
+    unlockBy: 'rogue',   // 도적으로 오른 판에서만 열립니다
     rumor: '싸우러 온 것이 아닌 사람이 있다고 합니다.',
     blurb: '유물을 다섯 지고 오른다',
     detail: '유물을 다섯 듭니다 — 둘은 골라 들고 시작합니다.\n대신 곡괭이는 싸우라고 만든 물건이 아닙니다.',
@@ -1200,11 +1207,51 @@ function classUnlocked(job) {
   return !!Save.data.unlocked[job.key];
 }
 
+// 「로」와 「으로」. 받침이 있으면 「으로」입니다 — 「전사로 · 도적으로」.
+// ㄹ 받침만은 예외로 「로」입니다 ("서울로"이지 "서울으로"가 아닙니다).
+// 코드가 이름을 이어 붙이는 자리마다 손으로 고르면 언젠가 틀립니다.
+//
+// **이름을 `withRo` 라고 지었다가 하루를 잃을 뻔했습니다.** 이 판에는
+// 모듈이 없어서 모든 함수가 전역 하나를 나눠 씁니다 — js/scene-meet.js 에
+// 이미 같은 이름이 있었고, 그쪽이 뒤에 실려서 **말없이 덮어썼습니다.**
+// 화면에 「궁수로도 한 판에서 550층」이 떴습니다. 오류도 경고도 없습니다.
+// (verify-meta.js 가 이제 같은 이름의 전역 함수 둘을 잡습니다.)
+function roParticle(name) {
+  const code = name.charCodeAt(name.length - 1);
+  const 한글 = code >= 0xac00 && code <= 0xd7a3;
+  const 종성 = 한글 ? (code - 0xac00) % 28 : 0;
+  return name + (종성 === 0 || 종성 === 8 ? '로' : '으로');
+}
+
+// 이 직업을 여는 것은 누구인가. 사슬의 바로 앞 사람입니다.
+function unlockerOf(job) {
+  return job.unlockBy ? classByKey(job.unlockBy) : null;
+}
+
 // 방금 끝난 판이 조건을 채웠는지. 채웠으면 그 직업 키를 돌려줍니다.
-function classesUnlockedBy(floor, coins) {
+//
+// ── 사슬 ────────────────────────────────────────────────
+// 예전에는 **아무 직업으로든** 층과 코인만 채우면 열렸습니다. 그러니 가장
+// 센 직업 하나로 한 번 크게 오르면 나머지 일곱이 한꺼번에 쏟아졌습니다 —
+// 여덟을 만들어 놓고 하나만 쓰게 되는 길이었습니다.
+//
+// 지금은 **바로 앞 사람으로 올라야** 다음이 열립니다 (unlockBy).
+//
+//   전사 → 궁수 → 권법사 → 사령술사 → 도적 → 도굴꾼 → 마법사 → 곰사냥꾼
+//
+// 층·코인 값은 그대로입니다. 사슬이 붙는 것만으로 난이도가 오르므로,
+// 숫자까지 함께 올리면 두 번 조이는 셈입니다.
+//
+// **이미 열어 둔 것은 그대로 둡니다.** Save.data.unlocked 를 건드리지
+// 않으므로 예전 저장에서 열린 직업은 계속 열려 있습니다 — 규칙을 뒤늦게
+// 걸었다고 이미 가진 것을 뺏지는 않습니다.
+function classesUnlockedBy(floor, coins, jobKey) {
   return CLASSES.filter((job) =>
     (job.unlockFloor || job.unlockCoins) &&
     !Save.data.unlocked[job.key] &&
+    // 사슬. jobKey 를 안 넘기면 아무도 안 열립니다 — 누구로 올랐는지
+    // 모르는 채로 여는 것이 예전의 그 문제였습니다.
+    job.unlockBy === jobKey &&
     floor >= (job.unlockFloor || 0) &&
     coins >= (job.unlockCoins || 0));
 }

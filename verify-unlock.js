@@ -79,10 +79,17 @@ const server = http.createServer((req, res) => {
   //
   // 조건을 표에서 읽으면 직업이 몇이 되든 안 낡습니다. 대신 **규칙 자체**를
   // 따로 봅니다 — 한 판 안에서 층과 코인을 **둘 다** 채워야 한다는 것.
-  const 기대 = (floor, coins) => page.evaluate(([f, c]) => CLASSES
+  //
+  // ── 사슬 ────────────────────────────────────────────────
+  // 해금은 **바로 앞 사람으로 올라야** 열립니다 (js/classes.js 의 unlockBy).
+  // 그러니 「무엇이 열려야 하는가」는 층·코인만으로 정해지지 않습니다 —
+  // **누구로 올랐는지**가 함께 들어가야 합니다. 아래 판들은 전부 전사로
+  // 오르므로, 아무리 높이 올라도 열리는 것은 궁수 하나뿐이라야 맞습니다.
+  const 기대 = (floor, coins, jobKey = 'warrior') => page.evaluate(([f, c, k]) => CLASSES
     .filter((j) => (j.unlockFloor || j.unlockCoins)
+      && j.unlockBy === k
       && f >= (j.unlockFloor || 0) && c >= (j.unlockCoins || 0))
-    .map((j) => j.key).sort(), [floor, coins]);
+    .map((j) => j.key).sort(), [floor, coins, jobKey]);
 
   const cases = [
     ['층만 채움', 900, 300],
@@ -155,6 +162,137 @@ const server = http.createServer((req, res) => {
     '가장 먼저 열리는 사람이 **궁수** (만남 컷의 규칙을 세우는 사람)',
     사다리[0] && 사다리[0].이름);
 
+  // ── 사슬이 한 줄로 이어지는가 ──────────────────────────
+  //
+  // 「A로 오르면 B가 열린다」가 여덟을 한 줄로 꿰어야 합니다. 한 사람이
+  // 둘을 열거나(갈래), 아무도 안 여는 사람이 생기거나(끊김), 자기 뒤를
+  // 자기가 여는(고리) 순간 여는 길이 막히거나 새 나갑니다 — 어느 쪽이든
+  // 조용합니다. 오류도 안 나고 화면도 멀쩡합니다.
+  const 사슬 = await page.evaluate(() => {
+    const 여는이 = {};
+    CLASSES.forEach((j) => { if (j.unlockBy) (여는이[j.unlockBy] = 여는이[j.unlockBy] || []).push(j.key); });
+    // 전사에서 시작해 끝까지 따라갑니다.
+    const 길 = ['warrior'];
+    const 본것 = new Set(길);
+    for (;;) {
+      const 다음 = 여는이[길[길.length - 1]];
+      if (!다음 || !다음.length) break;
+      if (다음.length > 1 || 본것.has(다음[0])) { 길.push('*' + 다음.join('|')); break; }
+      길.push(다음[0]);
+      본것.add(다음[0]);
+    }
+    return {
+      길,
+      전부: CLASSES.length,
+      // 아무도 안 여는 사람 (전사는 처음부터 열려 있으므로 뺍니다)
+      고아: CLASSES.filter((j) => (j.unlockFloor || j.unlockCoins) && !j.unlockBy).map((j) => j.name),
+      // 사슬 차례대로의 층·코인
+      차례: 길.filter((k) => !k.startsWith('*')).slice(1).map((k) => {
+        const j = classByKey(k);
+        return { 이름: j.name, 층: j.unlockFloor || 0, 코인: j.unlockCoins || 0 };
+      }),
+    };
+  });
+  check(사슬.길.length === 사슬.전부 && !사슬.길.some((k) => k.startsWith('*')),
+    '**사슬이 여덟을 한 줄로 꿰음** (갈래도 끊김도 고리도 없이)',
+    사슬.길.join(' → '));
+  check(사슬.고아.length === 0, '아무도 안 여는 사람이 없음',
+    사슬.고아.join(',') || '0명');
+  // 사슬 차례와 층·코인 차례가 어긋나면, 앞사람 조건이 뒷사람보다 높아져서
+  // 「앞을 못 여는데 뒤는 열 수 있는」 판이 생깁니다.
+  const 오름차 = (수들) => 수들.every((v, i) => !i || v > 수들[i - 1]);
+  check(오름차(사슬.차례.map((c) => c.층)) && 오름차(사슬.차례.map((c) => c.코인)),
+    '사슬 차례가 층·코인 차례와 같음',
+    사슬.차례.map((c) => c.이름 + ' ' + c.층 + '/' + c.코인).join(' → '));
+
+  // ── 앞 사람으로 안 오르면 안 열립니다 ──────────────────
+  //
+  // 사슬의 핵심입니다. 전사 하나로 아무리 높이 올라도 궁수까지입니다 —
+  // 예전에는 여기서 일곱이 한꺼번에 쏟아졌습니다.
+  await fresh();
+  const 전사로끝까지 = await runEnd(2000, 9000);
+  check(Object.keys(전사로끝까지).sort().join(',') === 'archer',
+    '**전사로 2000층·9000코인을 올라도 열리는 것은 궁수뿐**',
+    Object.keys(전사로끝까지).sort().join(',') || '(없음)');
+
+  // 앞 사람으로 오르면 그다음이 열립니다. 판을 그 직업으로 시작해서 끝냅니다.
+  //
+  // **`job.key` 만 보고 달려들면 안 됩니다.** Phaser 는 장면 인스턴스를 다시
+  // 씁니다 — `init` 이 먼저 돌아 `job` 을 새 직업으로 바꿔 놓고, `create` 는
+  // 그다음에 돕니다. 그 사이에는 **직업은 새것인데 `dead` 는 지난 판의
+  // true** 입니다. 그때 gameOver 를 부르면 맨 첫 줄 `if (this.dead) return`
+  // 에 걸려 아무 일도 안 일어나고, 시험은 「안 열렸다」고 적습니다.
+  // 실제로 그렇게 한 번 틀렸습니다 — 따로 돌리면 통과했습니다(지난 판이
+  // 없어서 dead 가 false 였습니다).
+  const 그직업으로 = async (jobKey, floor, coins) => page.evaluate(([k, f, c]) => {
+    window.__game.scene.start('game', { jobKey: k });
+    return new Promise((r) => {
+      const 끝 = Date.now() + 6000;
+      const 보기 = () => {
+        const s = window.__scene;
+        if (s && s.player && s.job.key === k && !s.dead) {
+          s.floorIndex = f; s.totalCoins = c; s.gameOver();
+          return r(JSON.parse(JSON.stringify(window.__save.data.unlocked)));
+        }
+        return Date.now() >= 끝 ? r(null) : setTimeout(보기, 30);
+      };
+      보기();
+    });
+  }, [jobKey, floor, coins]);
+
+  const 궁수로 = await 그직업으로('archer', 600, 1600);
+  check(궁수로 && 궁수로.monk,
+    '궁수로 550층·1400코인을 채우면 권법사가 열림',
+    궁수로 ? Object.keys(궁수로).sort().join(',') : '(판이 안 섰습니다)');
+  check(궁수로 && !궁수로.necro,
+    '그 판에 사령술사까지 따라 열리지는 않음 (한 칸씩)',
+    궁수로 ? Object.keys(궁수로).sort().join(',') : '');
+
+  // ── 이미 열어 둔 것은 그대로 둡니다 ────────────────────
+  //
+  // 규칙을 뒤늦게 걸었다고 예전 저장에서 이미 가진 것을 뺏지는 않습니다.
+  const 예전저장 = await page.evaluate(() => {
+    window.localStorage.setItem('tower-climb-v1', JSON.stringify({
+      sawStory: true,
+      unlocked: { archer: true, rogue: true, monk: true, necro: true,
+        digger: true, wizard: true, hunter: true },
+    }));
+    return true;
+  });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForFunction(() => window.__title && window.__title.ready, null, { timeout: 8000 });
+  const 그대로 = await page.evaluate(() =>
+    CLASSES.filter((j) => !classUnlocked(j)).map((j) => j.name));
+  check(예전저장 && 그대로.length === 0,
+    '**예전 저장에서 열어 둔 여덟은 그대로 열려 있음**',
+    그대로.length ? '잠긴 사람: ' + 그대로.join(',') : '여덟 다 열림');
+
+  // ── 기록은 직업마다 따로 쌓입니다 ──────────────────────
+  //
+  // 고르기 화면의 「지금까지」가 이것을 읽습니다. 전체 최고 기록을 적으면
+  // 딴 직업으로 오른 숫자가 거기 서서 거짓말을 합니다.
+  const 따로 = await page.evaluate(() => {
+    window.__save.data.bestBy = {};
+    window.__save.finishRun(400, 900, 'warrior');
+    window.__save.finishRun(120, 2500, 'archer');
+    window.__save.finishRun(700, 300, 'warrior');
+    return {
+      전사: window.__save.bestFor('warrior'),
+      궁수: window.__save.bestFor('archer'),
+      도적: window.__save.bestFor('rogue'),
+    };
+  });
+  check(따로.전사.floor === 700 && 따로.전사.coins === 900,
+    '직업마다 층·코인이 따로 가장 좋았던 값으로 남음',
+    '전사 ' + 따로.전사.floor + '층/' + 따로.전사.coins + '코인');
+  check(따로.궁수.floor === 120 && 따로.궁수.coins === 2500,
+    '다른 직업의 기록이 섞이지 않음',
+    '궁수 ' + 따로.궁수.floor + '층/' + 따로.궁수.coins + '코인');
+  check(따로.도적.floor === 0 && 따로.도적.coins === 0,
+    '한 번도 안 고른 직업은 0층·0코인', '도적 ' + 따로.도적.floor + '층');
+
+  await fresh();
+
   // ── 열리는 사람마다 만날 글이 있는가 ──────────────────
   //
   // **이것이 없으면 아무 일도 안 일어나고 오류도 안 납니다.** MeetScene 의
@@ -183,7 +321,7 @@ const server = http.createServer((req, res) => {
   // 판을 **끝내기 전에** 물어봅니다 — 끝나고 나면 그 사람들이 이미 열려
   // 있어서(Save.data.unlocked) classesUnlockedBy 가 빈손으로 돌아옵니다.
   const 열릴것 = await page.evaluate(() =>
-    classesUnlockedBy(700, 2000).map((c) => c.key).sort());
+    classesUnlockedBy(700, 2000, 'warrior').map((c) => c.key).sort());
 
   // 한 판에 오를 수 있는 만큼 올라, 열리는 사람이 여럿인 판으로 끝냅니다.
   await runEnd(700, 2000);

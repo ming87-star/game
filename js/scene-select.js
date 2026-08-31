@@ -324,8 +324,27 @@ class SelectScene extends Phaser.Scene {
 
       // **조건은 가립니다 아니라 그대로 보여 줍니다.** 누구인지는 궁금해야
       // 하지만 **어떻게 여는지**까지 가리면 궁금한 것이 아니라 막힌 것입니다.
-      line('한 판에서  ' + job.unlockFloor + '층 · 코인 ' + job.unlockCoins, 20, '#b0bec5', 4);
-      line('지금까지  ' + Save.bestFloor + '층 · 코인 ' + Save.data.bestCoins, 17, '#4a5578');
+      //
+      // 해금은 사슬입니다 (js/classes.js 의 unlockBy) — 아무 직업으로나
+      // 채우는 것이 아니라 **바로 앞 사람으로** 올라야 합니다. 그러니
+      // 조건 줄에 그 사람의 이름이 없으면 안 됩니다. 「한 판에서 550층」만
+      // 적어 두면, 딴 직업으로 채우고 나서 왜 안 열리냐고 하게 됩니다.
+      const 앞 = unlockerOf(job);
+      const 앞이열림 = !앞 || classUnlocked(앞);
+      const 조건 = '한 판에서  ' + job.unlockFloor + '층 · 코인 ' + job.unlockCoins;
+      if (앞이열림) {
+        line((앞 ? roParticle(앞.name) + '  ' : '') + 조건, 20, '#b0bec5', 4);
+        // 「지금까지」도 **그 직업의** 기록이라야 뜻이 있습니다. 전체 최고
+        // 기록을 적으면 딴 직업으로 오른 숫자가 여기 서서 거짓말을 합니다.
+        const 그간 = 앞 ? Save.bestFor(앞.key)
+          : { floor: Save.bestFloor, coins: Save.data.bestCoins };
+        line('지금까지  ' + 그간.floor + '층 · 코인 ' + 그간.coins, 17, '#4a5578');
+      } else {
+        // 앞 사람조차 아직 잠겨 있으면 **이름을 밝히지 않습니다.** 잠긴 칸은
+        // 「???」인데 옆 칸에서 그 이름을 흘리면 감춘 뜻이 없습니다.
+        line('먼저 만나야 할 사람이 있습니다', 20, '#b0bec5', 4);
+        line(조건, 17, '#4a5578');
+      }
       this.center(top);
       this.startAt = null;      // 잠긴 직업에는 시작 단추가 없습니다
       return;

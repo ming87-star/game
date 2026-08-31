@@ -30,7 +30,39 @@ const check = (ok, label, got) => {
   console.log(`${ok ? 'OK  ' : '틀림'}  ${label}${got === undefined ? '' : '  → ' + got}`);
 };
 
+// ── 같은 이름의 전역 함수 둘 ────────────────────────────
+//
+// 이 판에는 모듈이 없습니다. js/*.js 가 <script> 로 차례차례 실려서 **전역
+// 하나를 통째로 나눠 씁니다.** 그러니 두 파일이 같은 이름의 함수를 두면
+// **뒤에 실린 쪽이 말없이 앞의 것을 덮어씁니다.** 오류도 경고도 없습니다.
+//
+// 실제로 당했습니다. js/classes.js 에 `withRo`(「전사로」)를 새로 두었는데
+// js/scene-meet.js 에 이미 같은 이름(「전사로도」)이 있었고, 그쪽이 뒤에
+// 실려서 직업 고르기 화면에 「궁수로도 한 판에서 550층」이 떴습니다.
+// 검사 열여덟이 전부 통과한 채로였습니다 — 눈으로 보고서야 찾았습니다.
+//
+// 브라우저를 안 켜고 파일만 읽어도 되는 검사입니다. 합친 파일이 곧 「전부
+// 한 자리에 놓은 것」이라 여기가 제자리입니다.
+function 겹치는전역() {
+  const 목록 = fs.readdirSync(path.join(ROOT, 'js')).filter((f) => f.endsWith('.js'));
+  const 자리 = {};
+  목록.forEach((f) => {
+    const src = fs.readFileSync(path.join(ROOT, 'js', f), 'utf8');
+    // 줄 맨 앞의 `function 이름(` 만 봅니다 — 안쪽에 들여쓴 것은 그 함수의
+    // 지역이라 전역을 안 건드립니다.
+    const re = /^function\s+([A-Za-z_$][\w$]*)\s*\(/gm;
+    let m;
+    while ((m = re.exec(src))) (자리[m[1]] = 자리[m[1]] || []).push(f);
+  });
+  return Object.keys(자리).filter((k) => 자리[k].length > 1)
+    .map((k) => k + ' (' + 자리[k].join(' · ') + ')');
+}
+
 (async () => {
+  const 겹침 = 겹치는전역();
+  check(겹침.length === 0, '같은 이름의 전역 함수가 둘 있지 않음',
+    겹침.length ? 겹침.join(' / ') : '0개');
+
   if (!fs.existsSync(FILE)) {
     console.log('dist/index.html 이 없습니다. node build.js 를 먼저 돌리세요.');
     process.exit(1);

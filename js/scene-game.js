@@ -3741,13 +3741,14 @@ class GameScene extends Phaser.Scene {
     this.clearBear();
     // 판을 넘어 남는 기록. 직업 해금이 여기에 기댑니다.
     const wasBest = Save.bestFloor;
-    const opened = classesUnlockedBy(this.floorIndex, this.totalCoins);
+    // 누구로 올랐는지를 함께 넘깁니다 — 해금은 사슬입니다(js/classes.js).
+    const opened = classesUnlockedBy(this.floorIndex, this.totalCoins, this.job.key);
     opened.forEach((job) => Save.unlock(job.key));
     // 이번에 열린 사람들은 **고르기가 끝난 뒤** 한 컷씩 만납니다
     // (아래 leaveDeath). 여기서 바로 띄우면 방금 끝난 판의 결과를 읽던
     // 사람을 끊어 놓습니다.
     this.justOpened = opened.map((job) => job.key);
-    Save.finishRun(this.floorIndex, this.totalCoins);
+    Save.finishRun(this.floorIndex, this.totalCoins, this.job.key);
     // 죽을 때 들고 있던 자루의 상태를 도감에 남깁니다.
     this.weapon.record();
     this.physics.pause();

@@ -25,6 +25,17 @@ function blankSave() {
     perks: {},
     // 유물 도감. 한 번이라도 가져간 것은 여기 남습니다.
     relics: {},
+    // 직업마다의 최고 기록. { warrior: { floor: 512, coins: 1180 } }
+    //
+    // 해금이 사슬이 되면서 필요해졌습니다 (js/classes.js 의 unlockBy) —
+    // 「궁수로 550층」이 조건인데 전체 최고 기록만 들고 있으면, 고르는
+    // 화면이 「지금까지 얼마나 왔는지」를 **엉뚱한 직업의 숫자로** 알려
+    // 주게 됩니다.
+    //
+    // 층과 코인은 **따로** 가장 좋았던 값입니다. 해금 판정은 한 판 안에서
+    // 둘을 함께 채워야 하지만(classesUnlockedBy), 이 값은 판정이 아니라
+    // 「얼마나 왔나」를 보여 주는 눈금입니다.
+    bestBy: {},
     lastJob: 'warrior',
     // 오프닝을 이미 봤는지. 처음 켠 사람에게만 저절로 나오고, 그 뒤로는
     // 시작 화면에서 직접 눌러야 다시 나옵니다 — 한 판 더 하려고 켰는데
@@ -58,12 +69,25 @@ const Save = {
 
   // 한 판이 끝났을 때. 최고 기록을 갱신하고 죽은 횟수를 셉니다.
   // 메달은 여기서 넣지 않습니다 — 죽음 화면에서 고른 뒤에 들어갑니다.
-  finishRun(floor, coins) {
+  finishRun(floor, coins, jobKey) {
     this.data.runs++;
     this.data.deaths++;
     if (floor > this.data.bestFloor) this.data.bestFloor = floor;
     if (coins > this.data.bestCoins) this.data.bestCoins = coins;
+    // 직업마다의 최고 기록도 함께. 해금 사슬이 이것을 읽습니다.
+    if (jobKey) {
+      const b = this.data.bestBy[jobKey] || { floor: 0, coins: 0 };
+      this.data.bestBy[jobKey] = {
+        floor: Math.max(b.floor || 0, floor),
+        coins: Math.max(b.coins || 0, coins),
+      };
+    }
     this.flush();
+  },
+
+  // 그 직업으로 어디까지 갔나. 한 번도 안 골랐으면 0층·0코인입니다.
+  bestFor(jobKey) {
+    return this.data.bestBy[jobKey] || { floor: 0, coins: 0 };
   },
 
   unlock(key) {
