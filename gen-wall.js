@@ -248,6 +248,84 @@ function plat(w, c, note) {
     p.join(''), 4, note);
 }
 
+const 보통 = { b0: '#5766ac', b1: '#46529a', b2: '#333c7c', t0: '#b3bdec', t1: '#8e99d2',
+  t2: '#7b86c4', shine: '#cdd4f2', chip: '#6f7bc0', joint: '#2b3369', lip: '#5c6ab5', under: '#191f4a' };
+const 상점 = { b0: '#f6b768', b1: '#e0a044', b2: '#b4761f', t0: '#ffe4b3', t1: '#ffcd8a',
+  t2: '#eeb469', shine: '#fff4e0', chip: '#d59a52', joint: '#8d5a12', lip: '#ffd79a', under: '#6f460d' };
+const 투기장 = { b0: '#7b3ba5', b1: '#652a8c', b2: '#48186a', t0: '#e6c4ef', t1: '#c99add',
+  t2: '#ac7cc4', shine: '#f5e4fa', chip: '#9a5cbe', joint: '#3c0f5c', lip: '#d3a5e4', under: '#2a0842' };
+
+// ── 탑의 바닥 ───────────────────────────────────────────
+//
+// 0층은 오랫동안 **보통 발판 셋**이었습니다. 그래서 이 탑에는 바닥이
+// 없었습니다 — 첫 발판 아래로는 아무것도 없고 벽만 이어졌습니다.
+//
+// 오르는 게임에서 바닥이 없으면 **어디서 시작했는지가 없습니다.** 33층
+// 시퀀스의 마지막에 붉은 겉옷이 떨어지는 자리도 여기입니다. 떨어진 옷이
+// 발판 위에 얹히면 「누가 놓고 갔다」가 되고, 바닥에 놓이면 「떨어졌다」가
+// 됩니다.
+//
+// 세로 340 입니다. 0층에 섰을 때 카메라가 멎는 자리에서 화면 아래끝까지
+// 덮는 높이라, 바닥이 허공에 뜬 판때기로 안 보입니다. 아래로 갈수록
+// 어두워져서 어디서 끝나는지가 안 보입니다.
+function ground() {
+  const W2 = 540, H2 = 340, c = 보통;
+  const p = [`<rect width="${W2}" height="${H2}" fill="#0a0e22"/>`];
+
+  // 밟는 윗면 — 발판과 **똑같은 규칙**입니다. 여기만 다르게 칠하면
+  // 0층에서 딛는 자리가 딴 것으로 읽힙니다.
+  p.push(`<rect x="0" y="0" width="${W2}" height="9" fill="url(#pt)"/>`);
+  p.push(`<rect x="0" y="0" width="${W2}" height="1.5" fill="${c.shine}" opacity=".95"/>`);
+  p.push(`<rect x="0" y="9" width="${W2}" height="1.8" fill="${c.joint}" opacity=".9"/>`);
+  // 닳아 이 빠진 자리 몇
+  [64, 188, 302, 430].forEach((x, i) => {
+    p.push(`<path d="M${x} 0 l${7 + i} 0 l-${2 + i} ${3 + i * 0.4} l-4 0 z" fill="${c.chip}"/>`);
+  });
+
+  // 바닥돌 — 아래로 갈수록 켜가 낮아지고 어두워집니다. 멀어지는 것이
+  // 아니라 **어둠에 잠기는 것**입니다. 이 탑의 아래쪽은 아무도 안 봅니다.
+  let y = 11;
+  let h = 34;
+  let r = 0;
+  while (y < H2) {
+    // **빨리 어두워져야 합니다.** 처음에는 천천히 깔았더니 바닥이 화면
+    // 아래 절반을 밝은 판때기로 채워서, 딛는 자리인 발판과 다퉜습니다.
+    // 윗면 아래 120px 안에서 거의 다 잠깁니다.
+    const 어둠 = Math.min(0.92, 0.18 + (y / H2) * 2.4);
+    let x = r % 2 === 0 ? 0 : -46;
+    let i = 0;
+    while (x < W2) {
+      const w = 78 + Math.round(rnd(r * 53 + i, 17) * 46);
+      const q = { x: x + 1.2, y: y + 1.2, w: w - 2.4, h: h - 2.4 };
+      // 벽(#1b2442~#202a51)보다 아주 조금만 밝습니다. 다른 면이라는 것만
+      // 알면 되고, 눈길을 끌면 안 됩니다
+      const 밝기 = ['#242d59', '#212a52', '#27305f', '#1f2850'][Math.floor(rnd(r * 7 + i, 29) * 4) % 4];
+      if (q.x + q.w > 0) {
+        p.push(`<rect x="${n(Math.max(0, q.x))}" y="${n(q.y)}" width="${n(Math.min(q.w, W2 - Math.max(0, q.x)))}" height="${n(q.h)}" fill="${밝기}"/>`);
+        p.push(`<rect x="${n(Math.max(0, q.x))}" y="${n(q.y)}" width="${n(Math.min(q.w, W2 - Math.max(0, q.x)))}" height="1.4" fill="#4c589c" opacity=".32"/>`);
+      }
+      x += w; i++;
+    }
+    // 켜 하나를 통째로 덮는 어둠. 아래로 갈수록 짙어집니다
+    p.push(`<rect x="0" y="${n(y)}" width="${W2}" height="${n(h)}" fill="#04060f" opacity="${n(어둠)}"/>`);
+    y += h;
+    h = Math.max(14, h - 3);
+    r++;
+  }
+
+  // 바닥에 굴러다니는 것 몇. 이 탑은 오래됐습니다
+  [[96, 3, 7], [222, 2, 5], [356, 4, 9], [470, 2.5, 6]].forEach(([x, ry, rx]) => {
+    p.push(`<ellipse cx="${x}" cy="${9 - ry * 0.4}" rx="${rx}" ry="${ry}" fill="${c.b2}"/>`);
+    p.push(`<ellipse cx="${x - rx * 0.3}" cy="${9 - ry}" rx="${rx * 0.5}" ry="${ry * 0.5}" fill="${c.t2}" opacity=".6"/>`);
+  });
+
+  return svg(W2, H2,
+    `<linearGradient id="pt" x1="0" y1="0" x2="0.35" y2="1">`
+    + `<stop offset="0%" stop-color="${c.t0}"/><stop offset="60%" stop-color="${c.t1}"/>`
+    + `<stop offset="100%" stop-color="${c.t2}"/></linearGradient>`,
+    p.join(''), 2, '탑의 바닥 540×300 · 0층. 윗면이 발판 윗면과 같은 높이에 옵니다');
+}
+
 function svg(w, h, defs, body, scale, note) {
   return `<!-- ${note}\n     이 파일은 만들어진 것입니다 — 고치지 마세요. 'node gen-wall.js' 가 다시 만듭니다.\n`
     + `     까닭과 지켜야 할 것은 gen-wall.js 머리말에 적어 두었습니다. -->\n`
@@ -256,19 +334,13 @@ function svg(w, h, defs, body, scale, note) {
     + (defs ? `<defs>${defs}</defs>` : '') + body + '</svg>\n';
 }
 
-const 보통 = { b0: '#5766ac', b1: '#46529a', b2: '#333c7c', t0: '#b3bdec', t1: '#8e99d2',
-  t2: '#7b86c4', shine: '#cdd4f2', chip: '#6f7bc0', joint: '#2b3369', lip: '#5c6ab5', under: '#191f4a' };
-const 상점 = { b0: '#f6b768', b1: '#e0a044', b2: '#b4761f', t0: '#ffe4b3', t1: '#ffcd8a',
-  t2: '#eeb469', shine: '#fff4e0', chip: '#d59a52', joint: '#8d5a12', lip: '#ffd79a', under: '#6f460d' };
-const 투기장 = { b0: '#7b3ba5', b1: '#652a8c', b2: '#48186a', t0: '#e6c4ef', t1: '#c99add',
-  t2: '#ac7cc4', shine: '#f5e4fa', chip: '#9a5cbe', joint: '#3c0f5c', lip: '#d3a5e4', under: '#2a0842' };
-
 const made = {
   'wall-far': wallFar(),
   'wall-mid': wallMid(),
   'wall-near': wallNear(),
   'wall-shade': wallShade(),
   'plat': plat(140, 보통, '보통 발판 140×20 · 딛고 오르는 자리'),
+  'plat-ground': ground(),
   'plat-shop': plat(460, 상점, '상점 발판 460×20'),
   'plat-boss': plat(460, 투기장, '보스 투기장 460×20'),
 };

@@ -362,12 +362,20 @@ class EndingWatchScene extends Phaser.Scene {
     this.children.list.slice().forEach((o) => o.destroy());
     buildTowerWall(this);
     const cx = CFG.laneX.mid;
-    // 바닥을 260 위에 두면 벽의 벽감(480 주기 중 아래것)이 **겉옷 바로 뒤에**
-    // 옵니다. 떨어진 옷이 등불에 비쳐 서는 자리입니다 — 우연히 맞은 것을
+    // **발판이 아니라 탑의 바닥입니다.** 떨어진 옷이 발판 위에 얹히면
+    // 「누가 놓고 갔다」가 되고, 바닥에 놓여야 「떨어졌다」가 됩니다.
+    // 판의 0층과 같은 그림입니다 (`plat-ground`).
+    //
+    // 260 위에 두면 벽의 벽감(480 주기 중 아래것)이 **겉옷 바로 뒤에**
+    // 옵니다. 떨어진 옷이 등불에 비쳐 놓이는 자리입니다 — 우연히 맞은 것을
     // 알고 나서 고정했습니다. 이 값을 옮기면 그 빛이 사라집니다.
     const 바닥 = CFG.height - 260;
-    if (hasArt('plat')) this.add.image(cx, 바닥, 'plat').setDepth(0);
-    else this.add.rectangle(cx, 바닥, CFG.platformW, CFG.platformH, 0x4a5699).setDepth(0);
+    if (hasArt('plat-ground')) {
+      this.add.image(CFG.width / 2, 바닥 - CFG.platformH / 2, 'plat-ground')
+        .setOrigin(0.5, 0).setDepth(0);
+    } else {
+      this.add.rectangle(CFG.width / 2, 바닥, CFG.width, CFG.platformH, 0x4a5699).setDepth(0);
+    }
 
     const 옷 = this.add.image(cx, -30, 'cloak-fallen').setDepth(11).setAngle(18);
     this.tweens.add({

@@ -84,6 +84,25 @@ const server = http.createServer((req, res) => {
   await 밀기(400);
   await page.screenshot({ path: path.join(ROOT, 'shots/wall-now-up.png') });
 
+  // ── 탑의 바닥 (0층) ──────────────────────────────────
+  // 0층은 발판 셋이 아니라 바닥 한 장입니다. 윗면이 발판 윗면과 같은 높이에
+  // 오는지, 아래가 화면 끝까지 덮이는지를 여기서 봅니다.
+  await page.evaluate(() => {
+    const s = window.__scene;
+    s.scene.resume();
+    s.floors.forEach((f) => f.views.forEach((v) => v.destroy()));
+    s.floors.clear();
+    s.floorIndex = 0; s.lane = 'mid';
+    for (let i = 0; i <= 6; i++) s.addFloor(i);
+    const slot = s.floors.get(0).slots.mid;
+    s.player.setPosition(slot.x, slot.y - 34);
+    s.baseScroll = s.player.y - 960 * 0.68;
+    s.cameras.main.setScroll(0, s.baseScroll);
+    s.scene.pause();
+  });
+  await 밀기(0);
+  await page.screenshot({ path: path.join(ROOT, 'shots/wall-ground.png') });
+
   console.log(errs.length ? '오류 ' + errs.join(' / ') : '오류 없음');
   await browser.close(); server.close();
 })();

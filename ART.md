@@ -1376,6 +1376,7 @@ node bake-story.js && node build.js && node shot-story.js
 | `wall-near.svg` | 500×960 | 쇠사슬 (좌우 끝에만) | 1.45배 |
 | `wall-shade.svg` | 540×960 | 좌우로 말려 들어가는 어둠 | **안 흐름** |
 | `plat.svg` | 140×20 | 보통 발판 | — |
+| `plat-ground.svg` | 540×340 | **탑의 바닥** (0층) | — |
 | `plat-shop.svg` | 460×20 | 상점 발판 | — |
 | `plat-boss.svg` | 460×20 | 보스 투기장 | — |
 
@@ -1391,6 +1392,15 @@ node bake-story.js && node build.js && node shot-story.js
 고친 뒤에는 `node gen-wall.js && node bake-art.js && node shot-wall.js` 로
 `shots/wall-now.png` 와 `wall-now-up.png` 를 보세요. 두 번째 장이 같은 자리에서
 400 올라간 것이라, **세 겹이 저마다 다르게 밀렸는지**가 거기서 보입니다.
+
+### 바닥은 발판이 아닙니다
+
+0층만은 발판 셋이 아니라 **바닥 한 장**입니다. 윗면 9px 은 발판 윗면과 **똑같은
+규칙**으로 칠합니다 — 여기만 다르게 하면 0층에서 딛는 자리가 딴 것으로 읽힙니다.
+
+그 아래는 120px 안에서 거의 다 어둠에 잠깁니다. 천천히 어두워지게 하면 화면
+아래 절반이 밝은 판때기가 되어 발판과 다툽니다. 이 탑의 아래쪽은 아무도 안
+봅니다.
 
 ### 발판 — 세로로 쓸 수 있는 것은 스무 줄뿐입니다
 

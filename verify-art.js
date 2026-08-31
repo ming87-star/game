@@ -315,6 +315,41 @@ const check = (ok, label, got) => {
   check(scenery.그늘, '벽 그늘이 화면에 붙어 안 흐름');
   check(scenery.deck === 'plat', '발판이 그림으로 깔림', scenery.deck);
 
+  // ── 탑의 바닥 (0층) ────────────────────────────────────
+  //
+  // 0층만은 발판 셋이 아니라 **바닥 한 장**입니다. 오르는 게임에서 바닥이
+  // 없으면 어디서 시작했는지가 없습니다.
+  //
+  // 여기서 재는 것은 「그림이 있는가」가 아니라 **윗면의 높이**입니다.
+  // 한 뼘만 어긋나도 0층에서만 발이 바닥에 파묻히거나 떠 보이는데,
+  // 그건 판을 켜서 보기 전까지 아무도 모릅니다.
+  const 바닥 = await page.evaluate(() => {
+    const s = window.__scene;
+    const 옛 = s.floors.get(0);
+    if (옛) { 옛.views.forEach((v) => v.destroy()); s.floors.delete(0); }
+    s.addFloor(0);
+    const f = s.floors.get(0);
+    const g = f.ground;
+    return {
+      그림: g ? g.texture.key : '(없음)',
+      폭: g ? Math.round(g.displayWidth) : 0,
+      화면폭: CFG.width,
+      // 그림의 윗면이 발판 윗면과 같은 자리에 와야 합니다.
+      // **getBounds() 로 잽니다.** 처음에 g.y 로 쟀는데, 기준점(origin)을
+      // 잘못 잡아도 g.y 는 안 움직입니다 — 그림만 반쯤 파묻히고 검사는
+      // 멀쩡히 통과했습니다. 재야 하는 것은 자리가 아니라 **그려지는 끝**입니다.
+      어긋남: g ? Math.round(g.getBounds().y - (floorY(0) - CFG.platformH / 2)) : 999,
+      줄셋: ['left', 'mid', 'right'].every((l) => f.slots[l].deck && f.slots[l].deck[0] === g),
+      // 화면 아래끝까지 덮는가 — 0층에 섰을 때 카메라가 멎는 자리 기준
+      아래: g ? Math.round(g.getBounds().bottom - (floorY(0) - 34 - CFG.height * 0.68 + CFG.height)) : -999,
+    };
+  });
+  check(바닥.그림 === 'plat-ground' && 바닥.폭 === 바닥.화면폭,
+    '0층은 발판 셋이 아니라 탑의 바닥 한 장', `${바닥.그림} ${바닥.폭}px`);
+  check(바닥.어긋남 === 0, '바닥 윗면이 발판 윗면과 같은 높이', 바닥.어긋남 + 'px 어긋남');
+  check(바닥.줄셋, '줄 셋이 한 바닥을 나눠 딛음');
+  check(바닥.아래 >= 0, '바닥이 화면 아래끝까지 덮음 (판때기로 안 보이게)', 바닥.아래 + 'px 남음');
+
   // ── 벽에 남은 것들 (js/decor.js) ────────────────────────
   // 이 탑이 한때 꽃으로 가득했다는 것을 말 없이 남긴 것들입니다. 아무 일도
   // 안 하는 물건이라 망가져도 티가 안 납니다 — 그래서 셈으로 봅니다.

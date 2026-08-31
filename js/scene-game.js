@@ -350,9 +350,35 @@ class GameScene extends Phaser.Scene {
     // views 에 넣어 두면 아래 지우는 자리가 알아서 치웁니다.
     floor.views.push(...decorFor(this, index));
 
+    // ── 0층은 발판이 아니라 **탑의 바닥**입니다 ───────────
+    //
+    // 오래도록 0층도 보통 발판 셋이었습니다. 그래서 이 탑에는 바닥이
+    // 없었습니다 — 첫 발판 아래로는 아무것도 없이 벽만 이어졌습니다.
+    // 오르는 게임에서 바닥이 없으면 **어디서 시작했는지가 없습니다.**
+    //
+    // 줄 셋은 그대로 둡니다 (왼쪽·가운데·오른쪽으로 움직이는 규칙은
+    // 0층에서도 같습니다). 셋이 **한 바닥을 나눠 딛을 뿐**입니다.
+    if (index === 0 && hasArt('plat-ground')) {
+      const y = floorY(0);
+      // 그림의 윗면이 발판 윗면과 같은 높이에 와야 합니다. 여기가 어긋나면
+      // 0층에서만 발이 바닥에 파묻히거나 떠 보입니다.
+      floor.ground = this.add.image(CFG.width / 2, y - CFG.platformH / 2, 'plat-ground')
+        .setOrigin(0.5, 0).setDepth(0);
+      floor.views.push(floor.ground);
+      const 몸 = this.add.rectangle(CFG.width / 2, y, CFG.width, CFG.platformH, 0x000000, 0);
+      this.physics.add.existing(몸, true);
+      this.platforms.add(몸);
+      floor.views.push(몸);
+    }
+
     for (const lane of LANES) {
       const slot = floor.slots[lane];
       if (!slot) continue;
+
+      // 바닥을 깐 층은 줄마다 발판을 따로 놓지 않습니다. 흐려지거나 부서지는
+      // 코드가 slot.deck 을 보므로 셋이 같은 그림을 가리키게 둡니다 —
+      // 지우기는 floor.views 가 한 번만 합니다.
+      if (floor.ground) { slot.deck = [floor.ground]; continue; }
 
       const wide = slot.kind === SLOT.SHOP || slot.kind === SLOT.BOSS;
       const arena = slot.kind === SLOT.BOSS;
