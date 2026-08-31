@@ -16,9 +16,15 @@
 const SWAP_LAYOUT = {
   headTop: 146,   // 「무기를 찾았습니다」
   cardW: 232,
-  // 296. 268로 뒀더니 마지막 줄(공격주기)이 카드 밑변에 걸려 잘렸습니다 —
-  // 활은 「한 번에 N곳」이 한 줄 더 붙어서 더 심했습니다.
-  cardH: 296,
+  // 348. 268로 뒀더니 마지막 줄(공격주기)이 카드 밑변에 걸려 잘렸습니다 —
+  // 활은 「한 번에 N곳」이 한 줄 더 붙어서 더 심했습니다. 296으로 올려
+  // 다섯 줄까지 됐는데, **「이미 벼려짐」이 붙으면서 다시 모자랐습니다**
+  // (js/forge.js 의 withPickupGift). 활이면 여섯 줄, 무명이면 일곱 줄입니다.
+  //
+  // 줄은 카드 위에서 172부터 26씩 내려갑니다. 일곱 줄이 다 들어가려면
+  // 172 + 6×26 + 글자높이 ≈ 346 이라 348 로 잡았습니다. 단추는 카드 아래에
+  // 따라 내려가므로(lostY 가 cardH 로 셉니다) 화면 밖으로 안 나갑니다.
+  cardH: 348,
   gap: 16,
 };
 
@@ -70,13 +76,23 @@ class SwapScene extends Phaser.Scene {
     // 상점에서는 코인도 잃는 것에 함께 적습니다. 값을 아래 단추에만 적어 두면
     // "무엇을 내주는가"가 두 군데로 갈려서 한눈에 안 들어옵니다.
     if (this.price !== undefined) lost.push('◎ ' + this.price);
-    if (w.plus) lost.push('+' + Number(w.plusValue.toFixed(1)));
-    if (w.haste) lost.push('속 ×' + w.haste);
-    if (w.mult > 1) lost.push('×' + w.mult);
+    // 새 자루가 이미 벼려져 있으면 **잃는 것은 그 차이만큼**입니다.
+    // 「+7 을 잃는다」고 적어 놓고 새 자루가 +6 이면 거짓말이 됩니다.
+    const g = this.entry.gift || {};
+    const 남는 = (a, b) => Math.max(0, a - (b || 0));
+    if (남는(w.plus, g.plus)) lost.push('+' + 남는(w.plus, g.plus));
+    if (남는(w.haste, g.haste)) lost.push('속 ×' + 남는(w.haste, g.haste));
+    if (w.mult > (g.mult || 1)) lost.push('×' + (w.mult / (g.mult || 1)));
     const lostY = cardTop + L.cardH / 2 + 30;
+    // 잃을 것이 없는 판이 둘입니다 — 아직 아무것도 안 쌓았거나(첫 층),
+    // **새 자루가 이미 그만큼 벼려져 있거나**. 둘을 같은 말로 적으면
+    // 후반에 「아직」이라는 말이 거짓말이 됩니다.
+    const 벼려져옴 = !!this.entry.gift;
     this.add.text(cx, lostY, lost.length
       ? '바꾸면 잃습니다 —  ' + lost.join('   ')
-      : '아직 잃을 것이 없습니다', font(18, lost.length ? '#ff8a80' : '#5c6890')).setOrigin(0.5);
+      : (벼려져옴 ? '이미 그만큼 벼려져 있습니다 — 잃을 것이 없습니다'
+        : '아직 잃을 것이 없습니다'),
+      font(18, lost.length ? '#ff8a80' : '#a5d6a7')).setOrigin(0.5);
 
     // ── 두 단추 ────────────────────────────────────────
     // **손해일 때는 「바꾼다」가 눈에 덜 띄어야 합니다.** 늘 크고 밝게 두면
@@ -109,8 +125,11 @@ class SwapScene extends Phaser.Scene {
     const L = SWAP_LAYOUT;
     const s = this.from;
     const w = s.weapon;
-    const mul = withBoost ? w.boost : 1;
-    const speed = withBoost ? w.speedMult : 1;
+    // 주워 든 자루도 **이미 벼려져 있을 수 있습니다** (js/forge.js 의
+    // withPickupGift). 그 몫을 안 넣으면 카드가 맨 값을 보여 줘서, 창이
+    // 실제보다 손해로 보입니다 — 이 창을 고친 까닭이 통째로 사라집니다.
+    const mul = withBoost ? w.boost : w.giftBoost(entry);
+    const speed = withBoost ? w.speedMult : w.giftSpeed(entry);
 
     this.add.rectangle(x, y, L.cardW, L.cardH, 0x161b2e).setStrokeStyle(2, edge);
     this.add.text(x, y - L.cardH / 2 + 20, title, font(16, '#8794b5')).setOrigin(0.5);
@@ -138,6 +157,17 @@ class SwapScene extends Phaser.Scene {
     // 아무도 안 고르고, 그러면 이 자루를 넣은 뜻이 없습니다.
     const cap = entry.plusMax || CFG.plusMax;
     if (cap !== CFG.plusMax) rows.push(['공격력 한계', '+' + cap]);
+    // **이미 벼려진 자루라는 것을 적어 줍니다.** 안 적으면 공격력 줄만
+    // 커 보이고 왜 커졌는지를 모릅니다 — 「이 자루는 처음부터 +6 이다」가
+    // 갈아탈지 정하는 값입니다 (갈아탄 뒤로도 남으니까요).
+    const g = entry.gift || null;
+    if (g) {
+      const 적힘 = [];
+      if (g.plus) 적힘.push('+' + g.plus);
+      if (g.haste) 적힘.push('속 ×' + g.haste);
+      if (g.mult > 1) 적힘.push('×' + g.mult);
+      if (적힘.length) rows.push(['이미 벼려짐', 적힘.join(' ')]);
+    }
 
     rows.forEach(([label, value], i) => {
       const ry = y - L.cardH / 2 + 172 + i * 26;

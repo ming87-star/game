@@ -359,7 +359,10 @@ class Shop {
     // 맨몸이라, 「지금 쓸까 아껴 둘까」가 층마다 붙습니다.
     Object.keys(s.wards).forEach((k) => { s.wards[k] = CFG.foes.ward.charges; });
 
-    const offered = rollWeapon(s.job, floorIndex);
+    // 필드와 같은 규칙입니다 — 지금 든 자루에 견줄 만하게 벼려져 나옵니다
+    // (js/forge.js 의 withPickupGift). 코인까지 치르는 자리라 반토막이
+    // 나오면 그 칸이 죽은 칸이 됩니다.
+    const offered = rollWeapon(s.job, floorIndex, s.weapon);
     s.shopWeapon = offered.index === s.weapon.index ? null : offered;
 
     this.offers = this.rollOffers(this.shopNo);

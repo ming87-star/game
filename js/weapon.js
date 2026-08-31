@@ -176,11 +176,30 @@ class Weapon {
   // 강화는 무기에 붙어 있다가 갈아타면 사라지므로, 새 자루는 강화 없이
   // 세야 합니다. 그 차이를 화면에 안 보여 주면 "왜 갈아탔더니 약해졌지"가 됩니다.
   dpsOf(entry, withBoost) {
-    const mul = withBoost ? this.boost : 1;
+    const mul = withBoost ? this.boost : this.giftBoost(entry);
     const mid = (entry.dmgMin + entry.dmgMax) / 2 * mul;
-    // 속도 강화도 같이 사라집니다. 새 자루는 맨 속도로 셉니다.
-    const speed = withBoost ? this.speedMult : 1;
+    const speed = withBoost ? this.speedMult : this.giftSpeed(entry);
     return Math.round(mid * (entry.shots || 1) * entry.acc * 1000 / (entry.rate / speed));
+  }
+
+  // ── 주워 든 자루에 이미 벼려져 있는 몫 ──────────────────
+  // 없으면 1 입니다 (js/forge.js 의 withPickupGift).
+  //
+  // **`this.boost`·`this.speedMult` 를 쓰면 안 됩니다.** 그건 지금 든
+  // 자루의 것이고, plusStep 은 자루마다 다릅니다 (무명은 두 배 남짓).
+  giftBoost(entry) {
+    const plus = (entry && entry.gift && entry.gift.plus) || 0;
+    if (!plus) return 1;
+    const step = entry.plusStep || CFG.plusStep;
+    return 1 + plus * (this.job.plusScale || 1) * step;
+  }
+
+  giftSpeed(entry) {
+    const g = (entry && entry.gift) || null;
+    if (!g) return 1;
+    const raw = (1 + (g.haste || 0) * CFG.hasteStep) * (g.mult || 1);
+    // 속도 한계는 자루가 아니라 사람에게 걸립니다 — 갈아타도 그대로입니다.
+    return Math.min(this.speedCap, raw);
   }
 
   // 한계에 닿았으면 아무 일도 안 하고 false 를 돌려줍니다 — 부른 쪽이
@@ -220,9 +239,13 @@ class Weapon {
     if (!entry || entry.index === this.index) return false;
     this.record(); // 두고 가는 자루를 도감에 남기고 갈아탑니다
     this.index = entry.index;
-    this.plus = 0;
-    this.haste = 0;
-    this.mult = 1;
+    // 주워 든 자루는 **이미 벼려져 있을 수 있습니다** (js/forge.js 의
+    // withPickupGift). 벼려진 몫이 그대로 딸려 옵니다 — 든 것을 넘지
+    // 않는 선에서 얹힌 것이라, 갈아타도 늘 조금은 잃습니다.
+    const g = entry.gift || null;
+    this.plus = (g && g.plus) || 0;
+    this.haste = (g && g.haste) || 0;
+    this.mult = (g && g.mult) || 1;
     return true;
   }
 }

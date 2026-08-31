@@ -193,7 +193,60 @@ function weaponPoolAt(job, floor) {
 }
 
 // 그 층에 어울리는 무기 하나를 굴립니다.
-function rollWeapon(job, floor) {
+//
+// `held` 를 주면 **그 자루와 견줄 만하게 벼려서** 돌려줍니다 (CFG.pickup).
+// 안 주면 예전처럼 맨 것이 나옵니다 — 도감·시작 무기처럼 「그 자루 자체」를
+// 물어보는 자리는 강화가 붙으면 안 됩니다.
+function rollWeapon(job, floor, held) {
   const pool = weaponPoolAt(job, floor);
-  return pool[Math.floor(Math.random() * pool.length)];
+  const picked = pool[Math.floor(Math.random() * pool.length)];
+  return held ? withPickupGift(picked, job, held) : picked;
 }
+
+// ── 주워 든 자루를 얼마나 벼려 줄 것인가 ──────────────────
+//
+// **초당 피해를 자로 씁니다.** 공격력만 보면 느린 자루가 과하게 벼려지고,
+// 속도만 보면 반대가 됩니다. 실제로 갈아탈지 고르는 값이 초당 피해라
+// (갈아타기 창이 그것을 나란히 놓습니다) 여기서도 그것으로 맞춥니다.
+//
+// ── `+1` 만으로는 안 됩니다 ───────────────────────────────
+// 처음에는 `+1` 하나만 얹었습니다. 「속과 ×2 는 자루가 아니라 그 판에서
+// 주운 것이니 딸려 오면 안 된다」는 것이 그럴듯해 보였는데, 재 보니
+// **후반에 닿을 수가 없었습니다** — 벼림이 +10(한계)에 붙어 있는데도
+// 여전히 ×0.3 이었습니다. 든 자루의 속8·×2 를 `+1` 로는 못 넘습니다.
+//
+//   흑철 천살단검 +10 ×2 속7 을 들었을 때, 주운 것: ×0.29 ~ ×0.36
+//
+// 그래서 셋을 다 얹되 **든 것을 넘지 않는 선**에서 얹습니다. 그러면
+// 「갈아타면 전부 잃는다」가 「조금 잃는다」로 바뀝니다 — 그 값을 치르고
+// 사는 것이 **후반에도 갈아탈 수 있다**는 것입니다.
+function withPickupGift(entry, job, held) {
+  if (!entry || isNameless(entry) || !held) return entry;
+  const pool = buildWeaponPool(job);
+  const at = pool.indexOf(entry);
+  if (at < 0) return entry;
+
+  const 목표 = held.dps * Phaser.Math.FloatBetween(CFG.pickup.lo, CFG.pickup.hi);
+
+  // 실제 값을 만들어 재는 쪽이 어긋날 자리가 없습니다 — plusStep·plusScale·
+  // 만듦새·속도 한계가 자루마다 달라서, 식으로 풀면 그중 하나를 빼먹습니다.
+  const 재기 = new Weapon(job, at);
+  let 가장 = null;
+  // ×2 는 든 것과 같은 칸까지만. 속도 한계에서 잘리므로 넘겨 줘도 헛것입니다.
+  for (let mult = 1; mult <= held.mult; mult *= 2) {
+    for (let haste = 0; haste <= held.haste; haste++) {
+      for (let plus = 0; plus <= 재기.plusMax; plus++) {
+        재기.plus = plus; 재기.haste = haste; 재기.mult = mult;
+        const 차 = Math.abs(재기.dps - 목표);
+        // 같은 거리면 **덜 벼려진 쪽**을 고릅니다. 갈아탄 뒤에도 올릴
+        // 자리가 남아야 UP 자리가 계속 뜻을 갖습니다.
+        if (!가장 || 차 < 가장.차) 가장 = { 차, plus, haste, mult };
+      }
+    }
+  }
+  if (!가장 || (!가장.plus && !가장.haste && 가장.mult === 1)) return entry;
+  return Object.assign({}, entry, {
+    gift: { plus: 가장.plus, haste: 가장.haste, mult: 가장.mult },
+  });
+}
+

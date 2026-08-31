@@ -402,7 +402,16 @@ class GameScene extends Phaser.Scene {
       // **놓인 자루는 여기서 한 번 굴려 두고 그대로 갑니다.** 밟을 때 굴리면
       // 위층에 보이던 그림과 실제로 손에 들어오는 것이 달라져서, 두 층 밖에서
       // 보고 길을 정하는 일이 뜻을 잃습니다. 층이 깊을수록 좋은 자루가 나옵니다.
-      if (!slot.weapon) slot.weapon = rollWeapon(this.job, slot.index || this.floorIndex);
+      // **지금 든 자루를 함께 넘깁니다.** 그래야 굴린 자루가 견줄 만하게
+      // 벼려져서 나옵니다 (js/forge.js 의 withPickupGift). 안 넘기면 맨
+      // 것이 나오고, 그러면 갈아탈 이유가 셈으로 아예 없어집니다.
+      //
+      // **자리를 처음 그릴 때 한 번만 굴립니다** (`!slot.weapon`). 두 층
+      // 밖에서 보이는 그림과 손에 들어오는 것이 같아야 하니까요 — 그래서
+      // 벼려진 몫도 그때의 내 자루를 기준으로 정해집니다.
+      if (!slot.weapon) {
+        slot.weapon = rollWeapon(this.job, slot.index || this.floorIndex, this.weapon);
+      }
       face = this.add.image(0, 0, weaponIconKey(this.job.key, slot.weapon.index))
         .setDisplaySize(30, 30);
       parts.push(this.add.circle(0, 0, 18, mark.color), face);
