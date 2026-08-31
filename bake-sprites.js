@@ -67,6 +67,11 @@ const WANT = [
   'boss-shot', 'boss-shot-gazer', 'boss-shot-crusher', 'boss-shot-brood', 'boss-shot-phantom',
   // 상점 층. 발판(plat-shop)은 그대로 두고 그 **뒤와 위**에 붙는 둘입니다.
   'shop-back', 'shop-npc',
+  // 붉은 겉옷 셋 (ART.md 8.3절). **아직 안 그렸습니다** — 지금은
+  // js/textures.js 의 도형이 서 있습니다. 여기 미리 적어 두면 구울 때마다
+  // 「아직 없는 그림」에 이름이 떠서, 그린 날 assets/ 에 파일만 넣으면
+  // 저절로 붙습니다 (buildTextures 는 이미 있는 키를 건너뜁니다).
+  'cloak-red', 'cloak-white', 'cloak-fallen',
 ];
 
 // 4로 안 나누는 것들. 기본은 4배로 그려 온다는 약속이지만(위 SCALE),
@@ -125,7 +130,8 @@ const PORTRAITS = [
 
 const ON_PURPOSE = new Set([
   'coin', 'slash', 'spark', 'wave', 'bullet', 'enemy-bullet', 'arrow', 'arrow-trail',
-  'wall-far', 'wall-mid', 'wall-near', 'wall-shade', 'plat', 'plat-shop', 'plat-boss',
+  'wall-far', 'wall-mid', 'wall-near', 'wall-shade',
+  'plat', 'plat-shop', 'plat-boss', 'plat-ground',
   // 33층 시퀀스에만 나오는 놈. 손으로 그린 SVG 가 있으므로 래스터는 안 굽습니다
   'ending-foe',
   'player-warrior', 'player-archer', 'player-rogue',
