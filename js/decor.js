@@ -131,7 +131,7 @@ function decorFor(scene, index) {
   if (index % 100 === 70) {
     const left = decorHash(index, 7) < 0.5;
     out.push(scene.add.image(left ? 46 : 494, y, 'decor-flower')
-      .setDepth(-4).setAlpha(0.85).setFlipX(!left));
+      .setDepth(-7).setAlpha(0.85).setFlipX(!left));
     return out;
   }
 
@@ -140,7 +140,7 @@ function decorFor(scene, index) {
   const left = decorHash(index, 11) < 0.5;
   const x = left ? 34 + decorHash(index, 13) * 20 : 486 - decorHash(index, 13) * 20;
   out.push(scene.add.image(x, y + (decorHash(index, 17) - 0.5) * 40, 'decor-vine')
-    .setDepth(-4).setAlpha(0.3).setFlipX(!left)
+    .setDepth(-7).setAlpha(0.3).setFlipX(!left)
     .setScale(0.8 + decorHash(index, 19) * 0.4));
   return out;
 }

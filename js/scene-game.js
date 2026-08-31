@@ -216,10 +216,19 @@ class GameScene extends Phaser.Scene {
     // 끝을 못 봅니다 (여는 조건을 층수로 안 잡은 것과 같은 까닭).
     this.finalCloak = null;
     if (Save.endingStage === 1 && !this.resume) {
-      const 자리 = this.floors.get(this.floorIndex).slots.mid;
-      this.finalCloak = this.add.image(자리.x, 자리.y - 12, 'cloak-fallen').setDepth(7);
+      // **주인공이 선 줄에 놓으면 안 됩니다.** 처음에 시작 발판 한가운데에
+      // 놓았더니 두 가지가 한꺼번에 망가졌습니다 —
+      //   · 주인공(깊이 10)이 겉옷(7)을 통째로 가려서 아무것도 안 보이고,
+      //   · 발밑이라 **첫 프레임에 이미 짚은 것**으로 쳐서 마지막 판이
+      //     시작하자마자 크레딧으로 넘어갔습니다. 오류는 안 났습니다.
+      // 옆 줄에 놓습니다. 보이고, 한 칸 옮겨야 닿습니다 — 짚는 것이
+      // 그제야 **고르는 일**이 됩니다 (STORY.md 5절 9~10번).
+      const 줄 = this.lane === 'right' ? 'left' : 'right';
+      const 자리 = this.floors.get(this.floorIndex).slots[줄]
+        || this.floors.get(this.floorIndex).slots.mid;
+      this.finalCloak = this.add.image(자리.x, 자리.y - 22, 'cloak-fallen').setDepth(7);
       // 아주 옅게 오르내립니다. 멈춰 있으면 배경 무늬로 보입니다.
-      this.tweens.add({ targets: this.finalCloak, y: 자리.y - 17,
+      this.tweens.add({ targets: this.finalCloak, y: 자리.y - 27,
         duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }
 
@@ -323,22 +332,9 @@ class GameScene extends Phaser.Scene {
   }
 
   // ── 배경 ──────────────────────────────────────────────
+  // 벽은 판과 엔딩이 같은 것을 씁니다 (js/wall.js).
   drawBackground() {
-    this.cameras.main.setBackgroundColor('#141a2e');
-
-    // 탑 안쪽 벽. 화면에 고정해 두고 **무늬만 흘려 보냅니다.**
-    //
-    // 벽을 세상 좌표에 두면 500×960 짜리를 몇 백 장 깔아야 하고, 그 이음매마다
-    // 선이 보입니다. 화면에 고정한 채 tilePositionY 를 카메라만큼 밀면, 한 장으로
-    // 끝없이 이어지고 오르는 느낌도 그대로 남습니다 (update 에서 밉니다).
-    if (hasArt('wall')) {
-      const a = artSize('wall');
-      this.wall = this.add.tileSprite(CFG.width / 2, CFG.height / 2, a.w, CFG.height, 'wall')
-        .setScrollFactor(0).setDepth(-5);
-    } else {
-      this.add.rectangle(CFG.width / 2, CFG.height / 2, 500, CFG.height, 0x1d2542)
-        .setScrollFactor(0).setDepth(-5);
-    }
+    buildTowerWall(this);
   }
 
   // ── 층 만들기 / 지우기 ────────────────────────────────
@@ -4276,8 +4272,8 @@ class GameScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const want = this.player.y - CFG.height * 0.68;
     cam.scrollY += (want - cam.scrollY) * Math.min(1, delta / 130);
-    // 벽은 화면에 붙어 있고 무늬만 흘러갑니다. 한 장으로 끝없이 이어집니다.
-    if (this.wall) this.wall.tilePositionY = cam.scrollY;
+    // 벽은 화면에 붙어 있고 무늬만 흘러갑니다. 세 겹이 저마다 다른 속도로.
+    scrollTowerWall(this, cam.scrollY);
 
     this.updatePickups(delta);
     this.hud.update();

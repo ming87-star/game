@@ -1,0 +1,4 @@
+<!-- 탑 안쪽 벽 · 그늘. 화면에 고정합니다 — 흐르지 않습니다
+     이 파일은 만들어진 것입니다 — 고치지 마세요. 'node gen-wall.js' 가 다시 만듭니다.
+     까닭과 지켜야 할 것은 gen-wall.js 머리말에 적어 두었습니다. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="540" height="960" viewBox="0 0 540 960" data-bake-scale="2"><defs><linearGradient id="round" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#05080f" stop-opacity=".72"/><stop offset="20%" stop-color="#05080f" stop-opacity=".2"/><stop offset="50%" stop-color="#05080f" stop-opacity="0"/><stop offset="80%" stop-color="#05080f" stop-opacity=".2"/><stop offset="100%" stop-color="#05080f" stop-opacity=".72"/></linearGradient><linearGradient id="up" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#05080f" stop-opacity=".5"/><stop offset="30%" stop-color="#05080f" stop-opacity="0"/></linearGradient></defs><rect width="540" height="960" fill="url(#round)"/><rect width="540" height="960" fill="url(#up)"/></svg>

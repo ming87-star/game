@@ -108,7 +108,7 @@ const check = (ok, label, got) => {
       // e-charger 가 여기 있었습니다. 그 그림은 **미는 놈**(e-shover)에게
       // 넘겼습니다 — 방패를 앞세운 자세가 때리는 놈이 아니라 미는 놈의
       // 자세였습니다. 뚫는 것은 코가 드릴인 모습으로 다시 그리는 중입니다.
-      art: ['player-warrior', 'e-crawler', 'e-flyer', 'wall', 'plat',
+      art: ['player-warrior', 'e-crawler', 'e-flyer', 'wall-far', 'plat',
         'e-dasher', 'e-ghost', 'e-shover', 'bat-thief', 'bat-biter',
         // 마지막 둘 — 코인벌레와 황금개구리. 여기까지 오면 **적은 다 그림**입니다.
         'e-coinbug', 'e-goldfrog'].map((k) => k + '=' + kindOf(k)),
@@ -300,12 +300,19 @@ const check = (ok, label, got) => {
     const fl = s.floors.get(s.floorIndex);
     const lane = LANES.find((l) => fl.slots[l]);
     const deck = fl.slots[lane].deck[0];
+    // 벽을 400 밀어 보고 겹마다 얼마나 밀렸는지를 봅니다. **그림이 있는지보다
+    // 이쪽이 중요합니다** — 세 겹이 같은 만큼 밀리면 잘 그려 놓고도 깊이가
+    // 하나도 없는 것이고, 그건 화면을 봐서는 잘 안 걸립니다.
+    scrollTowerWall(s, 400);
     return {
-      wall: !!(s.wall && s.wall.texture && s.wall.texture.key === 'wall'),
+      겹: (s.wallLayers || []).map((l) => l.o.texture.key + ':' + Math.round(l.o.tilePositionY)).join(' '),
+      그늘: s.children.list.some((o) => o.texture && o.texture.key === 'wall-shade'),
       deck: deck && deck.texture ? deck.texture.key : '(네모)',
     };
   });
-  check(scenery.wall, '탑 안쪽 벽이 그림으로 깔림');
+  check(scenery.겹 === 'wall-far:220 wall-mid:400 wall-near:580',
+    '탑 안쪽 벽 세 겹이 저마다 다른 속도로 흐름', scenery.겹);
+  check(scenery.그늘, '벽 그늘이 화면에 붙어 안 흐름');
   check(scenery.deck === 'plat', '발판이 그림으로 깔림', scenery.deck);
 
   // ── 벽에 남은 것들 (js/decor.js) ────────────────────────

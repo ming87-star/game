@@ -125,7 +125,9 @@ const PORTRAITS = [
 
 const ON_PURPOSE = new Set([
   'coin', 'slash', 'spark', 'wave', 'bullet', 'enemy-bullet', 'arrow', 'arrow-trail',
-  'wall', 'plat', 'plat-shop', 'plat-boss',
+  'wall-far', 'wall-mid', 'wall-near', 'wall-shade', 'plat', 'plat-shop', 'plat-boss',
+  // 33층 시퀀스에만 나오는 놈. 손으로 그린 SVG 가 있으므로 래스터는 안 굽습니다
+  'ending-foe',
   'player-warrior', 'player-archer', 'player-rogue',
   // 새 직업 다섯. 판에서는 시트가 돌고 고르는 화면에는 face-* 로 구워지므로,
   // 이 파일 자체는 스프라이트로 안 굽습니다 (위 셋과 같은 까닭).

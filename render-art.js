@@ -120,7 +120,7 @@ const isScenery = (w, h) => w >= 120 || h >= 120;
   // 벽과 발판은 카드로 보면 아무것도 알 수 없습니다. 실제 폭(500)으로 깔고,
   // 그 위에 사람과 적을 세워 놓고, **이음매가 화면 한가운데 오게** 밀어서
   // 띄웁니다. 이음매가 보이면 위로 오를 때마다 그 자리에 선이 그어집니다.
-  if (has('wall.png')) {
+  if (has('wall-far.png')) {
     const SEAM = 480;                       // 벽 한 장(960)의 절반만큼 밀어 둡니다
     const on = (plat, x, y, who, dx) => {   // 발판 위에 세우기
       const m = made.find((k) => k.name === who);
@@ -141,7 +141,7 @@ const isScenery = (w, h) => w >= 120 || h >= 120;
     await stage.setContent(`<style>
         html,body{margin:0;background:${OUTSIDE};font-family:sans-serif}
         .stage{position:absolute;left:20px;top:0;width:500px;height:1000px;
-               background-image:url(${src('wall.png')});background-repeat:repeat-y;
+               background-image:url(${src('wall-far.png')});background-repeat:repeat-y;
                background-size:500px 960px;background-position:0 -${SEAM}px}
         .stage img{position:absolute;image-rendering:auto}
         .seam{position:absolute;left:0;top:${960 - SEAM}px;width:500px;height:0;
@@ -204,7 +204,7 @@ const isScenery = (w, h) => w >= 120 || h >= 120;
     });
     await page3.setContent(`<style>
         html,body{margin:0;background:${OUTSIDE};font-family:sans-serif;color:#8794b5}
-        .wall{background-image:url(${src('wall.png')});background-size:500px 960px;
+        .wall{background-image:url(${src('wall-far.png')});background-size:500px 960px;
               padding:16px 18px}
         .strip{display:flex;flex-wrap:wrap;gap:10px}
         .col{text-align:center}
@@ -233,7 +233,7 @@ const isScenery = (w, h) => w >= 120 || h >= 120;
   // 보스는 카드로 보면 크기 감각이 안 옵니다. 투기장 발판 위에 띄우고 그 아래
   // 사람을 세워야, 이 덩치가 화면에서 무엇을 덮는지가 보입니다.
   const bosses = made.filter((m) => /^boss-(?!shot)/.test(m.name));
-  if (bosses.length && has('wall.png')) {
+  if (bosses.length && has('wall-far.png')) {
     const CW = 540, CH = 360;                  // 한 칸 = 게임 화면 폭
     const cols = 2;
     const rows = Math.ceil(bosses.length / cols);
@@ -268,7 +268,7 @@ const isScenery = (w, h) => w >= 120 || h >= 120;
         html,body{margin:0;background:${OUTSIDE};font-family:sans-serif}
         .grid{display:flex;flex-wrap:wrap;width:${CW * cols}px}
         .cell{position:relative;width:${CW}px;height:${CH}px;overflow:hidden;
-              background-image:url(${src('wall.png')});background-size:500px 960px;
+              background-image:url(${src('wall-far.png')});background-size:500px 960px;
               background-position:20px -120px;box-shadow:inset 0 0 0 1px #232b4d}
         .cell img{position:absolute}
         .tag{position:absolute;left:10px;bottom:8px;font-size:13px;color:#8794b5;
@@ -281,6 +281,6 @@ const isScenery = (w, h) => w >= 120 || h >= 120;
 
   await browser.close();
   console.log(`\n${made.length}장 · shots/art-preview.png` +
-    (has('wall.png') ? ' · shots/art-scene.png' : '') +
+    (has('wall-far.png') ? ' · shots/art-scene.png' : '') +
     (bosses.length ? ' · shots/art-boss.png' : ''));
 })();

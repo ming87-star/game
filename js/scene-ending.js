@@ -20,6 +20,11 @@ class EndingLineScene extends Phaser.Scene {
   create() {
     const cx = CFG.width / 2;
     this.cameras.main.setBackgroundColor('#05070d');
+    // **Phaser 는 장면 객체를 다시 씁니다.** 다시 켜도 create 만 다시 돌 뿐
+    // 인스턴스는 그대로라, 지난번에 세운 깃발이 남아 있습니다. 여기서 안
+    // 지우면 두 번째로 들어온 사람은 첫 프레임부터 「다 떴다」가 됩니다.
+    this.shown = false;
+    this.leaving = false;
 
     // 한 줄씩 뜹니다. 세 줄을 한꺼번에 띄우면 읽는 박자가 없어집니다 —
     // 이 대사는 **체념이 쌓이는 말**이라 쌓이는 것이 보여야 합니다.
@@ -89,47 +94,104 @@ class EndingLineScene extends Phaser.Scene {
 //   7  잠시 후 1층 바닥으로 붉은 겉옷이 천천히 떨어집니다
 //
 // **2번이 알맹이입니다.** 져서 죽는 것과 안 피하고 죽는 것은 다릅니다.
-// 그래서 몬스터가 오는 것이 먼저 보이고, 피할 자리가 있고, 그런데 안
+// 그래서 놈이 오는 것이 먼저 보이고, 옆 발판이 비어 있고, 그런데 안
 // 움직입니다 — 그 사이(CFG.ending.dodgeWindowMs)가 없으면 그냥 맞아 죽은
 // 것이 됩니다.
 //
 // **4번은 한 줄도 설명하지 않습니다.** 값을 이미 치렀다는 것을 「적이 더는
 // 건드리지 않는다」로만 보여 줍니다.
+//
+// ── 판과 같은 화면입니다 ────────────────────────────────
+// 처음에는 회색 슬래브 네 줄에 적 하나였습니다. 그러면 이 장면이 **딴
+// 게임**이 됩니다 — 여태 이백 시간을 오른 그 탑에서 벌어지는 일로 안
+// 읽힙니다. 벽도(js/wall.js) 발판도(plat) 적도(e-*) 판이 쓰는 그것을
+// 그대로 씁니다. 층 간격도 CFG.floorHeight 그대로입니다.
+//
+// 적은 **그 층에 실제로 나오는 놈들**만 세웁니다. 33층에는 코인벌레와
+// 기는 것뿐입니다 — 탑에서 가장 약한 둘입니다. 그 둘 사이에서 죽는 것이
+// 이 장면의 뜻입니다. 층이 낮아서 진 것이 아닙니다.
 class EndingWatchScene extends Phaser.Scene {
   constructor() {
     super('endingwatch');
   }
 
+  // 타이틀 → 메달 상점에서 곧장 올 수 있습니다. 판을 한 번도 안 거쳤으면
+  // 벽도 발판도 적도 안 실려 있으므로 여기서 싣습니다.
+  preload() {
+    loadArt(this);
+  }
+
   create() {
     buildTextures(this);
     const c = CFG.ending;
-    this.cameras.main.setBackgroundColor('#0b0e18');
-    const cx = CFG.width / 2;
-    const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
+    buildTowerWall(this);
 
-    // 네 층을 세로로 놓습니다. 30층이 아래, 33층이 위입니다.
+    // 층 자리. **진짜 층 간격**을 그대로 씁니다 — 여기서만 좁히면 오르는
+    // 걸음이 판과 다른 박자가 됩니다.
     this.floorY = {};
-    [30, 31, 32, 33].forEach((n, i) => {
-      const y = c.baseY - i * c.floorGap;
+    this.slots = {};
+    this.foes = [];
+    // 30층 아래로도 몇 층 깔아 둡니다. 30층이 화면 아래끝이면 탑이 거기서
+    // 시작하는 것처럼 보입니다 — 그는 이미 서른 층을 올라온 사람입니다.
+    for (let n = 27; n <= 40; n++) {
+      const y = c.baseY - (n - 30) * CFG.floorHeight;
       this.floorY[n] = y;
-      this.add.rectangle(cx, y + 14, 300, 12, 0x3f4a78).setAlpha(0.9);
-      this.add.text(cx - 172, y + 4, n + '층', font(15, '#4a5578')).setOrigin(0.5, 0);
-    });
+      this.buildFloor(n, y);
+    }
 
-    // 붉은 겉옷의 사람. 30층에서 시작합니다.
-    this.him = this.add.image(cx, this.floorY[30] - 10, 'cloak-red').setDepth(10);
+    // 붉은 겉옷의 사람. 30층 한가운데에서 시작합니다.
+    this.him = this.add.image(CFG.laneX.mid, this.floorY[30] - 33, 'cloak-red').setDepth(10);
+
+    // 30~33층이 한 화면에 다 들어옵니다. 오르기 시작하는 4번부터만
+    // 카메라가 따라붙습니다 (update).
+    this.camAnchor = this.floorY[33] - 33;
+    this.following = false;
 
     this.step = 0;          // 시험이 어디까지 왔는지 읽는 값
-    this.foes = [];
+    this.left = false;      // 장면 객체는 다시 쓰이므로 깃발을 손으로 지웁니다
+    this.comer = null;
     window.__endingwatch = this;
 
     this.time.delayedCall(600, () => this.climbTo(31));
   }
 
-  // 한 층 오릅니다. 걸음마다 살짝 튀어 오르게 해서 「오르고 있다」가 보이게.
+  // 한 층을 짓습니다. 발판 둘과 그 위에 선 적들.
+  //
+  // 가운데 줄은 **늘 있습니다** — 그가 오르는 길입니다. 옆 줄은 한 칸씩
+  // 번갈아 놓습니다. 33층에서 옆이 비어 있어야 「피할 수 있었다」가 눈에
+  // 보입니다.
+  buildFloor(n, y) {
+    const 옆 = n % 2 === 0 ? 'right' : 'left';
+    this.slots[n] = {};
+    ['mid', 옆].forEach((lane) => {
+      const x = CFG.laneX[lane];
+      this.slots[n][lane] = { x, y };
+      if (hasArt('plat')) this.add.image(x, y, 'plat').setDepth(0);
+      else this.add.rectangle(x, y, CFG.platformW, CFG.platformH, 0x4a5699).setDepth(0);
+    });
+
+    // 33층은 비워 둡니다. 그가 죽는 자리에 구경꾼을 세우면 그쪽으로 눈이
+    // 갑니다 — 안 피하는 것을 보게 하려면 화면에 그와 놈뿐이어야 합니다.
+    if (n === 33) return;
+    const 무리 = CFG.enemyTypes.filter((t) => t.from <= n && !isFoeType(t));
+    if (!무리.length) return;
+    const 몇 = n % 3 === 0 ? 2 : 1;
+    for (let i = 0; i < 몇; i++) {
+      const def = 무리[(n + i) % 무리.length];
+      const key = 'e-' + def.key;
+      if (!hasArt(key)) continue;
+      const a = artSize(key);
+      const k = def.scale || 1;
+      const s = this.slots[n][옆];
+      this.foes.push(this.add.image(s.x - 34 + i * 52, s.y - 10 - (a.h * k) / 2, key)
+        .setDepth(8).setScale(k));
+    }
+  }
+
+  // 한 층 오릅니다.
   climbTo(n, then) {
     this.tweens.add({
-      targets: this.him, y: this.floorY[n] - 10, duration: CFG.ending.climbMs,
+      targets: this.him, y: this.floorY[n] - 33, duration: CFG.ending.climbMs,
       ease: 'Sine.easeInOut',
       onComplete: () => {
         this.at = n;
@@ -141,23 +203,49 @@ class EndingWatchScene extends Phaser.Scene {
   }
 
   // ── 2번 — 피할 수 있는데 안 피합니다 ───────────────────
+  //
+  // 죽이는 것은 **「내려온 것」** 입니다 (art/ending-foe.svg). 게임 안의 어느
+  // 층에도 안 나옵니다. 층이 올라서 만나는 놈이면 「더 오르면 이긴다」가
+  // 되고, 그러면 엔딩이 그냥 하나 남은 벽이 됩니다.
+  //
+  // 이 탑의 모든 것은 오릅니다. 이것만 **내려옵니다.**
   theBlow() {
     this.step = 2;
     const c = CFG.ending;
-    const 놈 = this.add.image(CFG.width / 2 + 240, this.floorY[33] - 8, 'e-crawler')
-      .setDepth(9);
-    this.foes.push(놈);
-    // 먼저 **보입니다.** 오는 것이 보이고, 피할 자리가 있고, 그런데
-    // 안 움직입니다 — 그 사이가 이 장면의 전부입니다.
+    const y = this.floorY[33];
+    const 놈 = this.add.image(this.him.x + 8, y - 660, 'ending-foe').setDepth(9);
+    this.comer = 놈;
+
+    // 먼저 **보입니다.** 내려오는 것이 보이고, 왼쪽 발판이 비어 있고,
+    // 그런데 안 움직입니다 — 그 사이가 이 장면의 전부입니다.
     this.tweens.add({
-      targets: 놈, x: this.him.x + 34, duration: c.dodgeWindowMs, ease: 'Sine.easeIn',
+      // **그를 가리면 안 됩니다.** 처음에 y-104 에서 멈췄더니 놈이 그를
+      // 통째로 덮어서, 화면에 놈만 남고 「안 피하는 사람」이 안 보였습니다.
+      // 머리 위로 한 뼘 띄웁니다.
+      targets: 놈, y: y - 132, duration: c.dodgeWindowMs, ease: 'Sine.easeIn',
       onComplete: () => {
+        // **여기가 3번입니다** — 놈은 코앞에 있고 옆 발판은 비어 있고 그는
+        // 그대로 서 있습니다. 처음에는 내리치기 시작할 때를 3번으로 삼았는데,
+        // 그러면 시험이 찍는 컷이 늘 **이미 쓰러지는 중**이었습니다.
+        // 이 장면에서 봐야 하는 것은 맞는 순간이 아니라 안 피하는 참입니다.
         this.step = 3;
-        this.cameras.main.shake(140, 0.006);
-        // 쓰러집니다. 겉옷이 바닥에 눕습니다.
-        this.tweens.add({ targets: this.him, angle: -78, y: this.floorY[33] + 4,
+        this.time.delayedCall(280, () => this.strike());
+      },
+    });
+  }
+
+  strike() {
+    // 내리치는 것은 짧아야 합니다. 여기가 길면 아직 피할 수 있는 시간이 되고,
+    // 그러면 「안 피했다」가 「못 피했다」로 바뀝니다.
+    this.tweens.add({
+      targets: this.comer, y: this.comer.y + 46, duration: 110, ease: 'Quad.easeIn',
+      onComplete: () => {
+        this.cameras.main.shake(160, 0.007);
+        this.tweens.add({
+          targets: this.him, angle: -78, y: this.floorY[33] - 12,
           duration: 420, ease: 'Quad.easeIn',
-          onComplete: () => this.time.delayedCall(c.restMs, () => this.riseAgain()) });
+          onComplete: () => this.time.delayedCall(CFG.ending.restMs, () => this.riseAgain()),
+        });
       },
     });
   }
@@ -166,7 +254,7 @@ class EndingWatchScene extends Phaser.Scene {
   riseAgain() {
     this.step = 4;
     this.tweens.add({
-      targets: this.him, angle: 0, y: this.floorY[33] - 10, duration: 700,
+      targets: this.him, angle: 0, y: this.floorY[33] - 33, duration: 700,
       ease: 'Quad.easeOut',
       onComplete: () => this.time.delayedCall(500, () => this.pass()),
     });
@@ -174,26 +262,41 @@ class EndingWatchScene extends Phaser.Scene {
 
   // ── 4번 — 적들이 더는 건드리지 않습니다 ────────────────
   //
-  // 말로 안 합니다. 달려들던 놈이 **돌아서서 물러납니다.** 한 줄도 안 적고
-  // 지나가는 것이 이 장면의 규칙입니다.
+  // 말로 안 합니다. 내려온 것은 **도로 올라가고**, 위층의 적들은 돌아서서
+  // 물러납니다. 한 줄도 안 적고 지나가는 것이 이 장면의 규칙입니다.
   pass() {
     this.step = 5;
-    this.foes.forEach((놈) => {
-      this.tweens.add({ targets: 놈, x: 놈.x + 190, alpha: 0, duration: 900 });
+    if (this.comer) {
+      this.tweens.add({ targets: this.comer, y: this.floorY[33] - 700, alpha: 0,
+        duration: 1400, ease: 'Sine.easeInOut' });
+    }
+    this.foes.forEach((놈, i) => {
+      this.tweens.add({ targets: 놈, x: 놈.x + (i % 2 ? 150 : -150), alpha: 0,
+        duration: 900, delay: i * 60 });
     });
-    // 위로 오릅니다. 이번에는 아무도 막지 않습니다.
+
+    // 위로 오릅니다. 이번에는 아무도 막지 않습니다. 여기서부터 카메라가
+    // 따라붙고, 벽 세 겹이 저마다 다른 속도로 흘러갑니다.
+    this.following = true;
     this.tweens.add({
-      targets: this.him, y: this.floorY[33] - 10 - CFG.ending.floorGap * 2.2,
-      alpha: 0.9, duration: CFG.ending.riseMs, ease: 'Sine.easeIn',
+      targets: this.him, y: this.floorY[39] - 33, alpha: 0.92,
+      duration: CFG.ending.riseMs, ease: 'Sine.easeIn',
       onComplete: () => this.whiteOut(),
     });
+  }
+
+  update() {
+    if (this.following) {
+      this.cameras.main.scrollY = Math.min(0, this.him.y - this.camAnchor);
+    }
+    scrollTowerWall(this, this.cameras.main.scrollY);
   }
 
   // ── 5번 — 흰 화면 ──────────────────────────────────────
   whiteOut() {
     this.step = 6;
     const 덮개 = this.add.rectangle(CFG.width / 2, CFG.height / 2,
-      CFG.width, CFG.height, 0xffffff, 0).setDepth(500);
+      CFG.width, CFG.height, 0xffffff, 0).setScrollFactor(0).setDepth(500);
     this.tweens.add({ targets: 덮개, alpha: 1, duration: 1100,
       onComplete: () => this.aboveTower(덮개) });
   }
@@ -202,7 +305,12 @@ class EndingWatchScene extends Phaser.Scene {
   //
   // **꼭대기(방)는 여전히 안 그립니다.** 그리는 순간 그건 그냥 어떤 방이
   // 됩니다. 그리는 것은 방이 아니라 **떠난 사람**입니다.
+  //
+  // 여기만은 판과 안 닮아야 합니다. 탑 안이 아니니까요.
   aboveTower(덮개) {
+    this.following = false;
+    this.wallLayers = null;   // 아래에서 통째로 지웁니다. 지운 것을 밀면 터집니다
+    this.cameras.main.setScroll(0, 0);
     this.children.list.slice().forEach((o) => { if (o !== 덮개) o.destroy(); });
     this.cameras.main.setBackgroundColor('#eceff1');
 
@@ -249,19 +357,21 @@ class EndingWatchScene extends Phaser.Scene {
   }
 
   // 저 아래 1층. 모두가 시작하는 자리입니다 — 33층까지 못 가는 사람도
-  // 여기서는 겉옷을 만납니다.
+  // 여기서는 겉옷을 만납니다. 여기도 판과 같은 벽, 같은 발판입니다.
   groundBelow() {
     this.children.list.slice().forEach((o) => o.destroy());
-    this.cameras.main.setBackgroundColor('#0b0e18');
-    const cx = CFG.width / 2;
-    const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
+    buildTowerWall(this);
+    const cx = CFG.laneX.mid;
+    // 바닥을 260 위에 두면 벽의 벽감(480 주기 중 아래것)이 **겉옷 바로 뒤에**
+    // 옵니다. 떨어진 옷이 등불에 비쳐 서는 자리입니다 — 우연히 맞은 것을
+    // 알고 나서 고정했습니다. 이 값을 옮기면 그 빛이 사라집니다.
     const 바닥 = CFG.height - 260;
-    this.add.rectangle(cx, 바닥 + 14, 300, 12, 0x3f4a78).setAlpha(0.9);
-    this.add.text(cx - 172, 바닥 + 4, '1층', font(15, '#4a5578')).setOrigin(0.5, 0);
+    if (hasArt('plat')) this.add.image(cx, 바닥, 'plat').setDepth(0);
+    else this.add.rectangle(cx, 바닥, CFG.platformW, CFG.platformH, 0x4a5699).setDepth(0);
 
     const 옷 = this.add.image(cx, -30, 'cloak-fallen').setDepth(11).setAngle(18);
     this.tweens.add({
-      targets: 옷, y: 바닥 - 4, angle: 6,
+      targets: 옷, y: 바닥 - 20, angle: 6,
       duration: CFG.ending.fallMs, ease: 'Sine.easeIn',
       onComplete: () => {
         this.step = 9;
@@ -302,6 +412,14 @@ class CreditsScene extends Phaser.Scene {
     const cx = CFG.width / 2;
     this.cameras.main.setBackgroundColor('#05070d');
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
+
+    // **여기를 안 지우면 기록이 한 번에 날아갑니다.** Phaser 는 장면 객체를
+    // 다시 쓰므로, 크레딧을 나갔다 돌아오면 asking 이 참인 채로 남습니다 —
+    // 「정말 지울까요」를 이미 물은 셈이 되어, 처음 누른 한 번이 곧 지우기가
+    // 됩니다. 되돌릴 길이 없는 자리에는 문이 둘이라야 합니다.
+    this.shown = false;
+    this.asking = false;
+    this.wiping = false;
 
     this.name = this.add.text(cx, CFG.height / 2 - 20, 'Project JHS',
       font(30, '#e8eaf6')).setOrigin(0.5).setAlpha(0);

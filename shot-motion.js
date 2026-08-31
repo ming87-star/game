@@ -65,7 +65,7 @@ const KINDS={};
    recordVideo:{dir:path.join(ROOT,'shots','motion'),size:{width:960,height:420}}});
  const p=await ctx.newPage();
 
- const wall=b64(path.join(ROOT,'assets','wall.png'));
+ const wall=b64(path.join(ROOT,'assets','wall-far.png'));
  const plat=b64(path.join(ROOT,'assets','plat.png'));
  await p.setContent(`<style>
    html,body{margin:0;background:#141a2e;font-family:sans-serif;color:#8794b5;overflow:hidden}

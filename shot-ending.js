@@ -59,16 +59,20 @@ await pg.evaluate(()=>window.__endingline.go());
 await pg.waitForFunction(()=>window.__endingwatch,null,{timeout:10000});
 
 // 보는 장면의 마디마다 찍습니다.
-const 찍기=async(단계,이름)=>{
+const 찍기=async(단계,이름,뜸)=>{
   // **인자는 두 번째 자리입니다.** 처음에 옵션 뒤에 붙였더니 단계가 통째로
   // 무시되고 n 이 null 로 들어가, `step >= null` 이 `0 >= 0` 이라 **모든
   // 기다림이 그냥 통과**했습니다. 그래서 컷이 전부 첫 프레임이었습니다.
   await pg.waitForFunction((n)=>window.__endingwatch&&window.__endingwatch.step>=n,단계,{timeout:60000});
+  // 마디가 **시작되는** 순간이라 아직 아무것도 안 보이는 컷이 있습니다.
+  // 내려오는 놈은 화면 밖에서 출발합니다 — 뜸을 줘야 찍힙니다.
+  if(뜸) await pg.waitForTimeout(뜸);
   await pg.screenshot({path:path.join(OUT,'ending-'+이름+'.png')});
 };
-await 찍기(2,'3-blow');
+await 찍기(2,'3a-descend',1100);   // 내려오는 것이 보이는 참
+await 찍기(3,'3b-face');           // 코앞인데 안 움직입니다 — 이 장면의 알맹이
 await 찍기(4,'4-rise');
-await 찍기(5,'5-pass');
+await 찍기(5,'5-pass',1600);   // 놈은 도로 오르고 적들은 물러납니다
 await 찍기(7,'6-above');
 await 찍기(9,'7-cloak');
 console.log('마지막 단계', await pg.evaluate(()=>window.__endingwatch.step));
@@ -76,7 +80,10 @@ console.log('마지막 단계', await pg.evaluate(()=>window.__endingwatch.step)
 // ── 8~11번 — 마지막 판과 크레딧 ───────────────────────
 // 보는 장면이 끝나면 타이틀로 돌아옵니다. 거기서부터 평소 흐름 그대로
 // 판을 시작해서, 바닥의 겉옷을 짚습니다.
-await pg.waitForFunction(()=>window.__title&&window.__title.ready,null,{timeout:30000});
+// 타이틀이 **실제로 도는지**까지 봅니다. ready 는 장면 객체에 남는 값이라
+// 지난번 것이 참인 채로 읽힙니다 — 그러면 판이 먼저 뜨고 그 위로 타이틀이 올라옵니다.
+await pg.waitForFunction(()=>window.__game.scene.getScenes(true).map(x=>x.scene.key).join(',')==='title'
+  &&window.__title&&window.__title.ready,null,{timeout:30000});
 const 단계=await pg.evaluate(()=>window.__save.endingStage);
 console.log('보는 장면 뒤 단계', 단계);
 
