@@ -71,7 +71,7 @@ const WANT = [
   // js/textures.js 의 도형이 서 있습니다. 여기 미리 적어 두면 구울 때마다
   // 「아직 없는 그림」에 이름이 떠서, 그린 날 assets/ 에 파일만 넣으면
   // 저절로 붙습니다 (buildTextures 는 이미 있는 키를 건너뜁니다).
-  'cloak-red', 'cloak-white', 'cloak-fallen',
+  'cloak-red', 'cloak-white', 'cloak-fallen', 'cloak-falling',
 ];
 
 // 4로 안 나누는 것들. 기본은 4배로 그려 온다는 약속이지만(위 SCALE),

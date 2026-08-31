@@ -242,6 +242,111 @@ const SUBJECTS = [
         + 'Lean and wiry, clearly the least protected of the heroes. '
         + 'Dusty lime #D4E157 and worn brown leather. Nothing is red, crimson or orange.' },
 
+  // ── 33층의 붉은 겉옷 (ART.md 8.3절) ───────────────────
+  // 엔딩 시퀀스의 주인공입니다. 다른 것은 다 그림이 됐는데 이 사람만
+  // 도형으로 남아 있었고, **이 게임에서 가장 오래 화면에 머무는 사람**입니다.
+  //
+  // 어려운 줄은 얼굴입니다. 「얼굴 없음」으로 시키면 저승사자가 옵니다 —
+  // 없는 것을 시키는 것보다 **있는 것을 시키는** 쪽이 늘 잘 나옵니다.
+  // 그래서 「턱과 아랫뺨만 빛을 받는 살아 있는 얼굴」이라고 적습니다.
+  //
+  // 그리고 판에 「내려온 것」이 있습니다 — 그놈도 얼굴 없는 두건이라, 이
+  // 사람의 얼굴이 안 읽히면 둘이 같은 것으로 보입니다. 갈리는 자리는
+  // 빛입니다: 놈은 **눈만** 밝고(위), 사람은 **턱만** 밝습니다(아래).
+  { name: 'cloak-red', group: 'player', w: 36, h: 46, anchor: 'bottom',
+    facing: 'front',
+    what: 'A person standing FACING THE VIEWER, wearing a hooded robe that falls all the way '
+        + 'to the floor. The deep hood is pulled well forward over the head. '
+        + 'THE ARMS ARE COMPLETELY HIDDEN INSIDE THE ROBE. Do not draw arms, do not draw hands, '
+        + 'do not draw folded arms across the chest, do not draw sleeves. From the shoulders '
+        + 'down the robe is ONE UNBROKEN CONE of cloth widening to the floor — the outline from '
+        + 'shoulder to hem is a single clean line on each side with nothing sticking out of it. '
+        + 'No weapon, no jewellery, no belt, no clasp, no buckle. '
+        + 'THE FACE: this is a LIVING PERSON whose face is simply in shadow. The chin and the '
+        + 'lower cheeks catch the light from below and are clearly visible as warm skin, while '
+        + 'the eyes and forehead are swallowed by the shadow of the hood. '
+        + 'It is NOT an empty hood, NOT a void, NOT a skull, NOT a wraith and NOT a reaper — '
+        + 'there is a real face in there and we simply cannot see the upper half of it. '
+        + 'He is a MAN OF ABOUT THIRTY-THREE, Middle Eastern — Israeli/Levantine — with warm '
+        + 'olive skin, a strong square jaw and a short dark well-kept beard along the jawline. '
+        + 'Not a boy and not an old man: a man in his early thirties. '
+        + 'Only that lower part of his face shows; the eyes stay in shadow. '
+        + 'COLOUR — EXACTLY TWO REDS AND NO OTHERS. The robe is filled with ONE flat red #c62828 '
+        + 'over its whole surface, and the only other red allowed is the darker lining #8e1f1f, '
+        + 'used solely in the small area inside the hood opening. '
+        + 'Do NOT shade the robe with a range of reds: no lighter red highlight, no mid red, no '
+        + 'deep red shadow, no gradient, no blending between them. If you would normally paint '
+        + 'folds with five tones of red, paint them with none — leave the cloth flat and let the '
+        + 'outline describe the shape instead. '
+        + 'And no orange, vermilion, magenta, pink, purple or maroon anywhere. '
+        + 'STYLE: flat vector illustration — bold simple shapes, a few large flat areas, a thin '
+        + 'clean outline. No texture, no noise, no heavy gradients, no rendering detail. '
+        + 'Shrunk to 36 pixels wide only three things survive: the line of the hood, the line '
+        + 'of the shoulders and the hem — so embroidery, buttons and sashes are pointless. '
+        + 'The figure fills the frame, seen straight on.' },
+
+  { name: 'cloak-white', group: 'player', w: 36, h: 46, anchor: 'bottom',
+    facing: 'front', same: 'cloak-red',
+    sameRule: 'The attached image is THE SAME PERSON IN THE SAME GARMENT, already drawn. '
+        + 'Keep everything about him: the same body, the same posture seen straight on, the same '
+        + 'deep hood pulled forward, the same face with the chin and short dark beard catching '
+        + 'the light while the eyes stay lost in the hood shadow, the same arms hidden inside '
+        + 'the robe, the same unbroken cone from shoulders to hem, the same flat vector style '
+        + 'and the same outline weight. Put the two pictures side by side and it must be one '
+        + 'garment on one man. '
+        + 'THE ONLY THING THAT CHANGES IS THE CLOTH COLOUR.',
+    what: 'The same hooded figure, but the robe is now WHITE — one flat off-white #f5f5f5 over '
+        + 'the whole garment, with a grey lining #cfd8dc inside the hood opening. '
+        + 'THE INSIDE OF THE HOOD IS GREY, NOT BLACK. He is standing outside the tower in broad '
+        + 'daylight here, so a black hood cavity would read as a hole punched in a bright sky. '
+        + 'Keep his chin and beard lit and his eyes in shadow, but make that shadow a soft grey. '
+        + 'There is NO RED anywhere on him now — not a thread, not a trim, not a lining. '
+        + 'Same pose, same size, same flat vector style, transparent background.' },
+
+  { name: 'cloak-fallen', group: 'item', w: 34, h: 24, anchor: 'bottom',
+    facing: 'front', same: 'cloak-red',
+    sameRule: 'The attached image is THE SAME PERSON IN THE SAME GARMENT, already drawn. '
+        + 'Keep everything about him: the same body, the same posture seen straight on, the same '
+        + 'deep hood pulled forward, the same face with the chin and short dark beard catching '
+        + 'the light while the eyes stay lost in the hood shadow, the same arms hidden inside '
+        + 'the robe, the same unbroken cone from shoulders to hem, the same flat vector style '
+        + 'and the same outline weight. Put the two pictures side by side and it must be one '
+        + 'garment on one man. '
+        + 'WHAT CHANGES: the man is GONE. Erase the head, the hood opening, the face and the '
+        + 'body entirely — keep only the red cloth itself.',
+    what: 'THE SAME RED ROBE, now EMPTY and lying crumpled on the ground where it was dropped. '
+        + 'Nobody is wearing it and nobody is in the picture: no head, no face, no hands, no '
+        + 'feet, no body shape inside it. '
+        + 'It has collapsed into a low soft heap — the hood fallen back and empty on top, the '
+        + 'cloth pooling and folding outward below it, wider than it is tall. '
+        + 'Same single flat red #c62828 with the darker lining #8e1f1f showing where the cloth '
+        + 'has fallen open. Same flat vector style and outline weight. '
+        + 'Seen from slightly above, transparent background, no shadow and no ground under it.' },
+
+  // 위에서 떨어져 내리는 중의 옷. 판에서는 화면 밖에서 바닥까지 떨어지는데
+  // (js/scene-ending.js), 바닥에 쌓인 그림을 그대로 띄우면 **더미가 공중에
+  // 떠 있는 것**으로 보입니다. 떨어지는 동안은 펼쳐져 있어야 합니다.
+  { name: 'cloak-falling', group: 'item', w: 34, h: 36, anchor: 'bottom',
+    facing: 'front', same: 'cloak-red',
+    sameRule: 'The attached image is THE SAME PERSON IN THE SAME GARMENT, already drawn. '
+        + 'Keep everything about him: the same body, the same posture seen straight on, the same '
+        + 'deep hood pulled forward, the same face with the chin and short dark beard catching '
+        + 'the light while the eyes stay lost in the hood shadow, the same arms hidden inside '
+        + 'the robe, the same unbroken cone from shoulders to hem, the same flat vector style '
+        + 'and the same outline weight. Put the two pictures side by side and it must be one '
+        + 'garment on one man. '
+        + 'WHAT CHANGES: the man is GONE and the cloth is IN THE AIR. Erase the head, the face '
+        + 'and the body entirely — keep only the red cloth itself.',
+    what: 'THE SAME RED ROBE, empty, FALLING THROUGH THE AIR. Nobody is wearing it: no head, '
+        + 'no face, no hands, no body inside it. '
+        + 'It is caught mid-fall and spread open by the air — the cloth billowing and rippling, '
+        + 'the hem flaring wide and lifting, the empty hood trailing up behind it, a few soft '
+        + 'folds curling. It must clearly be FALLING and airborne, not resting: taller than it '
+        + 'is wide, loose and open, with nothing supporting it. '
+        + 'Same single flat red #c62828 with the darker lining #8e1f1f showing on the surfaces '
+        + 'that have turned over. Same flat vector style and outline weight. '
+        + 'Transparent background, no shadow, no ground, no motion-blur streaks and no speed lines.' },
+
   // ── 판 위에 서는 편 둘 (ART.md 2.5절) ─────────────────
   // 주인공이 아니라 **적과 같은 자리에 서는 그림**입니다. 그래서 가장 중요한
   // 것은 예쁨이 아니라 「저건 내 편이다」가 한눈에 붙는 것입니다. 적과
@@ -806,6 +911,9 @@ const STYLE_RULE = [
 // 같은 **사람**을 두 장으로 그릴 때 씁니다. 실루엣을 베끼는 `like` 와도,
 // 붓만 베끼는 `style` 과도 다릅니다 — 여기서는 얼굴과 옷차림이 같아야 하고
 // 자세와 잡은 크기는 달라야 합니다 (하나는 상반신, 하나는 전신).
+// 같은 것을 두 장으로 그릴 때 붙입니다. 아래 글은 **상점 주인 전용**이라
+// (머리 모양·두건·장화 이야기가 박혀 있습니다) 다른 것에 그대로 물리면
+// 엉뚱한 말을 합니다. 그래서 항목이 `sameRule` 로 제 글을 들고 올 수 있습니다.
 const PERSON_RULE = [
   'The attached image is the SAME PERSON, already drawn. Keep her identity exactly: the same',
   'face and hairstyle, the same eyes and eyebrows and smile, the same headwrap, the same shirt',
@@ -848,7 +956,7 @@ async function generate(subject) {
   styles.forEach((b) => parts.push({ inlineData: { mimeType: 'image/png', data: b } }));
   const rules = [];
   if (ref) rules.push(SHAPE_RULE);
-  if (same) rules.push(PERSON_RULE);
+  if (same) rules.push(subject.sameRule || PERSON_RULE);
   if (styles.length) rules.push(STYLE_RULE);
   parts.push({ text: promptFor(subject) + (rules.length ? '\n\n' + rules.join('\n\n') : '') });
   const res = await fetch(

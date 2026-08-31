@@ -377,11 +377,18 @@ class EndingWatchScene extends Phaser.Scene {
       this.add.rectangle(CFG.width / 2, 바닥, CFG.width, CFG.platformH, 0x4a5699).setDepth(0);
     }
 
-    const 옷 = this.add.image(cx, -30, 'cloak-fallen').setDepth(11).setAngle(18);
+    // 떨어지는 동안과 놓인 뒤는 **다른 그림**입니다. 바닥에 쌓인 더미를
+    // 그대로 띄우면 더미가 공중에 떠 내려오는 것으로 보입니다 — 떨어지는
+    // 동안은 바람에 펼쳐져 있어야 합니다 (ART.md 8.3절).
+    // 떨어지는 그림이 없으면 예전처럼 더미 하나로 갑니다.
+    const 나는옷 = hasArt('cloak-falling') ? 'cloak-falling' : 'cloak-fallen';
+    const 옷 = this.add.image(cx, -30, 나는옷).setDepth(11).setAngle(18);
     this.tweens.add({
       targets: 옷, y: 바닥 - 20, angle: 6,
       duration: CFG.ending.fallMs, ease: 'Sine.easeIn',
       onComplete: () => {
+        // 닿는 순간 더미로 바꿔 놓습니다.
+        if (나는옷 !== 'cloak-fallen') 옷.setTexture('cloak-fallen');
         this.step = 9;
         this.time.delayedCall(1200, () => this.leave());
       },
