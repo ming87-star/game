@@ -435,7 +435,8 @@ class EndingWatchScene extends Phaser.Scene {
       this.add.image(cx, CFG.height / 2, 'above-tower')
         .setDisplaySize(CFG.width, CFG.height).setDepth(0);
     } else {
-      this.paintSky(cx);    }
+      this.paintSky(cx);
+    }
 
     // **지붕을 밟고 서면 안 됩니다.** 처음에 탑 끝에 붙여 세웠더니
     // 「꼭대기에 닿았다」로 읽혔습니다 — 이 게임이 처음부터 아니라고
@@ -444,12 +445,20 @@ class EndingWatchScene extends Phaser.Scene {
     //
     // 크기는 1.5배에서 2.8배로 올렸습니다. 하늘 한 장에 사람 하나뿐인
     // 화면에서 55px 짜리 사람은 티끌입니다.
-    this.him = this.add.image(cx, CFG.height - 430, 'cloak-white')
+    // 세우는 높이는 **구름 꼭대기를 재서** 잡았습니다. 그림의 구름선은
+    // 옆기둥에서 592~616 입니다. 430 위에 두면 발치가 594 — 구름 꼭대기에
+    // 딱 걸려서 **구름을 밟고 선 사람**이 됩니다. 밟을 것이 없어야 하므로
+    // 발밑에 하늘을 아흔 픽셀 비웁니다.
+    this.him = this.add.image(cx, CFG.height - 520, 'cloak-white')
       .setDepth(10).setAlpha(0).setScale(2.8);
     this.tweens.add({ targets: 덮개, alpha: 0, duration: 1200 });
     // **다 뜬 뒤에** 7번으로 칩니다. 뜨기 시작할 때 세어 버리면 시험이
     // 아직 안 보이는 화면을 찍고 「탑 밖에 섰다」로 적습니다 — 실제로
     // 그렇게 빈 하늘만 찍혔습니다.
+    // 아주 느리게 오르내립니다. 가만히 있으면 붙여 놓은 그림이고,
+    // 이 여섯 픽셀이 「떠 있다」를 만듭니다.
+    this.tweens.add({ targets: this.him, y: this.him.y - 12, duration: 2600,
+      ease: 'Sine.easeInOut', yoyo: true, repeat: -1 });
     this.tweens.add({ targets: this.him, alpha: 1, duration: 1200, delay: 300,
       onComplete: () => {
         this.step = 7;
