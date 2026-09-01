@@ -85,12 +85,12 @@ class SwapScene extends Phaser.Scene {
     if (w.mult > (g.mult || 1)) lost.push('×' + (w.mult / (g.mult || 1)));
     const lostY = cardTop + L.cardH / 2 + 30;
     // 잃을 것이 없는 판이 둘입니다 — 아직 아무것도 안 쌓았거나(첫 층),
-    // **새 자루가 이미 그만큼 벼려져 있거나**. 둘을 같은 말로 적으면
+    // **새 자루가 이미 그만큼 강화돼 있거나**. 둘을 같은 말로 적으면
     // 후반에 「아직」이라는 말이 거짓말이 됩니다.
-    const 벼려져옴 = !!this.entry.gift;
+    const 강화돼옴 = !!this.entry.gift;
     this.add.text(cx, lostY, lost.length
       ? '바꾸면 잃습니다 —  ' + lost.join('   ')
-      : (벼려져옴 ? '이미 그만큼 벼려져 있습니다 — 잃을 것이 없습니다'
+      : (강화돼옴 ? '이미 그만큼 강화돼 있습니다 — 잃을 것이 없습니다'
         : '아직 잃을 것이 없습니다'),
       font(18, lost.length ? '#ff8a80' : '#a5d6a7')).setOrigin(0.5);
 
@@ -157,16 +157,30 @@ class SwapScene extends Phaser.Scene {
     // 아무도 안 고르고, 그러면 이 자루를 넣은 뜻이 없습니다.
     const cap = entry.plusMax || CFG.plusMax;
     if (cap !== CFG.plusMax) rows.push(['공격력 한계', '+' + cap]);
-    // **이미 벼려진 자루라는 것을 적어 줍니다.** 안 적으면 공격력 줄만
+    // **이미 강화된 자루라는 것을 적어 줍니다.** 안 적으면 공격력 줄만
     // 커 보이고 왜 커졌는지를 모릅니다 — 「이 자루는 처음부터 +6 이다」가
     // 갈아탈지 정하는 값입니다 (갈아탄 뒤로도 남으니까요).
+    //
+    // ── 왜 「벼려짐」이 아니라 「강화됨」인가 ──────────────
+    // 이 게임은 이미 이것을 **강화**라고 부릅니다 — 일시정지 상세의 「강화」
+    // 줄(js/scene-pause.js), 메달 상점의 「+1 강화 둘을 붙이고 시작」
+    // (js/medals.js), 상점의 「강화는 초기화됩니다」(js/shop.js). 여기만
+    // 혼자 다른 말을 쓰고 있었습니다.
+    //
+    // 게다가 **만듦새 이름이 「벼린」입니다** (js/forge.js). 그래서 한 카드에
+    // 「벼린 서리 지팡이 / 이미 벼려짐 +6」이 나란히 떴습니다 — 한 낱말이
+    // 등급과 강화, 두 뜻이었습니다.
+    //
+    // **「이미」는 남깁니다.** 그냥 「강화」로 하면 일시정지의 「지금 붙어
+    // 있는 것 전부」와 뜻이 겹칩니다. 여기서 말하는 것은 이 자루에 처음부터
+    // 붙어 있어서 **갈아타도 남는** 몫입니다.
     const g = entry.gift || null;
     if (g) {
       const 적힘 = [];
       if (g.plus) 적힘.push('+' + g.plus);
       if (g.haste) 적힘.push('속 ×' + g.haste);
       if (g.mult > 1) 적힘.push('×' + g.mult);
-      if (적힘.length) rows.push(['이미 벼려짐', 적힘.join(' ')]);
+      if (적힘.length) rows.push(['이미 강화됨', 적힘.join(' ')]);
     }
 
     rows.forEach(([label, value], i) => {

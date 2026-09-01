@@ -318,6 +318,28 @@ const PROBE = `(() => {
   await page.evaluate(() => window.__swap && window.__swap.choose(false));
   await page.waitForTimeout(500);
 
+  // **이미 강화된 자루**로 한 번 더. 그 자루는 카드에 줄이 하나 더 붙습니다
+  // (「이미 강화됨 +6 속×2 ×2」). 이 줄이 붙으면서 예전에 카드가 모자랐던
+  // 적이 있어서(js/scene-swap.js 맨 위), 줄이 가장 많은 쪽을 따로 봅니다.
+  const 강화된자루 = await page.evaluate(async () => {
+    const s = window.__scene;
+    s.weapon.plus = 9; s.weapon.haste = 6; s.weapon.mult = 2;
+    let e;
+    for (let i = 0; i < 60; i++) { e = rollWeapon(s.job, 300); if (e.index !== s.weapon.index) break; }
+    // 굴린 것에 강제로 얹습니다 — 저절로 붙기를 기다리면 판마다 달라집니다
+    e.gift = { plus: 6, haste: 2, mult: 2 };
+    s.offerWeapon(e);
+    await new Promise((r) => setTimeout(r, 600));
+    return (window.__swap.children.list || [])
+      .filter((o) => o.type === 'Text').map((o) => o.text)
+      .filter((t) => t.includes('강화') || t.includes('벼려')).join(' | ');
+  });
+  await look('무기 갈아타기 창 — 이미 강화된 자루', 500);
+  check(강화된자루.includes('이미 강화됨') && !강화된자루.includes('벼려'),
+    '갈아타기 창도 「강화」라고 부름 (일시정지·상점과 같은 말)', 강화된자루);
+  await page.evaluate(() => window.__swap && window.__swap.choose(false));
+  await page.waitForTimeout(500);
+
   // ── 일시정지 ───────────────────────────────────────────
   await page.evaluate(() => window.__scene.pauseGame());
   check(await page.evaluate(() => !!window.__pause), '일시정지 화면이 열렸는가');
