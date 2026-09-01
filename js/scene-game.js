@@ -25,6 +25,10 @@ class GameScene extends Phaser.Scene {
     loadArt(this);
     // 주인공의 공격 컷은 이번 판에서 고른 직업 것만 굽습니다 (js/artset.js).
     loadSheets(this, this.job.key);
+    // 마지막 판에서 겉옷을 짚어 드는 컷 (ART.md 8.37절). 시퀀스가 열린
+    // 사람에게만 쓰이지만, 싣는 값이 16KB 라 늘 싣습니다 — 판이 시작된
+    // 뒤에 텍스처를 더 부르는 길이 지저분합니다.
+    loadSheetKeys(this, ['sheet-lift-' + this.job.key]);
   }
 
   create() {
@@ -2319,9 +2323,52 @@ class GameScene extends Phaser.Scene {
     if (Math.abs(this.player.y - 옷.y) > 40) return;
     this.tookCloak = true;
     this.physics.pause();
+    // 컷이 있으면 **짚어 드는 것을 보여 주고** 나서 하얘집니다
+    // (ART.md 8.37절). 없으면 예전처럼 곧장 하얘집니다.
+    if (this.playLiftCut(옷, () => this.intoCredits())) return;
     this.tweens.add({ targets: 옷, alpha: 0, duration: 500 });
-    const 덮개 = this.add.rectangle(CFG.width / 2, CFG.height / 2,
-      CFG.width, CFG.height, 0xffffff, 0).setScrollFactor(0).setDepth(900);
+    this.intoCredits();
+  }
+
+  // 겉옷을 짚어 드는 여덟 컷. 그 직업 시트가 없으면 false 를 줍니다 —
+  // 지금은 전사 한 벌뿐이고, 나머지 일곱은 예전 길로 갑니다.
+  playLiftCut(옷, then) {
+    const key = 'sheet-lift-' + this.job.key;
+    const d = typeof SHEET_ART !== 'undefined' && SHEET_ART[key];
+    if (!d || !this.textures.exists(key)) return false;
+
+    // 그림 안에 겉옷이 같이 들어 있으므로 바닥의 것은 감춥니다. 안 그러면
+    // 겉옷이 둘이 됩니다 — 짚어 든 것과 아직 바닥에 있는 것.
+    옷.setVisible(false);
+    // 발이 딛는 줄은 **주인공의 몸에서 직접 잽니다.** STAND_OFFSET 으로
+    // 되짚으면 물리 몸의 높이를 한 번 더 가정하게 되고, 실제로 40px 떴습니다.
+    const 발 = this.player.getBounds().bottom;
+    const v = this.add.sprite(this.player.x, 발, key, 0).setDepth(9);
+    v.setOrigin(d.foot / d.fw, d.ground / d.fh);
+    // 판 위 주인공과 같은 키로 세웁니다 — **이 시트가 잰 제 키로** 나눕니다.
+    // this.motion.scale 을 빌려 쓰면 안 됩니다. 그건 지금 든 무기 시트의
+    // 키로 나눈 값이고, 시트마다 재어 둔 키가 다릅니다.
+    v.setScale(d.hero ? HERO_H / d.hero : 1);
+    // 주인공은 감춥니다. **겉몸도 같이** 감춰야 합니다 — 무기 시트가 돌고
+    // 있으면 물리 몸과 별개의 스프라이트가 하나 더 서 있습니다. 이걸
+    // 빠뜨렸더니 화면에 전사가 둘이었습니다. 이름은 this.rig 입니다.
+    this.player.setVisible(false);
+    if (this.rig && this.rig.views) this.rig.views.forEach((o) => o.setVisible(false));
+
+    const n = d.n || 8;
+    const 칸 = { i: 0 };
+    this.tweens.add({
+      targets: 칸, i: n - 1, duration: CFG.ending.liftCutMs, ease: 'Linear',
+      onUpdate: () => v.setFrame(Math.max(0, Math.min(n - 1, Math.round(칸.i)))),
+      // 마지막 컷(두 손에 들고 봄)에서 한 박자 머뭅니다. 들자마자 하얘지면
+      // 무엇을 들었는지 볼 새가 없습니다.
+      onComplete: () => { v.setFrame(n - 1); this.time.delayedCall(900, then); },
+    });
+    return true;
+  }
+
+  intoCredits() {
+    const 덮개 = makeVeil(this, 0xffffff).setScrollFactor(0).setDepth(900);
     this.tweens.add({ targets: 덮개, alpha: 1, duration: 1400,
       onComplete: () => {
         Save.setEndingStage(2);

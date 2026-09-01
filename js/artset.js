@@ -75,6 +75,19 @@ function loadArt(scene) {
 // **그 직업 것만 굽습니다.** 서른여섯 자루를 다 구우면 288장을 풀어야 하는데,
 // 한 판에서 쓰는 것은 열두 자루뿐입니다. 판을 새로 시작해도 텍스처는 남으므로
 // 직업을 바꿔 가며 놀면 그때그때 필요한 것만 쌓입니다.
+// 이름을 대고 시트를 몇 장만 싣습니다.
+//
+// loadSheets 는 「그 직업 것」을 훑는 규칙이라, 직업과 상관없는 시트
+// (엔딩의 겉옷 무너짐·일어남, 겉옷을 짚어 드는 컷)는 여기로 부릅니다.
+function loadSheetKeys(scene, keys) {
+  if (typeof SHEET_ART === 'undefined') return;
+  keys.forEach((key) => {
+    const s = SHEET_ART[key];
+    if (!s || scene.textures.exists(key)) return;
+    scene.load.spritesheet(key, s.url, { frameWidth: s.fw, frameHeight: s.fh });
+  });
+}
+
 function loadSheets(scene, jobKey) {
   if (typeof SHEET_ART === 'undefined') return;
   // 내 편의 시트는 **그 직업일 때만** 함께 싣습니다. 곰은 곰사냥꾼의 것이라

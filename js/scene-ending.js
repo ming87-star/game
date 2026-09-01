@@ -122,6 +122,9 @@ class EndingWatchScene extends Phaser.Scene {
   // 벽도 발판도 적도 안 실려 있으므로 여기서 싣습니다.
   preload() {
     loadArt(this);
+    // 무너지고 일어나는 컷 열여섯 (ART.md 8.36절). 직업과 상관없는 시트라
+    // loadSheets 가 아니라 이름을 대고 부릅니다.
+    loadSheetKeys(this, ['sheet-cloak-fall', 'sheet-cloak-rise']);
   }
 
   create(data) {
@@ -155,6 +158,7 @@ class EndingWatchScene extends Phaser.Scene {
     this.step = 0;          // 시험이 어디까지 왔는지 읽는 값
     this.left = false;      // 장면 객체는 다시 쓰이므로 깃발을 손으로 지웁니다
     this.comer = null;
+    this.cutView = null;    // 무너짐·일어남 컷을 그리는 스프라이트
     window.__endingwatch = this;
 
     this.time.delayedCall(600, () => this.climbTo(31));
@@ -264,6 +268,45 @@ class EndingWatchScene extends Phaser.Scene {
     });
   }
 
+  // 무너짐과 일어남을 **한 배율**로 세웁니다.
+  //
+  // 시트마다 잰 hero 를 그대로 쓰면 안 됩니다. bake-sheets 는 여덟 컷의
+  // 가운뎃값으로 키를 재는데, 일어나는 시트는 절반이 누워 있는 컷이라
+  // 62.9 가 나오고 무너지는 시트는 93.5 가 나옵니다. 각자 제 값으로
+  // 나누면 무너진 사람과 일어나는 사람의 **키가 달라집니다.**
+  // 선 컷이 여럿인 cloak-fall 의 값 하나로 둘 다 세웁니다.
+  cutScale() {
+    const f = typeof SHEET_ART !== 'undefined' && SHEET_ART['sheet-cloak-fall'];
+    const 선키 = hasArt('cloak-red') ? artSize('cloak-red').h : 46;
+    return f && f.hero ? 선키 / f.hero : 1;
+  }
+
+  // 시트 한 벌을 처음부터 끝까지 밟습니다. 시트가 없으면 false 를 주고,
+  // 부르는 쪽이 예전 트윈으로 물러섭니다.
+  playCut(key, ms, then) {
+    const d = typeof SHEET_ART !== 'undefined' && SHEET_ART[key];
+    if (!d || !this.textures.exists(key)) return false;
+    if (this.cutView) { this.cutView.destroy(); this.cutView = null; }
+
+    const 바닥 = this.floorY[33];
+    const v = this.add.sprite(CFG.laneX.mid, 바닥, key, 0)
+      .setDepth(10).setScale(this.cutScale());
+    // 발이 딛는 줄(ground)과 발의 좌우 한가운데(foot)를 축으로 삼습니다 —
+    // 판 위 주인공의 시트와 같은 셈입니다 (js/motion.js).
+    v.setOrigin(d.foot / d.fw, d.ground / d.fh);
+    this.cutView = v;
+    this.him.setVisible(false);
+
+    const n = d.n || 8;
+    const 칸 = { i: 0 };
+    this.tweens.add({
+      targets: 칸, i: n - 1, duration: ms, ease: 'Linear',
+      onUpdate: () => v.setFrame(Math.max(0, Math.min(n - 1, Math.round(칸.i)))),
+      onComplete: () => { v.setFrame(n - 1); if (then) then(); },
+    });
+    return true;
+  }
+
   // 쓰러지는 것은 **꺾이는 것이 아니라 무너지는 것**입니다.
   //
   // 예전에는 그림을 78도로 눕혔습니다. 겉옷 그림은 사람 모양이라, 그대로
@@ -277,6 +320,12 @@ class EndingWatchScene extends Phaser.Scene {
   crumble() {
     const c = CFG.ending;
     const 바닥 = this.floorY[33];
+    // 그림으로 받은 여덟 컷이 있으면 그쪽입니다 (ART.md 8.36절).
+    // 아래 트윈은 컷이 없을 때의 자리입니다 — 그림 한 장을 기울여서는
+    // 「옷 안에 아무것도 없다」를 못 면합니다.
+    if (this.playCut('sheet-cloak-fall', c.fallCutMs,
+      () => this.time.delayedCall(c.restMs, () => this.riseAgain()))) return;
+
     this.tweens.add({
       // 1단 — 무릎이 꺾입니다. 짧게, 아래로만
       targets: this.him, y: 바닥 - 20, angle: -10,
@@ -309,6 +358,17 @@ class EndingWatchScene extends Phaser.Scene {
   riseAgain() {
     this.step = 4;
     const c = CFG.ending;
+    // 컷이 있으면 컷으로 일어섭니다. 다 일어선 뒤에는 **다시 그림 한 장**
+    // 으로 돌아옵니다 — 이어지는 4번(오르기)이 this.him 을 움직이니까요.
+    if (this.playCut('sheet-cloak-rise', c.riseCutMs, () => {
+      this.cutView.destroy();
+      this.cutView = null;
+      this.him.setTexture('cloak-red').setScale(1).setAngle(0)
+        .setAlpha(1).setVisible(true);
+      this.him.y = this.floorY[33] - 33;
+      this.time.delayedCall(700, () => this.pass());
+    })) return;
+
     // **발치를 붙들고 키로 일어섭니다.**
     //
     // 처음에는 y 만 옮겨서 세웠습니다. 그런데 천 더미(68×48)는 선 사람

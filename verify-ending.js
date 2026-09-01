@@ -89,6 +89,28 @@ const server = http.createServer((req, res) => {
   await page.evaluate(() => window.__endingline.go());
   await page.waitForFunction(() => window.__endingwatch, null, { timeout: 15000 });
 
+  // ── 무너짐·일어남 컷 기록기 ────────────────────────────
+  //
+  // **장면에 들어가자마자 붙입니다.** 처음에는 「놈이 내려온 뒤」에 붙였는데,
+  // 붙기도 전에 무너짐도 일어남도 다 지나가 버려서 0칸으로 읽혔습니다
+  // (재 보니 이미 step7 이었습니다). 지나간 것을 뒤늦게 세려 하면 안 됩니다.
+  await page.evaluate(() => {
+    const 칸 = {}; const 배 = {};
+    window.__컷기록 = { 칸, 배, 끝남: false };
+    const tick = () => {
+      const s = window.__endingwatch;
+      if (!s || !s.scene.isActive() || s.step >= 6) { window.__컷기록.끝남 = true; return; }
+      const v = s.cutView;
+      if (v && v.texture && v.frame) {
+        const k = v.texture.key;
+        (칸[k] = 칸[k] || {})[v.frame.name] = 1;
+        배[k] = Math.round(v.scaleX * 1000) / 1000;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+
   // ── 보는 장면이 **판과 같은 화면**인가 ──────────────────
   //
   // 여기가 이 파일에서 가장 값진 검사입니다. 회색 네모로 되돌아가도 오류는
@@ -169,6 +191,36 @@ const server = http.createServer((req, res) => {
   check(밝기.length && Math.max(...밝기) >= 230, '끝에는 다 하얘짐',
     밝기.length ? Math.max(...밝기) : '못 쟀음');
 
+  // ── 무너지고 일어나는 것이 **컷으로 도는가** ────────────
+  //
+  // 그림 한 장을 기울이던 시절에는 「옷 안에 아무것도 없다」는 말을
+  // 들었습니다. 이제 여덟 컷을 밟습니다 (ART.md 8.36절).
+  //
+  // 컷이 안 실리면 예전 트윈으로 **조용히** 물러섭니다 — 오류도 안 나고
+  // 장면도 끝까지 돕니다. 그러니 「끝까지 돌았는가」로는 못 잡습니다.
+  // 컷이 실제로 몇 칸이나 넘어갔는지를 세어야 합니다.
+  //
+  // 배율도 같이 잽니다. 시트마다 잰 키(hero)를 각자 쓰면 무너진 사람과
+  // 일어나는 사람의 **크기가 달라집니다** — cloak-fall 은 93.5 인데
+  // cloak-rise 는 절반이 누운 컷이라 62.9 로 나옵니다. 한 배율로 세워야
+  // 같은 사람입니다.
+  await page.waitForFunction(() => window.__컷기록 && window.__컷기록.끝남,
+    null, { timeout: 90000 });
+  const 컷 = await page.evaluate(() => ({
+    셈: Object.fromEntries(Object.entries(window.__컷기록.칸)
+      .map(([k, v]) => [k, Object.keys(v).length])),
+    배: window.__컷기록.배,
+  }));
+  check((컷.셈['sheet-cloak-fall'] || 0) >= 5,
+    '무너지는 것이 여덟 컷으로 돎 (그림 한 장을 기울이는 것이 아니라)',
+    (컷.셈['sheet-cloak-fall'] || 0) + '칸');
+  check((컷.셈['sheet-cloak-rise'] || 0) >= 5,
+    '일어나는 것도 컷으로 돎', (컷.셈['sheet-cloak-rise'] || 0) + '칸');
+  check(컷.배['sheet-cloak-fall'] !== undefined
+    && 컷.배['sheet-cloak-fall'] === 컷.배['sheet-cloak-rise'],
+    '무너진 사람과 일어나는 사람의 키가 같음 (한 배율로 세움)',
+    컷.배['sheet-cloak-fall'] + ' · ' + 컷.배['sheet-cloak-rise']);
+
   // ── 끝까지 돌고 타이틀로 ────────────────────────────────
   await page.waitForFunction(() => window.__endingwatch.step >= 9, null, { timeout: 90000 });
   // **타이틀이 실제로 도는지까지 봅니다.** `window.__title.ready` 만 보면 안
@@ -215,7 +267,28 @@ const server = http.createServer((req, res) => {
   check(!그대로.짚었나 && 그대로.장면 === 'game',
     '가만히 두면 안 짚힘 — 마지막 판은 평소처럼 굴러감', 그대로.장면);
 
-  // 짚으면 하얗게 차오르고 크레딧으로 넘어갑니다.
+  // 짚으면 **짚어 드는 컷**이 돌고 나서 하얘집니다 (ART.md 8.37절).
+  //
+  // 여기서 반드시 봐야 하는 것이 하나 더 있습니다 — 판 위의 주인공은
+  // 물리 몸과 **겉몸(무기 시트)** 둘입니다. 겉몸을 안 감추면 화면에
+  // 전사가 둘이 됩니다. 실제로 그랬고, 감추는 줄에 이름을 this.motion 으로
+  // 잘못 적어서 아무 일도 안 했습니다 (this.rig 입니다). 오류는 안 났습니다.
+  await page.evaluate(() => {
+    const 칸 = {}; let 겹침 = 0;
+    window.__짚기 = { 칸, 겹침: 0, 끝남: false };
+    const tick = () => {
+      const s = window.__scene;
+      if (!s || !s.scene.isActive()) { window.__짚기.끝남 = true; return; }
+      const v = s.children.list.find((o) => o.texture && /^sheet-lift-/.test(o.texture.key));
+      if (v && v.frame) {
+        칸[v.frame.name] = 1;
+        const 겉 = (s.rig && s.rig.views) || [];
+        if (s.player.visible || 겉.some((o) => o.visible)) window.__짚기.겹침 = ++겹침;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
   await page.evaluate(() => {
     const s = window.__scene;
     s.player.x = s.finalCloak.x; s.player.y = s.finalCloak.y;
@@ -227,6 +300,13 @@ const server = http.createServer((req, res) => {
     글: window.__credits.children.list.filter((o) => o.type === 'Text').map((o) => o.text).join(' | '),
   }));
   check(크레딧.단계 === 2, '겉옷을 짚으면 2단계', 크레딧.단계);
+  const 짚기 = await page.evaluate(() => ({
+    칸수: Object.keys(window.__짚기.칸).length, 겹침: window.__짚기.겹침,
+  }));
+  check(짚기.칸수 >= 5, '겉옷을 짚어 드는 것이 여덟 컷으로 돎', 짚기.칸수 + '칸');
+  check(짚기.겹침 === 0,
+    '컷이 도는 동안 주인공이 둘로 안 보임 (물리 몸도 겉몸도 감춰짐)',
+    짚기.겹침 + '프레임 겹침');
   check(크레딧.글 === 'Project JHS | 처음부터 다시 하기',
     '크레딧에는 개발자명 한 줄과 다시 하기뿐', 크레딧.글);
 
