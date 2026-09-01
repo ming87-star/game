@@ -161,6 +161,143 @@ const CRITTERS = {
   },
 };
 
+// ── 33층의 겉옷 — 무너짐과 일어남 (ART.md 8.36절) ──────
+// 지금은 그림 한 장을 기울였다가 천 더미로 바꿔 끼웁니다. 그래서 쓰러지는
+// 순간 **옷 안에 아무것도 없어진 것처럼** 보입니다 — 사람이 무너지는 것이
+// 아니라 옷이 툭 떨어집니다.
+//
+// **정면입니다.** 요청서의 영어 문장에는 「side view facing right」가 붙어
+// 있는데, 그건 조각 시트용 상투구가 딸려 온 것입니다. 이 시트의 첫 컷은
+// assets/cloak-red.png(정면)와 같은 자세여야 하고 끝 컷은 cloak-fallen 과
+// 같은 모양이어야 하며, 판에서도 그 둘을 제자리에서 바꿔 끼웁니다
+// (js/scene-ending.js 148·292줄). 옆모습으로 그리면 앞뒤가 안 붙습니다.
+const CLOAK_REF = [
+  'The attached images are THIS EXACT CHARACTER AND GARMENT, already drawn: a standing figure',
+  'in a deep red hooded cloak, and the same cloak collapsed into a heap on the ground.',
+  'Copy them exactly — the same single flat red, the same darker lining, the same hood shape,',
+  'the same proportions, the same flat vector style and outline weight, the same face barely',
+  'glimpsed in the hood shadow.',
+  'Your FIRST frame must match the standing picture exactly.',
+  'Use the heap picture ONLY for the colour of the cloth and the way it folds — NOT for what is',
+  'inside it. That heap is empty because it was drawn for a later moment, after he has gone.',
+  'HERE HE IS STILL IN IT. Your last frame is a person lying under the cloak, not an empty pile.',
+].join(' ');
+
+const CLOAK_SAME = [
+  'CRITICAL: it is the exact same person in the same cloak in all eight frames — identical red,',
+  'identical proportions, identical size. Only the pose changes.',
+  'The figure FACES THE VIEWER (front view), not sideways.',
+  'THE FEET REST AT EXACTLY THE SAME HEIGHT IN EVERY CELL, or the animation judders.',
+  'But DO NOT DRAW THE FLOOR ITSELF: no ground line, no horizon line, no baseline stroke, no',
+  'shadow, no dark ellipse and no smear under the figure. The figure floats on nothing — the',
+  'height is something you keep consistent, not something you draw. A line under the feet comes',
+  'back as a stray pink streak once the background is keyed out.',
+  'Likewise DO NOT DRAW the grid: no cell borders, no dividing lines, no boxes around the frames.',
+  'The face stays barely glimpsed inside the hood shadow and must not change from frame to frame.',
+  'No blood, no weapon, no text, no background.',
+].join(' ');
+
+const CLOAK_LOOK = 'Flat vector game illustration, front view, bold simple shapes, a thin clean '
+  + 'outline, a few flat areas, no texture and no heavy gradients.';
+
+const CRITTERS_CLOAK = {
+  'cloak-fall': {
+    w: 36, h: 46, aspect: '16:9', refs: ['cloak-red.png', 'cloak-fallen.png'],
+    refRule: CLOAK_REF, same: CLOAK_SAME, look: CLOAK_LOOK,
+    who: 'a person in a long deep-red hooded cloak that falls to the floor, collapsing to the '
+       + 'ground. The arms are inside the cloak. ' + 'THE MOST IMPORTANT THING: THERE IS A BODY INSIDE THE CLOAK. As the cloth folds, the '
+         + 'shoulders, the arms and the knees must read THROUGH the fabric — it drapes over a '
+         + 'person, it does not collapse like an empty sack. Even the final heap must read as '
+         + '\"someone lying under cloth\", never as an empty rag or a flat pile. ',
+    cycle: 'The eight frames are ONE continuous collapse, read left to right, top to bottom:\n'
+         + 'frame 1: standing upright and still, exactly as in the attached standing picture.\n'
+         + 'frame 2: the shoulders start to give way, the hood shifts forward.\n'
+         + 'frame 3: the knees buckle under the cloth.\n'
+         + 'frame 4: the upper body folds forward.\n'
+         + 'frame 5: one hand comes out and reaches the ground.\n'
+         + 'frame 6: sinking down, the hood spilling forward over the face.\n'
+         + 'frame 7: toppling sideways, the cloth beginning to spread across the floor.\n'
+         + 'frame 8: come to rest on the ground, lying on his side under the cloak. '
+         + 'HE IS STILL THERE: the cloth drapes over a body and you can read the shoulder, the '
+         + 'hip and the bent knees through it, an arm slack on the ground, and the head inside '
+         + 'the hood. It is a person lying down covered by their cloak — NOT a folded pile of '
+         + 'laundry and NOT an empty cloak with nobody in it.',
+  },
+  'cloak-rise': {
+    w: 36, h: 46, aspect: '16:9', refs: ['cloak-red.png', 'cloak-fallen.png'],
+    refRule: CLOAK_REF, same: CLOAK_SAME, look: CLOAK_LOOK,
+    who: 'a person in a long deep-red hooded cloak that falls to the floor, pushing themselves '
+       + 'back up off the ground. The arms are inside the cloak except where they push. '
+       + 'THE MOST IMPORTANT THING: THERE IS A BODY INSIDE THE CLOAK. As the cloth folds, the '
+         + 'shoulders, the arms and the knees must read THROUGH the fabric — it drapes over a '
+         + 'person, it does not collapse like an empty sack. Even the final heap must read as '
+         + '\"someone lying under cloth\", never as an empty rag or a flat pile. ',
+    // **뒤집어 재생하는 것이 아닙니다.** 무너지는 것은 힘이 빠지는 일이고
+    // 일어나는 것은 힘을 쓰는 일이라, 거꾸로 돌리면 「누가 되감았다」로
+    // 보입니다. 스스로 미는 동작이 들어가야 합니다.
+    cycle: 'The eight frames are ONE continuous RISE, read left to right, top to bottom. '
+         + 'This is NOT the collapse played backwards: collapsing is losing strength and rising '
+         + 'is spending it, so the effort must be visible.\n'
+         + 'frame 1: lying on his side on the ground under the cloak, exactly as the collapse '
+         + 'ended — the shoulder, hip and bent knees still readable through the cloth, the head '
+         + 'inside the hood. He is there, just down.\n'
+         + 'frame 2: the whole shape swells upward once as he draws breath — not standing yet.\n'
+         + 'frame 3: the hood lifts.\n'
+         + 'frame 4: one hand comes out and plants flat on the ground.\n'
+         + 'frame 5: THE KEY FRAME — that arm pushes and drives the upper body up, the whole '
+         + 'weight visibly straining through it.\n'
+         + 'frame 6: one knee comes up under the body.\n'
+         + 'frame 7: nearly straightened, but the head still bowed.\n'
+         + 'frame 8: standing upright, exactly as in the attached standing picture.',
+  },
+};
+
+// ── 겉옷을 짚어 드는 컷 여덟 (ART.md 8.37절) ──────────
+// 마지막 판에서 주인공이 바닥의 붉은 겉옷을 짚어 드는 자리입니다.
+// **전사부터 한 벌만** 받습니다 — 여덟 직업이면 예순네 컷이라, 한 벌을
+// 붙여 보고 나서 나머지를 정합니다.
+//
+// 이쪽은 사람이 옆모습입니다 (주인공 시트가 다 옆모습이므로).
+CRITTERS['lift-warrior'] = {
+  w: 38, h: 48, aspect: '16:9',
+  refs: ['sheets/w-warrior-0/0.png', 'cloak-fallen.png'],
+  refRule: [
+    'The attached images are (1) THIS EXACT CHARACTER, already drawn — a knight in steel-grey',
+    'armour with navy-blue cloth — and (2) the red cloak he is going to pick up, lying in a heap.',
+    'Copy the knight exactly: the same helmet and crest, the same armour plates and their shapes,',
+    'the same navy cloth, the same colours, the same proportions and size, the same outline weight',
+    'and flat shading. Copy the cloak exactly: the same single red and the same fabric.',
+    'Someone must put your sheet next to the attached knight and see one single character.',
+  ].join(' '),
+  same: [
+    'CRITICAL: it is the exact same knight in all eight frames — identical armour, identical',
+    'colours, identical proportions, identical size. Only the pose changes.',
+    'He FACES RIGHT in every frame, seen from the side.',
+    'HIS FEET REST AT EXACTLY THE SAME HEIGHT IN EVERY CELL, but DO NOT DRAW THE FLOOR: no ground',
+    'line, no baseline stroke, no shadow and no ellipse under him. He floats on nothing.',
+    'DO NOT DRAW the grid: no cell borders, no dividing lines, no boxes.',
+    'HE NEVER PUTS THE CLOAK ON. He only picks it up and looks at it. His own weapon stays where',
+    'it is on his back or hip the whole time — he never drops or throws it.',
+    'No text, no background.',
+  ].join(' '),
+  look: 'Flat 2D game sprite art, side view, bold clean dark outlines, flat cel shading with two '
+      + 'tone shadows, saturated colours, dark fantasy but friendly, mobile game art.',
+  who: 'a knight in steel-grey armour with navy-blue cloth, picking a red cloak up off the ground.',
+  cycle: 'The eight frames are ONE continuous action, read left to right, top to bottom. '
+       + 'The red cloak lies in a heap on the ground in front of him throughout:\n'
+       + 'frame 1: standing upright, exactly as in the attached knight picture.\n'
+       + 'frame 2: he turns his head down toward the cloak.\n'
+       + 'frame 3: his knees begin to bend.\n'
+       + 'frame 4: he drops onto one knee.\n'
+       + 'frame 5: he reaches a hand out toward the cloth.\n'
+       + 'frame 6: HE TAKES HOLD OF IT — a held beat, his hand closed on the cloth, still kneeling.\n'
+       + 'frame 7: he rises, lifting the cloak up with him.\n'
+       + 'frame 8: standing again, holding the cloak in both hands and looking at it. '
+       + 'It stays in his hands — it is NOT worn, NOT draped over his shoulders, NOT on his body.',
+};
+
+Object.assign(CRITTERS, CRITTERS_CLOAK);
+
 function sizeOf(key) { return HEROES[key] || CRITTERS[key]; }
 
 const CRITTER_REF = [
@@ -333,10 +470,10 @@ function critterPrompt(key) {
   return [
     `A sprite sheet of ${COLS * ROWS} animation frames of the SAME creature: ${c.who}`,
     c.cycle,
-    'CRITICAL: it is the exact same creature in all eight frames — identical fur, identical '
-      + 'colours, identical proportions, identical size, standing on the same ground line. '
-      + 'Only the pose changes. It faces RIGHT in every single frame.',
-    GRID, STYLE, BG,
+    c.same || ('CRITICAL: it is the exact same creature in all eight frames — identical fur, '
+      + 'identical colours, identical proportions, identical size, standing on the same ground '
+      + 'line. Only the pose changes. It faces RIGHT in every single frame.'),
+    GRID, c.look || STYLE, BG,
     'FINAL REMINDER: the entire background, in every cell and between all cells, is flat pure '
       + 'magenta #FF00FF. Not white. Not grey. Not a card or a panel. Magenta.',
   ].join('\n\n');
@@ -471,13 +608,16 @@ async function generate(job, weapon) {
   // (assets/ally-bear.png)과 다른 곰이 걸어 다니면 안 됩니다.
   if (CRITTERS[job]) {
     const c = CRITTERS[job];
-    const f = path.join(ROOT, 'assets', c.ref);
-    const parts = [];
-    if (fs.existsSync(f)) {
-      parts.push({ inlineData: { mimeType: 'image/png', data: fs.readFileSync(f).toString('base64') } });
-    }
-    parts.push({ text: (fs.existsSync(f) ? CRITTER_REF + '\n\n' : '') + promptFor(job, null) });
-    return callImage(parts, '21:9');
+    // 참조가 여럿일 수 있습니다 — 겉옷 시트는 「선 사람」과 「천 더미」를
+    // 둘 다 물려야 첫 컷과 끝 컷이 이미 있는 그림에 붙습니다.
+    const files = (c.refs || (c.ref ? [c.ref] : []))
+      .map((n) => path.join(ROOT, 'assets', n))
+      .filter((f) => fs.existsSync(f));
+    const parts = files.map((f) => (
+      { inlineData: { mimeType: 'image/png', data: fs.readFileSync(f).toString('base64') } }));
+    parts.push({ text: (files.length ? (c.refRule || CRITTER_REF) + '\n\n' : '')
+      + promptFor(job, null) });
+    return callImage(parts, c.aspect || '21:9');
   }
   // 첫 자리는 하나뿐입니다 — 0단계에는 비례 견본이, 그 위 단계에는 인물 기준이
   // 옵니다. 둘이 같이 붙는 일은 없습니다.
@@ -791,7 +931,7 @@ function planFor(args) {
     if (!plan.length) { console.error('그런 것이 없습니다'); process.exit(1); }
     plan.forEach(({ job, w }, i) => {
       if (i) console.log('\n' + '─'.repeat(70) + '\n');
-      const refs = CRITTERS[job] ? [`판 위의 그림 ${CRITTERS[job].ref}`] : [
+      const refs = CRITTERS[job] ? (CRITTERS[job].refs || [CRITTERS[job].ref]) : [
         baseFor(job, w) && '그 직업 0단계 시트',
         !baseFor(job, w) && anchorFor(job, w) && '전사 0단계 시트(비례)',
         !baseFor(job, w) && portraitFor(job, w) && `초상화 player-${job}.png`,
