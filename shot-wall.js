@@ -84,6 +84,30 @@ const server = http.createServer((req, res) => {
   await 밀기(400);
   await page.screenshot({ path: path.join(ROOT, 'shots/wall-now-up.png') });
 
+  // ── 오를수록 밝아지는가 (500층마다 한 칸) ────────────
+  // 한 화면에 층대를 넷 붙여 놓고 봅니다. 따로따로 보면 밝아졌는지 아닌지를
+  // 사람 눈으로는 못 가립니다 — 나란히 놔야 보입니다.
+  for (const 층 of [0, 1000, 2000, 3500]) {
+    await page.evaluate((n) => {
+      const s = window.__scene;
+      s.scene.resume();
+      s.floors.forEach((f) => f.views.forEach((v) => v.destroy()));
+      s.floors.clear();
+      s.floorIndex = n; s.lane = 'mid';
+      for (let i = n; i <= n + 6; i++) s.addFloor(i);
+      const slot = s.floors.get(n).slots.mid || s.floors.get(n).slots.left;
+      s.player.setPosition(slot.x, slot.y - 34);
+      s.baseScroll = s.player.y - 960 * 0.68;
+      s.cameras.main.setScroll(0, s.baseScroll);
+      s.wallStep = undefined;              // 칸을 새로 잡습니다 (트윈 없이)
+      lightTowerWall(s, n);
+      s.scene.pause();
+    }, 층);
+    await 밀기(0);
+    await page.screenshot({ path: path.join(ROOT, `shots/wall-lit-${층}.png`),
+      clip: { x: 20, y: 120, width: 500, height: 500 } });
+  }
+
   // ── 탑의 바닥 (0층) ──────────────────────────────────
   // 0층은 발판 셋이 아니라 바닥 한 장입니다. 윗면이 발판 윗면과 같은 높이에
   // 오는지, 아래가 화면 끝까지 덮이는지를 여기서 봅니다.

@@ -48,6 +48,64 @@ function buildTowerWall(scene) {
     scene.add.image(CFG.width / 2, CFG.height / 2, 'wall-shade')
       .setScrollFactor(0).setDepth(-5);
   }
+  scene.wallStep = undefined;
+  scene.wallLit = undefined;
+}
+
+// ── 오를수록 밝아집니다 ─────────────────────────────────
+//
+// 500층마다 한 칸씩. 바닥이 가장 어둡고, 오를수록 조금씩 걷힙니다.
+//
+// **위로는 지금 그림보다 밝아지지 않습니다.** 천장이 1.00 — 즉 그려 둔
+// 그대로입니다. 아래에서 어둡게 시작해 올라오는 것이지, 위에서 밝아지는
+// 것이 아닙니다. 이 방향이라야 「적과 아이템이 언제나 배경보다 밝다」는
+// 규칙이 안 깨집니다 (art/wall-*.svg 는 이미 그 선에 맞춰 그려져 있고,
+// 어둡게 하는 것은 그 선을 넘지 않습니다).
+//
+// 여덟 칸이면 다 걷힙니다 — 0층이 0.68 이고 한 칸에 0.04 이므로 **4000층**
+// 에서 1.00 입니다 (칸은 floor(층/500) 이라 3500층은 아직 일곱 칸입니다).
+const WALL_LIGHT = {
+  every: 500,     // 몇 층마다 한 칸
+  steps: 8,       // 몇 칸까지. 8 × 500 = 4000층에서 다 걷힙니다
+  floor: 0.68,    // 0층의 밝기
+  step: 0.04,     // 한 칸에 얼마씩
+  ms: 1600,       // 칸이 바뀔 때 갈아입는 시간
+};
+
+function wallLightAt(floorIndex) {
+  const 칸 = Math.max(0, Math.min(WALL_LIGHT.steps, Math.floor(floorIndex / WALL_LIGHT.every)));
+  // **1 을 넘기면 안 됩니다.** 넘으면 255 를 지나 값이 되감겨서 벽이 갑자기
+  // 시커메집니다 (0.9 로 잡아 봤더니 250 다음이 14 였습니다). 위 값들이
+  // 딱 1.00 에서 멎지만, 여기를 손대는 날 조용히 그렇게 됩니다.
+  return { 칸, 밝기: Math.min(1, WALL_LIGHT.floor + 칸 * WALL_LIGHT.step) };
+}
+
+// 층이 바뀔 때마다 부릅니다. 칸이 안 바뀌면 아무 일도 안 합니다.
+//
+// **툭 바뀌지 않게 갈아입힙니다.** 500층을 넘는 순간 한 프레임에 밝아지면
+// 그건 분위기가 아니라 고장으로 보입니다. Phaser 의 tint 는 트윈이 안 되므로
+// 값 하나를 트윈하고 그 값으로 매 프레임 칠합니다.
+function lightTowerWall(scene, floorIndex) {
+  if (!scene.wallLayers || !scene.wallLayers.length) return;
+  const { 칸, 밝기 } = wallLightAt(floorIndex);
+  if (칸 === scene.wallStep) return;
+  const 처음 = scene.wallStep === undefined;
+  scene.wallStep = 칸;
+
+  const 칠하기 = (v) => {
+    const c = Math.round(255 * v);
+    const tint = (c << 16) | (c << 8) | c;
+    scene.wallLayers.forEach(({ o }) => o.setTint(tint));
+  };
+  if (처음) return 칠하기(밝기);
+
+  if (scene.wallFade) scene.wallFade.remove();
+  const 값 = { v: scene.wallLit === undefined ? 밝기 : scene.wallLit };
+  scene.wallFade = scene.tweens.add({
+    targets: 값, v: 밝기, duration: WALL_LIGHT.ms, ease: 'Sine.easeInOut',
+    onUpdate: () => { scene.wallLit = 값.v; 칠하기(값.v); },
+  });
+  scene.wallLit = 밝기;
 }
 
 // 카메라가 움직인 만큼 겹마다 다른 배수로 밉니다. 매 프레임 부릅니다.

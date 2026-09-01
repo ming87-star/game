@@ -125,6 +125,7 @@ class EndingWatchScene extends Phaser.Scene {
     buildTextures(this);
     const c = CFG.ending;
     buildTowerWall(this);
+    lightTowerWall(this, 33);   // 33층의 밝기 — 판에서 그 층에 섰을 때와 같게
 
     // 층 자리. **진짜 층 간격**을 그대로 씁니다 — 여기서만 좁히면 오르는
     // 걸음이 판과 다른 박자가 됩니다.
@@ -361,6 +362,7 @@ class EndingWatchScene extends Phaser.Scene {
   groundBelow() {
     this.children.list.slice().forEach((o) => o.destroy());
     buildTowerWall(this);
+    lightTowerWall(this, 0);    // 여기는 탑의 바닥입니다. 가장 어둡습니다
     const cx = CFG.laneX.mid;
     // **발판이 아니라 탑의 바닥입니다.** 떨어진 옷이 발판 위에 얹히면
     // 「누가 놓고 갔다」가 되고, 바닥에 놓여야 「떨어졌다」가 됩니다.
@@ -427,10 +429,15 @@ class CreditsScene extends Phaser.Scene {
     super('credits');
   }
 
-  create() {
+  create(data) {
     const cx = CFG.width / 2;
     this.cameras.main.setBackgroundColor('#05070d');
     const font = (size, color) => ({ fontFamily: 'sans-serif', fontSize: size + 'px', color });
+
+    // 엔딩을 마친 **그 자리**에서 온 것이 아니라, 뒤에 다시 켜서 온 것이면
+    // 이름이 떠오르는 것을 기다리게 하지 않습니다. 처음 한 번은 크레딧이지만
+    // 그 뒤로는 **「처음부터 다시 하기」 한 단추짜리 화면**입니다.
+    this.straight = !!(data && data.straight);
 
     // **여기를 안 지우면 기록이 한 번에 날아갑니다.** Phaser 는 장면 객체를
     // 다시 쓰므로, 크레딧을 나갔다 돌아오면 asking 이 참인 채로 남습니다 —
@@ -442,7 +449,8 @@ class CreditsScene extends Phaser.Scene {
 
     this.name = this.add.text(cx, CFG.height / 2 - 20, 'Project JHS',
       font(30, '#e8eaf6')).setOrigin(0.5).setAlpha(0);
-    this.tweens.add({ targets: this.name, alpha: 1, duration: 2200, delay: 900,
+    this.tweens.add({ targets: this.name, alpha: 1,
+      duration: this.straight ? 300 : 2200, delay: this.straight ? 0 : 900,
       onComplete: () => this.offerRestart() });
 
     window.__credits = this;
@@ -458,7 +466,8 @@ class CreditsScene extends Phaser.Scene {
     const label = this.add.text(cx, CFG.height - 190, '처음부터 다시 하기',
       font(21, '#8794b5')).setOrigin(0.5).setAlpha(0);
     this.restartAt = { x: cx, y: CFG.height - 190 };
-    this.tweens.add({ targets: [box, label], alpha: 1, duration: 900, delay: 1400 });
+    this.tweens.add({ targets: [box, label], alpha: 1,
+      duration: this.straight ? 250 : 900, delay: this.straight ? 0 : 1400 });
 
     // 한 번 더 묻습니다. 여기를 잘못 누르면 **여태 쌓은 것이 전부**
     // 사라집니다 — 되돌릴 길이 없는 자리에는 문이 둘이라야 합니다.

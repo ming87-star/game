@@ -313,6 +313,29 @@ const check = (ok, label, got) => {
   check(scenery.겹 === 'wall-far:220 wall-mid:400 wall-near:580',
     '탑 안쪽 벽 세 겹이 저마다 다른 속도로 흐름', scenery.겹);
   check(scenery.그늘, '벽 그늘이 화면에 붙어 안 흐름');
+
+  // ── 오를수록 밝아지는가 (500층마다 한 칸) ──────────────
+  //
+  // **천장이 지금 그림 그대로(0xffffff)여야 합니다.** 그보다 밝히면 적과
+  // 아이템이 배경에 묻힙니다 — art/wall-*.svg 가 이미 그 선에 맞춰 그려져
+  // 있어서, 여기서 더 올리면 그 선을 넘습니다. 아래에서 어둡게 시작해
+  // 올라오는 것이지 위에서 밝아지는 것이 아닙니다.
+  const 밝기 = await page.evaluate(() => {
+    const s = window.__scene;
+    const 재기 = (n) => {
+      s.wallStep = undefined;               // 칸을 새로 잡습니다 (트윈 없이)
+      lightTowerWall(s, n);
+      return s.wallLayers[0].o.tintTopLeft & 0xff;
+    };
+    const 값 = [0, 500, 1000, 2000, 4000, 9000].map(재기);
+    s.wallStep = undefined; lightTowerWall(s, s.floorIndex);
+    return 값;
+  });
+  const 오름 = 밝기.every((v, i) => i === 0 || v >= 밝기[i - 1]);
+  check(오름 && 밝기[0] < 밝기[4], '오를수록 벽이 밝아짐', 밝기.join(' → '));
+  check(밝기[4] === 255 && 밝기[5] === 255,
+    '4000층에서 지금 그림 그대로가 되고, 그보다 밝아지지는 않음',
+    밝기[4] + ' / ' + 밝기[5]);
   check(scenery.deck === 'plat', '발판이 그림으로 깔림', scenery.deck);
 
   // ── 탑의 바닥 (0층) ────────────────────────────────────

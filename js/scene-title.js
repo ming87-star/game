@@ -44,6 +44,19 @@ class TitleScene extends Phaser.Scene {
   }
 
   create() {
+    // ── 엔딩을 본 뒤에는 이 화면이 아예 안 섭니다 ────────
+    //
+    // **남는 것은 「처음부터 다시 하기」 하나뿐입니다** (STORY.md 6절).
+    // 「한 판 더」가 되면 방금 본 것이 그냥 해금 보상이 됩니다.
+    //
+    // 한동안은 타이틀이 한 번 서고, 누르면 크레딧으로 넘겼습니다. 그러면
+    // 켤 때마다 **「터치해서 계속하기」가 먼저 보입니다** — 계속할 것이
+    // 없는데 계속하라고 적혀 있는 화면입니다. 그 한 걸음을 없앱니다.
+    //
+    // 타이틀이 매번 서야 한다는 규칙(맨 위 주석)은 그대로입니다. 여기는
+    // 게임이 끝난 자리라 그 규칙이 미치지 않습니다.
+    if (Save.endingStage >= 2) return this.scene.start('credits', { straight: true });
+
     const cx = CFG.width / 2;
     this.cameras.main.setBackgroundColor('#0a0d18');
 
@@ -172,10 +185,9 @@ class TitleScene extends Phaser.Scene {
   // 이 갈림이 여기 있는 것이 맞습니다 — 프롤로그가 스스로 "나는 안 나온다"를
   // 판단해서 곧장 넘기면, 그 한 프레임 동안 빈 프롤로그 화면이 깜빡입니다.
   go() {
-    // **엔딩을 본 뒤에는 다시 못 합니다** (STORY.md 6절). 「한 판 더」가
-    // 되면 방금 본 것이 그냥 해금 보상이 됩니다. 크레딧으로 돌려보내면
-    // 거기에 「처음부터 다시 하기」가 있습니다 — 닫되 가두지는 않습니다.
-    if (Save.endingStage >= 2) return this.scene.start('credits');
+    // 엔딩을 본 사람은 아예 여기 안 섭니다 (create 가 곧장 넘깁니다).
+    // 그래도 이 줄을 남겨 둡니다 — 어떤 길로 들어와도 닫혀 있어야 합니다.
+    if (Save.endingStage >= 2) return this.scene.start('credits', { straight: true });
     // **못 본 사람은 다시 봅니다.** 시퀀스가 열린 뒤 보는 장면 도중에 창을
     // 닫으면, 이 줄이 없을 때 곧장 직업 고르기로 갔습니다 — 여는 말도
     // 33층도 안 보고 겉옷만 짚고 끝났습니다 (js/save.js 의 sawEnding).

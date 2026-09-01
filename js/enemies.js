@@ -84,6 +84,14 @@ function enemyHpScale() {
   return 1;
 }
 
+// 일부러 세우는 천장 (CFG.ceiling). 2000층부터 50층마다 세 배씩.
+// 까닭과 어디에 서는지는 js/config.js 의 ceiling 에 적어 두었습니다.
+function ceilingScale(floor) {
+  const c = CFG.ceiling;
+  if (!c || floor < c.from) return 1;
+  return Math.pow(c.mult, Math.floor((floor - c.from) / c.every));
+}
+
 function spawnEnemy(scene, x, y, floor, typeKey) {
   if (scene.enemies.countActive(true) >= CFG.maxEnemies) return null;
 
@@ -105,8 +113,9 @@ function spawnEnemy(scene, x, y, floor, typeKey) {
   // 마릿수를 줄인 만큼 한 마리가 커집니다 (위 enemyCrowdScale).
   const crowd = enemyCrowdScale(floor);
   e.crowdScale = crowd;
+  const 천장 = ceilingScale(floor);
   e.maxHp = Math.round((CFG.enemy.baseHp + floor * CFG.enemy.hpPerFloor)
-    * enemyHpScale(floor) * crowd * def.hp);
+    * enemyHpScale(floor) * crowd * def.hp * 천장);
   e.hp = e.maxHp;
   e.speed = Math.min(
     CFG.enemy.maxSpeed,
@@ -116,7 +125,9 @@ function spawnEnemy(scene, x, y, floor, typeKey) {
   // 공격력과 코인도 같은 배수를 탑니다. 셋이 함께 커져야 한 발판의 총량이
   // 그대로 남습니다 — 하나만 키우면 「덜 아픈데 안 죽는」 놈이 되거나
   // 「가난해진」 발판이 됩니다.
-  e.contactDamage = Math.round(def.dmg * (1 + floor * CFG.enemy.dmgPerFloor) * crowd);
+  e.contactDamage = Math.round(def.dmg * (1 + floor * CFG.enemy.dmgPerFloor) * crowd * 천장);
+  // **코인만은 천장을 안 탑니다.** 벽이 탑에서 가장 좋은 벌이터가 되면
+  // 끝내려고 세운 자리가 눌러앉는 자리가 됩니다.
   e.coin = Math.round(def.coin * crowd);
 
   // ── 판을 바꾸는 넷은 자가 다릅니다 ──────────────────
@@ -126,12 +137,17 @@ function spawnEnemy(scene, x, y, floor, typeKey) {
   const fierce = !!(F && floor >= F.from && isFoeType(def));
   if (isFoeType(def)) {
     const hits = (CFG.foes.hits && CFG.foes.hits[def.key]) || 4;
-    e.maxHp = Math.max(1, Math.round(swingDamage(scene) * (hits + (fierce ? F.hits : 0))));
+    // 넷의 체력은 절대값이 아니라 **내 칼로 몇 대**입니다. 천장은 그 대수를
+    // 그대로 곱합니다 — 2000층 위는 전부 이 넷이므로 여기가 천장의 본체입니다.
+    e.hits = Math.round((hits + (fierce ? F.hits : 0)) * 천장);   // 안내 창이 이 값을 적습니다
+    e.maxHp = Math.max(1, Math.round(swingDamage(scene) * e.hits));
     e.hp = e.maxHp;
-    e.hits = hits + (fierce ? F.hits : 0);   // 안내 창이 이 값을 그대로 적습니다
     const pct = (CFG.foes.dmgPct && CFG.foes.dmgPct[def.key]) || 0.1;
     e.dmgPct = pct * (fierce ? F.dmg : 1);
-    e.contactDamage = Math.max(1, Math.round(scene.maxHp * e.dmgPct));
+    // 한 번 닿으면 죽는 것까지는 갑니다. 그 위로는 뜻이 없으므로 거기서 멎습니다 —
+    // 「죽는다」와 「아주 많이 죽는다」는 화면에서 같은 일입니다.
+    e.contactDamage = Math.min(scene.maxHp,
+      Math.max(1, Math.round(scene.maxHp * e.dmgPct * 천장)));
   }
 
   // ── 두 바퀴째의 넷 ──────────────────────────────────
@@ -596,8 +612,10 @@ function spawnBoss(scene, floor, x, y) {
   e.body.setAllowGravity(false);
   e.body.setSize(e.width * 0.8, e.height * 0.8);
 
+  // 보스도 같이 탑니다. 안 그러면 2200층에서 **보스가 잡졸보다 쉬워집니다** —
+  // 천장 앞에서 가장 만만한 것이 보스인 것은 앞뒤가 안 맞습니다.
   e.maxHp = Math.round(CFG.enemy.baseHp * enemyHpScale(floor)
-    * (kind.hp || CFG.boss.hpMult) * bossHpMult(floor));
+    * (kind.hp || CFG.boss.hpMult) * bossHpMult(floor) * ceilingScale(floor));
   e.hp = e.maxHp;
   e.floor = floor;
   e.contactDamage = 0; // 위 주석 참고

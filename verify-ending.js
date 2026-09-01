@@ -188,15 +188,30 @@ const server = http.createServer((req, res) => {
   check(크레딧.글 === 'Project JHS | 처음부터 다시 하기',
     '크레딧에는 개발자명 한 줄과 다시 하기뿐', 크레딧.글);
 
-  // ── 엔딩 뒤에는 다시 못 합니다 ──────────────────────────
-  const 되돌림 = await page.evaluate(async () => {
-    window.__credits.scene.start('title');
-    await new Promise((r) => setTimeout(r, 900));
-    window.__title.go();
-    await new Promise((r) => setTimeout(r, 700));
-    return window.__game.scene.getScenes(true).map((x) => x.scene.key).join(',');
-  });
-  check(되돌림 === 'credits', '타이틀에서 시작해도 크레딧으로 돌려보냄', 되돌림);
+  // ── 엔딩 뒤에는 「처음부터 다시 하기」 하나뿐입니다 ─────
+  //
+  // 한동안은 타이틀이 한 번 서고 누르면 크레딧으로 넘어갔습니다. 그러면
+  // 켤 때마다 **「터치해서 계속하기」가 먼저 보입니다** — 계속할 것이 없는데
+  // 계속하라고 적힌 화면입니다. 그 한 걸음을 없앴으므로, **누르지 않고**
+  // 크레딧에 닿는지를 봅니다.
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1500);
+  const 다시켬 = await page.evaluate(() => ({
+    장면: window.__game.scene.getScenes(true).map((x) => x.scene.key).join(','),
+    단계: window.__save.endingStage,
+  }));
+  check(다시켬.장면 === 'credits' && 다시켬.단계 === 2,
+    '엔딩 뒤에 다시 켜면 아무것도 안 눌러도 크레딧', 다시켬.장면);
+
+  // 그 단추는 **기다리지 않고** 떠 있어야 합니다. 처음 한 번은 크레딧이지만
+  // 그 뒤로는 단추 하나짜리 화면입니다 — 볼 때마다 이름이 떠오르기를
+  // 기다리게 하면 그건 크레딧이 아니라 문턱입니다.
+  await page.waitForFunction(() => window.__credits && window.__credits.shown,
+    null, { timeout: 5000 });
+  const 곧바로 = await page.evaluate(() => window.__credits.children.list
+    .filter((o) => o.type === 'Text').map((o) => o.text).join(' | '));
+  check(곧바로 === 'Project JHS | 처음부터 다시 하기',
+    '단추가 기다림 없이 떠 있음', 곧바로);
 
   // 「처음부터 다시 하기」는 이름이 다 뜬 **뒤에야** 나옵니다. 여기서
   // 안 기다리면 아직 없는 단추를 누르게 됩니다.

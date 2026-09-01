@@ -335,6 +335,9 @@ class GameScene extends Phaser.Scene {
   // 벽은 판과 엔딩이 같은 것을 씁니다 (js/wall.js).
   drawBackground() {
     buildTowerWall(this);
+    // 첫 프레임부터 제 밝기라야 합니다. 이어서 진행하면 500층에서 시작할
+    // 수도 있는데, update 를 기다리면 한 프레임이 바닥 밝기로 깜빡입니다.
+    lightTowerWall(this, this.floorIndex);
   }
 
   // ── 층 만들기 / 지우기 ────────────────────────────────
@@ -4300,6 +4303,8 @@ class GameScene extends Phaser.Scene {
     cam.scrollY += (want - cam.scrollY) * Math.min(1, delta / 130);
     // 벽은 화면에 붙어 있고 무늬만 흘러갑니다. 세 겹이 저마다 다른 속도로.
     scrollTowerWall(this, cam.scrollY);
+    // 오를수록 벽이 조금씩 밝아집니다. 칸(500층)이 안 바뀌면 그냥 돌아옵니다.
+    lightTowerWall(this, this.floorIndex);
 
     this.updatePickups(delta);
     this.hud.update();

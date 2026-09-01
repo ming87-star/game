@@ -302,11 +302,16 @@ const check = (ok, label, got) => {
       const t0 = Date.now();
       const wait = setInterval(() => {
         const over = e.slamPhase === 'done';
-        if (!over && Date.now() - t0 < 20000) return;
+        // **다 내려오기 전에 읽으면 안 됩니다.** 20초였는데, 헤드리스가
+        // 14fps 쯤이라 이따금 그 안에 못 끝냈습니다. 그러면 날아가는 중인
+        // 값을 최종 값인 양 읽어서 「덜 끝났다」가 「동작이 틀렸다」로
+        // 둔갑합니다 — 네 번에 한 번쯤 애먼 두 줄이 빨갛게 떴습니다.
+        // 넉넉히 기다리되, 그래도 못 끝내면 **못 끝냈다고 적습니다.**
+        if (!over && Date.now() - t0 < 45000) return;
         clearInterval(wait);
         s.slamThrough = orig;
         s.player.body.setAllowGravity(true);
-        done({ phase: e.slamPhase, hit: hits, want: CFG.foes.slam.floors,
+        done({ phase: e.slamPhase, 늦음: !over, hit: hits, want: CFG.foes.slam.floors,
           move: e.def.move, ground: !!e.def.ground, alive: !!e.active,
           fell: Math.round(e.y - (y0 - CFG.floorHeight * CFG.foes.slam.above)),
           gravity: !!(e.body && e.body.allowGravity) });
@@ -314,12 +319,13 @@ const check = (ok, label, got) => {
     });
   });
   await unlone();
-  check(land.phase === 'done', '세 층을 다 뚫고 내려옴', land.phase);
+  const 늦었나 = land.늦음 ? ' (45초가 지나도 안 끝남 — 아래 둘은 그 탓입니다)' : '';
+  check(land.phase === 'done', '세 층을 다 뚫고 내려옴', land.phase + 늦었나);
   check(land.hit === land.want, '뚫은 층 수가 정해진 만큼', land.hit + '층 / ' + land.want + '층');
   check(land.alive && land.move === 'chase' && land.ground,
     '내려앉은 뒤에는 **평범한 적으로 남음** (피한 것이 앞길에 서 있게)',
-    land.move + ' · 땅 ' + land.ground);
-  check(land.gravity, '남은 뒤에는 중력을 다시 받음');
+    land.move + ' · 땅 ' + land.ground + 늦었나);
+  check(land.gravity, '남은 뒤에는 중력을 다시 받음', 늦었나 || undefined);
 
   await page.waitForFunction(() => !window.__scene.jumping, null, { timeout: 5000 });
 
@@ -700,6 +706,39 @@ const check = (ok, label, got) => {
     '가장 많이 드는 직업이 ' + 대수.가장많이 + '대');
   check(대수.평균 >= 6 && 대수.평균 <= 12, '한가운데 자루로 열 대 안팎',
     '여덟 직업 평균 ' + 대수.평균 + '대 (체력 ' + 대수.hp + ')');
+
+  // ── 일부러 세우는 천장 (CFG.ceiling) ───────────────────
+  //
+  // 2000층부터 50층마다 세 배씩. **끝을 두려고** 넣은 것입니다.
+  //
+  // 여기서 재는 것은 배수가 아니라 **그 배수가 화면에서 무엇이 되는가**
+  // 입니다 — 몇 대를 때려야 하고, 몇 번 닿으면 죽는지. 배수만 보면 맞는데
+  // 판에서는 아무 일도 안 일어나는 일이 실제로 있었습니다(넷의 체력은
+  // 절대값이 아니라 「내 칼로 몇 대」라서 다른 자리에서 곱해집니다).
+  const 천장 = await page.evaluate(() => {
+    const s = window.__scene;
+    const 재기 = (n) => {
+      const e = spawnEnemy(s, 270, 400, n, 'shover');
+      if (!e) return null;
+      const r = { 대수: e.hits, 닿으면: Math.ceil(s.maxHp / e.contactDamage), 코인: e.coin };
+      e.destroy();
+      return r;
+    };
+    return { 앞: 재기(1900), 시작: 재기(2000), 한칸: 재기(2050), 두칸: 재기(2100) };
+  });
+  check(천장.앞.대수 === 천장.시작.대수,
+    '2000층까지는 아무것도 안 바뀜', `1900층 ${천장.앞.대수}대 · 2000층 ${천장.시작.대수}대`);
+  check(천장.한칸.대수 === 천장.시작.대수 * 3 && 천장.두칸.대수 === 천장.시작.대수 * 9,
+    '2000층 위로 50층마다 세 배씩 두꺼워짐',
+    `${천장.시작.대수} → ${천장.한칸.대수} → ${천장.두칸.대수}대`);
+  check(천장.두칸.닿으면 === 1 && 천장.시작.닿으면 > 1,
+    '벽이 실제로 섬 — 2100층에서는 한 번만 닿아도 죽음',
+    `2000층 ${천장.시작.닿으면}번 → 2100층 ${천장.두칸.닿으면}번`);
+  // **코인은 안 탑니다.** 같이 커지면 벽이 탑에서 가장 좋은 벌이터가 되어,
+  // 끝내려고 세운 자리가 눌러앉는 자리가 됩니다.
+  check(천장.두칸.코인 === 천장.시작.코인,
+    '코인은 천장을 안 탐 (벽이 벌이터가 되면 안 됩니다)',
+    `${천장.시작.코인} → ${천장.두칸.코인}`);
 
   console.log(bad ? `\n${bad}건 어긋남` : '\n판을 바꾸는 넷과 황금개구리 모두 맞음');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
