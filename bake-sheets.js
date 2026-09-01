@@ -127,11 +127,22 @@ async function measureAndPack(page, dir, files) {
       const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob);
     });
 
+    // **0번 칸에 든 그림의 세로 길이.**
+    //
+    // hero(머리끝~발)와 다릅니다. 머리끝은 「발 위 기둥 안에서 굵은 줄」로
+    // 찾는데, 후드를 쓴 사람이나 누운 컷에서는 그 줄이 한참 아래에서
+    // 잡힙니다 — 붉은 겉옷 시트에서 hero 는 93.5 인데 그림이 실제로 든
+    // 길이는 142 였습니다. 그 값으로 배율을 내면 그림이 1.5배로 섭니다.
+    //
+    // 시트와 **그림 한 장을 번갈아 쓰는 자리**(엔딩의 겉옷)에서는 이 값으로
+    // 맞춰야 크기가 안 튑니다.
+    const 첫칸 = per[0] || live[0];
     return { url, bytes: blob.size, n: imgs.length, fw, fh,
       // 잘라 낸 뒤의 자리로 옮기고, 구운 배율을 먹입니다
       foot: +((footX - L) * a.scale).toFixed(1),
       ground: +((ground - T) * a.scale).toFixed(1),
-      hero: +((ground - head) * a.scale).toFixed(1) };
+      hero: +((ground - head) * a.scale).toFixed(1),
+      tall: +((첫칸.b - 첫칸.t + 1) * a.scale).toFixed(1) };
   }, { urls, scale: SCALE, quality: QUALITY, headInk: HEAD_INK, footInk: FOOT_INK });
 }
 
@@ -161,7 +172,7 @@ async function measureAndPack(page, dir, files) {
     // 무기 아이콘이 아예 안 만들어지고 발판 위 UP 칸과 HUD 에 **주인공이 통째로
     // 30×30 으로 찌그러져** 나옵니다. 실제로 그랬습니다.
     out['sheet-' + key] = { url: r.url, n: r.n, fw: r.fw, fh: r.fh,
-      foot: r.foot, ground: r.ground, hero: r.hero };
+      foot: r.foot, ground: r.ground, hero: r.hero, tall: r.tall };
     total += r.bytes;
     console.log(`${key.padEnd(13)} ${r.n}컷 ${r.fw}×${r.fh}  키 ${r.hero}  발 ${r.foot},${r.ground}`
       + `  ${(r.bytes / 1024).toFixed(0)}KB`);
@@ -173,7 +184,8 @@ async function measureAndPack(page, dir, files) {
     '// bake-sheets.js 가 만든 파일입니다. 손으로 고치지 마세요.',
     '// assets/sheets/<무기>/0..7.png → 무기마다 가로로 이어 붙인 띠 한 장(webp).',
     '// 키는 sheet- 로 시작합니다 — 무기 아이콘(w-warrior-0)과 이름이 겹치면 안 됩니다.',
-    '// n=컷수, fw·fh=칸 크기, foot·ground=발이 딛는 자리, hero=머리끝에서 발까지.',
+    '// n=컷수, fw·fh=칸 크기, foot·ground=발이 딛는 자리, hero=머리끝에서 발까지,',
+    '// tall=0번 칸에 든 그림의 세로 길이 (hero 와 다릅니다 — bake-sheets.js 참고).',
     'const SHEET_ART = {',
     ...body,
     '};',

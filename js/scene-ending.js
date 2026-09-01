@@ -268,17 +268,23 @@ class EndingWatchScene extends Phaser.Scene {
     });
   }
 
-  // 무너짐과 일어남을 **한 배율**로 세웁니다.
+  // 무너짐과 일어남을 **한 배율**로, 그리고 **그림 한 장과 같은 키**로.
   //
-  // 시트마다 잰 hero 를 그대로 쓰면 안 됩니다. bake-sheets 는 여덟 컷의
-  // 가운뎃값으로 키를 재는데, 일어나는 시트는 절반이 누워 있는 컷이라
-  // 62.9 가 나오고 무너지는 시트는 93.5 가 나옵니다. 각자 제 값으로
-  // 나누면 무너진 사람과 일어나는 사람의 **키가 달라집니다.**
-  // 선 컷이 여럿인 cloak-fall 의 값 하나로 둘 다 세웁니다.
+  // 두 가지를 다 틀렸었습니다.
+  //
+  //  ① 시트마다 잰 hero 를 각자 쓰면 안 됩니다. 일어나는 시트는 절반이
+  //     누운 컷이라 62.9 가 나오고 무너지는 시트는 93.5 가 나옵니다.
+  //     선 컷이 여럿인 cloak-fall 의 값 하나로 둘 다 세웁니다.
+  //  ② 그 hero(93.5)로 나눴더니 **컷이 그림 한 장보다 커졌습니다.**
+  //     재 보니 화면에서 선 컷은 70px, 그림 한 장(cloak-red)은 46px —
+  //     컷으로 들어갈 때 커졌다가 나올 때 28% 줄었습니다.
+  //     hero 는 「발 위 기둥에서 굵은 줄」로 머리끝을 찾는데, 후드를 쓴
+  //     사람에게는 그 줄이 한참 아래에서 잡힙니다. 그림이 실제로 든 길이는
+  //     tall(141.1)입니다. 이 값으로 나눠야 46px 로 섭니다.
   cutScale() {
     const f = typeof SHEET_ART !== 'undefined' && SHEET_ART['sheet-cloak-fall'];
     const 선키 = hasArt('cloak-red') ? artSize('cloak-red').h : 46;
-    return f && f.hero ? 선키 / f.hero : 1;
+    return f && f.tall ? 선키 / f.tall : 1;
   }
 
   // 시트 한 벌을 처음부터 끝까지 밟습니다. 시트가 없으면 false 를 주고,
@@ -503,26 +509,30 @@ class EndingWatchScene extends Phaser.Scene {
     // 해 온 바로 그것입니다. 탑과 사람 사이를 크게 벌립니다. 닿은 것이
     // 아니라 **떠난 것**입니다.
     //
-    // 크기는 1.5배에서 2.8배로 올렸습니다. 하늘 한 장에 사람 하나뿐인
-    // 화면에서 55px 짜리 사람은 티끌입니다.
+    // 1.5배 → 2.8배 → **1.7배**. 하늘 한 장에 사람 하나뿐이라 티끌이면
+    // 안 되지만, 2.8배는 이번엔 너무 컸습니다 — 저 위에 아득히 떠 있는
+    // 것이 아니라 화면에 붙어 선 사람이 됐습니다.
     // 세우는 높이는 **구름 꼭대기를 재서** 잡았습니다. 그림의 구름선은
     // 옆기둥에서 592~616 입니다. 430 위에 두면 발치가 594 — 구름 꼭대기에
     // 딱 걸려서 **구름을 밟고 선 사람**이 됩니다. 밟을 것이 없어야 하므로
     // 발밑에 하늘을 아흔 픽셀 비웁니다.
     this.him = this.add.image(cx, CFG.height - 520, 'cloak-white')
-      .setDepth(10).setAlpha(0).setScale(2.8);
+      .setDepth(10).setAlpha(0).setScale(1.7);
     this.tweens.add({ targets: 덮개, alpha: 0, duration: 1200 });
     // **다 뜬 뒤에** 7번으로 칩니다. 뜨기 시작할 때 세어 버리면 시험이
     // 아직 안 보이는 화면을 찍고 「탑 밖에 섰다」로 적습니다 — 실제로
     // 그렇게 빈 하늘만 찍혔습니다.
     // 아주 느리게 오르내립니다. 가만히 있으면 붙여 놓은 그림이고,
-    // 이 여섯 픽셀이 「떠 있다」를 만듭니다.
-    this.tweens.add({ targets: this.him, y: this.him.y - 12, duration: 2600,
+    // 이 열몇 픽셀이 「떠 있다」를 만듭니다. 사람이 작아진 만큼 폭은
+    // 그대로 두고 **더 느리게** 돕니다 — 빠르면 뜬 것이 아니라 흔들립니다.
+    this.tweens.add({ targets: this.him, y: this.him.y - 14, duration: 3600,
       ease: 'Sine.easeInOut', yoyo: true, repeat: -1 });
     this.tweens.add({ targets: this.him, alpha: 1, duration: 1200, delay: 300,
       onComplete: () => {
         this.step = 7;
-        this.time.delayedCall(CFG.ending.restMs, () => this.cutToTower());
+        // **여기서 오래 머뭅니다.** 33층을 다 오르고 나온 자리이고, 다음은
+        // 겉옷이 떨어지는 것뿐입니다. 서두를 데가 없습니다.
+        this.time.delayedCall(CFG.ending.skyRestMs, () => this.cutToTower());
       } });
   }
 

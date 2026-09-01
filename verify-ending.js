@@ -105,6 +105,11 @@ const server = http.createServer((req, res) => {
         const k = v.texture.key;
         (칸[k] = 칸[k] || {})[v.frame.name] = 1;
         배[k] = Math.round(v.scaleX * 1000) / 1000;
+        // **화면에 선 키**도 같이 잽니다 (아래 「키가 안 튄다」 검사).
+        window.__컷기록.컷키 = Math.max(window.__컷기록.컷키 || 0,
+          Math.round(v.getBounds().height));
+      } else if (s.him && s.him.visible && s.step < 5) {
+        window.__컷기록.그림키 = Math.round(s.him.getBounds().height);
       }
       requestAnimationFrame(tick);
     };
@@ -210,6 +215,8 @@ const server = http.createServer((req, res) => {
     셈: Object.fromEntries(Object.entries(window.__컷기록.칸)
       .map(([k, v]) => [k, Object.keys(v).length])),
     배: window.__컷기록.배,
+    컷키: window.__컷기록.컷키 || 0,
+    그림키: window.__컷기록.그림키 || 0,
   }));
   check((컷.셈['sheet-cloak-fall'] || 0) >= 5,
     '무너지는 것이 여덟 컷으로 돎 (그림 한 장을 기울이는 것이 아니라)',
@@ -220,6 +227,18 @@ const server = http.createServer((req, res) => {
     && 컷.배['sheet-cloak-fall'] === 컷.배['sheet-cloak-rise'],
     '무너진 사람과 일어나는 사람의 키가 같음 (한 배율로 세움)',
     컷.배['sheet-cloak-fall'] + ' · ' + 컷.배['sheet-cloak-rise']);
+
+  // 컷과 **그림 한 장**의 키가 같은가.
+  //
+  // 무너질 때 컷으로 갈아타고 다 일어서면 그림 한 장으로 돌아옵니다.
+  // 둘의 키가 다르면 갈아타는 그 순간 사람이 커졌다 작아집니다 — 재 보니
+  // 컷 70px · 그림 46px 이라 28% 줄었습니다. 시트의 hero 는 후드 쓴 사람의
+  // 머리끝을 한참 아래에서 잡아서, 그 값으로 배율을 내면 이렇게 됩니다.
+  // tall(0번 칸에 든 그림의 세로 길이)로 내야 맞습니다.
+  const 키차 = Math.abs((컷.컷키 || 0) - (컷.그림키 || 0));
+  check(컷.그림키 > 0 && 키차 <= 4,
+    '컷과 그림 한 장이 같은 키로 섬 (갈아탈 때 안 튐)',
+    '컷 ' + 컷.컷키 + 'px · 그림 ' + 컷.그림키 + 'px · 차 ' + 키차);
 
   // ── 끝까지 돌고 타이틀로 ────────────────────────────────
   await page.waitForFunction(() => window.__endingwatch.step >= 9, null, { timeout: 90000 });
