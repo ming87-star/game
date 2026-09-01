@@ -298,22 +298,38 @@ const check = (ok, label, got) => {
     let hits = 0;
     const orig = s.slamThrough.bind(s);
     s.slamThrough = (x) => { hits++; return orig(x); };
+    // **치워지는 자리를 직접 잡습니다.** 150ms 마다 들여다보면 떨어지다
+    // 선을 넘는 순간을 놓칩니다 — 그 한 칸 사이에 2.0층이 3.0층이 되고,
+    // 그러면 「손 닿는 자리인데 사라졌다」는 엉뚱한 말이 나옵니다.
+    let 최저 = e.y;
+    let 죽은자리 = null;
+    const 원래destroy = e.destroy.bind(e);
+    e.destroy = (...a) => { if (죽은자리 === null) 죽은자리 = e.y; return 원래destroy(...a); };
     return new Promise((done) => {
       const t0 = Date.now();
       const wait = setInterval(() => {
+        // 내려앉은 자리를 **끝까지 따라갑니다.** 치워진 뒤에는 e.y 를 못
+        // 읽으므로 살아 있는 동안 가장 낮았던 자리를 들고 있습니다.
+        if (e.active) 최저 = Math.max(최저, e.y);
         const over = e.slamPhase === 'done';
         // **다 내려오기 전에 읽으면 안 됩니다.** 20초였는데, 헤드리스가
         // 14fps 쯤이라 이따금 그 안에 못 끝냈습니다. 그러면 날아가는 중인
         // 값을 최종 값인 양 읽어서 「덜 끝났다」가 「동작이 틀렸다」로
-        // 둔갑합니다 — 네 번에 한 번쯤 애먼 두 줄이 빨갛게 떴습니다.
-        // 넉넉히 기다리되, 그래도 못 끝내면 **못 끝냈다고 적습니다.**
-        if (!over && Date.now() - t0 < 45000) return;
+        // 둔갑합니다. 넉넉히 기다리되, 그래도 못 끝내면 못 끝냈다고 적습니다.
+        // 치워진 뒤에는 더 기다릴 것이 없으므로 거기서도 끊습니다.
+        if (!over && e.active && Date.now() - t0 < 45000) return;
         clearInterval(wait);
         s.slamThrough = orig;
         s.player.body.setAllowGravity(true);
-        done({ phase: e.slamPhase, 늦음: !over, hit: hits, want: CFG.foes.slam.floors,
+        done({ phase: e.slamPhase, 늦음: !over && e.active, hit: hits,
+          want: CFG.foes.slam.floors,
           move: e.def.move, ground: !!e.def.ground, alive: !!e.active,
           fell: Math.round(e.y - (y0 - CFG.floorHeight * CFG.foes.slam.above)),
+          // 주인공보다 몇 층 아래에 앉았는가. 2.5층을 넘으면 화면 아래끝
+          // 밖이고, 땅 적을 치우는 선도 거기입니다 (js/enemies.js).
+          깊이: Math.round(((죽은자리 === null ? 최저 : 죽은자리) - y0)
+            / CFG.floorHeight * 10) / 10,
+          정리선: 2.5,
           gravity: !!(e.body && e.body.allowGravity) });
       }, 150);
     });
@@ -322,10 +338,30 @@ const check = (ok, label, got) => {
   const 늦었나 = land.늦음 ? ' (45초가 지나도 안 끝남 — 아래 둘은 그 탓입니다)' : '';
   check(land.phase === 'done', '세 층을 다 뚫고 내려옴', land.phase + 늦었나);
   check(land.hit === land.want, '뚫은 층 수가 정해진 만큼', land.hit + '층 / ' + land.want + '층');
-  check(land.alive && land.move === 'chase' && land.ground,
-    '내려앉은 뒤에는 **평범한 적으로 남음** (피한 것이 앞길에 서 있게)',
-    land.move + ' · 땅 ' + land.ground + 늦었나);
-  check(land.gravity, '남은 뒤에는 중력을 다시 받음', 늦었나 || undefined);
+  // ── 어디에 내려앉았는지를 먼저 봅니다 ─────────────────
+  //
+  // 내려찍기는 **판마다 두 층쯤 흔들립니다.** 주인공 층(0.0)에 앉기도 하고
+  // 2.5층 아래까지 내려가기도 합니다. 그런데 땅 적은 주인공보다 2.5층 아래면
+  // 치워지고(js/enemies.js), 그 선이 곧 화면 아래끝이기도 합니다.
+  //
+  // 그래서 「내려앉은 뒤에 남는가」를 **자리와 상관없이** 물으면 화면 밖으로
+  // 흘러간 판에서 빨간 줄이 뜹니다. 따로 여섯 번 돌려 보니 세 번 그랬습니다.
+  //
+  // 재 보니 **화면에 보이는 자리에 앉은 판은 멀쩡히 남습니다.** 화면 밖으로
+  // 간 것은 다시 만날 일이 없고(땅 적은 위층을 못 쫓아옵니다) 치워지는 것이
+  // 오히려 맞습니다. 그러니 묻는 것을 **「손 닿는 자리에 앉았으면 남는가」**
+  // 로 좁힙니다. 안 보이는 자리까지 남기라고 하면 그건 판을 잘못 고치게
+  // 만드는 시험입니다 — 실제로 그렇게 고칠 뻔했습니다.
+  check(land.깊이 <= land.want + 0.5,
+    '내려앉은 깊이가 설계 범위 안 (세 층 + 여유)',
+    land.깊이 + '층 아래 · 살아있나 ' + land.alive);
+  const 닿는자리 = land.깊이 < land.정리선;
+  const 멀리 = '화면 밖(' + land.깊이 + '층 아래)이라 안 봅니다';
+  check(!닿는자리 || (land.alive && land.move === 'chase' && land.ground),
+    '손 닿는 자리에 내려앉았으면 **평범한 적으로 남음** (피한 것이 앞길에 서 있게)',
+    닿는자리 ? (land.move + ' · 땅 ' + land.ground + 늦었나) : 멀리);
+  check(!닿는자리 || land.gravity, '남은 뒤에는 중력을 다시 받음',
+    닿는자리 ? (늦었나 || undefined) : 멀리);
 
   await page.waitForFunction(() => !window.__scene.jumping, null, { timeout: 5000 });
 
