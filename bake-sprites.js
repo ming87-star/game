@@ -112,10 +112,25 @@ const TRIM = new Set(['shop-back']);
 //     같은 이름이 되어, 나중에 누가 어느 쪽을 부르는지 헷갈립니다
 //   · 4로 안 나눕니다. 판 위의 적들은 32px 로 서지만 이건 카드에서
 //     140px 로 섭니다 — 4로 나누면 38×48 이 되어 세 배로 늘려 뭉갭니다
+//
+// ── 처음 세 직업의 초상화는 시트에서 가져옵니다 ────────────
+//
+// assets/player-warrior|archer|rogue.png 는 **시트를 그리기 전에** 그려 둔
+// 그림입니다. 그 뒤에 공격 모션을 시트로 갈아엎으면서(f0485dc) 판 위의
+// 세 사람은 다시 그려졌는데, 이 PNG 셋은 그대로 남았습니다. 그래서 배포된
+// 판에서 고르는 화면의 전사와 들어가서 만나는 전사가 **딴 사람**이었습니다.
+//   · 옛 그림: 각진 로봇 같은 몸, 굵은 검은 테두리
+//   · 지금 사람: 시트에서 온 회화풍 기사
+// 뒤에 붙은 다섯(수도승~도굴꾼)은 시트와 같은 세션에서 같이 그려서 안 어긋
+// 납니다 — 그쪽은 곰·유령까지 든 온전한 초상화라 그대로 둡니다.
+//
+// 시트 0번 칸(선 자세)은 초상화와 **판이 정확히 같습니다**(152×192 등).
+// 그래서 파일만 바꿔 끼우면 되고, 새로 그릴 것이 없습니다.
+// 세 사람을 다시 그리게 되면 그때 assets/player-*.png 로 되돌리세요.
 const PORTRAITS = [
-  { key: 'face-warrior', from: 'player-warrior' },
-  { key: 'face-archer', from: 'player-archer' },
-  { key: 'face-rogue', from: 'player-rogue' },
+  { key: 'face-warrior', from: 'sheets/w-warrior-0/0' },
+  { key: 'face-archer', from: 'sheets/w-archer-0/0' },
+  { key: 'face-rogue', from: 'sheets/w-rogue-0/0' },
   // 새 직업 다섯. 그림은 그림 세션에서 먼저 와 있었고, **직업이 실제로
   // 게임에 붙는 날** 여기 더하라고 적혀 있던 자리입니다. 오늘입니다.
   { key: 'face-monk', from: 'player-monk' },
