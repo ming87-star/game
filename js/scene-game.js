@@ -1243,8 +1243,7 @@ class GameScene extends Phaser.Scene {
 
     // 보스는 기다리지 않습니다 — 내려앉는 장면과 글자가 붙어 있어야 합니다.
     this.pushNotice({ key: 'boss', ms: 2500, now: true, build: () => {
-      const veil = this.add.rectangle(cx, CFG.height / 2, CFG.width, CFG.height, 0x1a0033, 0)
-        .setScrollFactor(0).setDepth(140);
+      const veil = makeVeil(this, 0x1a0033).setScrollFactor(0).setDepth(140);
       this.tweens.add({ targets: veil, alpha: 0.5, duration: 500, yoyo: true, hold: 1100,
         onComplete: () => veil.destroy() });
 

@@ -1286,3 +1286,24 @@ function buildWeaponIcons(scene) {
 
   g.destroy();
 }
+
+// ── 화면을 덮는 판 한 장 ───────────────────────────────────
+//
+// **`scene.add.rectangle(x, y, w, h, 색, 0)` 으로 만들고 `alpha` 를 트윈하면
+// 아무것도 안 그려집니다.** 여섯째 인자는 `alpha` 가 아니라 `fillAlpha` 이고,
+// 그려질 때 쓰이는 것은 둘의 곱입니다 — `fillAlpha 0 × alpha 1 = 0`.
+// 트윈은 정상으로 돌고 alpha 는 0 에서 1 로 잘 올라가는데 화면은 그대로입니다.
+// **오류가 안 납니다.**
+//
+// 엔딩의 흰 화면 넷과 보스의 자줏빛 덮개가 전부 이렇게 만들어져 있었고,
+// 여태 한 번도 안 보였습니다. 33층 시퀀스에서 「오르면서 밝아진다」가
+// 통째로 없고 장면이 뚝 끊겼던 것이 이 한 글자 때문입니다.
+// (화면 밝기를 재서 잡았습니다 — 13 에 머물다가 배경색이 바뀌는 한
+//  프레임에 239 로 튀었습니다.)
+//
+// 그래서 **채워서 만들고 투명하게 시작합니다.** 이제 `alpha` 를 트윈하면
+// 곱이 제대로 올라갑니다.
+function makeVeil(scene, color) {
+  return scene.add.rectangle(CFG.width / 2, CFG.height / 2, CFG.width, CFG.height, color)
+    .setAlpha(0);
+}

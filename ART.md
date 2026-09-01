@@ -1554,6 +1554,64 @@ assets/ 에 세 장을 넣고
 
 ---
 
+## 8.35 탑 위의 하늘 — 그림 세션에 넘길 것 (`assets/above-tower.png`)
+
+33층 시퀀스 6번, **탑을 벗어나 그 위에 있는 장면**입니다. 지금은 코드가
+도형으로 그리고 있습니다(`js/scene-ending.js` 의 `paintSky`). 그림 한 장이
+`assets/above-tower.png` 로 들어오면 코드가 알아서 그쪽을 씁니다 — 도형
+쪽은 손댈 것 없이 저절로 물러납니다.
+
+| 파일 | 크기 | 굽는 법 |
+|---|---|---|
+| `assets/above-tower.png` | **1080×1920** (화면 540×960 의 2배) | `bake-sprites.js` 의 `WANT` 에 `above-tower`, `DIV` 에 `2` |
+
+### 그릴 것
+
+**구름이 가득하고 빛이 찬란한 하늘.** 그게 전부입니다.
+
+- 아래 절반은 **구름 바다**입니다. 발밑까지 꽉 차야 합니다 — 구름이
+  성기면 「높이 있다」가 아니라 「흐린 날」이 됩니다
+- 위쪽 한가운데에서 **빛이 쏟아집니다.** 눈부시게. 빛줄기가 아래로
+  갈라져 내려오면 좋습니다
+- 화면 아래 한가운데, 구름 사이로 **돌탑의 끝**이 한 뼘 나와 있습니다.
+  대기에 씻겨 옅고 흐릿하게 — 저 아래에 있는 것이니까요
+
+### 그리면 안 되는 것 — 이쪽이 더 중요합니다
+
+- **꼭대기 방을 그리지 마세요.** 지붕도, 문도, 창도, 계단도, 난간도
+  없습니다. 그리는 순간 그건 그냥 어떤 방이 되고, 이 게임이 처음부터
+  아니라고 해 온 「탑 꼭대기에 무엇이 있는가」에 답을 해 버립니다
+- **밟고 설 수 있는 바닥을 그리지 마세요.** 탑 끝이 평평한 마루로
+  보이면 「꼭대기에 닿았다」가 됩니다. 닿은 것이 아니라 **떠난 것**입니다
+- **사람을 그리지 마세요.** 흰 옷 입은 사람은 코드가 이 그림 위에
+  얹습니다(`cloak-white`). 그림 안에 또 한 사람이 있으면 둘이 됩니다
+- 해도 달도 새도 성도 산도 없습니다. 구름과 빛과 돌 끝뿐입니다
+
+### 색
+
+앞의 그림들과 달리 **여기만 밝습니다.** 탑 안이 아니니까요.
+위쪽 `#FFFDF6` 에서 아래쪽 `#A9C4DD` 로 흐르고, 구름은 흰색(`#FDFDFF`),
+탑 끝은 옅은 회청색(`#9AABBE`) 언저리입니다. 붉은 것은 하나도 없습니다 —
+이 시퀀스에서 붉은 것은 겉옷 하나뿐이고, 그건 다음 장면에 나옵니다.
+
+### 그림 도구에 그대로 넘길 요청문
+
+> A vertical 1080x1920 illustration: the sky far above the clouds, seen from
+> high altitude. The lower half is a dense, endless sea of soft white clouds
+> filling the frame edge to edge. Brilliant light pours down from the top
+> center, breaking into long soft rays that spread downward. Emerging from the
+> clouds at the bottom center, the plain stone tip of an enormous tower —
+> hazy and pale with distance, its base swallowed by cloud.
+>
+> Absolutely no roof, no room, no door, no window, no stairs, no railing, no
+> flat floor or platform anyone could stand on. No people, no figures, no
+> birds, no sun disc, no moon, no mountains, no castle. Nothing red anywhere.
+>
+> Palette: #FFFDF6 at the top fading to #A9C4DD lower down, clouds #FDFDFF,
+> stone #9AABBE. Painterly, soft, luminous. No text, no watermark, no border.
+
+---
+
 ## 8.4 래스터(PNG)로 준 것은 `bake-sprites.js` 가 받습니다
 
 `art/*.svg` 는 `bake-art.js` 가 묶지만, `gen-sprite.js` 로 그린 것은 원본이

@@ -127,6 +127,48 @@ const server = http.createServer((req, res) => {
   check(놈.그림 === 'ending-foe', '「내려온 것」이 그를 덮침', 놈.그림);
   check(!놈.판에있나 && !놈.도감에있나 && !놈.보스인가, '그놈은 판의 어느 층에도 안 나옴');
 
+  // ── 오르면서 **정말로** 밝아지는가 ─────────────────────
+  //
+  // 이 검사가 생긴 까닭. 흰 화면은 이렇게 만들어져 있었습니다:
+  //
+  //     this.add.rectangle(x, y, w, h, 0xffffff, 0)   // ← 여섯째는 fillAlpha
+  //     this.tweens.add({ targets: 덮개, alpha: 1, ... })
+  //
+  // 여섯째 인자는 alpha 가 아니라 **fillAlpha** 입니다. 그려질 때 쓰이는
+  // 것은 둘의 곱이라 `0 × 1 = 0` — **한 번도 안 그려졌습니다.** 트윈은
+  // 정상으로 돌고 alpha 는 0 에서 1 로 잘 올라가고 오류도 안 납니다.
+  // 그래서 「덮개의 alpha 가 1 이 되는가」를 묻는 검사는 **통과합니다.**
+  //
+  // 물어야 하는 것은 **화면이 실제로 밝아졌는가**입니다. 그리는 판을
+  // 직접 떠서 밝기를 잽니다. 안 그려지면 밝기가 어두운 채로 있다가
+  // 다음 장면이 배경색을 바꾸는 한 프레임에 튑니다 — 중간값이 없습니다.
+  const 밝기 = await page.evaluate(() => new Promise((done) => {
+    const 잰값 = [];
+    const g = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+    g.canvas.width = 8; g.canvas.height = 8;
+    const tick = () => {
+      const s = window.__endingwatch;
+      if (!s || !s.scene || !s.scene.isActive()) return done(잰값);
+      if (s.step === 6) {
+        try {
+          g.drawImage(window.__game.canvas, 10, 10, 8, 8, 0, 0, 8, 8);
+          const d = g.getImageData(0, 0, 8, 8).data;
+          let sum = 0;
+          for (let i = 0; i < d.length; i += 4) sum += (d[i] + d[i + 1] + d[i + 2]) / 3;
+          잰값.push(Math.round(sum / (d.length / 4)));
+        } catch (e) { /* 못 뜨면 그냥 넘어갑니다 */ }
+      }
+      if (s.step > 6) return done(잰값);
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }));
+  const 중간 = 밝기.filter((v) => v > 40 && v < 220).length;
+  check(중간 >= 3, '오르는 동안 화면이 **단을 밟아** 밝아짐 (한 프레임에 안 튐)',
+    '중간 밝기 ' + 중간 + '번 · ' + (밝기.length ? Math.min(...밝기) + '→' + Math.max(...밝기) : '못 쟀음'));
+  check(밝기.length && Math.max(...밝기) >= 230, '끝에는 다 하얘짐',
+    밝기.length ? Math.max(...밝기) : '못 쟀음');
+
   // ── 끝까지 돌고 타이틀로 ────────────────────────────────
   await page.waitForFunction(() => window.__endingwatch.step >= 9, null, { timeout: 90000 });
   // **타이틀이 실제로 도는지까지 봅니다.** `window.__title.ready` 만 보면 안

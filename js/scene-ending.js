@@ -78,8 +78,7 @@ class EndingLineScene extends Phaser.Scene {
     this.leaving = true;
     // 흰 화면이 이 시퀀스의 이음매입니다 (STORY.md 5절). 여기서 처음
     // 씌우고, 뒤의 장면들이 같은 연출을 이어 씁니다.
-    const 덮개 = this.add.rectangle(CFG.width / 2, CFG.height / 2,
-      CFG.width, CFG.height, 0xffffff, 0).setDepth(500);
+    const 덮개 = makeVeil(this, 0xffffff).setDepth(500);
     this.tweens.add({ targets: 덮개, alpha: 1, duration: 900,
       onComplete: () => this.scene.start('endingwatch', { preview: this.preview }) });
   }
@@ -93,9 +92,9 @@ class EndingLineScene extends Phaser.Scene {
 //   2  33층에서 **피할 수 있는데 안 피하고** 죽습니다
 //   3  같은 33층에서 다시 일어섭니다
 //   4  다시 오릅니다 — **이제 적들이 그를 공격하지 않습니다**
-//   5  화면이 하얗게 차오릅니다
+//   5  **오르는 동안** 화면이 하얗게 차오릅니다
 //   6  탑을 벗어나 그 위에 선 모습. 옷이 흰옷으로 바뀌어 있습니다
-//   7  잠시 후 1층 바닥으로 붉은 겉옷이 천천히 떨어집니다
+//   7  장면이 끊기고, 탑 안 1층에 **이미 떨어지고 있는** 붉은 겉옷
 //
 // **2번이 알맹이입니다.** 져서 죽는 것과 안 피하고 죽는 것은 다릅니다.
 // 그래서 놈이 오는 것이 먼저 보이고, 옆 발판이 비어 있고, 그런데 안
@@ -194,15 +193,28 @@ class EndingWatchScene extends Phaser.Scene {
     }
   }
 
-  // 한 층 오릅니다.
+  // 한 층 **뛰어오릅니다.**
+  //
+  // 예전에는 900ms 짜리 직선 트윈이었습니다. 그러면 사람이 오르는 것이
+  // 아니라 그림이 위로 밀려 올라갑니다 — 발이 땅을 안 밉니다.
+  // 판에서 뛰는 것과 **같은 식**으로 갑니다: 직선 보간에서 sin 만큼 빼는
+  // 포물선(js/scene-game.js 의 jump). 판은 옆 줄로 건너뛰므로 호가 95 지만,
+  // 여기는 곧장 위라서 그 값을 쓰면 층을 훌쩍 넘겼다가 도로 내려앉습니다.
   climbTo(n, then) {
+    const c = CFG.ending;
+    const 부터 = this.him.y;
+    const 까지 = this.floorY[n] - 33;
+    const 호 = { t: 0 };
     this.tweens.add({
-      targets: this.him, y: this.floorY[n] - 33, duration: CFG.ending.climbMs,
-      ease: 'Sine.easeInOut',
+      targets: 호, t: 1, duration: c.hopMs, ease: 'Linear',
+      onUpdate: () => {
+        this.him.y = Phaser.Math.Linear(부터, 까지, 호.t) - Math.sin(Math.PI * 호.t) * c.hopArc;
+      },
       onComplete: () => {
+        this.him.y = 까지;
         this.at = n;
         if (then) then();
-        else if (n < 33) this.time.delayedCall(260, () => this.climbTo(n + 1));
+        else if (n < 33) this.time.delayedCall(c.hopRestMs, () => this.climbTo(n + 1));
         else this.time.delayedCall(400, () => this.theBlow());
       },
     });
@@ -247,22 +259,95 @@ class EndingWatchScene extends Phaser.Scene {
       targets: this.comer, y: this.comer.y + 46, duration: 110, ease: 'Quad.easeIn',
       onComplete: () => {
         this.cameras.main.shake(160, 0.007);
+        this.crumble();
+      },
+    });
+  }
+
+  // 쓰러지는 것은 **꺾이는 것이 아니라 무너지는 것**입니다.
+  //
+  // 예전에는 그림을 78도로 눕혔습니다. 겉옷 그림은 사람 모양이라, 그대로
+  // 돌리면 사람이 쓰러진 것이 아니라 **널빤지가 옆으로 넘어간 것**으로
+  // 보였습니다. 그림 한 장을 돌려서 「쓰러졌다」를 만들 수는 없습니다.
+  //
+  // 그래서 두 단으로 무너뜨리고, 바닥에서는 **다른 그림**으로 바꿉니다 —
+  // 떨어진 겉옷 더미(cloak-fallen), 마지막 판에서 짚어 드는 바로 그것입니다.
+  // 이 사람은 겉옷입니다. 사람이 넘어지는 것이 아니라 옷이 무너져 내리는
+  // 것이 이 장면에서는 더 맞습니다.
+  crumble() {
+    const c = CFG.ending;
+    const 바닥 = this.floorY[33];
+    this.tweens.add({
+      // 1단 — 무릎이 꺾입니다. 짧게, 아래로만
+      targets: this.him, y: 바닥 - 20, angle: -10,
+      duration: Math.round(c.crumbleMs * 0.35), ease: 'Quad.easeIn',
+      onComplete: () => {
         this.tweens.add({
-          targets: this.him, angle: -78, y: this.floorY[33] - 12,
-          duration: 420, ease: 'Quad.easeIn',
-          onComplete: () => this.time.delayedCall(CFG.ending.restMs, () => this.riseAgain()),
+          // 2단 — 앞으로 무너지면서 사라집니다
+          targets: this.him, y: 바닥 - 8, angle: -34, alpha: 0,
+          duration: Math.round(c.crumbleMs * 0.65), ease: 'Quad.easeIn',
+          onComplete: () => {
+            // 3단 — 그 자리에 천 더미가 남습니다
+            const h = hasArt('cloak-fallen') ? artSize('cloak-fallen').h : 48;
+            this.him.setTexture(hasArt('cloak-fallen') ? 'cloak-fallen' : 'cloak-red');
+            this.him.setAngle(0).setAlpha(1);
+            this.him.y = 바닥 - h / 2;
+            this.fallenY = this.him.y;
+            this.time.delayedCall(c.restMs, () => this.riseAgain());
+          },
         });
       },
     });
   }
 
   // ── 3번 — 같은 33층에서 다시 일어섭니다 ────────────────
+  //
+  // **여기서 서두르면 맞은 것이 아무 일도 아닌 게 됩니다.** 700ms 짜리
+  // 트윈 하나로 벌떡 일어섰더니 그랬습니다. 세 단으로 나누고, 일어서기
+  // 전에 **먼저 움찔합니다** — 움직이기 전의 한 박자가 「스스로 일어난다」를
+  // 만듭니다. 그게 없으면 누가 일으켜 세운 것처럼 보입니다.
   riseAgain() {
     this.step = 4;
+    const c = CFG.ending;
+    // **발치를 붙들고 키로 일어섭니다.**
+    //
+    // 처음에는 y 만 옮겨서 세웠습니다. 그런데 천 더미(68×48)는 선 사람
+    // (36×46)과 키가 비슷해서, 잰 값으로 9px 밖에 안 움직였습니다 — 트윈은
+    // 1.5초를 도는데 화면에서는 아무 일도 안 일어납니다.
+    // 일어서는 것은 자리를 옮기는 것이 아니라 **키가 자라는 것**입니다.
+    // 그래서 발치(발이 닿는 줄)를 고정하고 scaleY 를 0.3 에서 1 로 폅니다.
+    const h = hasArt('cloak-red') ? artSize('cloak-red').h : 46;
+    const 발치 = this.floorY[33] - 33 + h / 2;
+
+    // 1단 — 천 더미가 한 번 부풀었다 가라앉습니다. 아직 사람이 아닙니다
     this.tweens.add({
-      targets: this.him, angle: 0, y: this.floorY[33] - 33, duration: 700,
-      ease: 'Quad.easeOut',
-      onComplete: () => this.time.delayedCall(500, () => this.pass()),
+      targets: this.him, scaleY: 1.18, scaleX: 0.94, duration: 260,
+      ease: 'Sine.easeOut', yoyo: true,
+      onComplete: () => {
+        // 2단 — 다시 사람이 됩니다. 웅크린 채로, 낮게
+        this.him.setTexture('cloak-red');
+        this.him.setAngle(-20);
+        const 키 = { s: 0.3 };
+        this.him.setScale(1, 키.s);
+        this.him.y = 발치 - (h * 키.s) / 2;
+        // 3단 — 천천히 폅니다. 각이 먼저 서고 키가 끝까지 자랍니다
+        this.tweens.add({
+          targets: this.him, angle: 0,
+          duration: Math.round(c.riseSlowMs * 0.45), ease: 'Sine.easeOut',
+        });
+        this.tweens.add({
+          targets: 키, s: 1, duration: c.riseSlowMs, ease: 'Cubic.easeOut',
+          onUpdate: () => {
+            this.him.setScale(1, 키.s);
+            this.him.y = 발치 - (h * 키.s) / 2;
+          },
+          onComplete: () => {
+            this.him.setScale(1);
+            this.him.y = this.floorY[33] - 33;
+            this.time.delayedCall(700, () => this.pass());
+          },
+        });
+      },
     });
   }
 
@@ -287,8 +372,14 @@ class EndingWatchScene extends Phaser.Scene {
     this.tweens.add({
       targets: this.him, y: this.floorY[39] - 33, alpha: 0.92,
       duration: CFG.ending.riseMs, ease: 'Sine.easeIn',
-      onComplete: () => this.whiteOut(),
     });
+    // **오르는 동안** 밝아집니다.
+    //
+    // 예전에는 다 오른 뒤에 흰 화면을 시작했습니다. 그러면 오르기가 한 번
+    // 끝나고, 화면이 잠깐 멈춘 채로 하얘지기 시작합니다 — 두 동작이 이어
+    // 붙지 않고 사이가 뜹니다. 오르는 것과 밝아지는 것은 **한 동작**이어야
+    // 합니다. 그가 올라가서 밝아지는 것이니까요.
+    this.whiteOut();
   }
 
   update() {
@@ -298,13 +389,26 @@ class EndingWatchScene extends Phaser.Scene {
     scrollTowerWall(this, this.cameras.main.scrollY);
   }
 
-  // ── 5번 — 흰 화면 ──────────────────────────────────────
+  // ── 5번 — 오르면서 하얘집니다 ──────────────────────────
+  //
+  // 4번의 오르기와 **같이 돕니다.** 오르기가 riseMs 인데 밝아지기는 그보다
+  // 조금 늦게 시작해서 조금 늦게 끝납니다 — 다 밝아진 뒤에도 그가 아직
+  // 오르고 있어야 「올라가면서 사라졌다」로 읽힙니다.
   whiteOut() {
     this.step = 6;
-    const 덮개 = this.add.rectangle(CFG.width / 2, CFG.height / 2,
-      CFG.width, CFG.height, 0xffffff, 0).setScrollFactor(0).setDepth(500);
-    this.tweens.add({ targets: 덮개, alpha: 1, duration: 1100,
-      onComplete: () => this.aboveTower(덮개) });
+    const c = CFG.ending;
+    const 덮개 = makeVeil(this, 0xffffff).setScrollFactor(0).setDepth(500);
+    // **다 하얘질 때까지 그는 아직 오르고 있어야 합니다.** 처음에는
+    // 0.25 늦게 시작해 0.95 동안 덮었더니 끝이 오르기보다 440ms 늦어서,
+    // 마지막에 「멈춘 채로 하얘지는」 참이 생겼습니다. 오르기(riseMs)의
+    // 0.95 지점에 다 덮이도록 맞춥니다.
+    this.tweens.add({
+      targets: 덮개, alpha: 1,
+      delay: Math.round(c.riseMs * 0.15),
+      duration: Math.round(c.riseMs * 0.8),
+      ease: 'Sine.easeIn',
+      onComplete: () => this.aboveTower(덮개),
+    });
   }
 
   // ── 6번 — 탑을 벗어나 그 위에 ──────────────────────────
@@ -321,17 +425,24 @@ class EndingWatchScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#eceff1');
 
     const cx = CFG.width / 2;
-    // 저 아래 탑의 끝만 걸칩니다. 탑이 어디서 끝나는지가 보여야
-    // 「벗어났다」가 읽힙니다.
-    this.add.rectangle(cx, CFG.height - 40, 190, 200, 0xb0bec5).setAlpha(0.5);
-    this.add.rectangle(cx, CFG.height - 138, 210, 14, 0x90a4ae).setAlpha(0.7);
+    // 그림이 오면 그 한 장이 하늘을 통째로 맡습니다 (ART.md 8.35절).
+    // 아직 없으면 아래에서 도형으로 짓습니다 — 네모 둘로는 「엉성하다」는
+    // 말을 들었고, 그건 맞는 말이었습니다.
+    if (hasArt('above-tower')) {
+      this.add.image(cx, CFG.height / 2, 'above-tower').setDepth(0);
+    } else {
+      this.paintSky(cx);
+    }
 
     // **지붕을 밟고 서면 안 됩니다.** 처음에 탑 끝에 붙여 세웠더니
     // 「꼭대기에 닿았다」로 읽혔습니다 — 이 게임이 처음부터 아니라고
     // 해 온 바로 그것입니다. 탑과 사람 사이를 크게 벌립니다. 닿은 것이
     // 아니라 **떠난 것**입니다.
+    //
+    // 크기는 1.5배에서 2.8배로 올렸습니다. 하늘 한 장에 사람 하나뿐인
+    // 화면에서 55px 짜리 사람은 티끌입니다.
     this.him = this.add.image(cx, CFG.height - 430, 'cloak-white')
-      .setDepth(10).setAlpha(0).setScale(1.5);
+      .setDepth(10).setAlpha(0).setScale(2.8);
     this.tweens.add({ targets: 덮개, alpha: 0, duration: 1200 });
     // **다 뜬 뒤에** 7번으로 칩니다. 뜨기 시작할 때 세어 버리면 시험이
     // 아직 안 보이는 화면을 찍고 「탑 밖에 섰다」로 적습니다 — 실제로
@@ -339,33 +450,122 @@ class EndingWatchScene extends Phaser.Scene {
     this.tweens.add({ targets: this.him, alpha: 1, duration: 1200, delay: 300,
       onComplete: () => {
         this.step = 7;
-        this.time.delayedCall(CFG.ending.restMs, () => this.dropCloak());
+        this.time.delayedCall(CFG.ending.restMs, () => this.cutToTower());
       } });
   }
 
-  // ── 7번 — 붉은 겉옷이 1층 바닥으로 ─────────────────────
+  // 그림이 오기 전까지의 하늘. 도형으로 짓습니다.
   //
-  // 예전 안은 33층에 널브러진 것을 보여 주고 끝이었습니다. 그러면
-  // **33층까지 못 가는 사람은 겉옷을 못 만납니다.** 떨어뜨리면 모두가
-  // 시작하는 자리에 놓입니다 — 「층수로 잡지 않는다」는 여는 조건과
-  // 같은 뜻입니다.
-  dropCloak() {
+  // 세 가지만 지킵니다 — **구름이 가득할 것**, **빛이 위에서 쏟아질 것**,
+  // **탑은 저 아래에서 끝나 있을 것**. 이 셋이 다 있어야 「탑을 벗어나
+  // 그 위에 있다」가 됩니다. 하나만 빠져도 그냥 밝은 빈 화면입니다.
+  paintSky(cx) {
+    const H = CFG.height;
+    const W = CFG.width;
+    const g = this.add.graphics().setDepth(0);
+
+    // 하늘 — 위는 눈부시게 희고 아래로 갈수록 푸릇해집니다. 스무 겹으로
+    // 끊어 칠합니다 (Phaser 의 도형에는 그러데이션이 없습니다).
+    for (let i = 0; i < 24; i++) {
+      const t = i / 23;
+      const c = Phaser.Display.Color.Interpolate.ColorWithColor(
+        Phaser.Display.Color.ValueToColor(0xfffdf6),
+        Phaser.Display.Color.ValueToColor(0xa9c4dd), 23, i);
+      g.fillStyle(Phaser.Display.Color.GetColor(c.r, c.g, c.b), 1);
+      g.fillRect(0, (H / 24) * i - 1, W, H / 24 + 2);
+      void t;
+    }
+
+    // 빛 — 위 한가운데에서 쏟아집니다. 동그라미를 겹쳐 부드럽게 만듭니다.
+    for (let i = 12; i >= 1; i--) {
+      g.fillStyle(0xffffff, 0.055);
+      g.fillCircle(cx, 96, i * 34);
+    }
+    // 갈래 — 빛줄기 다섯. 가늘고 길게 내려옵니다
+    for (let i = -2; i <= 2; i++) {
+      g.fillStyle(0xffffff, 0.10);
+      g.fillTriangle(cx - 12, 84, cx + 12, 84, cx + i * 150, H - 120);
+    }
+
+    // 구름 바다 — 세 겹입니다. 뒤로 갈수록 옅고 높습니다.
+    const 겹 = [
+      { y: H - 250, r: 96, n: 9, a: 0.35, c: 0xffffff },
+      { y: H - 175, r: 118, n: 8, a: 0.62, c: 0xffffff },
+      { y: H - 96, r: 142, n: 7, a: 0.95, c: 0xfdfdff },
+    ];
+    겹.forEach((층, k) => {
+      g.fillStyle(층.c, 층.a);
+      for (let i = 0; i < 층.n; i++) {
+        // 늘 같은 하늘이어야 합니다 — 볼 때마다 구름이 달라지면 안 됩니다
+        const x = (i + 0.5) * (W / 층.n) + ((i * 37 + k * 13) % 29) - 14;
+        const dy = ((i * 53 + k * 29) % 34) - 17;
+        g.fillCircle(x, 층.y + dy, 층.r * (0.62 + ((i * 17 + k * 7) % 40) / 100));
+      }
+      g.fillRect(0, 층.y, W, H - 층.y);
+    });
+
+    // 탑 — 저 아래 구름 속에서 끝나 있습니다. **지붕도 방도 없습니다.**
+    //
+    // 처음에는 300px 짜리 기둥에 갓돌까지 얹어 사람 바로 밑에 세웠습니다.
+    // 그랬더니 탑이 아니라 **받침대**로 보였습니다 — 사람이 그 위에 올라선
+    // 것처럼요. 이 장면이 아니라고 말하려는 바로 그것입니다.
+    // 그래서 구름선 바로 위까지 낮추고, 갓돌을 없애고, 좁혔습니다.
+    // 보이는 것은 구름 위로 삐죽 나온 돌 끝 한 뼘뿐입니다.
+    const 탑 = this.add.graphics().setDepth(0);
+    const 탑끝 = H - 268;
+    // 멀리 있는 것은 대기에 씻겨 옅어집니다. 이 알파 하나가 「저 아래」를
+    // 만듭니다 — 또렷하게 칠하면 바로 코앞의 기둥이 됩니다.
+    탑.fillStyle(0x9aabbe, 0.85);
+    탑.fillRect(cx - 48, 탑끝, 96, 268);
+    탑.fillStyle(0x7d8ea3, 0.85);
+    탑.fillRect(cx + 14, 탑끝, 34, 268);
+    // 돌 줄눈 몇 줄. 이게 없으면 그냥 회색 기둥입니다
+    탑.fillStyle(0x63748a, 0.3);
+    for (let y = 탑끝 + 16; y < H - 150; y += 22) 탑.fillRect(cx - 48, y, 96, 2);
+    // 꼭대기의 **곧은 가로선 하나가** 탑을 상자 뚜껑으로 만듭니다.
+    // 옅은 안개 한 자락을 걸쳐서 그 선을 끊습니다.
+    탑.fillStyle(0xffffff, 0.45);
+    탑.fillEllipse(cx - 6, 탑끝 + 4, 190, 26);
+    탑.fillStyle(0xffffff, 0.3);
+    탑.fillEllipse(cx + 30, 탑끝 + 22, 150, 20);
+
+    // 밑동을 구름에 묻습니다. **앞 구름 한 겹을 통째로 다시 덮으면 탑이
+    // 아예 안 보입니다** — 처음에 그렇게 했다가 하늘만 남았습니다.
+    // 탑이 어디서 끝나는지가 안 보이면 「벗어났다」가 안 읽힙니다.
+    // 그래서 밑동에만 뭉치 몇 개를 얹습니다.
+    탑.fillStyle(0xfdfdff, 0.95);
+    [[-108, -128, 78], [-30, -104, 92], [58, -132, 74], [126, -110, 86]]
+      .forEach(([dx, dy, r]) => 탑.fillCircle(cx + dx, H + dy, r));
+    탑.fillRect(0, H - 96, W, 96);
+  }
+
+  // ── 7번 — 장면을 끊고, 탑 안으로 ───────────────────────
+  //
+  // **흰 옷 입은 사람에게서 붉은 옷이 떨어지면 안 됩니다.**
+  //
+  // 예전에는 탑 위에 선 사람 발치에서 붉은 옷을 떨어뜨려 화면 밖으로
+  // 내려보냈습니다. 그러면 「저 사람이 옷을 벗어 던졌다」가 됩니다 —
+  // 그는 이미 겉옷을 두고 온 사람이고, 벗는 장면은 여기가 아닙니다.
+  // 게다가 탑 꼭대기에서 떨어뜨린 것이 탑 **안쪽** 1층에 놓이는 것도
+  // 앞뒤가 안 맞습니다.
+  //
+  // 그래서 여기서 한 번 **끊습니다.** 하얗게 덮고, 걷으면 탑 안입니다.
+  // 그리고 붉은 옷은 **이미 떨어지고 있습니다** — 어디서 떨어졌는지는
+  // 안 보여 줍니다. 보여 주는 순간 그건 설명이 됩니다.
+  cutToTower() {
     this.step = 8;
-    // 먼저 **화면 밖으로** 떨어집니다. 탑 몸통 위에 얹히면 「1층 바닥으로」가
-    // 아니라 「지붕에 떨어졌다」가 됩니다 — 실제로 처음에 그랬습니다.
-    const 옷 = this.add.image(this.him.x, this.him.y + 10, 'cloak-fallen')
-      .setDepth(11).setAlpha(0.95);
+    const 덮개 = makeVeil(this, 0xffffff).setScrollFactor(0).setDepth(500);
     this.tweens.add({
-      targets: 옷, y: CFG.height + 60, angle: 18,
-      duration: CFG.ending.fallMs, ease: 'Sine.easeIn',
-      onComplete: () => this.groundBelow(),
+      targets: 덮개, alpha: 1, duration: 900, ease: 'Sine.easeIn',
+      onComplete: () => this.groundBelow(덮개),
     });
   }
 
   // 저 아래 1층. 모두가 시작하는 자리입니다 — 33층까지 못 가는 사람도
   // 여기서는 겉옷을 만납니다. 여기도 판과 같은 벽, 같은 발판입니다.
-  groundBelow() {
-    this.children.list.slice().forEach((o) => o.destroy());
+  groundBelow(덮개) {
+    this.children.list.slice().forEach((o) => { if (o !== 덮개) o.destroy(); });
+    this.cameras.main.setBackgroundColor('#000000');
     buildTowerWall(this);
     lightTowerWall(this, 0);    // 여기는 탑의 바닥입니다. 가장 어둡습니다
     const cx = CFG.laneX.mid;
@@ -389,9 +589,17 @@ class EndingWatchScene extends Phaser.Scene {
     // 동안은 바람에 펼쳐져 있어야 합니다 (ART.md 8.3절).
     // 떨어지는 그림이 없으면 예전처럼 더미 하나로 갑니다.
     const 나는옷 = hasArt('cloak-falling') ? 'cloak-falling' : 'cloak-fallen';
-    const 옷 = this.add.image(cx, -30, 나는옷).setDepth(11).setAngle(18);
+    // 놓인 뒤의 더미 높이로 착지 자리를 잡습니다. 그림이 커지면(DIV) 이
+    // 값도 같이 따라가야 옷이 바닥에 파묻히지 않습니다.
+    const 더미h = hasArt('cloak-fallen') ? artSize('cloak-fallen').h : 24;
+    const 옷 = this.add.image(cx, -60, 나는옷).setDepth(11).setAngle(18);
+
+    // **덮개를 걷으면 옷은 이미 떨어지고 있습니다.** 여기가 7번의 알맹이
+    // 입니다 — 어디서 떨어졌는지는 안 보여 줍니다.
+    if (덮개) this.tweens.add({ targets: 덮개, alpha: 0, duration: 900 });
+
     this.tweens.add({
-      targets: 옷, y: 바닥 - 20, angle: 6,
+      targets: 옷, y: 바닥 - 더미h / 2, angle: 6,
       duration: CFG.ending.fallMs, ease: 'Sine.easeIn',
       onComplete: () => {
         // 닿는 순간 더미로 바꿔 놓습니다.
@@ -491,8 +699,7 @@ class CreditsScene extends Phaser.Scene {
     if (this.wiping) return;
     this.wiping = true;
     Save.reset();
-    const 덮개 = this.add.rectangle(CFG.width / 2, CFG.height / 2,
-      CFG.width, CFG.height, 0xffffff, 0).setDepth(500);
+    const 덮개 = makeVeil(this, 0xffffff).setDepth(500);
     this.tweens.add({ targets: 덮개, alpha: 1, duration: 800,
       onComplete: () => window.location.reload() });
   }
