@@ -71,7 +71,7 @@ const WANT = [
   // js/textures.js 의 도형이 서 있습니다. 여기 미리 적어 두면 구울 때마다
   // 「아직 없는 그림」에 이름이 떠서, 그린 날 assets/ 에 파일만 넣으면
   // 저절로 붙습니다 (buildTextures 는 이미 있는 키를 건너뜁니다).
-  'cloak-red', 'cloak-white', 'cloak-fallen', 'cloak-falling',
+  'cloak-red', 'cloak-white', 'cloak-fallen', 'cloak-falling', 'above-tower',
 ];
 
 // 4로 안 나누는 것들. 기본은 4배로 그려 온다는 약속이지만(위 SCALE),
@@ -81,7 +81,10 @@ const WANT = [
 // 엔딩에서 이 옷은 화면에 홀로 남는 그림입니다 — 그 크기로는 화면 한가운데에
 // 티끌만 하게 놓입니다. 사람(cloak-red 36×46)보다도 작았습니다.
 // 판 위 마지막 층에 놓이는 것도 같은 그림이라 거기서도 같이 커집니다.
-const DIV = { 'shop-back': 1, 'cloak-fallen': 2, 'cloak-falling': 2 };
+//
+// 하늘도 2입니다. 화면을 통째로 덮는 그림이라 1080×1920 으로 받는데,
+// 조각들처럼 4로 나누면 270×480 이 되어 화면 절반만 덮습니다.
+const DIV = { 'shop-back': 1, 'cloak-fallen': 2, 'cloak-falling': 2, 'above-tower': 2 };
 
 // ── 투명한 여백을 잘라 내는 것들 ───────────────────────────
 //

@@ -428,11 +428,14 @@ class EndingWatchScene extends Phaser.Scene {
     // 그림이 오면 그 한 장이 하늘을 통째로 맡습니다 (ART.md 8.35절).
     // 아직 없으면 아래에서 도형으로 짓습니다 — 네모 둘로는 「엉성하다」는
     // 말을 들었고, 그건 맞는 말이었습니다.
+    //
+    // 구운 그림은 마침 화면과 같은 540×960 이지만, 크기를 못박아 둡니다 —
+    // 나중에 다른 크기로 받아도 화면을 덮는 것은 그대로여야 합니다.
     if (hasArt('above-tower')) {
-      this.add.image(cx, CFG.height / 2, 'above-tower').setDepth(0);
+      this.add.image(cx, CFG.height / 2, 'above-tower')
+        .setDisplaySize(CFG.width, CFG.height).setDepth(0);
     } else {
-      this.paintSky(cx);
-    }
+      this.paintSky(cx);    }
 
     // **지붕을 밟고 서면 안 됩니다.** 처음에 탑 끝에 붙여 세웠더니
     // 「꼭대기에 닿았다」로 읽혔습니다 — 이 게임이 처음부터 아니라고

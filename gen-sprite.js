@@ -242,6 +242,48 @@ const SUBJECTS = [
         + 'Lean and wiry, clearly the least protected of the heroes. '
         + 'Dusty lime #D4E157 and worn brown leather. Nothing is red, crimson or orange.' },
 
+  // ── 탑 위의 하늘 (33층 엔딩 6번) ──────────────────────
+  // 화면을 통째로 덮는 한 장입니다. 지금은 코드가 회색 바탕에 네모 둘로
+  // 그리고 있습니다 (js/scene-ending.js 의 aboveTower).
+  //
+  // **안 그리는 것이 그리는 것보다 중요한 그림입니다.** 꼭대기 방을
+  // 그리는 순간, 이 게임이 처음부터 아니라고 해 온 「탑 꼭대기에 무엇이
+  // 있는가」에 답을 해 버립니다. 밟고 설 바닥을 그리면 「닿았다」가 되고,
+  // 이 장면은 닿은 것이 아니라 **떠난 것**입니다.
+  { name: 'above-tower', w: 540, h: 960, scale: 2, ratio: '9:16',
+    bg: 'opaque', fit: 'stretch',
+    look: 'A luminous painterly illustration of the sky far above the clouds. Soft, bright and '
+        + 'serene, with clean readable shapes and no harsh detail. Palette: #FFFDF6 at the top '
+        + 'fading down to #A9C4DD at the bottom, clouds #FDFDFF, stone #9AABBE.',
+    bgRule: 'The image fills the entire frame edge to edge — it IS the background. No margin, '
+          + 'no border, no vignette, no frame, no transparent area.',
+    forbid: 'ABSOLUTELY DO NOT DRAW: any room, chamber, roof, dome, door, window, staircase, '
+          + 'balcony, railing, parapet, walkway or floor at the top of the tower; any flat '
+          + 'surface anyone could stand on; any person, figure or silhouette; the sun as a '
+          + 'disc, the moon, stars, birds, castles, mountains, land or horizon line; and '
+          + 'nothing red, crimson, scarlet, orange or pink anywhere. '
+          + 'No text, no letters, no watermark, no signature, no border, no frame, no panels.',
+    what: 'THE SKY ABOVE THE CLOUDS, seen from up in the open air. Two thirds of the picture '
+        + 'is radiant sky and the bottom half is a dense SEA OF CLOUD. '
+        + 'The cloud must be PACKED SOLID from edge to edge, layer on layer, with no gaps and '
+        + 'no blue showing through — a floor of cloud stretching to the horizon. If the cloud '
+        + 'is thin or scattered it reads as an overcast day instead of being high above the '
+        + 'world, and that is the whole point of this picture. '
+        + 'From the TOP CENTRE, light pours down: a brilliant, almost blinding glow with soft '
+        + 'god-rays fanning outward and downward across the clouds. '
+        + 'At the BOTTOM CENTRE, just the last hand\'s breadth of a STONE TOWER TIP breaks up '
+        + 'through the cloud — only a narrow tapering finger of weathered stone, pale and '
+        + 'hazy with distance and atmosphere because it is far below us. Small and faint: it '
+        + 'should be easy to miss at first glance. '
+        + 'THE TOP OF THAT STONE IS THE MOST IMPORTANT DETAIL IN THE PICTURE. It must be BROKEN '
+        + 'and RAGGED — it narrows to an uneven, crumbling, jagged end, as if the tower was '
+        + 'never finished or has worn away, and it simply stops. '
+        + 'It must NOT have a flat top, NOT a level surface, NOT a circular rim or lip, NOT a '
+        + 'hollow opening, NOT a parapet, NOT a battlement and NOT anything that looks like a '
+        + 'place a person could stand. If someone could put their feet on it, it is wrong. '
+        + 'NOTHING is perched on it or attached to it — no bird, no flag, no shape, no mark. '
+        + 'That is the entire picture: cloud, light, and the tip of stone.' },
+
   // ── 33층의 붉은 겉옷 (ART.md 8.3절) ───────────────────
   // 엔딩 시퀀스의 주인공입니다. 다른 것은 다 그림이 됐는데 이 사람만
   // 도형으로 남아 있었고, **이 게임에서 가장 오래 화면에 머무는 사람**입니다.
@@ -848,9 +890,13 @@ function promptFor(s) {
   const parts = [s.what];
   if (s.group === 'boss') parts.push(BOSS_RULES);
   if (s.group === 'player') parts.push(PROPORTION);
-  parts.push(STYLE);
-  parts.push(s.bg === 'none' || s.bg === 'opaque' ? BG_OPAQUE : BG);
-  parts.push(FORBID);
+  // 대부분은 발판 위에 서는 조각이라 STYLE·BG·FORBID 가 그대로 맞습니다.
+  // 그런데 **화면을 통째로 덮는 그림**은 규칙이 정반대입니다 — 옆모습도
+  // 아니고 오른쪽을 보지도 않고 배경이 투명해서도 안 됩니다. 그런 항목은
+  // 제 글을 들고 옵니다. 안 그러면 요청문이 스스로와 싸웁니다.
+  parts.push(s.look || STYLE);
+  parts.push(s.bgRule || (s.bg === 'none' || s.bg === 'opaque' ? BG_OPAQUE : BG));
+  parts.push(s.forbid || FORBID);
   if (s.facing && FACING[s.facing]) parts.push(FACING[s.facing]);
   return parts.join('\n\n');
 }
