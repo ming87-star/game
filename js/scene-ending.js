@@ -617,8 +617,23 @@ class EndingWatchScene extends Phaser.Scene {
         // 닿는 순간 더미로 바꿔 놓습니다.
         if (나는옷 !== 'cloak-fallen') 옷.setTexture('cloak-fallen');
         this.step = 9;
-        this.time.delayedCall(1200, () => this.leave());
+        this.time.delayedCall(CFG.ending.floorRestMs, () => this.toBlack());
       },
+    });
+  }
+
+  // 놓인 겉옷을 잠깐 보고 있다가, 검게 덮고 나갑니다.
+  //
+  // 예전에는 1.2초 뒤에 곧장 타이틀로 넘겼습니다. 마지막으로 보는 그림이
+  // 이 겉옷인데 놓이자마자 화면이 갈아치워지니 **놓였다는 것을 볼 새가**
+  // 없었습니다. 그리고 밝은 탑 안에서 타이틀로 바로 튀면 이음매가 튑니다 —
+  // 검은 화면 한 장이 사이에 있어야 「끝났다」가 됩니다.
+  toBlack() {
+    const c = CFG.ending;
+    const 덮개 = makeVeil(this, 0x000000).setDepth(600);
+    this.tweens.add({
+      targets: 덮개, alpha: 1, duration: c.blackMs, ease: 'Sine.easeIn',
+      onComplete: () => this.time.delayedCall(c.blackHoldMs, () => this.leave()),
     });
   }
 

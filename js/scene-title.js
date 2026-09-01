@@ -57,6 +57,17 @@ class TitleScene extends Phaser.Scene {
     // 게임이 끝난 자리라 그 규칙이 미치지 않습니다.
     if (Save.endingStage >= 2) return this.scene.start('credits', { straight: true });
 
+    // ── 장면 객체는 **다시 쓰입니다** ────────────────────
+    //
+    // Phaser 는 scene.start 마다 새로 만들지 않습니다. create() 만 다시
+    // 돌고 인스턴스에 붙여 둔 값은 **지난번 것이 그대로 남습니다.**
+    // goingCode 를 여기서 안 지웠더니, 코드 화면을 한 번 열어 본 사람은
+    // 돌아온 뒤로 **타이틀이 영영 안 눌렸습니다** — go() 가 첫 줄에서
+    // 되돌아갑니다. 오류는 안 나고 화면도 멀쩡합니다. 그냥 안 됩니다.
+    // (엔딩을 코드로 보고 나온 사람이 딱 이 자리에 갇혔습니다.)
+    this.goingCode = false;
+    this.ready = false;
+
     const cx = CFG.width / 2;
     this.cameras.main.setBackgroundColor('#0a0d18');
 

@@ -1627,6 +1627,128 @@ assets/ 에 세 장을 넣고
 
 ---
 
+## 8.36 무너짐과 일어남 — 붉은 겉옷의 컷 열여섯 (`assets/sheets/`)
+
+33층 시퀀스 2번과 3번입니다. 지금은 그림 **한 장**을 기울였다가
+`cloak-fallen`(천 더미)으로 바꿔 끼웁니다. 그래서 쓰러지는 순간
+**옷 안에 아무것도 없어진 것처럼** 보입니다 — 사람이 무너지는 것이
+아니라 옷이 툭 떨어집니다. 컷으로 받아 고칩니다.
+
+| 폴더 | 컷 | 한 컷 크기 | 키 |
+|---|---|---|---|
+| `assets/sheets/cloak-fall/` | `0.png` ~ `7.png` | **144×184** | `sheet-cloak-fall` |
+| `assets/sheets/cloak-rise/` | `0.png` ~ `7.png` | **144×184** | `sheet-cloak-rise` |
+
+`assets/cloak-red.png` 와 **같은 판, 같은 사람, 같은 붉은색**입니다.
+그림이 들어오면 `node bake-sheets.js` 가 알아서 훑어 `js/sheetdata.js` 에
+묶습니다 (곰 시트와 같은 길입니다).
+
+### 여덟 컷의 뜻 — `cloak-fall` (무너짐)
+
+```
+0  선 채로            — assets/cloak-red.png 과 같은 자세. 이어 붙는 자리입니다
+1  어깨가 앞으로 무너지기 시작. 후드가 흔들립니다
+2  무릎이 꺾입니다
+3  상체가 앞으로 접힙니다
+4  한 손이 바닥에 닿습니다
+5  주저앉습니다. 후드가 앞으로 쏟아집니다
+6  옆으로 무너집니다. 옷이 바닥에 퍼지기 시작합니다
+7  천 더미                — assets/cloak-fallen.png 과 같은 모양으로 끝납니다
+```
+
+### 여덟 컷의 뜻 — `cloak-rise` (일어남)
+
+**뒤집어 재생하는 것이 아닙니다.** 무너지는 것은 힘이 빠지는 일이고
+일어나는 것은 힘을 쓰는 일이라, 같은 컷을 거꾸로 돌리면 「누가 되감았다」로
+보입니다. 스스로 미는 동작이 들어가야 합니다.
+
+```
+0  천 더미                — cloak-fall 의 7번과 같은 모양
+1  더미가 한 번 부풀어 오릅니다. 아직 사람 모양은 아닙니다
+2  후드가 들립니다
+3  한 손이 바닥을 짚습니다
+4  그 손으로 상체를 밀어 올립니다 — **여기가 알맹이입니다**
+5  한쪽 무릎을 세웁니다
+6  거의 다 폈지만 고개는 아직 숙이고 있습니다
+7  선 채로                — 0번(cloak-fall)과 같은 자세로 돌아옵니다
+```
+
+### 못박을 것
+
+- **옷 안에 사람이 있어야 합니다.** 이게 이 요청의 전부입니다. 무너지는
+  동안 어깨·팔·무릎이 옷 밑에서 보여야 하고, 마지막 천 더미도 「빈 걸레」가
+  아니라 **천 밑에 누가 있는 것**으로 읽혀야 합니다
+- 얼굴은 여전히 **후드 그림자에 가려 얼핏**입니다 (8.3절 그대로). 컷마다
+  달라지면 안 됩니다
+- 발이 딛는 줄이 **여덟 컷에서 같아야 합니다.** 컷마다 위아래로 흔들리면
+  재생할 때 사람이 벌렁거립니다
+- 피 없음, 무기 없음, 글자 없음, 배경 없음(투명)
+- 붉은색은 `assets/cloak-red.png` 에서 그대로 떠 쓰세요
+
+### 그림 도구에 그대로 넘길 요청문
+
+> Eight sequential frames of one continuous animation, each 144x184, transparent
+> background, side view facing right, 2D game sprite, painterly with soft
+> shading. The subject is a figure in a long deep-red hooded cloak — the same
+> character in every frame, same red, same proportions. The face is barely
+> glimpsed inside the hood shadow.
+>
+> COLLAPSE (folder cloak-fall), frame by frame:
+> 0 standing upright, still. 1 shoulders start to give way, hood shifts
+> forward. 2 knees buckle. 3 upper body folds forward. 4 one hand reaches the
+> ground. 5 sinking to the ground, hood spilling forward. 6 toppling sideways,
+> cloth beginning to spread on the ground. 7 a settled heap of red cloth.
+>
+> CRITICAL: there is a BODY inside the cloak. Shoulders, arms and knees must
+> read through the fabric as it folds. Even the final heap must read as
+> "someone lying beneath cloth", never as an empty rag or a flat pile.
+>
+> The ground line must be identical in all eight frames. No blood, no weapon,
+> no text, no background, no border.
+
+(일어남은 같은 문장에 프레임 뜻만 바꿔서 한 번 더 시킵니다.)
+
+---
+
+## 8.37 겉옷을 짚어 드는 컷 여덟 (`assets/sheets/lift-<직업>/`)
+
+마지막 판에서 주인공이 바닥의 붉은 겉옷을 짚어 드는 자리입니다
+(33층 시퀀스 10번). 지금은 짚는 순간 곧장 크레딧으로 넘어갑니다.
+
+| 폴더 | 컷 | 한 컷 크기 | 키 |
+|---|---|---|---|
+| `assets/sheets/lift-warrior/` | `0.png` ~ `7.png` | **152×192** (전사 판) | `sheet-lift-warrior` |
+
+**전사부터 한 벌만 받습니다.** 여덟 직업을 다 그리면 예순네 컷인데,
+먼저 한 벌을 붙여 보고 나서 나머지를 정합니다. 시트가 없는 직업은
+지금대로 넘어갑니다 — 코드가 있으면 쓰고 없으면 물러섭니다.
+
+### 여덟 컷의 뜻
+
+```
+0  선 채로            — sheets/w-warrior-0/0.png 과 같은 자세
+1  겉옷 쪽으로 고개를 돌립니다
+2  무릎을 굽히기 시작합니다
+3  한쪽 무릎을 꿇습니다
+4  손을 뻗습니다
+5  겉옷을 쥡니다        — **여기서 한 박자 멈춥니다**
+6  일어서면서 들어 올립니다
+7  선 채로, 겉옷을 두 손에 들고 봅니다
+```
+
+### 못박을 것
+
+- **입지 않습니다.** 드는 데서 끝납니다. 입는 순간 「다음 사람이 되었다」가
+  되는데, 그건 크레딧이 할 말입니다
+- 무기는 등이나 허리에 그대로 있습니다. 던져 버리면 안 됩니다
+- 겉옷은 `assets/cloak-fallen.png` 와 같은 붉은색·같은 천입니다
+- 사람은 `assets/sheets/w-warrior-0/0.png` 와 **같은 사람**입니다.
+  갑옷 모양·색·비례가 컷마다 흔들리면 안 됩니다
+- 발이 딛는 줄이 여덟 컷에서 같아야 합니다
+- 글자 없음, 배경 없음(투명)
+
+---
+
 ## 8.4 래스터(PNG)로 준 것은 `bake-sprites.js` 가 받습니다
 
 `art/*.svg` 는 `bake-art.js` 가 묶지만, `gen-sprite.js` 로 그린 것은 원본이
