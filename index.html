@@ -527,6 +527,12 @@ const CFG = {
     restMs: 1400,        // 쓰러진 채로 · 선 채로 머무는 사이
     riseMs: 2200,        // 아무도 막지 않는 채로 오르는 동안
     fallMs: 2600,        // 겉옷이 1층까지 떨어지는 데
+    // 겉옷이 바닥에 닿은 뒤. **여기서 바로 타이틀로 넘기면 안 됩니다** —
+    // 마지막으로 보는 그림이 겉옷인데, 놓이자마자 화면이 갈아치워지면
+    // 놓였다는 것을 볼 새가 없습니다. 가만히 두고, 검게 덮고, 넘깁니다.
+    floorRestMs: 2800,   // 놓인 겉옷을 그냥 보고 있는 사이
+    blackMs: 1200,       // 검게 덮는 데
+    blackHoldMs: 500,    // 다 검어진 채로 (타이틀이 튀어나오지 않게)
   },
 
   idle: {
@@ -11386,6 +11392,17 @@ class TitleScene extends Phaser.Scene {
     // 게임이 끝난 자리라 그 규칙이 미치지 않습니다.
     if (Save.endingStage >= 2) return this.scene.start('credits', { straight: true });
 
+    // ── 장면 객체는 **다시 쓰입니다** ────────────────────
+    //
+    // Phaser 는 scene.start 마다 새로 만들지 않습니다. create() 만 다시
+    // 돌고 인스턴스에 붙여 둔 값은 **지난번 것이 그대로 남습니다.**
+    // goingCode 를 여기서 안 지웠더니, 코드 화면을 한 번 열어 본 사람은
+    // 돌아온 뒤로 **타이틀이 영영 안 눌렸습니다** — go() 가 첫 줄에서
+    // 되돌아갑니다. 오류는 안 나고 화면도 멀쩡합니다. 그냥 안 됩니다.
+    // (엔딩을 코드로 보고 나온 사람이 딱 이 자리에 갇혔습니다.)
+    this.goingCode = false;
+    this.ready = false;
+
     const cx = CFG.width / 2;
     this.cameras.main.setBackgroundColor('#0a0d18');
 
@@ -12288,8 +12305,23 @@ class EndingWatchScene extends Phaser.Scene {
         // 닿는 순간 더미로 바꿔 놓습니다.
         if (나는옷 !== 'cloak-fallen') 옷.setTexture('cloak-fallen');
         this.step = 9;
-        this.time.delayedCall(1200, () => this.leave());
+        this.time.delayedCall(CFG.ending.floorRestMs, () => this.toBlack());
       },
+    });
+  }
+
+  // 놓인 겉옷을 잠깐 보고 있다가, 검게 덮고 나갑니다.
+  //
+  // 예전에는 1.2초 뒤에 곧장 타이틀로 넘겼습니다. 마지막으로 보는 그림이
+  // 이 겉옷인데 놓이자마자 화면이 갈아치워지니 **놓였다는 것을 볼 새가**
+  // 없었습니다. 그리고 밝은 탑 안에서 타이틀로 바로 튀면 이음매가 튑니다 —
+  // 검은 화면 한 장이 사이에 있어야 「끝났다」가 됩니다.
+  toBlack() {
+    const c = CFG.ending;
+    const 덮개 = makeVeil(this, 0x000000).setDepth(600);
+    this.tweens.add({
+      targets: 덮개, alpha: 1, duration: c.blackMs, ease: 'Sine.easeIn',
+      onComplete: () => this.time.delayedCall(c.blackHoldMs, () => this.leave()),
     });
   }
 
