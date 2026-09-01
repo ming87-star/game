@@ -18,21 +18,6 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 // 오류가 안 보이므로 눌러 본 사람은 그냥 "버튼이 안 먹는다"고 느낍니다.
 //
 // 목록이 두 군데 있으면 언젠가 반드시 어긋납니다. 한 군데만 둡니다.
-//
-// ── 딱 하나만 빼고 ──────────────────────────────────────
-// js/devdoor.js 는 **합친 파일에 안 들어갑니다.**
-//
-// 그 파일은 주소 끝에 #ending 만 붙이면 저장을 세워 놓고 엔딩으로 들어가는
-// 뒷문입니다. 만드는 동안에는 이게 있어야 손으로 눌러 볼 수 있습니다 —
-// 안 그러면 메달 마흔여덟 개를 다 사야 하고, 휴대폰에는 콘솔도 없습니다.
-//
-// 그런데 내놓는 것에 그대로 두면 **누구든 주소 한 글자로 엔딩을 열고,
-// 남의 기록을 지울 수도 있습니다.** 내놓는 것은 dist/index.html 한 장이므로
-// 여기서 빼면 그걸로 끝납니다. 개발용 index.html 에는 그대로 남습니다.
-//
-// verify-dist.js 가 합친 파일에 이 문이 안 들어갔는지 확인합니다.
-const 뒷문 = 'js/devdoor.js';
-
 function scriptsFromIndex() {
   const html = read('index.html');
   const found = [...html.matchAll(/<script\s+src="([^"]+)"\s*>/g)].map((m) => m[1]);
@@ -40,7 +25,7 @@ function scriptsFromIndex() {
   found.forEach((f) => {
     if (!fs.existsSync(path.join(ROOT, f))) throw new Error(f + ' 가 없습니다');
   });
-  return found.filter((f) => f !== 뒷문);
+  return found;
 }
 
 const SCRIPTS = scriptsFromIndex();

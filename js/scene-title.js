@@ -139,17 +139,24 @@ class TitleScene extends Phaser.Scene {
     ['keydown-SPACE', 'keydown-ENTER'].forEach((k) =>
       this.input.keyboard.on(k, () => this.tap()));
 
-    // 뒷문으로 세워 둔 판이면 **화면에 적어 둡니다.** 휴대폰에는 콘솔이
-    // 없어서, 이 줄이 없으면 원래 기록으로 돌아갈 길을 못 찾습니다
-    // (js/devdoor.js).
-    if (Save.data.devSeeded) {
-      const 남은 = Save.data.devLeft;
-      this.add.text(CFG.width / 2, CFG.height - 30,
-        (남은 ? '엔딩 보기 — 메달 상점에 한 칸 남았습니다  ·  ' : '엔딩 보기  ·  ')
-        + '주소 끝을 #restore 로 바꾸면 기록이 돌아옵니다',
-        { fontFamily: 'sans-serif', fontSize: '12px', color: '#4a5578' })
-        .setOrigin(0.5).setDepth(400);
-    }
+    // ── 코드 입력 ───────────────────────────────────────
+    // **작게, 맨 아래에.** 크게 두면 처음 켠 사람이 「뭘 넣어야 하나」부터
+    // 묻게 됩니다 — 여기는 받은 사람만 쓰는 자리입니다. 그렇다고 감추면
+    // 베타 보상을 받은 사람이 못 찾으니, 보이되 조용히 둡니다.
+    //
+    // 예전에는 주소 끝에 #ending 을 붙이는 방식이었습니다. 손은 편했지만
+    // **의도 없이도 열립니다** — 주소를 잘못 만지면 기록이 세워졌습니다.
+    // 여섯 자리를 눌러야 하는 자리로 옮겼습니다 (js/codes.js).
+    const 코드 = this.add.text(CFG.width / 2, CFG.height - 34, '코드 입력',
+      { fontFamily: 'sans-serif', fontSize: '15px', color: '#5f6d99' })
+      .setOrigin(0.5).setDepth(400)
+      .setInteractive({ useHandCursor: true });
+    // 글자만 두면 손가락으로 누르기에 좁습니다. 안 보이는 넓은 자리를 덧댑니다.
+    this.add.rectangle(CFG.width / 2, CFG.height - 34, 200, 52, 0x000000, 0)
+      .setDepth(399).setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this.openCode());
+    코드.on('pointerdown', () => this.openCode());
+    this.codeAt = { x: CFG.width / 2, y: CFG.height - 34 };
 
     window.__title = this;
   }
@@ -184,7 +191,13 @@ class TitleScene extends Phaser.Scene {
   // 처음 켠 사람은 프롤로그로, 이미 본 사람은 곧장 직업 고르기로.
   // 이 갈림이 여기 있는 것이 맞습니다 — 프롤로그가 스스로 "나는 안 나온다"를
   // 판단해서 곧장 넘기면, 그 한 프레임 동안 빈 프롤로그 화면이 깜빡입니다.
+  openCode() {
+    this.goingCode = true;      // 밑에 깔린 「눌러서 계속」이 같이 먹지 않게
+    this.scene.start('code');
+  }
+
   go() {
+    if (this.goingCode) return;
     // 엔딩을 본 사람은 아예 여기 안 섭니다 (create 가 곧장 넘깁니다).
     // 그래도 이 줄을 남겨 둡니다 — 어떤 길로 들어와도 닫혀 있어야 합니다.
     if (Save.endingStage >= 2) return this.scene.start('credits', { straight: true });

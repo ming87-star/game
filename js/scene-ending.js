@@ -17,7 +17,11 @@ class EndingLineScene extends Phaser.Scene {
     super('endingline');
   }
 
-  create() {
+  create(data) {
+    // 코드로 들어온 **미리보기**는 기록에 아무것도 안 적습니다 (js/codes.js).
+    // 주소에 붙이던 방식은 저장을 통째로 세워야 해서 백업까지 떠야 했는데,
+    // 코드는 그냥 보여 주기만 하면 됩니다 — 되돌릴 일이 없어집니다.
+    this.preview = !!(data && data.preview);
     const cx = CFG.width / 2;
     this.cameras.main.setBackgroundColor('#05070d');
     // **Phaser 는 장면 객체를 다시 씁니다.** 다시 켜도 create 만 다시 돌 뿐
@@ -77,7 +81,7 @@ class EndingLineScene extends Phaser.Scene {
     const 덮개 = this.add.rectangle(CFG.width / 2, CFG.height / 2,
       CFG.width, CFG.height, 0xffffff, 0).setDepth(500);
     this.tweens.add({ targets: 덮개, alpha: 1, duration: 900,
-      onComplete: () => this.scene.start('endingwatch') });
+      onComplete: () => this.scene.start('endingwatch', { preview: this.preview }) });
   }
 }
 
@@ -121,7 +125,8 @@ class EndingWatchScene extends Phaser.Scene {
     loadArt(this);
   }
 
-  create() {
+  create(data) {
+    this.preview = !!(data && data.preview);   // 코드로 들어온 미리보기
     buildTextures(this);
     const c = CFG.ending;
     buildTowerWall(this);
@@ -407,7 +412,10 @@ class EndingWatchScene extends Phaser.Scene {
     // **여기서야 「봤다」입니다.** 산 순간이 아니라 끝까지 본 순간입니다 —
     // 그 사이에 창을 닫은 사람은 다음에 켰을 때 처음부터 다시 봅니다
     // (js/save.js 의 sawEnding).
-    Save.markEndingSeen();
+    //
+    // 미리보기(코드로 들어온 것)는 **아무것도 안 적습니다.** 적어 버리면
+    // 한 번 눌러 본 것이 「이 사람은 엔딩을 봤다」가 되어 판이 닫힙니다.
+    if (!this.preview) Save.markEndingSeen();
     this.scene.start('title');
   }
 }

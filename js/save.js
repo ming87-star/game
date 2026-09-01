@@ -63,6 +63,8 @@ function blankSave() {
     // 시작 화면에서 직접 눌러야 다시 나옵니다 — 한 판 더 하려고 켰는데
     // 매번 이야기부터 보게 하면 그건 이야기가 아니라 문턱입니다.
     sawStory: false,
+    // 한 번만 쓸 수 있는 코드 중 이미 쓴 것 (js/codes.js)
+    usedCodes: {},
   };
 }
 
@@ -238,6 +240,17 @@ const Save = {
   },
 
   get sawEnding() { return !!this.data.sawEnding; },
+
+  // ── 한 번만 쓰는 코드 (js/codes.js) ────────────────────
+  // 베타 보상처럼 **한 판에 한 번만** 받는 코드가 있습니다. 쓴 것을 여기
+  // 적어 두지 않으면 같은 코드를 몇 번이고 다시 넣을 수 있습니다.
+  usedCode(code) { return !!(this.data.usedCodes || {})[code]; },
+
+  markCodeUsed(code) {
+    if (!this.data.usedCodes) this.data.usedCodes = {};
+    this.data.usedCodes[code] = true;
+    this.flush();
+  },
 
   setJob(key) {
     this.data.lastJob = key;
