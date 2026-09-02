@@ -181,34 +181,53 @@ function png알파(파일) {
   return { w, h, 자료: 나온것 };
 }
 
+const 테두리알파 = (파일) => {
+  const 장 = png알파(파일);
+  if (!장) return null;
+  const { w, h, 자료 } = 장;
+  let 가장옅은 = 255;
+  for (let x = 0; x < w; x++) 가장옅은 = Math.min(가장옅은, 자료[x * 4 + 3], 자료[((h - 1) * w + x) * 4 + 3]);
+  for (let y = 0; y < h; y++) 가장옅은 = Math.min(가장옅은, 자료[y * w * 4 + 3], 자료[(y * w + w - 1) * 4 + 3]);
+  return 가장옅은;
+};
+
 if (fs.existsSync(path.join(ROOT, 'assets', 'app-icon.png'))) {
-  const 앞겹 = png알파(path.join(A, 'res', 'mipmap-xxxhdpi', 'ic_launcher_foreground.png'));
-  if (!앞겹) check(false, '적응형 앞겹을 읽음', 'RGBA 8비트가 아님');
-  else {
-    let 가장옅은 = 255;
-    const { w, h, 자료 } = 앞겹;
-    for (let x = 0; x < w; x++) {
-      가장옅은 = Math.min(가장옅은, 자료[(0 * w + x) * 4 + 3], 자료[((h - 1) * w + x) * 4 + 3]);
-    }
-    for (let y = 0; y < h; y++) {
-      가장옅은 = Math.min(가장옅은, 자료[(y * w) * 4 + 3], 자료[(y * w + w - 1) * 4 + 3]);
-    }
-    check(가장옅은 >= 250,
-      '적응형 앞겹이 **테두리까지 불투명** (마스크 가장자리에 뒷겹이 안 비침)',
-      '가장 옅은 테두리 알파 ' + 가장옅은);
-  }
+  const 낮 = 테두리알파(path.join(A, 'res', 'mipmap-xxxhdpi', 'ic_launcher_foreground.png'));
+  check(낮 !== null && 낮 >= 250,
+    '적응형 앞겹이 **테두리까지 불투명** (마스크 가장자리에 뒷겹이 안 비침)',
+    '가장 옅은 테두리 알파 ' + 낮);
 }
 
-// ── 테마 아이콘이 따로 있는가 ─────────────────────────────
+// ── 어두운 모드 아이콘 ────────────────────────────────────
 //
-// 테마 아이콘은 알파만 씁니다. 앞겹(꽉 찬 그림)을 그대로 물리면 **네모
-// 한 덩어리**가 됩니다. 그래서 실루엣 한 장을 따로 굽습니다.
-const 적응형 = 읽기(path.join(A, 'res', 'mipmap-anydpi-v26', 'ic_launcher.xml'));
-const 흑백파일 = path.join(A, 'res', 'mipmap-xxxhdpi', 'ic_launcher_mono.png');
-check(/<monochrome[^>]*ic_launcher_mono"/.test(적응형) && fs.existsSync(흑백파일),
-  '테마 아이콘이 **앞겹이 아닌 따로 그린 실루엣**을 봄',
-  (/<monochrome[^>]*ic_launcher_mono"/.test(적응형) ? '배선 O' : '배선 X')
-  + ' · ' + (fs.existsSync(흑백파일) ? '파일 O' : '파일 X'));
+// assets/app-icon-night.png 가 있으면 -night 폴더에도 한 벌이 구워집니다.
+// **낮 것과 같은 그림이면 굽다 만 것입니다** — 폴더만 생기고 내용은
+// 그대로일 수 있어서 파일이 있는지만 봐서는 안 됩니다.
+if (fs.existsSync(path.join(ROOT, 'assets', 'app-icon-night.png'))) {
+  const 밤길 = path.join(A, 'res', 'mipmap-xxxhdpi-night', 'ic_launcher_foreground.png');
+  const 낮길 = path.join(A, 'res', 'mipmap-xxxhdpi', 'ic_launcher_foreground.png');
+  const 있나 = fs.existsSync(밤길);
+  const 다른가 = 있나 && !fs.readFileSync(밤길).equals(fs.readFileSync(낮길));
+  check(다른가, '어두운 모드 앞겹이 -night 폴더에 **낮 것과 다르게** 있음',
+    (있나 ? '있음' : '없음') + ' · ' + (다른가 ? '낮과 다름' : '낮과 같음'));
+  const 밤 = 있나 ? 테두리알파(밤길) : null;
+  check(밤 !== null && 밤 >= 250, '어두운 모드 앞겹도 테두리까지 불투명',
+    '가장 옅은 테두리 알파 ' + 밤);
+}
+
+// ── 테마 아이콘 칸에 그림을 물리지 않았는가 ───────────────
+//
+// <monochrome> 은 **알파만** 씁니다 — 색은 시스템이 통째로 갈아 끼웁니다.
+// 앞겹은 이제 칸을 꽉 채운 불투명한 그림이라, 여기에 물리면 폰에서
+// **네모 한 덩어리**로 나옵니다. 오류도 안 나고 빌드도 됩니다.
+// 그래서 이 자리는 비워 두었습니다 — 비우면 테마 아이콘을 켜도 그림이
+// 그대로 나옵니다.
+const 적응형 = 읽기(path.join(A, 'res', 'mipmap-anydpi-v26', 'ic_launcher.xml'))
+  .replace(/<!--[\s\S]*?-->/g, '');
+const 물린것 = (적응형.match(/<monochrome[^>]*android:drawable="([^"]+)"/) || [])[1];
+check(!물린것 || !/ic_launcher_foreground$|ic_launcher$/.test(물린것),
+  '테마 아이콘 칸에 **꽉 찬 그림을 물리지 않음** (물리면 덩어리가 됩니다)',
+  물린것 || '비어 있음');
 
 // ── 아직 도형인 것 ────────────────────────────────────────
 //

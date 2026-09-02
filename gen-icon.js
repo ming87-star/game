@@ -83,37 +83,6 @@ function 탑그림(w, h, opt) {
 </svg>`;
 }
 
-// 테마 아이콘(monochrome)용 실루엣.
-//
-// 테마 아이콘은 **알파만 씁니다** — 안드로이드가 색을 통째로 갈아 끼우고
-// 알파만 모양으로 봅니다. 그래서 검게 칠한 곳은 구멍이 아닙니다. 파낼
-// 곳은 mask 로 진짜 뚫어야 합니다.
-//
-// 그린 아이콘(assets/app-icon.png)에서 뽑아 보려고 두 가지를 재 봤습니다.
-//   · 밝기를 알파로 (문턱 0.14 / 0.30 / 0.42 / 0.55)
-//   · 붉기를 알파로 (R − (G+B)/2 가 20 / 34 / 50 / 70 넘는 곳)
-// 여덟 장 다 잉크 얼룩이었습니다. 그림의 절반이 밝기 0.1 아래인 돌벽인데
-// 그 사이 부스러기가 문턱 언저리에 흩어져 있고, 빛기둥이 따뜻한 색이라
-// 붉기로 골라도 겉옷이 아니라 빛이 잡힙니다.
-//
-// 그래서 테마 아이콘만은 따로 긋습니다. 어차피 납작한 실루엣 하나라
-// 그림이 할 일이 없는 자리입니다. 뾰족한 후드에 아래로 퍼지는 겉옷,
-// 얼굴 자리에 구멍 하나 — 이 게임의 붉은 사람입니다.
-function 실루엣(w) {
-  const S = w * 0.52, cx = w / 2, y0 = w / 2 - S / 2;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${w}">
-  <mask id="얼굴">
-    <rect width="100%" height="100%" fill="#fff"/>
-    <ellipse cx="${cx}" cy="${y0 + S * 0.20}" rx="${S * 0.065}" ry="${S * 0.085}" fill="#000"/>
-  </mask>
-  <path d="M ${cx} ${y0}
-           c ${S * 0.155} ${S * 0.06} ${S * 0.21} ${S * 0.20} ${S * 0.23} ${S * 0.36}
-           l ${S * 0.16} ${S * 0.64} l ${-S * 0.78} 0 l ${S * 0.16} ${-S * 0.64}
-           c ${S * 0.02} ${-S * 0.16} ${S * 0.075} ${-S * 0.30} ${S * 0.23} ${-S * 0.36} Z"
-        fill="#ffffff" mask="url(#얼굴)"/>
-</svg>`;
-}
-
 async function 굽기(page, svg, w, h, 파일) {
   const uri = 'data:image/svg+xml;base64,' + Buffer.from(svg, 'utf8').toString('base64');
   const png = await page.evaluate(async ([src, w, h]) => {
@@ -142,11 +111,28 @@ async function 굽기(page, svg, w, h, 파일) {
 const 그린것 = path.join(ROOT, 'assets', 'app-icon.png');
 const 그림있나 = fs.existsSync(그린것);
 
+// ── 어두운 모드용 한 장 ─────────────────────────────────
+//
+// assets/app-icon-night.png 가 있으면 **-night 자원 폴더**에 따로 굽습니다.
+// 폰이 어두운 모드일 때 안드로이드가 이쪽을 골라 씁니다.
+//
+// **테마 아이콘(monochrome) 자리가 아닙니다.** 그 칸은 알파만 쓰고 색은
+// 시스템이 통째로 갈아 끼우기 때문에 그림을 넣으면 덩어리가 됩니다.
+// 실루엣을 그려 넣어 봤지만 사장님이 그림 쪽을 골랐고, 그래서 monochrome
+// 은 아예 뺐습니다 — 빼면 테마 아이콘을 켜도 그냥 이 그림이 나옵니다.
+//
+// 다만 **런처가 아이콘을 캐시합니다.** 어두운 모드로 바꾸자마자 안 바뀔
+// 수 있고, 런처에 따라 -night 를 아예 안 보기도 합니다. 그래도 낮 아이콘이
+// 그대로 나올 뿐이라 잃는 것은 없습니다.
+const 밤것 = path.join(ROOT, 'assets', 'app-icon-night.png');
+const 밤있나 = fs.existsSync(밤것);
+
 // 아이콘 한 장을 SVG 로 감쌉니다. 그림이 있으면 그것을, 없으면 도형을.
 function 아이콘(w, h, opt) {
-  if (!그림있나) return 탑그림(w, h, opt);
   const o = opt || {};
-  const uri = 'data:image/png;base64,' + fs.readFileSync(그린것).toString('base64');
+  if (!그림있나) return 탑그림(w, h, opt);
+  const 쓸것 = o.밤 ? 밤것 : 그린것;
+  const uri = 'data:image/png;base64,' + fs.readFileSync(쓸것).toString('base64');
   if (!o.safe) {
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">`
       + `<image href="${uri}" x="0" y="0" width="${w}" height="${h}"/></svg>`;
@@ -173,23 +159,25 @@ function 아이콘(w, h, opt) {
   const page = await browser.newPage();
   const 만든것 = [그림있나 ? '그림(assets/app-icon.png)으로 굽습니다'
     : '아직 그림이 없어 도형으로 굽습니다 (gen-sprite.js app-icon)'];
+  if (밤있나) 만든것.push('어두운 모드는 assets/app-icon-night.png (-night 폴더)');
 
-  // ── 옛 방식 아이콘 (안드로이드 7 까지) ──────────────────
-  for (const [d, n] of Object.entries(밀도)) {
-    const 크기 = await 굽기(page, 아이콘(n, n), n, n,
-      path.join(RES, 'mipmap-' + d, 'ic_launcher.png'));
-    await 굽기(page, 아이콘(n, n), n, n, path.join(RES, 'mipmap-' + d, 'ic_launcher_round.png'));
-    만든것.push(`mipmap-${d}  ${n}×${n}  ${Math.round(크기 / 1024)}KB`);
-  }
-
-  // ── 적응형 아이콘 (안드로이드 8 이상) ───────────────────
-  // 도형은 가운데 66% 안에, 그린 그림은 칸을 꽉 채웁니다 (아이콘() 참고).
-  for (const [d, n] of Object.entries(밀도)) {
-    const N = Math.round(n * 108 / 48);   // 적응형은 108dp 칸입니다
-    await 굽기(page, 아이콘(N, N, { safe: true, bg: false }), N, N,
-      path.join(RES, 'mipmap-' + d, 'ic_launcher_foreground.png'));
-    // 테마 아이콘 — 그림이 있든 없든 같은 실루엣을 씁니다.
-    await 굽기(page, 실루엣(N), N, N, path.join(RES, 'mipmap-' + d, 'ic_launcher_mono.png'));
+  // ── 폰에 들어가는 열다섯 장 (밤 그림이 있으면 서른 장) ──
+  //
+  // 옛 방식(안드로이드 7 까지)은 아이콘 한 장이 통째로 들어가고,
+  // 적응형(8 이상)은 108dp 칸에 앞겹을 넣습니다. 도형은 가운데 66% 안에,
+  // 그린 그림은 칸을 꽉 채웁니다 — 까닭은 아이콘() 안에 있습니다.
+  const 밤낮 = 밤있나 ? [{ 밤: false, 꼬리: '' }, { 밤: true, 꼬리: '-night' }]
+    : [{ 밤: false, 꼬리: '' }];
+  for (const { 밤, 꼬리 } of 밤낮) {
+    for (const [d, n] of Object.entries(밀도)) {
+      const 방 = path.join(RES, 'mipmap-' + d + 꼬리);
+      const 크기 = await 굽기(page, 아이콘(n, n, { 밤 }), n, n, path.join(방, 'ic_launcher.png'));
+      await 굽기(page, 아이콘(n, n, { 밤 }), n, n, path.join(방, 'ic_launcher_round.png'));
+      const N = Math.round(n * 108 / 48);   // 적응형은 108dp 칸입니다
+      await 굽기(page, 아이콘(N, N, { safe: true, bg: false, 밤 }), N, N,
+        path.join(방, 'ic_launcher_foreground.png'));
+      만든것.push(`mipmap-${d}${꼬리}  ${n}×${n}  ${Math.round(크기 / 1024)}KB`);
+    }
   }
 
   // ── 스토어 자산 ─────────────────────────────────────────
