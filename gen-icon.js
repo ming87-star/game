@@ -159,10 +159,15 @@ function 아이콘(w, h, opt) {
   // 스토어 목록 맨 위에 걸립니다. **글자는 코드가 얹습니다** — 그림
   // 모델은 한글을 제대로 못 씁니다. 획이 뭉개지거나 없는 글자를 지어냅니다.
   // 그림은 오른쪽 절반을 맡고, 왼쪽은 제목 자리로 비워 둡니다.
+  //
+  // 그림을 x=256 에 놓아 **아이콘의 가운데 띠**가 오른쪽 칸에 오게 합니다.
+  // x=512 였을 때는 아이콘의 왼쪽 절반만 보였는데, 아이콘의 붉은 사람은
+  // 한가운데(x≈515)에 서 있어서 **오른쪽 끝에 반쯤 잘려** 나왔습니다.
+  // 이 배너에서 유일한 붉은 것이라 잘리면 안 됩니다.
   const 피처그림 = 그림있나
     ? `<defs><clipPath id="cut"><rect x="512" y="0" width="512" height="500"/></clipPath></defs>
        <image href="data:image/png;base64,${fs.readFileSync(그린것).toString('base64')}"
-              x="512" y="-262" width="1024" height="1024" clip-path="url(#cut)" preserveAspectRatio="xMidYMid slice"/>
+              x="256" y="-262" width="1024" height="1024" clip-path="url(#cut)" preserveAspectRatio="xMidYMid slice"/>
        <rect x="512" y="0" width="150" height="500" fill="url(#fade)"/>`
     : `<path d="M 700 0 L 760 0 L 900 500 L 560 500 Z" fill="url(#sh)" opacity=".5"/>
        <rect x="686" y="120" width="96" height="380" fill="#39445e"/>
