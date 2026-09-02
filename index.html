@@ -10,6 +10,22 @@
 <body>
 <div id="game"></div>
 
+<!-- ── 불러오는 동안 보이는 것 ────────────────────────────────
+     합친 파일은 12MB 한 장입니다. 폰에서 타이틀이 뜨기까지 재 보면
+     **5.2초(중급 폰쯤이면 7.4초)** 가 걸리는데, 그동안 어두운 빈 화면만
+     보였습니다. 게임을 처음 켠 사람이 보는 첫 화면이 그것입니다.
+
+     그래서 **스크립트보다 앞에** 둡니다. 브라우저는 위에서 아래로 읽으므로
+     여기까지는 12MB 를 만나기 전에 그려집니다. 그림도 글꼴도 안 씁니다 —
+     둘 다 그 12MB 안에 들어 있어서, 쓰는 순간 같이 기다리게 됩니다.
+     js/main.js 가 게임을 띄우면서 걷어냅니다. -->
+<div id="boot">
+  <div id="boot-title">오늘도 탑을 오르는 나는</div>
+  <div id="boot-name">무슨 생각을 해야 할까</div>
+  <div id="boot-bar"><i></i></div>
+  <div id="boot-say">탑을 세우는 중</div>
+</div>
+
 <script src="vendor/phaser.min.js"></script>
 <script src="js/rng.js"></script>
 <script src="js/config.js"></script>

@@ -78,7 +78,49 @@ function 겹치는전역() {
   page.on('pageerror', (e) => errors.push('PAGEERROR: ' + (e.message || '')));
   page.on('console', (m) => { if (m.type() === 'error') errors.push('CONSOLE: ' + m.text()); });
 
-  await page.goto('http://localhost:' + port + '/', { waitUntil: 'networkidle' });
+  // ── 불러오는 화면 ──────────────────────────────────────
+  //
+  // 합친 파일은 12MB 한 장입니다. 타이틀이 서기까지 재 보면 3.6초
+  // (CPU 를 4배 늦추면 7.4초)가 걸리는데, 그동안 **아무것도 안 보였습니다.**
+  //
+  // 여기서 볼 것이 셋입니다.
+  //  ① 합친 파일에 들어 있는가 — build.js 가 몸통을 손으로 적어 두던 시절
+  //     에는 index.html 에만 넣으면 합친 파일에서만 통째로 빠졌습니다.
+  //     개발용으로 열면 멀쩡하고 폰으로 받은 사람만 빈 화면을 봅니다.
+  //  ② **첫 <script> 보다 앞에** 있는가 — 뒤에 있으면 12MB 를 다 읽고 나서야
+  //     그려져서, 있으나 마나입니다.
+  //  ③ 타이틀이 다 선 **뒤에** 걷히는가 — 게임 고리가 돌기 시작한 것으로
+  //     걷었더니 1.8초에 걷히고 타이틀은 3.6초였습니다. 그 사이 2초가 도로
+  //     어두운 빈 화면이라 자리만 옮긴 셈이었습니다.
+  const 원문 = fs.readFileSync(FILE, 'utf8');
+  const 덮개자리 = 원문.indexOf('id="boot"');
+  const 첫스크립트 = 원문.indexOf('<script');
+  check(덮개자리 > 0, '합친 파일에 불러오는 화면이 들어 있음');
+  check(덮개자리 > 0 && 덮개자리 < 첫스크립트,
+    '불러오는 화면이 첫 <script> 보다 앞에 있음 (12MB 를 기다리지 않게)',
+    덮개자리 + ' < ' + 첫스크립트);
+
+  await page.goto('http://localhost:' + port + '/', { waitUntil: 'commit' });
+  const 잰것 = await page.evaluate(() => new Promise((done) => {
+    const t0 = performance.now();
+    const r = { 뜸: null, 걷힘: null, 타이틀: null };
+    const tick = () => {
+      const e = document.getElementById('boot');
+      if (r.뜸 === null && e && e.getBoundingClientRect().width > 0) r.뜸 = Math.round(performance.now() - t0);
+      if (r.타이틀 === null && window.__title && window.__title.ready) r.타이틀 = Math.round(performance.now() - t0);
+      if (r.걷힘 === null && (!e || e.classList.contains('gone'))) r.걷힘 = Math.round(performance.now() - t0);
+      if (r.걷힘 !== null && r.타이틀 !== null) return done(r);
+      if (performance.now() - t0 > 60000) return done(r);
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }));
+  check(잰것.뜸 !== null && 잰것.뜸 < 1500,
+    '불러오는 화면이 곧바로 뜸', 잰것.뜸 + 'ms');
+  check(잰것.걷힘 !== null && 잰것.타이틀 !== null && 잰것.걷힘 >= 잰것.타이틀 - 120,
+    '타이틀이 다 선 뒤에 걷힘 (사이에 빈 화면이 안 끼게)',
+    '걷힘 ' + 잰것.걷힘 + 'ms · 타이틀 ' + 잰것.타이틀 + 'ms');
+
   await page.waitForTimeout(1400);
 
   // 1. 시작 화면

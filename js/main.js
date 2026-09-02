@@ -28,3 +28,44 @@ window.__game = new Phaser.Game({
   scene: [TitleScene, StoryScene, SelectScene, MedalScene, RelicBookScene, WeaponBookScene,
     MeetScene, CodeScene, EndingLineScene, EndingWatchScene, CreditsScene, GameScene, PauseScene, SwapScene, TrophyScene, FoeScene],
 });
+
+// ── 불러오는 화면을 걷습니다 ───────────────────────────────
+//
+// **첫 장면이 실제로 그려진 뒤에** 걷습니다. new Phaser.Game 이 돌아온
+// 순간에 걷으면 아직 캔버스에 아무것도 없어서, 걷힌 자리에 어두운 빈
+// 화면이 한 번 더 나옵니다 — 기다린 보람이 거기서 사라집니다.
+//
+// 타이틀이 그림을 다 불러오고 첫 프레임을 그린 뒤가 그 자리입니다.
+// 혹시 그 신호가 안 오더라도 화면이 영영 덮여 있으면 안 되므로, 8초 뒤에는
+// 무조건 걷습니다.
+(function () {
+  const 덮개 = document.getElementById('boot');
+  if (!덮개) return;
+  let 걷었나 = false;
+  const 걷기 = () => {
+    if (걷었나) return;
+    걷었나 = true;
+    덮개.classList.add('gone');
+    setTimeout(() => 덮개.remove(), 600);
+  };
+  window.__bootDone = 걷기;
+
+  // **게임 고리가 돌기 시작한 것으로는 모자랍니다.**
+  //
+  // 처음에 Phaser 의 'ready' 에 걸었더니 1.76초(중급 폰쯤이면 4.1초)에
+  // 걷혔는데, 타이틀이 다 서는 것은 3.7초(8.0초)였습니다. 그 사이 2~4초가
+  // 도로 어두운 빈 화면입니다 — 덮개를 씌운 까닭이 그 화면을 없애려는
+  // 것이었으니, 이러면 자리만 옮긴 셈입니다.
+  //
+  // 첫 화면이 **글자까지 다 선 뒤**에 걷습니다.
+  const 섰나 = () => (window.__title && window.__title.ready)
+    || (window.__credits && window.__credits.shown);
+  const 보기 = () => {
+    if (섰나()) return requestAnimationFrame(걷기);   // 한 프레임 더 그린 뒤
+    requestAnimationFrame(보기);
+  };
+  requestAnimationFrame(보기);
+
+  // 그 신호가 끝내 안 오더라도 화면이 영영 덮여 있으면 안 됩니다.
+  setTimeout(걷기, 12000);
+})();

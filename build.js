@@ -30,6 +30,21 @@ function scriptsFromIndex() {
 
 const SCRIPTS = scriptsFromIndex();
 
+// 몸통 markup 도 **index.html 에서 읽습니다.**
+//
+// 여기에 `<div id="game"></div>` 를 손으로 적어 두었더니, 불러오는 화면을
+// index.html 에만 넣은 날 합친 파일에서만 그것이 통째로 빠졌습니다 —
+// 개발용으로 열면 멀쩡하고 폰으로 받은 사람만 빈 화면을 봅니다.
+// 위의 script 목록과 같은 까닭입니다. 한 군데만 둡니다.
+function bodyFromIndex() {
+  const html = read('index.html');
+  const m = html.match(/<body>([\s\S]*?)<\/body>/);
+  if (!m) throw new Error('index.html 에서 <body> 를 못 찾았습니다');
+  return m[1].replace(/^\s*<script\s+src="[^"]+"\s*><\/script>\s*$/gm, '').trim();
+}
+
+const BODY = bodyFromIndex();
+
 // 인라인 <script> 안에 </script> 문자열이 들어가면 태그가 거기서 끊깁니다.
 const safe = (js) => js.replace(/<\/script>/gi, '<\\/script>');
 
@@ -41,7 +56,7 @@ const fragment = `<title>오늘도 탑을 오르는 나는 무슨 생각을 해�
 ${css}
 </style>
 
-<div id="game"></div>
+${BODY}
 
 <script>
 ${js}

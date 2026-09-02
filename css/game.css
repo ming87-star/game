@@ -33,3 +33,58 @@ html, body {
 #game canvas {
   display: block;
 }
+
+/* ── 불러오는 동안 보이는 화면 ─────────────────────────────
+   12MB 한 장을 읽는 동안 어두운 빈 화면만 보이던 자리입니다.
+
+   **그림도 글꼴도 안 씁니다.** 둘 다 그 12MB 안에 들어 있어서, 쓰는
+   순간 이 화면도 같이 기다리게 됩니다. 글자와 네모만으로 짓습니다.
+   색은 타이틀 화면과 같은 것을 씁니다 — 걷힐 때 이어 붙게. */
+#boot {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: var(--wall);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  padding: 0 24px;
+  /* 걷힐 때만 사라집니다. 뜰 때는 곧바로 있어야 하므로 전환이 없습니다. */
+  transition: opacity .45s ease;
+}
+#boot.gone { opacity: 0; pointer-events: none; }
+
+#boot-title { font-size: 15px; color: #6b7599; letter-spacing: .04em; }
+#boot-name  { font-size: 25px; color: #dfe6f5; font-weight: 700; letter-spacing: -.01em; }
+
+/* 막대는 **얼마나 왔는지를 모릅니다.** 12MB 한 장이라 진행률이 없습니다.
+   있지도 않은 눈금을 그리면 거짓말이 되므로, 왔다 갔다 하는 빛 한 줄로
+   「멈춘 것이 아니다」만 말합니다. */
+#boot-bar {
+  margin-top: 14px;
+  width: 190px; height: 3px;
+  background: #232a44;
+  border-radius: 2px;
+  overflow: hidden;
+}
+#boot-bar i {
+  display: block;
+  width: 44%; height: 100%;
+  background: #5f6d99;
+  border-radius: 2px;
+  animation: boot-slide 1.25s ease-in-out infinite;
+}
+@keyframes boot-slide {
+  0%   { transform: translateX(-115%); }
+  100% { transform: translateX(345%); }
+}
+
+#boot-say { margin-top: 6px; font-size: 13px; color: #4a5578; }
+
+/* 움직임을 줄여 달라고 해 둔 사람에게는 안 흔듭니다. */
+@media (prefers-reduced-motion: reduce) {
+  #boot-bar i { animation: none; transform: none; width: 100%; opacity: .6; }
+}
