@@ -135,5 +135,18 @@ if (fs.existsSync(자산)) {
   check(false, '껍데기 안에 game.html 이 있음', '없음 — node make-android.js 를 돌리세요');
 }
 
+// ── 아직 도형인 것 ────────────────────────────────────────
+//
+// **어긋남으로 세지 않습니다.** 이건 틀린 것이 아니라 아직 안 한 것이고,
+// 이것 때문에 검사가 빨개지면 진짜 어긋남이 안 보입니다.
+// 다만 조용히 두면 도형인 채로 스토어에 올라갑니다.
+if (!fs.existsSync(path.join(ROOT, 'assets', 'app-icon.png'))) {
+  console.log('\n⚠ 아이콘이 아직 **도형**입니다 (코드가 SVG 로 그린 것).');
+  console.log('  게임의 다른 그림은 회화풍인데 아이콘만 도형이면 딴 게임처럼 보입니다.');
+  console.log('  스토어에 올리기 전에 그림으로 바꾸세요:');
+  console.log('    GEMINI_API_KEY=... node gen-sprite.js app-icon   (또는 PROVIDER=openai)');
+  console.log('    node gen-icon.js');
+}
+
 console.log(bad ? `\n${bad}건 어긋남` : '\n껍데기와 게임이 같은 이름을 봅니다 (자바 컴파일은 사장님 컴퓨터에서)');
 process.exit(bad ? 1 : 0);

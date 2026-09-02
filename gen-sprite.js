@@ -886,8 +886,15 @@ const SUBJECTS = [
   //
   // 적응형 아이콘은 바깥 33%가 잘려 나갑니다 (제조사마다 원·둥근네모·
   // 물방울로 다릅니다). 그림은 **가운데 66% 안**에서 끝나야 합니다.
+  //
+  // **붓 견본을 붙입니다.** 코드가 SVG 도형으로 그린 것을 보고 「스타일이
+  // 마음에 안 든다」는 말을 들었습니다 — 맞는 말입니다. 아이콘만 도형이면
+  // 게임을 열었을 때 딴 게임처럼 보입니다. 그림 셋을 붙여 **같은 손으로
+  // 그린 것**이 되게 합니다: 탑 위의 하늘(빛과 돌), 보스(어두운 덩어리),
+  // 붉은 겉옷(이 게임의 유일한 붉은 것).
   { name: 'app-icon', w: 1024, h: 1024, scale: 1, ratio: '1:1',
     bg: 'opaque', fit: 'stretch',
+    style: ['above-tower', 'boss-warden', 'cloak-red'],
     look: 'A painterly game app icon. Rich, moody, atmospheric — the same dark fantasy world '
         + 'as the rest of the game, but composed as a single bold emblem. Deep blue-black '
         + 'stone, warm golden light. Palette: background #141A2E, stone #39445E and #2B3347, '

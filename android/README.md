@@ -76,6 +76,21 @@ TOWER_KEY_PASSWORD=...
 **채우기 전에도 게임은 그대로 돕니다.** 비어 있으면 `GamesBridge` 가 그냥
 안 보냅니다.
 
+## 스토어에 올리기 전에
+
+- [ ] **아이콘을 그림으로 바꿉니다.** 지금 것은 코드가 SVG 도형으로 그린
+      것이고, 게임의 다른 그림은 전부 회화풍입니다 — 아이콘만 도형이면
+      열었을 때 딴 게임처럼 보입니다.
+      규격은 `gen-sprite.js` 의 `app-icon` 항목에 있고, 이 게임의 그림 셋을
+      붓 견본으로 붙여 두었습니다 (`above-tower`·`boss-warden`·`cloak-red`).
+      ```
+      GEMINI_API_KEY=... node gen-sprite.js app-icon   # 또는 PROVIDER=openai
+      node gen-icon.js
+      ```
+- [ ] 서명 키를 만들고 **안전한 곳에** 둡니다
+- [ ] `strings.xml` 의 Play Games ID 를 채웁니다
+- [ ] 개인정보처리방침 주소가 살아 있는지 확인합니다
+
 ## 첫 실기 시험에서 꼭 볼 것
 
 여기서 확인 못 한 것들입니다.
