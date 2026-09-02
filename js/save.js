@@ -5,10 +5,59 @@
 
 const SAVE_KEY = 'tower-climb-v1';
 
+// ── 저장의 판 번호 ─────────────────────────────────────
+//
+// **한 번 내보내고 나면 저장 모양을 마음대로 못 바꿉니다.** 이미 오르고 있던
+// 사람의 폰에 예전 모양이 들어 있고, 새 판이 그걸 읽어야 하니까요.
+// 그래서 나가기 전에 번호를 붙여 둡니다.
+//
+// 번호를 올릴 때는 MIGRATIONS 에 「n 에서 n+1 로 옮기는 함수」를 더합니다.
+// 옛 저장은 제 번호에서 시작해 차례로 밟아 올라옵니다.
+//
+// **칸을 더하기만 할 때는 번호를 안 올려도 됩니다.** blankSave() 위에
+// 덮어쓰는 구조라 없는 칸은 저절로 기본값이 됩니다. 번호가 필요한 것은
+// **뜻이 바뀔 때**입니다 — 칸 이름을 바꾸거나, 단위를 바꾸거나(코인 100 이
+// 예전의 10 이 되는 식), 있던 것을 쪼갤 때.
+const SAVE_VERSION = 1;
+
+// 판 번호를 올린 자리마다 한 줄씩 늘어납니다.
+//
+//   1: 처음 붙인 번호. 그전 저장에는 version 이 아예 없습니다 —
+//      그것도 1 로 봅니다 (모양이 같습니다).
+//
+// 예시 — 나중에 이런 모양이 됩니다:
+//   2: (옛) coins 를 (새) coins·bankedCoins 둘로 쪼갬
+//      (d) => { d.bankedCoins = 0; return d; }
+const MIGRATIONS = {
+  // 2: (d) => d,
+};
+
+// 숫자 자리에 숫자가 아닌 것이 들어 있으면 **NaN 이 게임 전체로 번집니다.**
+// 메달이 NaN 이면 상점에서 아무것도 못 사고, 층이 NaN 이면 해금이 영영
+// 안 열립니다. 그리고 NaN 은 저장에 null 로 적혀서 다음 판에도 남습니다.
+// 깨진 저장 하나가 그 폰을 영영 못 쓰게 만드는 길입니다.
+const 숫자칸 = ['bestFloor', 'deaths', 'runs', 'bestCoins', 'medals', 'endingStage'];
+const 그릇칸 = ['unlocked', 'weapons', 'startWeapon', 'perks', 'relics', 'bestBy', 'usedCodes'];
+
+function 성한값으로(d) {
+  숫자칸.forEach((k) => {
+    const v = Number(d[k]);
+    d[k] = Number.isFinite(v) && v >= 0 ? v : 0;
+  });
+  그릇칸.forEach((k) => {
+    if (!d[k] || typeof d[k] !== 'object' || Array.isArray(d[k])) d[k] = {};
+  });
+  if (typeof d.lastJob !== 'string' || !d.lastJob) d.lastJob = 'warrior';
+  ['muted', 'sawEnding', 'sawStory'].forEach((k) => { d[k] = !!d[k]; });
+  return d;
+}
+
 // 새 칸을 늘릴 때는 여기에도 넣어야 합니다. 예전 저장을 읽어도 빈 칸이 없도록
 // 불러온 값을 이 위에 덮어씁니다.
 function blankSave() {
   return {
+    // 이 저장을 어느 판이 썼는가 (위의 SAVE_VERSION).
+    version: SAVE_VERSION,
     bestFloor: 0, deaths: 0, runs: 0, bestCoins: 0,
     // 소리를 껐는가. **끈 것만 적습니다** — 없으면 켜진 것입니다.
     muted: false,
@@ -72,18 +121,101 @@ function blankSave() {
 
 const Save = {
   data: blankSave(),
-  usable: true,
+
+  // 저장이 어떤 꼴이었는지 — 화면에서 알려 줄 일이 생기면 여기를 봅니다.
+  usable: true,      // 쓸 수 있는가 (막혔거나, 미래에서 온 저장이면 아니오)
+  recovered: false,  // 깨져 있어서 새로 시작했는가
+  fromFuture: false, // 더 새 판이 쓴 저장인가
+  migrated: 0,       // 몇 판을 건너 올라왔는가
 
   load() {
+    this.data = blankSave();
+    this.usable = true;
+    this.recovered = false;
+    this.fromFuture = false;
+    this.migrated = 0;
+
+    let raw = null;
+    // ① 저장소 자체가 막혔는가 (사파리 비공개 모드 등).
+    //    **이건 읽기 실패와 다릅니다** — 이쪽은 쓰기도 못 합니다.
     try {
-      const raw = window.localStorage.getItem(SAVE_KEY);
-      if (raw) Object.assign(this.data, JSON.parse(raw));
+      raw = window.localStorage.getItem(SAVE_KEY);
     } catch (e) {
-      this.usable = false; // 저장이 막힌 환경. 이번 판만 기억합니다.
+      this.usable = false;
+      if (typeof Sfx !== 'undefined') Sfx.setMuted(false);
+      return this.data;
     }
+    if (!raw) {
+      if (typeof Sfx !== 'undefined') Sfx.setMuted(false);
+      return this.data;   // 처음 켠 사람
+    }
+
+    // ② 읽었는데 깨져 있는가.
+    //
+    //    예전에는 여기서 usable = false 로 넘어갔습니다. 그러면 **그 뒤로
+    //    영영 저장이 안 됩니다** — 한 바이트가 상한 것 때문에 그 폰에서는
+    //    다시는 아무것도 안 남습니다. 아무 말도 없이요.
+    //    깨진 것은 버리고 새로 시작하되, **쓰는 것은 살려 둡니다.**
+    let 옛것 = null;
+    try {
+      옛것 = JSON.parse(raw);
+    } catch (e) {
+      this.recovered = true;
+      if (typeof Sfx !== 'undefined') Sfx.setMuted(false);
+      this.flush();          // 성한 것으로 덮어써 둡니다
+      return this.data;
+    }
+    if (!옛것 || typeof 옛것 !== 'object' || Array.isArray(옛것)) {
+      this.recovered = true;
+      if (typeof Sfx !== 'undefined') Sfx.setMuted(false);
+      this.flush();
+      return this.data;
+    }
+
+    // ③ 어느 판이 쓴 것인가. version 이 아예 없으면 1 입니다 —
+    //    번호를 붙이기 전의 저장이고, 모양은 1 과 같습니다.
+    const 옛판 = Number(옛것.version) || 1;
+
+    if (옛판 > SAVE_VERSION) {
+      // ④ **더 새 판이 쓴 저장입니다.**
+      //
+      //    스토어에서 새 판을 받았다가 되돌린 사람에게 일어납니다.
+      //    아는 칸만 읽어 들이되 **쓰지는 않습니다.** 여기서 덮어쓰면
+      //    새 판이 적어 둔 것을 옛 판이 지워 버립니다 — 사람이 다시
+      //    새 판으로 올렸을 때 기록이 사라져 있습니다.
+      Object.assign(this.data, 옛것);
+      성한값으로(this.data);
+      this.data.version = 옛판;   // 남의 번호를 낮춰 적지 않습니다
+      this.usable = false;
+      this.fromFuture = true;
+      if (typeof Sfx !== 'undefined') Sfx.setMuted(!!this.data.muted);
+      return this.data;
+    }
+
+    // ⑤ 옛 저장이면 한 판씩 밟아 올립니다.
+    let 값 = 옛것;
+    for (let v = 옛판; v < SAVE_VERSION; v++) {
+      const 옮기기 = MIGRATIONS[v + 1];
+      if (옮기기) {
+        try { 값 = 옮기기(값) || 값; } catch (e) { /* 한 칸이 막혀도 나머지는 살립니다 */ }
+      }
+      this.migrated++;
+    }
+
+    Object.assign(this.data, 값);
+    성한값으로(this.data);
+    this.data.version = SAVE_VERSION;
+
     // 소리는 저장에서 읽어 곧바로 물려 둡니다. 여기서 안 물리면 껐던
     // 사람이 다음에 켰을 때 소리가 도로 납니다.
     if (typeof Sfx !== 'undefined') Sfx.setMuted(!!this.data.muted);
+    // **적힌 번호가 지금 것과 다르면 그 자리에서 적어 둡니다.**
+    //
+    // 밟아 올라온 경우만 적으면 안 됩니다. 번호가 아예 없던 저장은 밟을
+    // 칸이 0 이라 그냥 지나가고, 저장소에는 여전히 번호가 없습니다 —
+    // 다음에 켤 때마다 같은 일을 다시 하고, 나중 판이 「이미 손본 옛
+    // 저장」과 「손도 안 댄 옛 저장」을 구별할 길이 없어집니다.
+    if (Number(옛것.version) !== SAVE_VERSION) this.flush();
     return this.data;
   },
 
@@ -98,6 +230,9 @@ const Save = {
   flush() {
     if (!this.usable) return;
     try {
+      // 판 번호는 **쓸 때마다** 붙입니다. 어딘가에서 data 를 통째로 갈아
+      // 끼워도 번호 없는 저장이 남지 않게.
+      this.data.version = SAVE_VERSION;
       window.localStorage.setItem(SAVE_KEY, JSON.stringify(this.data));
     } catch (e) {
       this.usable = false;
