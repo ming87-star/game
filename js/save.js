@@ -36,8 +36,10 @@ const MIGRATIONS = {
 // 메달이 NaN 이면 상점에서 아무것도 못 사고, 층이 NaN 이면 해금이 영영
 // 안 열립니다. 그리고 NaN 은 저장에 null 로 적혀서 다음 판에도 남습니다.
 // 깨진 저장 하나가 그 폰을 영영 못 쓰게 만드는 길입니다.
-const 숫자칸 = ['bestFloor', 'deaths', 'runs', 'bestCoins', 'medals', 'endingStage'];
-const 그릇칸 = ['unlocked', 'weapons', 'startWeapon', 'perks', 'relics', 'bestBy', 'usedCodes'];
+const 숫자칸 = ['bestFloor', 'deaths', 'runs', 'bestCoins', 'medals', 'endingStage',
+  'frogsCaught'];
+const 그릇칸 = ['unlocked', 'weapons', 'startWeapon', 'perks', 'relics', 'bestBy',
+  'usedCodes', 'bossesBeaten'];
 
 function 성한값으로(d) {
   숫자칸.forEach((k) => {
@@ -116,6 +118,15 @@ function blankSave() {
     sawStory: false,
     // 한 번만 쓸 수 있는 코드 중 이미 쓴 것 (js/codes.js)
     usedCodes: {},
+    // ── 업적이 보는 칸 둘 (js/games.js) ────────────────
+    //
+    // 나머지 업적은 이미 있는 칸으로 셉니다 (해금·유물·메달·엔딩·도감).
+    // 이 둘만 아무 데도 안 남고 있었습니다.
+    //
+    // **칸을 더하는 것은 판 번호를 안 올려도 됩니다** — 옛 저장에는 없고,
+    // 없으면 blankSave 의 빈 값이 그대로 쓰입니다.
+    bossesBeaten: {},   // { 'boss-warden': true, ... } 다섯 종
+    frogsCaught: 0,     // 황금개구리를 잡은 수
   };
 }
 
@@ -255,6 +266,9 @@ const Save = {
       };
     }
     this.flush();
+    // 순위표와 업적은 **판이 끝날 때 한 번** 봅니다 (js/games.js).
+    // 다리가 없으면(웹에서 돌 때) 셈만 하고 조용히 돌아갑니다.
+    if (typeof Games !== 'undefined') Games.report(this.data);
   },
 
   // 그 직업으로 어디까지 갔나. 한 번도 안 골랐으면 0층·0코인입니다.
@@ -408,6 +422,20 @@ const Save = {
   get bestFloor() { return this.data.bestFloor; },
   get deaths() { return this.data.deaths; },
   get medals() { return this.data.medals; },
+
+  // 보스를 처음 눕힌 종. 다섯 종을 다 눕히면 업적 하나입니다.
+  markBoss(key) {
+    if (!key || this.data.bossesBeaten[key]) return false;
+    this.data.bossesBeaten[key] = true;
+    this.flush();
+    return true;
+  },
+
+  // 황금개구리를 잡은 수.
+  markFrog() {
+    this.data.frogsCaught = (this.data.frogsCaught || 0) + 1;
+    this.flush();
+  },
 
   // 개발·시험용. 브라우저 콘솔에서 __save.reset() 으로 처음부터 다시.
   reset() {

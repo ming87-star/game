@@ -1269,6 +1269,8 @@ class GameScene extends Phaser.Scene {
   }
 
   bossDefeated(boss) {
+    // 어느 종을 눕혔는지 남깁니다 (업적 「다섯 종을 다」 — js/games.js).
+    Save.markBoss(boss && boss.kind && boss.kind.key);
     this.bossFight = false;
     this.bossEntering = false;
     this.boss = null;
@@ -3155,6 +3157,7 @@ class GameScene extends Phaser.Scene {
     // 황금개구리는 확률로 흘리지 않습니다 — 잡으면 무조건, 가진 만큼 그대로.
     // 낮은 확률로 나온 것을 잡았는데 또 확률에 걸려 빈손이면 실망만 남습니다.
     if (enemy.isGoldFrog) {
+      Save.markFrog();
       this.dropCoin(enemy.x, enemy.y, enemy.coin, true);
     } else if (enemy.coin > 0 && Math.random() < coinDropChance(enemy.floor)) {
       // 모든 적이 코인을 흘리지는 않습니다. 대신 나올 때는 그만큼 더 줍니다.
