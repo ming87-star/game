@@ -78,14 +78,17 @@ TOWER_KEY_PASSWORD=...
 
 ## 스토어에 올리기 전에
 
-- [ ] **아이콘을 그림으로 바꿉니다.** 지금 것은 코드가 SVG 도형으로 그린
-      것이고, 게임의 다른 그림은 전부 회화풍입니다 — 아이콘만 도형이면
-      열었을 때 딴 게임처럼 보입니다.
-      규격은 `gen-sprite.js` 의 `app-icon` 항목에 있고, 이 게임의 그림 셋을
-      붓 견본으로 붙여 두었습니다 (`above-tower`·`boss-warden`·`cloak-red`).
+- [x] **아이콘을 그림으로 바꿨습니다.** `assets/app-icon.png` 한 장이
+      있으면 `gen-icon.js` 가 그것으로 굽습니다(없으면 SVG 도형으로).
+      적응형 앞겹은 **칸을 꽉 채웁니다** — 66% 로 줄여 앉히면 마스크
+      테두리에 뒷겹 색이 비쳐서 이음매가 보입니다. 테마 아이콘만은
+      그림에서 못 뽑아 실루엣을 따로 긋습니다(까닭은 `gen-icon.js`).
+      다시 그릴 때는:
+
       ```
       GEMINI_API_KEY=... node gen-sprite.js app-icon   # 또는 PROVIDER=openai
       node gen-icon.js
+      node verify-shell.js
       ```
 - [ ] 서명 키를 만들고 **안전한 곳에** 둡니다
 - [ ] `strings.xml` 의 Play Games ID 를 채웁니다

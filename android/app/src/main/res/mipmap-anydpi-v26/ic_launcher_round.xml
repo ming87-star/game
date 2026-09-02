@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 적응형 아이콘 (안드로이드 8 이상).
-     바깥 33% 는 제조사가 잘라 냅니다 — 앞겹은 가운데 66% 안에만 그려져
-     있습니다 (gen-icon.js 의 safe 칸). -->
+     바깥 33% 는 제조사가 잘라 냅니다. 그린 그림을 쓸 때 앞겹은 칸을 꽉
+     채웁니다 — 66% 로 줄여 앉히면 마스크 테두리에 뒷겹 색이 비쳐서
+     이음매가 보입니다 (까닭은 gen-icon.js 의 아이콘() 에 적어 두었습니다).
+     테마 아이콘은 알파만 쓰므로 밝기를 알파로 옮긴 따로 한 장을 씁니다. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/ic_launcher_background" />
     <foreground android:drawable="@mipmap/ic_launcher_foreground" />
-    <monochrome android:drawable="@mipmap/ic_launcher_foreground" />
+    <monochrome android:drawable="@mipmap/ic_launcher_mono" />
 </adaptive-icon>

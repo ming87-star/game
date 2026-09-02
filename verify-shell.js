@@ -135,6 +135,81 @@ if (fs.existsSync(자산)) {
   check(false, '껍데기 안에 game.html 이 있음', '없음 — node make-android.js 를 돌리세요');
 }
 
+// ── 적응형 앞겹이 가장자리까지 차 있는가 ──────────────────
+//
+// 적응형 아이콘은 108dp 칸 중 **가운데 72dp 만 반드시 보이고**, 그 안을
+// 제조사 마스크(원·둥근네모·물방울)가 다시 오립니다. 앞겹 그림이 그
+// 마스크보다 작으면 **테두리에 뒷겹 색이 실낱처럼 비칩니다.**
+//
+// 처음에 그린 그림을 66% 로 줄여 앉혔다가 이걸 겪었습니다. 뒷겹 색을
+// 그림 귀퉁이에 맞춰 봐도 안 없어졌습니다 — 그림 위쪽 테두리는 빛기둥이라
+// #4a4132(금색), 아래쪽은 #050c18(거의 검정)이어서 **한 색으로는 못
+// 맞춥니다.** 그래서 앞겹을 칸에 꽉 채웠습니다.
+//
+// 눈으로만 봐 두면 gen-icon.js 를 손댈 때 조용히 되돌아갑니다. 그래서
+// **알파를 직접 읽어** 바깥 테두리가 불투명한지 봅니다.
+const zlib = require('zlib');
+function png알파(파일) {
+  const b = fs.readFileSync(파일);
+  let i = 8, w = 0, h = 0, 색종류 = -1, 깊이 = 0, 살 = [];
+  while (i < b.length) {
+    const 길이 = b.readUInt32BE(i), 이름 = b.toString('ascii', i + 4, i + 8);
+    const 몸 = b.slice(i + 8, i + 8 + 길이);
+    if (이름 === 'IHDR') {
+      w = 몸.readUInt32BE(0); h = 몸.readUInt32BE(4); 깊이 = 몸[8]; 색종류 = 몸[9];
+    } else if (이름 === 'IDAT') 살.push(몸);
+    else if (이름 === 'IEND') break;
+    i += 12 + 길이;
+  }
+  if (색종류 !== 6 || 깊이 !== 8) return null;   // RGBA 8비트만 봅니다
+  const 원 = zlib.inflateSync(Buffer.concat(살));
+  const 줄 = w * 4, 나온것 = Buffer.alloc(h * 줄);
+  const 페스 = (a, b2, c) => {
+    const p2 = a + b2 - c, pa = Math.abs(p2 - a), pb = Math.abs(p2 - b2), pc = Math.abs(p2 - c);
+    return pa <= pb && pa <= pc ? a : pb <= pc ? b2 : c;
+  };
+  for (let y = 0; y < h; y++) {
+    const f = 원[y * (줄 + 1)];
+    for (let x = 0; x < 줄; x++) {
+      const 값 = 원[y * (줄 + 1) + 1 + x];
+      const A = x >= 4 ? 나온것[y * 줄 + x - 4] : 0;
+      const B = y > 0 ? 나온것[(y - 1) * 줄 + x] : 0;
+      const C = x >= 4 && y > 0 ? 나온것[(y - 1) * 줄 + x - 4] : 0;
+      나온것[y * 줄 + x] = (값 + (f === 1 ? A : f === 2 ? B : f === 3 ? ((A + B) >> 1) : f === 4 ? 페스(A, B, C) : 0)) & 255;
+    }
+  }
+  return { w, h, 자료: 나온것 };
+}
+
+if (fs.existsSync(path.join(ROOT, 'assets', 'app-icon.png'))) {
+  const 앞겹 = png알파(path.join(A, 'res', 'mipmap-xxxhdpi', 'ic_launcher_foreground.png'));
+  if (!앞겹) check(false, '적응형 앞겹을 읽음', 'RGBA 8비트가 아님');
+  else {
+    let 가장옅은 = 255;
+    const { w, h, 자료 } = 앞겹;
+    for (let x = 0; x < w; x++) {
+      가장옅은 = Math.min(가장옅은, 자료[(0 * w + x) * 4 + 3], 자료[((h - 1) * w + x) * 4 + 3]);
+    }
+    for (let y = 0; y < h; y++) {
+      가장옅은 = Math.min(가장옅은, 자료[(y * w) * 4 + 3], 자료[(y * w + w - 1) * 4 + 3]);
+    }
+    check(가장옅은 >= 250,
+      '적응형 앞겹이 **테두리까지 불투명** (마스크 가장자리에 뒷겹이 안 비침)',
+      '가장 옅은 테두리 알파 ' + 가장옅은);
+  }
+}
+
+// ── 테마 아이콘이 따로 있는가 ─────────────────────────────
+//
+// 테마 아이콘은 알파만 씁니다. 앞겹(꽉 찬 그림)을 그대로 물리면 **네모
+// 한 덩어리**가 됩니다. 그래서 실루엣 한 장을 따로 굽습니다.
+const 적응형 = 읽기(path.join(A, 'res', 'mipmap-anydpi-v26', 'ic_launcher.xml'));
+const 흑백파일 = path.join(A, 'res', 'mipmap-xxxhdpi', 'ic_launcher_mono.png');
+check(/<monochrome[^>]*ic_launcher_mono"/.test(적응형) && fs.existsSync(흑백파일),
+  '테마 아이콘이 **앞겹이 아닌 따로 그린 실루엣**을 봄',
+  (/<monochrome[^>]*ic_launcher_mono"/.test(적응형) ? '배선 O' : '배선 X')
+  + ' · ' + (fs.existsSync(흑백파일) ? '파일 O' : '파일 X'));
+
 // ── 아직 도형인 것 ────────────────────────────────────────
 //
 // **어긋남으로 세지 않습니다.** 이건 틀린 것이 아니라 아직 안 한 것이고,
