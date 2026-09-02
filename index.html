@@ -397,9 +397,13 @@ function 자루수(d) {
 }
 
 const Games = {
-  // 네이티브 다리. 껍데기가 생기면 여기에 물립니다.
+  // 네이티브 다리. 껍데기(android/)가 WebView 에 물려 줍니다.
   //   { signedIn(), submit(boardKey, value), unlock(deedKey) }
-  bridge: null,
+  //
+  // 이름이 **AndroidGames** 입니다 — MainActivity 의
+  // addJavascriptInterface(games, "AndroidGames") 와 짝입니다.
+  // 웹에서는 없으므로 null 이고, 그러면 아래가 다 조용히 지나갑니다.
+  bridge: (typeof window !== 'undefined' && window.AndroidGames) || null,
   올린것: {},   // 이번에 켠 동안 이미 올린 업적 (같은 것을 되풀이해 안 보내게)
 
   boards: BOARDS,
@@ -19440,6 +19444,56 @@ if (typeof window !== 'undefined' && window.addEventListener) {
     Sfx.play('tap');
   }, { passive: true });
 }
+
+// ── 안드로이드의 「뒤로」 ──────────────────────────────────
+//
+// 껍데기(android/)의 MainActivity 가 뒤로를 누를 때마다 이걸 부릅니다.
+// **참을 돌려주면 게임이 알아서 처리한 것**이고, 거짓이면 껍데기가 제
+// 방식대로 합니다 (두 번 누르면 나가기).
+//
+// 이걸 안 두면 탑에서 뒤로를 누르는 순간 앱이 그냥 닫힙니다 — 오르던 판이
+// 통째로 날아갑니다. 안드로이드에서 가장 흔한 원망입니다.
+//
+// 웹에서는 아무도 안 부릅니다. 그래도 여기 두는 까닭은 **여기서 시험할 수
+// 있기 때문**입니다 — 껍데기 쪽 자바는 이 환경에서 컴파일도 못 합니다.
+window.__androidBack = function () {
+  const g = window.__game;
+  if (!g) return false;
+  const 켜진것 = g.scene.getScenes(true).map((s) => s.scene.key);
+
+  // 겹쳐 뜬 창이 있으면 그것부터 닫습니다.
+  if (켜진것.includes('pause')) {
+    const p = g.scene.getScene('pause');
+    if (p && p.resumeGame) { p.resumeGame(); return true; }
+  }
+  // 무기 갈아타기·전리품 창은 고르기 전에는 안 닫습니다 — 뒤로 한 번에
+  // 창이 사라지면 무엇을 골랐는지 모르는 채로 판이 흘러갑니다.
+  if (켜진것.includes('swap') || 켜진것.includes('trophy') || 켜진것.includes('foe')) return true;
+
+  // 탑 위에서는 **나가지 않고 멈춥니다.**
+  if (켜진것.includes('game')) {
+    const s = g.scene.getScene('game');
+    if (s && s.pauseGame) { s.pauseGame(); return true; }
+    return true;
+  }
+  // 곁가지 화면들은 한 걸음 물러섭니다.
+  const 돌아갈곳 = {
+    code: 'title', relicbook: 'select', weaponbook: 'medal',
+    medal: 'select', story: 'title', meet: 'select',
+  };
+  for (const 키 of 켜진것) {
+    if (!돌아갈곳[키]) continue;
+    // **그 장면의 제 손으로** 옮깁니다. g.scene.start(…) 는 SceneManager 라
+    // 부르는 장면을 **안 닫습니다** — 코드 화면 위에 타이틀이 겹쳐 떠서
+    // 두 화면이 포개집니다. 장면이 제 scene.start 를 부르면 저를 닫고 갑니다.
+    const 지금 = g.scene.getScene(키);
+    if (지금 && 지금.scene) 지금.scene.start(돌아갈곳[키]);
+    else g.scene.start(돌아갈곳[키]);
+    return true;
+  }
+  // 타이틀·직업 고르기·크레딧에서는 껍데기에 맡깁니다 (두 번 누르면 나가기).
+  return false;
+};
 
 // ── 불러오는 화면을 걷습니다 ───────────────────────────────
 //
