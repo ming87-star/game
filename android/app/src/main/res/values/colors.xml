@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 탑 안과 같은 색. 아이콘 바탕이자 앱이 뜨는 첫 순간의 색입니다. -->
-    <color name="ic_launcher_background">#141a2e</color>
+    <!-- **그린 아이콘의 네 귀퉁이 색을 재서 맞춘 값입니다** (#151c2e~#161d2f).
+         적응형 아이콘은 앞겹(그림)을 뒷겹(이 색) 위에 얹는데, 앞겹은 가운데
+         66% 안에 앉은 네모라 두 색이 다르면 **네모난 이음매**가 보입니다.
+         아이콘을 다시 그리면 이 값도 다시 재세요. -->
+    <color name="ic_launcher_background">#161d2f</color>
 </resources>
