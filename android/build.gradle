@@ -1,0 +1,5 @@
+// 뿌리에는 아무것도 안 둡니다. 판 번호는 settings.gradle 의 pluginManagement 와
+// app/build.gradle 에 있습니다.
+plugins {
+    id 'com.android.application' version '8.7.3' apply false
+}

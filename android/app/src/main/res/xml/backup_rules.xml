@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 안드로이드 자동 백업.
+     WebView 의 localStorage(= 이 게임의 저장)는 앱 데이터 밑의
+     app_webview 폴더에 있습니다. 이걸 켜 두면 사람이 폰을 바꾸거나 다시
+     깔 때 **제 구글 드라이브에서** 기록이 돌아옵니다 — 로그인도 코드도
+     방침 변경도 없이.
+     다만 실제로 담기는지는 **기기에서 확인해야 합니다** (README 참고). -->
+<full-backup-content>
+    <include domain="root" path="app_webview" />
+</full-backup-content>

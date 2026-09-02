@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 탑 안과 같은 색. 아이콘 바탕이자 앱이 뜨는 첫 순간의 색입니다. -->
+    <color name="ic_launcher_background">#141a2e</color>
+</resources>

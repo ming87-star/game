@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 앱이 뜨는 첫 순간의 색입니다. **탑 안과 같은 색**이라야 합니다 —
+         흰 바탕이 한 번 번쩍이고 어두워지면 그게 제일 먼저 보입니다. -->
+    <style name="Theme.Tower" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">#0d1120</item>
+        <item name="android:statusBarColor">#0d1120</item>
+        <item name="android:navigationBarColor">#0d1120</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

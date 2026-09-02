@@ -1,0 +1,38 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.projectjhs.whileclimbing'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "com.projectjhs.whileclimbing"
+        minSdk 24            // 안드로이드 7.0. 이 아래는 WebView 가 너무 낡았습니다
+        targetSdk 36         // 스토어가 요구하는 값은 해마다 오릅니다 — 콘솔에서 확인하세요
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            // 게임 코드는 전부 WebView 안(assets/game.html)이라 줄일 것이 거의
+            // 없습니다. 켜 두는 까닭은 Play Games SDK 쪽을 줄이기 위해서입니다.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // 서명은 사장님 컴퓨터에서 붙입니다 (android/README.md 참고).
+            // 여기에 키를 적지 마세요 — 저장소에 들어갑니다.
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    // 순위표와 업적. 콘솔 등록이 끝나기 전에는 로그인만 실패하고 게임은
+    // 그대로 돕니다 (GamesBridge 가 조용히 거짓을 돌려줍니다).
+    implementation 'com.google.android.gms:play-services-games-v2:20.1.2'
+}

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">오탑무</string>
+
+    <!-- ── 콘솔에서 받아 채울 자리 ────────────────────────────
+         Play Console → Play Games Services → 구성 에서 나옵니다.
+         비워 두면 로그인만 실패하고 게임은 그대로 돕니다. -->
+    <string name="games_app_id" translatable="false"></string>
+
+    <!-- 순위표 둘. js/games.js 의 BOARDS 와 짝입니다. -->
+    <string name="board_floor" translatable="false"></string>
+    <string name="board_coins" translatable="false"></string>
+
+    <!-- 업적 스물넷. js/games.js 의 DEEDS 와 짝입니다.
+         이름은 그쪽 key 를 붙임표 대신 밑줄로 바꾼 것입니다. -->
+    <string name="deed_floor_100" translatable="false"></string>
+    <string name="deed_floor_500" translatable="false"></string>
+    <string name="deed_floor_1000" translatable="false"></string>
+    <string name="deed_floor_2000" translatable="false"></string>
+    <string name="deed_coins_1000" translatable="false"></string>
+    <string name="deed_coins_3000" translatable="false"></string>
+    <string name="deed_job_2" translatable="false"></string>
+    <string name="deed_job_4" translatable="false"></string>
+    <string name="deed_job_8" translatable="false"></string>
+    <string name="deed_relic_1" translatable="false"></string>
+    <string name="deed_relic_10" translatable="false"></string>
+    <string name="deed_relic_all" translatable="false"></string>
+    <string name="deed_boss_1" translatable="false"></string>
+    <string name="deed_boss_all" translatable="false"></string>
+    <string name="deed_medal_1" translatable="false"></string>
+    <string name="deed_medal_24" translatable="false"></string>
+    <string name="deed_medal_all" translatable="false"></string>
+    <string name="deed_weapon_12" translatable="false"></string>
+    <string name="deed_weapon_36" translatable="false"></string>
+    <string name="deed_frog_1" translatable="false"></string>
+    <string name="deed_frog_10" translatable="false"></string>
+    <string name="deed_runs_50" translatable="false"></string>
+    <string name="deed_ending_saw" translatable="false"></string>
+    <string name="deed_ending_done" translatable="false"></string>
+
+    <string name="back_again">한 번 더 누르면 나갑니다</string>
+</resources>

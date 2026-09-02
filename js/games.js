@@ -105,9 +105,13 @@ function 자루수(d) {
 }
 
 const Games = {
-  // 네이티브 다리. 껍데기가 생기면 여기에 물립니다.
+  // 네이티브 다리. 껍데기(android/)가 WebView 에 물려 줍니다.
   //   { signedIn(), submit(boardKey, value), unlock(deedKey) }
-  bridge: null,
+  //
+  // 이름이 **AndroidGames** 입니다 — MainActivity 의
+  // addJavascriptInterface(games, "AndroidGames") 와 짝입니다.
+  // 웹에서는 없으므로 null 이고, 그러면 아래가 다 조용히 지나갑니다.
+  bridge: (typeof window !== 'undefined' && window.AndroidGames) || null,
   올린것: {},   // 이번에 켠 동안 이미 올린 업적 (같은 것을 되풀이해 안 보내게)
 
   boards: BOARDS,

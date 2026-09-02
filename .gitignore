@@ -6,3 +6,14 @@ shots/
 /wall-*.png
 /cloak*.png
 /art-*.png
+
+# 껍데기 안의 game.html 은 dist/index.html 의 사본입니다 (12MB).
+# make-android.js 가 만들므로 저장소에 두지 않습니다.
+android/app/src/main/assets/game.html
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/gradlew
+android/gradlew.bat
+android/gradle/wrapper/gradle-wrapper.jar
