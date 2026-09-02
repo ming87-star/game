@@ -96,18 +96,48 @@ async function 굽기(page, svg, w, h, 파일) {
   return fs.statSync(파일).size;
 }
 
+// ── 그림이 오면 그쪽을 씁니다 ───────────────────────────
+//
+// assets/app-icon.png (1024×1024) 가 있으면 아래 도형 대신 그것을 씁니다
+// — 하늘 한 장(above-tower)과 같은 규칙입니다. 그림 세션이 그리는 법은
+// gen-sprite.js 의 app-icon 항목에 있습니다:
+//
+//     GEMINI_API_KEY=... node gen-sprite.js app-icon
+//
+// 도형은 지우지 않습니다. 그림을 다시 그리는 동안에도 아이콘 없는 앱이
+// 되면 안 되니까요.
+const 그린것 = path.join(ROOT, 'assets', 'app-icon.png');
+const 그림있나 = fs.existsSync(그린것);
+
+// 아이콘 한 장을 SVG 로 감쌉니다. 그림이 있으면 그것을, 없으면 도형을.
+function 아이콘(w, h, opt) {
+  if (!그림있나) return 탑그림(w, h, opt);
+  const o = opt || {};
+  const uri = 'data:image/png;base64,' + fs.readFileSync(그린것).toString('base64');
+  if (!o.safe) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">`
+      + `<image href="${uri}" x="0" y="0" width="${w}" height="${h}"/></svg>`;
+  }
+  // 적응형 앞겹 — 그림을 **가운데 66% 안에** 앉힙니다. 바깥 3분의 1은
+  // 제조사가 잘라 내므로, 그린 그림을 꽉 채우면 탑이 잘려 나갑니다.
+  const S = Math.round(Math.min(w, h) * 0.66);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">`
+    + `<image href="${uri}" x="${(w - S) / 2}" y="${(h - S) / 2}" width="${S}" height="${S}"/></svg>`;
+}
+
 (async () => {
   const browser = await chromium.launch({
     executablePath: process.env.CHROME_PATH || undefined, args: ['--no-sandbox'],
   });
   const page = await browser.newPage();
-  const 만든것 = [];
+  const 만든것 = [그림있나 ? '그림(assets/app-icon.png)으로 굽습니다'
+    : '아직 그림이 없어 도형으로 굽습니다 (gen-sprite.js app-icon)'];
 
   // ── 옛 방식 아이콘 (안드로이드 7 까지) ──────────────────
   for (const [d, n] of Object.entries(밀도)) {
-    const 크기 = await 굽기(page, 탑그림(n, n), n, n,
+    const 크기 = await 굽기(page, 아이콘(n, n), n, n,
       path.join(RES, 'mipmap-' + d, 'ic_launcher.png'));
-    await 굽기(page, 탑그림(n, n), n, n, path.join(RES, 'mipmap-' + d, 'ic_launcher_round.png'));
+    await 굽기(page, 아이콘(n, n), n, n, path.join(RES, 'mipmap-' + d, 'ic_launcher_round.png'));
     만든것.push(`mipmap-${d}  ${n}×${n}  ${Math.round(크기 / 1024)}KB`);
   }
 
@@ -115,16 +145,30 @@ async function 굽기(page, svg, w, h, 파일) {
   // 앞겹은 **가운데 66% 안에만** 그립니다. 바깥은 제조사가 잘라 냅니다.
   for (const [d, n] of Object.entries(밀도)) {
     const N = Math.round(n * 108 / 48);   // 적응형은 108dp 칸입니다
-    await 굽기(page, 탑그림(N, N, { safe: true, bg: false }), N, N,
+    await 굽기(page, 아이콘(N, N, { safe: true, bg: false }), N, N,
       path.join(RES, 'mipmap-' + d, 'ic_launcher_foreground.png'));
   }
 
   // ── 스토어 자산 ─────────────────────────────────────────
-  const 아이콘512 = await 굽기(page, 탑그림(512, 512), 512, 512,
+  const 아이콘512 = await 굽기(page, 아이콘(512, 512), 512, 512,
     path.join(OUT, 'icon-512.png'));
   만든것.push(`store/icon-512.png  512×512  ${Math.round(아이콘512 / 1024)}KB`);
 
-  // 피처 그래픽 — 스토어 목록 맨 위에 걸립니다.
+  // ── 피처 그래픽 ─────────────────────────────────────────
+  //
+  // 스토어 목록 맨 위에 걸립니다. **글자는 코드가 얹습니다** — 그림
+  // 모델은 한글을 제대로 못 씁니다. 획이 뭉개지거나 없는 글자를 지어냅니다.
+  // 그림은 오른쪽 절반을 맡고, 왼쪽은 제목 자리로 비워 둡니다.
+  const 피처그림 = 그림있나
+    ? `<defs><clipPath id="cut"><rect x="512" y="0" width="512" height="500"/></clipPath></defs>
+       <image href="data:image/png;base64,${fs.readFileSync(그린것).toString('base64')}"
+              x="512" y="-262" width="1024" height="1024" clip-path="url(#cut)" preserveAspectRatio="xMidYMid slice"/>
+       <rect x="512" y="0" width="150" height="500" fill="url(#fade)"/>`
+    : `<path d="M 700 0 L 760 0 L 900 500 L 560 500 Z" fill="url(#sh)" opacity=".5"/>
+       <rect x="686" y="120" width="96" height="380" fill="#39445e"/>
+       <rect x="746" y="120" width="36" height="380" fill="#2b3347"/>
+       <path d="M 686 130 L 708 118 L 726 136 L 748 112 L 768 132 L 782 120 L 782 140 L 686 145 Z" fill="#0d1120"/>
+       <path d="M 720 240 q 0 -26 12 -26 q 12 0 12 26 Z" fill="#c02020"/>`;
   const 피처 = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
@@ -134,13 +178,14 @@ async function 굽기(page, svg, w, h, 파일) {
       <stop offset="0%" stop-color="#fff8e1" stop-opacity=".5"/>
       <stop offset="100%" stop-color="#fff8e1" stop-opacity="0"/>
     </linearGradient>
+    <!-- 그림과 글자 자리의 이음매. 딱 끊기면 두 장을 붙인 것으로 보입니다. -->
+    <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0d1120" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#0d1120" stop-opacity="0"/>
+    </linearGradient>
   </defs>
   <rect width="1024" height="500" fill="url(#bg)"/>
-  <path d="M 700 0 L 760 0 L 900 500 L 560 500 Z" fill="url(#sh)" opacity=".5"/>
-  <rect x="686" y="120" width="96" height="380" fill="#39445e"/>
-  <rect x="746" y="120" width="36" height="380" fill="#2b3347"/>
-  <path d="M 686 130 L 708 118 L 726 136 L 748 112 L 768 132 L 782 120 L 782 140 L 686 145 Z" fill="#0d1120"/>
-  <path d="M 720 240 q 0 -26 12 -26 q 12 0 12 26 Z" fill="#c02020"/>
+  ${피처그림}
   <text x="86" y="222" font-family="sans-serif" font-size="34" fill="#7b88ad">오늘도 탑을 오르는 나는</text>
   <text x="86" y="292" font-family="sans-serif" font-size="62" font-weight="700" fill="#e8eefc">무슨 생각을 해야 할까</text>
   <text x="86" y="352" font-family="sans-serif" font-size="27" fill="#5f6d99">한 손으로 오르는 탑 · 직업 여덟 · 유물 서른다섯</text>

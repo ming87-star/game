@@ -1,6 +1,7 @@
 // 스프라이트를 Gemini 로 그립니다 — 컷씬(gen-story.js)과는 문제가 다릅니다.
 //
 //   GEMINI_API_KEY=... node gen-sprite.js boss          보스 다섯 + 탄
+//   PROVIDER=openai OPENAI_API_KEY=... node gen-sprite.js app-icon
 //   GEMINI_API_KEY=... node gen-sprite.js player enemy  주인공 셋 + 적 열둘
 //   GEMINI_API_KEY=... node gen-sprite.js e-crawler     한 장만
 //
@@ -26,8 +27,26 @@ const ROOT = __dirname;
 const RAW = path.join(ROOT, 'shots', 'sprite-raw');   // shots/ 는 .gitignore 에 있습니다
 const OUT = path.join(ROOT, 'assets');
 
-const KEY = process.env.GEMINI_API_KEY;
-const MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image';
+// ── 어느 그림 모델로 그릴 것인가 ──────────────────────────
+//
+//   node gen-sprite.js app-icon                     Gemini (기본)
+//   PROVIDER=openai OPENAI_API_KEY=... node gen-sprite.js app-icon
+//
+// 표도, 마젠타를 걷어내는 것도, 재서 상자에 넣는 것도 **한 벌만** 있습니다.
+// 갈리는 것은 요청을 보내는 자리 하나뿐입니다 (generate). 도구를 통째로
+// 하나 더 만들면 그림 규격이 두 군데가 되고, 두 군데는 반드시 어긋납니다.
+//
+// OpenAI 쪽도 **마젠타 배경을 그대로 씁니다.** gpt-image-1 은 배경을 아예
+// 투명하게 뽑아 주는 길(background: 'transparent')이 있는데, 그 길은 이
+// 저장소에서 한 번도 안 돌려 봤습니다. 마젠타 걷어내기는 분홍 실밥까지
+// 잡아 가며 다듬어 온 길이라(TOL·FEATHER), 검증된 쪽을 씁니다.
+// 투명 배경으로 갈아타려면 여기서 background 를 넘기고 keyOut 을 건너뛰면
+// 되는데, **먼저 한 장 뽑아 눈으로 보고** 옮기세요.
+const PROVIDER = (process.env.PROVIDER || 'gemini').toLowerCase();
+const KEY = PROVIDER === 'openai' ? process.env.OPENAI_API_KEY : process.env.GEMINI_API_KEY;
+const MODEL = PROVIDER === 'openai'
+  ? (process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1')
+  : (process.env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image');
 const BAKE_SCALE = 4;          // ART.md 0절 — 표의 4배로 받습니다
 const CHROMA = [255, 0, 255];  // 마젠타
 const TOLERANCE = 78;          // 이 거리 안이면 배경으로 봅니다
@@ -850,6 +869,57 @@ const SUBJECTS = [
   //        밋밋한 막대가 됩니다.
   //
   // 이 넷은 art/*.svg 가 맡습니다. 게임도 그쪽을 읽으므로 손해가 없습니다.
+  // ── 앱 아이콘 (스토어와 폰 화면에 서는 얼굴) ───────────
+  //
+  // 코드가 SVG 로 그려 둔 것이 android/ 에 이미 있습니다 (gen-icon.js).
+  // 읽히기는 하지만 도형입니다. 그림이 오면 gen-icon.js 가 그쪽을 쓰고
+  // 도형은 물러섭니다.
+  //
+  // **아이콘은 48px 에서 읽혀야 합니다.** 이 게임의 다른 그림들과 규칙이
+  // 다릅니다 — 저쪽은 32px 에서 읽히는 것이 목표였지만 그건 화면 안에서
+  // 다른 것들과 함께 놓일 때이고, 아이콘은 **혼자, 아주 작게, 다른 앱
+  // 스물 몇 개 사이에** 놓입니다. 덩어리 셋을 넘으면 뭉갭니다.
+  //
+  // 그래서 못박는 것은 셋뿐입니다: 어두운 탑 · 위에서 내려오는 빛 ·
+  // 그 안의 붉은 것 하나. 제목 글자는 **넣지 않습니다** — 「오늘도 탑을
+  // 오르는 나는 무슨 생각을 해야 할까」가 48px 에 들어갈 리 없습니다.
+  //
+  // 적응형 아이콘은 바깥 33%가 잘려 나갑니다 (제조사마다 원·둥근네모·
+  // 물방울로 다릅니다). 그림은 **가운데 66% 안**에서 끝나야 합니다.
+  { name: 'app-icon', w: 1024, h: 1024, scale: 1, ratio: '1:1',
+    bg: 'opaque', fit: 'stretch',
+    look: 'A painterly game app icon. Rich, moody, atmospheric — the same dark fantasy world '
+        + 'as the rest of the game, but composed as a single bold emblem. Deep blue-black '
+        + 'stone, warm golden light. Palette: background #141A2E, stone #39445E and #2B3347, '
+        + 'light #FFF8E1, and one red #C02020.',
+    bgRule: 'The image fills the entire square frame edge to edge — it IS the background. '
+          + 'No transparent area, no border, no frame, no rounded corners, no drop shadow '
+          + 'behind the artwork, no white margin. Do not draw a fake app-icon shape inside '
+          + 'the picture: the launcher will round the corners itself.',
+    forbid: 'ABSOLUTELY DO NOT DRAW: any text, letters, numbers, words, logo type, watermark '
+          + 'or signature; any human face or full figure; any weapon, sword, shield or coin; '
+          + 'any user interface, button, badge, ribbon or banner; any rounded-rectangle or '
+          + 'circular border drawn inside the image. '
+          + 'Nothing red anywhere except the ONE small red shape described below. '
+          + 'Keep ALL important content inside the middle two thirds of the square — the outer '
+          + 'third is cropped away by the phone and anything there will be lost.',
+    what: 'A DARK STONE TOWER seen from the front, rising from the bottom of the square and '
+        + 'ending near the top. Only three things are in this picture and they must read at '
+        + 'the size of a thumbnail: '
+        + '(1) THE TOWER — a heavy, weathered, blue-black stone shaft, wider than it is '
+        + 'detailed, with a few horizontal courses of masonry. Its top is BROKEN and RAGGED, '
+        + 'never flat, never a roof, never a room, never a place to stand. '
+        + '(2) THE LIGHT — a warm golden glow pouring straight down from above the broken top, '
+        + 'spilling over the stone and fading before it reaches the bottom. This is the only '
+        + 'light in the picture; everything else is deep shadow. '
+        + '(3) THE RED — ONE small figure in a red hooded cloak, seen from behind, standing on '
+        + 'the tower partway up, tiny against the stone, facing the light. It is the only warm '
+        + 'red in the whole image and it must be small but unmistakable — a single bright spark '
+        + 'of red in all that blue-black. '
+        + 'Nothing else. No ground, no sky detail, no clouds, no other towers, no scenery. '
+        + 'Big simple shapes: if you shrink this to 48 pixels the tower, the light and the red '
+        + 'spark must all still be visible.' },
+
 ];
 
 const GROUPS = ['player', 'enemy', 'bat', 'boss', 'bossshot', 'item', 'fx', 'weapon', 'scene'];
@@ -1004,7 +1074,25 @@ async function generate(subject) {
   if (ref) rules.push(SHAPE_RULE);
   if (same) rules.push(subject.sameRule || PERSON_RULE);
   if (styles.length) rules.push(STYLE_RULE);
-  parts.push({ text: promptFor(subject) + (rules.length ? '\n\n' + rules.join('\n\n') : '') });
+  const 글 = promptFor(subject) + (rules.length ? '\n\n' + rules.join('\n\n') : '');
+  parts.push({ text: 글 });
+
+  if (PROVIDER === 'openai') {
+    // **붙일 그림이 있는 항목은 여기서 멈춥니다.**
+    //
+    // 표의 여러 항목이 참고 그림(ref·same·style)을 함께 보냅니다 — 「이
+    // 사람과 같은 사람」「이 붓으로」 같은 것들입니다. 그건 다른 창구
+    // (/v1/images/edits, multipart)라 따로 붙여야 합니다.
+    //
+    // 조용히 빼고 보내면 **붓이 다른 그림**이 오고, 그건 돈을 쓰고 나서야
+    // 알게 됩니다. 그래서 안 보내고 멈춥니다.
+    if (ref || same || styles.length) {
+      throw new Error('이 항목은 참고 그림을 붙여야 합니다. OpenAI 쪽은 아직 그 길이 없습니다 '
+        + '(/v1/images/edits). Gemini 로 돌리세요: PROVIDER=gemini');
+    }
+    return openaiGenerate(글, ratio);
+  }
+
   const res = await fetch(
     'https://generativelanguage.googleapis.com/v1beta/models/' +
       encodeURIComponent(MODEL) + ':generateContent',
@@ -1020,6 +1108,39 @@ async function generate(subject) {
   if (!res.ok) throw new Error('HTTP ' + res.status + ' · ' + text.slice(0, 300));
   const b64 = pickImage(JSON.parse(text));
   if (!b64) throw new Error('응답에 그림이 없습니다');
+  return Buffer.from(b64, 'base64');
+}
+
+// OpenAI 로 한 장. 돌려주는 것은 Gemini 쪽과 같은 PNG 버퍼라, 뒤의 길은
+// 그대로 이어집니다.
+//
+// **이 함수는 이 저장소에서 한 번도 안 돌아 봤습니다.** 만든 환경에서
+// api.openai.com 이 프록시에 막혀 있었습니다. 처음 돌리실 때 오류가 나는
+// 것을 정상으로 여기고 보세요 — 특히 크기 이름과 응답 모양입니다.
+async function openaiGenerate(글, ratio) {
+  // gpt-image-1 이 받는 크기는 셋뿐입니다. 표의 비율을 그중 가까운 것으로
+  // 옮깁니다. 정확한 비율은 어차피 뒤에서 상자에 맞춰 넣습니다 (keyOut).
+  const 크기 = ratio === '9:16' ? '1024x1536'
+    : (ratio === '1:1' ? '1024x1024' : '1536x1024');
+  const res = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + KEY },
+    body: JSON.stringify({
+      model: MODEL,
+      prompt: 글,
+      size: 크기,
+      n: 1,
+      output_format: 'png',
+      // 마젠타를 또렷하게 받아야 걷어낼 때 실밥이 안 남습니다.
+      quality: process.env.OPENAI_IMAGE_QUALITY || 'high',
+    }),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error('HTTP ' + res.status + ' · ' + text.slice(0, 300));
+  let json;
+  try { json = JSON.parse(text); } catch (e) { throw new Error('응답이 JSON 이 아닙니다'); }
+  const b64 = json && json.data && json.data[0] && json.data[0].b64_json;
+  if (!b64) throw new Error('응답에 그림이 없습니다 · ' + text.slice(0, 200));
   return Buffer.from(b64, 'base64');
 }
 
@@ -1145,7 +1266,12 @@ async function keyOut(oven, png, subject) {
     });
     return;
   }
-  if (!KEY) { console.error('GEMINI_API_KEY 가 없습니다'); process.exit(1); }
+  if (!KEY) {
+  console.error((PROVIDER === 'openai' ? 'OPENAI_API_KEY' : 'GEMINI_API_KEY') + ' 가 없습니다');
+  console.error('  Gemini: GEMINI_API_KEY=... node gen-sprite.js <이름>');
+  console.error('  OpenAI: PROVIDER=openai OPENAI_API_KEY=... node gen-sprite.js <이름>');
+  process.exit(1);
+}
   fs.mkdirSync(RAW, { recursive: true });
   fs.mkdirSync(OUT, { recursive: true });
 
