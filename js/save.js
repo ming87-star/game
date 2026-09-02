@@ -10,6 +10,8 @@ const SAVE_KEY = 'tower-climb-v1';
 function blankSave() {
   return {
     bestFloor: 0, deaths: 0, runs: 0, bestCoins: 0,
+    // 소리를 껐는가. **끈 것만 적습니다** — 없으면 켜진 것입니다.
+    muted: false,
     unlocked: {},
     medals: 0,
     // 직업별 무기 도감. { warrior: { 2: { plus: 6, mult: 2, haste: 3 } } }
@@ -79,7 +81,18 @@ const Save = {
     } catch (e) {
       this.usable = false; // 저장이 막힌 환경. 이번 판만 기억합니다.
     }
+    // 소리는 저장에서 읽어 곧바로 물려 둡니다. 여기서 안 물리면 껐던
+    // 사람이 다음에 켰을 때 소리가 도로 납니다.
+    if (typeof Sfx !== 'undefined') Sfx.setMuted(!!this.data.muted);
     return this.data;
+  },
+
+  // 소리 끄기/켜기. **누른 그 자리에서 저장합니다** — 판을 끝까지 안 하고
+  // 창을 닫는 사람이 훨씬 많습니다.
+  setMuted(on) {
+    this.data.muted = !!on;
+    if (typeof Sfx !== 'undefined') Sfx.setMuted(this.data.muted);
+    this.flush();
   },
 
   flush() {

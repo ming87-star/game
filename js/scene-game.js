@@ -931,6 +931,7 @@ class GameScene extends Phaser.Scene {
         // 점프 도중에 죽었다면 착지 처리는 하지 않습니다.
         // (그냥 두면 죽은 뒤에 회복 아이템을 먹어 체력이 되살아납니다)
         if (this.dead) return;
+        Sfx.play('land');
         this.floorIndex = next.index;
         this.checkMedalFloor();
         this.checkFloorGates();
@@ -1246,6 +1247,7 @@ class GameScene extends Phaser.Scene {
     const cx = CFG.width / 2;
 
     // 보스는 기다리지 않습니다 — 내려앉는 장면과 글자가 붙어 있어야 합니다.
+    Sfx.play('boss');
     this.pushNotice({ key: 'boss', ms: 2500, now: true, build: () => {
       const veil = makeVeil(this, 0x1a0033).setScrollFactor(0).setDepth(140);
       this.tweens.add({ targets: veil, alpha: 0.5, duration: 500, yoyo: true, hold: 1100,
@@ -1333,6 +1335,9 @@ class GameScene extends Phaser.Scene {
   land(slot) {
     if (!slot.taken && !slot.expired) {
       slot.taken = true;
+      // 함정과 미믹은 좋은 소리를 내면 안 됩니다 — 소리가 먼저 「좋은
+      // 것」이라고 말해 버리면 함정이 함정이 아니게 됩니다.
+      if (ITEM_KINDS.has(slot.kind) && slot.kind !== SLOT.MIMIC) Sfx.play('item');
       switch (slot.kind) {
         case SLOT.PLUS:
           // 한계에 닿았으면 망치도 안 내리칩니다. 아무 일도 안 일어나는데
@@ -1342,6 +1347,7 @@ class GameScene extends Phaser.Scene {
             this.forgeFx(slot.x, slot.y - 38);
             this.popup('공격력 +1', '#ffd54f');
           } else {
+            Sfx.play('nope');
             this.popup('공격력이 이미 한계입니다', '#8794b5');
           }
           break;
@@ -1673,6 +1679,7 @@ class GameScene extends Phaser.Scene {
       e.y <= this.player.y + CFG.aimBelow &&
       this.meleeDist(e) <= w.reach);
     if (!hit.length) return; // 허공에 휘두르지는 않습니다
+    Sfx.play('swing');
 
     // ── 관통하는 기름 (근접판) ──────────────────────────
     // 활은 화살이 앞을 뚫고 더 날아갑니다(fireArrow 의 pierce). 근접은
@@ -3065,6 +3072,9 @@ class GameScene extends Phaser.Scene {
   }
 
   hitEnemy(enemy, dmg) {
+    // 날아간 것이 맞은 소리. 근접의 벰(swing)과 나는 자리가 다릅니다 —
+    // 저쪽은 휘두르는 순간이고 이쪽은 닿는 순간입니다.
+    Sfx.play('hit', 0.7);
     if (!enemy.active) return;
     const before = enemy.hp;
     const w = this.weapon;
@@ -3130,6 +3140,8 @@ class GameScene extends Phaser.Scene {
     if (this.job.leechOnKill && this.hp < this.maxHp) {
       this.hp = Math.min(this.maxHp, this.hp + this.maxHp * this.job.leechOnKill);
     }
+
+    Sfx.play('kill');
 
     // 보스는 죽는 방식이 다릅니다.
     if (enemy.isBoss) {
@@ -3717,6 +3729,7 @@ class GameScene extends Phaser.Scene {
   hurt(amount, source, fromBoss) {
     // 그림자에게 삼켜지는 중에는 다른 피해가 끼어들 이유가 없습니다.
     if (this.dead || this.swallowing) return;
+    Sfx.play('ouch');
     // 도적은 일정 확률로 통째로 흘려 넘깁니다.
     // 다만 보스가 내리꽂는 것에는 덜 통합니다 — 안 그러면 피하지 않아도
     // 절반 넘게 흘러가서, 줄을 고르는 그 싸움을 도적만 안 하게 됩니다.
@@ -3936,6 +3949,9 @@ class GameScene extends Phaser.Scene {
       if (Phaser.Math.Distance.Between(p.sprite.x, p.sprite.y, this.player.x, this.player.y) < 24) {
         this.coins += p.value;
         this.totalCoins += p.value;
+        // 여러 닢이 한꺼번에 빨려 들면 그만큼 겹쳐 울립니다 — 그게 「왕창
+        // 주웠다」로 들립니다. 다만 아주 작게 (0.5배) 겹쳐야 시끄럽지 않습니다.
+        Sfx.play('coin', 0.5);
         p.sprite.destroy();
         this.pickups.splice(i, 1);
       }
@@ -4027,6 +4043,7 @@ class GameScene extends Phaser.Scene {
     if (band <= this.medalBand) return;
     this.medalBand = band;
     this.medals += CFG.medal.amount;
+    Sfx.play('good');
     this.popup('🏅 +' + CFG.medal.amount, '#ffca28');
   }
 
@@ -4177,6 +4194,7 @@ class GameScene extends Phaser.Scene {
   gameOver(reason, opts) {
     if (this.dead) return;
     this.dead = true;
+    Sfx.play('death');
     this.noResume = !!(opts && opts.noResume);
     this.hp = 0;
     this.clearNotices(); // 죽음 화면 위에 알림이 떠 있으면 결과가 안 읽힙니다

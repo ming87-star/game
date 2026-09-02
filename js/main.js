@@ -29,6 +29,25 @@ window.__game = new Phaser.Game({
     MeetScene, CodeScene, EndingLineScene, EndingWatchScene, CreditsScene, GameScene, PauseScene, SwapScene, TrophyScene, FoeScene],
 });
 
+// ── 단추 소리는 **한 군데서** 냅니다 ───────────────────────
+//
+// 화면마다 단추가 스물 몇 개인데 자리마다 붙이면 반드시 몇 개를 빠뜨립니다.
+// 빠뜨린 자리는 오류도 안 나고 그냥 조용해서, 누가 알려 주기 전에는
+// 모릅니다.
+//
+// 그래서 창 전체에서 한 번 듣고, **판 위에서만 안 냅니다.** 탑에서는
+// 누르는 것이 곧 오르는 것이라 딛는 소리가 이미 나고, 거기에 단추 소리가
+// 겹치면 한 번 누를 때마다 두 번 울립니다.
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('pointerdown', () => {
+    if (typeof Sfx === 'undefined' || !window.__game) return;
+    const 켜진것 = window.__game.scene.getScenes(true).map((s) => s.scene.key);
+    if (켜진것.includes('game') && !켜진것.includes('pause')
+      && !켜진것.includes('swap') && !켜진것.includes('trophy')) return;
+    Sfx.play('tap');
+  }, { passive: true });
+}
+
 // ── 불러오는 화면을 걷습니다 ───────────────────────────────
 //
 // **첫 장면이 실제로 그려진 뒤에** 걷습니다. new Phaser.Game 이 돌아온

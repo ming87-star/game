@@ -169,6 +169,26 @@ class TitleScene extends Phaser.Scene {
     코드.on('pointerdown', () => this.openCode());
     this.codeAt = { x: CFG.width / 2, y: CFG.height - 34 };
 
+    // ── 소리 끄기 ───────────────────────────────────────
+    // **켜기 전에 끌 수 있어야 합니다.** 일시정지 안에만 두면, 소리가
+    // 곤란한 자리에서 켠 사람은 이미 한 번 울린 뒤에야 끌 수 있습니다.
+    // 코드 입력과 같은 줄, 같은 크기, 왼쪽 구석에 조용히 둡니다.
+    this.soundAt = { x: 62, y: CFG.height - 34 };
+    this.soundLabel = this.add.text(this.soundAt.x, this.soundAt.y, '',
+      { fontFamily: 'sans-serif', fontSize: '15px', color: '#5f6d99' })
+      .setOrigin(0.5).setDepth(400);
+    const 소리칸 = this.add.rectangle(this.soundAt.x, this.soundAt.y, 110, 52, 0x000000, 0)
+      .setDepth(399).setInteractive({ useHandCursor: true });
+    const 고쳐적기 = () => this.soundLabel.setText(Save.data.muted ? '소리 꺼짐' : '소리 켜짐');
+    소리칸.on('pointerdown', () => {
+      Save.setMuted(!Save.data.muted);
+      고쳐적기();
+      // 켠 그 자리에서 한 번 들려 줍니다 — 눌렀는데 아무 일도 안 나면
+      // 켜진 것인지 알 길이 없습니다.
+      if (!Save.data.muted) { Sfx.wake(); Sfx.play('good'); }
+    });
+    고쳐적기();
+
     window.__title = this;
   }
 
