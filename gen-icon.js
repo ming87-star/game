@@ -113,7 +113,7 @@ const 그림있나 = fs.existsSync(그린것);
 
 // ── 어두운 모드용 한 장 ─────────────────────────────────
 //
-// assets/app-icon-night.png 가 있으면 **-night 자원 폴더**에 따로 굽습니다.
+// assets/app-icon-night.png 가 있으면 **mipmap-night-* 폴더**에 따로 굽습니다.
 // 폰이 어두운 모드일 때 안드로이드가 이쪽을 골라 씁니다.
 //
 // **테마 아이콘(monochrome) 자리가 아닙니다.** 그 칸은 알파만 쓰고 색은
@@ -159,24 +159,33 @@ function 아이콘(w, h, opt) {
   const page = await browser.newPage();
   const 만든것 = [그림있나 ? '그림(assets/app-icon.png)으로 굽습니다'
     : '아직 그림이 없어 도형으로 굽습니다 (gen-sprite.js app-icon)'];
-  if (밤있나) 만든것.push('어두운 모드는 assets/app-icon-night.png (-night 폴더)');
+  if (밤있나) 만든것.push('어두운 모드는 assets/app-icon-night.png (mipmap-night-* 폴더)');
 
   // ── 폰에 들어가는 열다섯 장 (밤 그림이 있으면 서른 장) ──
   //
   // 옛 방식(안드로이드 7 까지)은 아이콘 한 장이 통째로 들어가고,
   // 적응형(8 이상)은 108dp 칸에 앞겹을 넣습니다. 도형은 가운데 66% 안에,
   // 그린 그림은 칸을 꽉 채웁니다 — 까닭은 아이콘() 안에 있습니다.
-  const 밤낮 = 밤있나 ? [{ 밤: false, 꼬리: '' }, { 밤: true, 꼬리: '-night' }]
-    : [{ 밤: false, 꼬리: '' }];
-  for (const { 밤, 꼬리 } of 밤낮) {
+  //
+  // **폴더 이름의 한정자에는 정해진 차례가 있습니다.** 어두운 모드(night)는
+  // 밀도(hdpi)보다 **앞**에 와야 합니다 — `mipmap-night-hdpi` 입니다.
+  // 처음에 `mipmap-hdpi-night` 로 지었다가 첫 빌드가 여기서 멈췄습니다:
+  //
+  //     mipmap-hdpi-night: Error: Invalid resource directory name
+  //
+  // 이 잘못은 **여기서는 아무 표시도 안 납니다.** 폴더가 만들어지고 그림도
+  // 잘 구워집니다. 안드로이드가 자원을 합칠 때에야 걸립니다.
+  const 밤낮 = 밤있나 ? [{ 밤: false, 머리: '' }, { 밤: true, 머리: 'night-' }]
+    : [{ 밤: false, 머리: '' }];
+  for (const { 밤, 머리 } of 밤낮) {
     for (const [d, n] of Object.entries(밀도)) {
-      const 방 = path.join(RES, 'mipmap-' + d + 꼬리);
+      const 방 = path.join(RES, 'mipmap-' + 머리 + d);
       const 크기 = await 굽기(page, 아이콘(n, n, { 밤 }), n, n, path.join(방, 'ic_launcher.png'));
       await 굽기(page, 아이콘(n, n, { 밤 }), n, n, path.join(방, 'ic_launcher_round.png'));
       const N = Math.round(n * 108 / 48);   // 적응형은 108dp 칸입니다
       await 굽기(page, 아이콘(N, N, { safe: true, bg: false, 밤 }), N, N,
         path.join(방, 'ic_launcher_foreground.png'));
-      만든것.push(`mipmap-${d}${꼬리}  ${n}×${n}  ${Math.round(크기 / 1024)}KB`);
+      만든것.push(`mipmap-${머리}${d}  ${n}×${n}  ${Math.round(크기 / 1024)}KB`);
     }
   }
 

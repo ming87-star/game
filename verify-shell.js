@@ -204,16 +204,41 @@ if (fs.existsSync(path.join(ROOT, 'assets', 'app-icon.png'))) {
 // **낮 것과 같은 그림이면 굽다 만 것입니다** — 폴더만 생기고 내용은
 // 그대로일 수 있어서 파일이 있는지만 봐서는 안 됩니다.
 if (fs.existsSync(path.join(ROOT, 'assets', 'app-icon-night.png'))) {
-  const 밤길 = path.join(A, 'res', 'mipmap-xxxhdpi-night', 'ic_launcher_foreground.png');
+  const 밤길 = path.join(A, 'res', 'mipmap-night-xxxhdpi', 'ic_launcher_foreground.png');
   const 낮길 = path.join(A, 'res', 'mipmap-xxxhdpi', 'ic_launcher_foreground.png');
   const 있나 = fs.existsSync(밤길);
   const 다른가 = 있나 && !fs.readFileSync(밤길).equals(fs.readFileSync(낮길));
-  check(다른가, '어두운 모드 앞겹이 -night 폴더에 **낮 것과 다르게** 있음',
+  check(다른가, '어두운 모드 앞겹이 mipmap-night-* 에 **낮 것과 다르게** 있음',
     (있나 ? '있음' : '없음') + ' · ' + (다른가 ? '낮과 다름' : '낮과 같음'));
   const 밤 = 있나 ? 테두리알파(밤길) : null;
   check(밤 !== null && 밤 >= 250, '어두운 모드 앞겹도 테두리까지 불투명',
     '가장 옅은 테두리 알파 ' + 밤);
 }
+
+// ── 자원 폴더 이름의 한정자 차례 ──────────────────────────
+//
+// 안드로이드 자원 폴더의 한정자에는 **정해진 차례**가 있습니다. 어두운
+// 모드(night)는 밀도(hdpi 따위)보다 **앞**에 와야 합니다.
+//
+//   맞음  mipmap-night-hdpi
+//   틀림  mipmap-hdpi-night   ← 빌드가 여기서 멈춥니다
+//
+// 처음에 뒤에 붙였다가 첫 빌드가 죽었습니다:
+//     mipmap-hdpi-night: Error: Invalid resource directory name
+//
+// **여기서는 아무 표시도 안 났습니다.** 폴더도 만들어지고 그림도 잘
+// 구워집니다. 폰에 올릴 때에야 걸립니다 — 그래서 검사로 둡니다.
+const 밀도이름 = ['ldpi', 'mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi', 'nodpi', 'tvdpi', 'anydpi'];
+const 어긋난폴더 = fs.readdirSync(path.join(A, 'res'))
+  .filter((이름) => {
+    const 토막 = 이름.split('-');
+    const 밤 = 토막.indexOf('night');
+    if (밤 < 0) return false;
+    return 토막.some((조각, i) => 밀도이름.includes(조각) && i < 밤);
+  });
+check(어긋난폴더.length === 0,
+  '자원 폴더의 한정자 차례가 맞음 (night 가 밀도보다 앞)',
+  어긋난폴더.join(' ') || '어긋난 것 없음');
 
 // ── 테마 아이콘 칸에 그림을 물리지 않았는가 ───────────────
 //
