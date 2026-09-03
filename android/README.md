@@ -36,45 +36,90 @@ cd android && ./gradlew assembleDebug
 Gradle 래퍼(`gradlew`)는 여기 없습니다. Android Studio 로 한 번 열면
 저절로 만들어지고, 명령줄만 쓰시면 `gradle wrapper` 를 한 번 돌리세요.
 
-## 서명 키 — **잃어버리면 그 앱을 영영 갱신 못 합니다**
+## 스토어에 올리는 순서 — **이 차례를 지켜야 합니다**
+
+순서가 중요합니다. Play Games(순위표·업적)는 **앱이 콘솔에 이미 있고 서명
+인증서까지 등록된 뒤**에야 열립니다. 먼저 하려고 하면 막힙니다.
+
+```
+① 서명 키 만들기 (또는 있는 것 쓰기)
+② 그 키로 AAB 굽기
+③ Play Console 에 앱 만들고 AAB 올리기 (내부 테스트)
+④ 그제야 Play Games Services 를 켜고 순위표·업적 등록
+⑤ 받은 ID 를 strings.xml 에 채우고 다시 올리기
+```
+
+### ① 서명 키 — **잃어버리면 그 앱을 영영 갱신 못 합니다**
+
+**다른 앱에 쓰던 키스토어가 있으면 그것을 그대로 쓰셔도 됩니다.**
+키스토어 하나로 앱 여러 개를 서명해도 괜찮습니다.
+
+새로 만든다면 **명령창을 안 써도 됩니다.** 안드로이드 스튜디오가 만들어
+줍니다 (아래 ②의 마법사 안에 「Create new...」가 있습니다).
+
+명령창을 쓰신다면:
 
 ```bash
 keytool -genkeypair -v -keystore ~/오탑무-release.jks \
   -keyalg RSA -keysize 2048 -validity 10000 -alias 오탑무
 ```
 
-만든 `.jks` 와 비밀번호는 **이 저장소에 절대 넣지 마세요.** 대신
-`~/.gradle/gradle.properties` 에 둡니다:
+> `.jks` 파일과 비밀번호는 **이 저장소에 절대 넣지 마세요.** 이 저장소는
+> 공개돼 있습니다. 남에게 붙여 보내지도 마세요 — 대화에 남는 것 자체가
+> 유출입니다.
 
-```properties
-TOWER_STORE_FILE=/절대/경로/오탑무-release.jks
-TOWER_STORE_PASSWORD=...
-TOWER_KEY_ALIAS=오탑무
-TOWER_KEY_PASSWORD=...
+### ② AAB 굽기 — 스튜디오 마법사
+
+스토어에 올리는 것은 APK 가 아니라 **AAB** 입니다.
+
+```
+Build → Generate Signed App Bundle / APK...
+  → Android App Bundle 고르기 → Next
+  → Key store path : 있는 .jks 를 고르거나 [Create new...]
+  → 비밀번호·별칭 넣고 [Remember passwords] 켜기 → Next
+  → Release 고르기 → Create
 ```
 
-그리고 `app/build.gradle` 의 `release` 에 `signingConfig` 를 붙입니다.
-(지금은 안 붙여 두었습니다 — 키가 없는 채로 `assembleRelease` 를 돌리면
-무슨 일이 나는지가 헷갈리기 때문입니다.)
+다 되면 오른쪽 아래에 **locate** 링크가 뜹니다. 파일은 여기 있습니다:
 
-스토어에 올리는 것은 APK 가 아니라 **AAB** 입니다:
-```bash
-./gradlew bundleRelease      # app/build/outputs/bundle/release/app-release.aab
+```
+android/app/release/app-release.aab
 ```
 
-## 순위표·업적을 붙이는 순서
+> **`app/build.gradle` 에 signingConfig 를 안 붙여 두었습니다.** 마법사가
+> 알아서 서명하므로 필요 없고, 붙여 두면 키가 없는 사람이 열었을 때
+> 빌드가 통째로 안 되기 때문입니다.
 
-1. Play Console 에서 앱을 만듭니다 (패키지명 `com.projectjhs.whileclimbing`)
-2. **Play Games Services → 구성** 에서 게임을 만듭니다 → **앱 ID** 가 나옵니다
-3. 순위표 둘, 업적 스물넷을 등록합니다 (이름은 `js/games.js` 의 표 그대로)
-4. 각각의 **긴 ID**(`CgkI…`)를 `res/values/strings.xml` 의 빈 칸에 채웁니다
-5. OAuth 클라이언트를 만들 때 **서명 인증서의 SHA-1** 이 필요합니다:
-   ```bash
-   keytool -list -v -keystore ~/오탑무-release.jks -alias 오탑무
-   ```
+### ③ Play Console 에 앱 만들고 올리기
+
+1. 「앱 만들기」 — 이름·언어·앱/게임·무료/유료
+2. 왼쪽 **테스트 → 내부 테스트 → 새 버전 만들기**
+3. ②에서 구운 `app-release.aab` 를 끌어다 놓기
+4. 처음 올릴 때 **Play 앱 서명** 안내가 나옵니다 — 그대로 받아들이면 됩니다
+
+> 여기서 패키지명이 정해집니다. `com.projectjhs.whileclimbing` 이어야
+> 합니다. 한 번 정하면 **못 바꿉니다.**
+
+### ④ Play Games Services
+
+**③이 끝나야 열립니다.**
+
+1. 왼쪽 맨 아래 **성장 → Play Games Services → 설정 및 관리 → 구성**
+2. 「새 Play Games Services 프로젝트 만들기」 → **앱 ID** 가 나옵니다
+3. **사용자 인증 정보** 에서 안드로이드 인증 정보를 추가합니다. 여기에
+   **서명 인증서의 SHA-1** 이 필요한데, Play 앱 서명을 쓰면 콘솔의
+   **설정 → 앱 서명** 화면에 이미 적혀 있습니다 — 복사해서 붙이면 됩니다
+4. **순위표** 둘, **업적** 스물넷을 등록합니다. 이름은 `js/games.js` 의
+   `BOARDS` · `DEEDS` 표 그대로 쓰세요
+5. 각각의 **긴 ID**(`CgkI…`)를 받아 옵니다
+
+### ⑤ ID 를 채우고 다시 올리기
+
+받은 ID 를 `res/values/strings.xml` 의 빈 칸에 채우고, `versionCode` 를
+하나 올린 뒤 ②~③을 다시 합니다.
 
 **채우기 전에도 게임은 그대로 돕니다.** 비어 있으면 `GamesBridge` 가 그냥
-안 보냅니다.
+안 보냅니다 — 그래서 ③까지만 하고 먼저 올려도 됩니다.
 
 ## 스토어에 올리기 전에
 
@@ -98,9 +143,13 @@ TOWER_KEY_PASSWORD=...
       node gen-icon.js
       node verify-shell.js
       ```
-- [ ] 서명 키를 만들고 **안전한 곳에** 둡니다
-- [ ] `strings.xml` 의 Play Games ID 를 채웁니다
+- [ ] ① 서명 키를 만들고(또는 있는 것을 쓰고) **안전한 곳에** 둡니다
+- [ ] ② 스튜디오 마법사로 AAB 를 굽습니다
+- [ ] ③ Play Console 에 앱을 만들고 내부 테스트로 올립니다
+- [ ] ④ Play Games Services 를 켜고 순위표 2 · 업적 24 를 등록합니다
+- [ ] ⑤ 받은 ID 를 `strings.xml` 에 채우고 다시 올립니다
 - [ ] 개인정보처리방침 주소가 살아 있는지 확인합니다
+      (gh-pages 의 `privacy.html`)
 
 ## 첫 실기 시험에서 꼭 볼 것
 
