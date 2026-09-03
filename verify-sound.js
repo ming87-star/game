@@ -62,6 +62,54 @@ const check = (ok, label, got) => {
   const 뒤상태 = await page.evaluate(() => ({ 깨어남: Sfx.ready, 상태: Sfx.ctx && Sfx.ctx.state }));
   check(뒤상태.깨어남, '한 번 건드리면 깨어남', '깨어남 ' + 뒤상태.깨어남 + ' · ' + 뒤상태.상태);
 
+  // ── 1-2. 타이틀의 「소리 켜짐/꺼짐」이 **눌리기만** 하는가 ──
+  //
+  // 실기에서 이렇게 나왔습니다: 그 단추를 누르면 소리가 바뀌면서 **동시에
+  // 다음 화면으로 넘어가** 버려서, 켜고 끄는 것을 고를 수가 없었습니다.
+  //
+  // 까닭은 「눌러서 계속」이 장면 전체에 걸린 pointerdown 이었기 때문입니다.
+  // 그건 단추 위를 눌러도 같이 먹습니다. 오류도 안 나고, 소리 설정도
+  // 제대로 바뀝니다 — 다만 그 자리에 머물 수가 없습니다.
+  //
+  // 그래서 **머무는지**를 봅니다. 설정이 바뀌는 것만 봐서는 이 탈이 안
+  // 잡힙니다. 그때도 설정은 잘 바뀌었으니까요.
+  const 타이틀로 = async () => {
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.scene.getScenes(true).forEach((s) => s.scene.stop());
+      g.scene.start('title');
+    });
+    await page.waitForFunction(() => window.__title && window.__title.ready, null, { timeout: 20000 });
+  };
+  await 타이틀로();
+  const 소리단추 = await page.evaluate(() => window.__title.soundAt);
+  const 지금장면 = () => page.evaluate(() =>
+    window.__game.scene.getScenes(true).map((x) => x.scene.key).join(','));
+  const 꺼짐읽기 = () => page.evaluate(() => Save.data.muted);
+
+  const 처음끔 = await 꺼짐읽기();
+  await page.mouse.click(소리단추.x, 소리단추.y);
+  await page.waitForTimeout(400);
+  const 한번뒤 = { 끔: await 꺼짐읽기(), 장면: await 지금장면() };
+  check(한번뒤.끔 !== 처음끔 && 한번뒤.장면 === 'title',
+    '소리 단추를 눌러도 **타이틀에 머묾** (눌러서 계속이 같이 먹지 않음)',
+    '끔 ' + 처음끔 + '→' + 한번뒤.끔 + ' · 장면 ' + 한번뒤.장면);
+
+  await page.mouse.click(소리단추.x, 소리단추.y);
+  await page.waitForTimeout(400);
+  const 두번뒤 = { 끔: await 꺼짐읽기(), 장면: await 지금장면() };
+  check(두번뒤.끔 === 처음끔 && 두번뒤.장면 === 'title',
+    '다시 누르면 도로 돌아옴 — 켜고 끄는 것을 마음대로 고를 수 있음',
+    '끔 ' + 두번뒤.끔 + ' · 장면 ' + 두번뒤.장면);
+
+  // 빈 자리를 누르면 넘어가야 합니다 — 단추를 고치다가 「눌러서 계속」
+  // 자체를 죽이면 게임을 시작할 수가 없습니다.
+  await page.mouse.click(270, 480);
+  await page.waitForTimeout(600);
+  const 빈자리 = await 지금장면();
+  check(빈자리 !== 'title' && 빈자리 !== '',
+    '빈 자리를 누르면 그래도 넘어감', 빈자리);
+
   // ── 2. 소리마다 실제로 그려지는가 ───────────────────────
   //
   // OfflineAudioContext 에 같은 코드를 그대로 태워서 표본을 셉니다.
@@ -72,15 +120,18 @@ const check = (ok, label, got) => {
     const 결과 = [];
     for (const 이름 of 이름들) {
       const 겹 = SFX[이름];
-      const 길이 = 겹.reduce((a, 층) => a + 층.ms + (층.delay || 0), 0) / 1000 + 0.05;
+      const 길이 = Math.max(...겹.map((층) => (층.delay || 0) + 층.ms)) / 1000 + 0.05;
       const off = new OfflineAudioContext(1, Math.ceil(44100 * 길이), 44100);
-      // Sfx 를 잠깐 이 그릇에 물려서 같은 코드로 그립니다
-      const 원래 = Sfx.ctx;
-      Sfx.ctx = off;
-      let 때 = 0;
-      겹.forEach((층) => { 때 += (층.delay || 0) / 1000; Sfx.한겹(층, 때, 1); 때 += 층.ms / 1000; });
+      // **Sfx.play 를 그대로 부릅니다.** 예전에는 겹 쌓는 계산을 여기에
+      // 베껴 적어 두었는데, sound.js 에서 delay 의 뜻을 바꿨을 때 이쪽만
+      // 옛 계산으로 남아 검사가 딴것을 재고 있었습니다 — 이 파일 머리에
+      // 「검사용으로 따로 적어 두면 언젠가 어긋납니다」라고 적어 놓고도
+      // 그렇게 했습니다. 이제 진짜 길을 지나갑니다.
+      const 원래 = Sfx.ctx; const 원래준비 = Sfx.ready; const 원래끔 = Sfx.muted;
+      Sfx.ctx = off; Sfx.ready = true; Sfx.muted = false; Sfx.broken = false;
+      Sfx.play(이름);
       const buf = await off.startRendering();
-      Sfx.ctx = 원래;
+      Sfx.ctx = 원래; Sfx.ready = 원래준비; Sfx.muted = 원래끔;
       const d = buf.getChannelData(0);
       let 최대 = 0; let 소리난표본 = 0;
       for (let i = 0; i < d.length; i++) {
@@ -88,8 +139,16 @@ const check = (ok, label, got) => {
         if (v > 최대) 최대 = v;
         if (v > 0.002) 소리난표본++;
       }
+      // 10ms 칸마다 최대 진폭 — 「울리다 쉬다 또 울리는가」를 보려는 것입니다
+      const 칸 = 441; const 봉우리 = [];
+      for (let i = 0; i + 칸 <= d.length; i += 칸) {
+        let m = 0;
+        for (let j = 0; j < 칸; j++) m = Math.max(m, Math.abs(d[i + j]));
+        봉우리.push(m);
+      }
       결과.push({ 이름, 최대: Math.round(최대 * 1000) / 1000,
-        울린ms: Math.round(소리난표본 / 44.1), 겹: 겹.length });
+        울린ms: Math.round(소리난표본 / 44.1), 겹: 겹.length, 봉우리,
+        적어둔어긋남: 겹.map((층) => 층.delay || 0) });
     }
     return 결과;
   });
@@ -110,6 +169,39 @@ const check = (ok, label, got) => {
   check(짧음.length === 0, '너무 짧아 안 들리는 것이 없음 (20ms 넘게 울림)',
     짧음.length ? 짧음.map((s) => s.이름 + ' ' + s.울린ms + 'ms').join(' ')
       : '가장 짧은 것 ' + Math.min(...잰것.map((s) => s.울린ms)) + 'ms');
+
+  // ── 2-2. 한 번 울릴 소리가 메아리로 갈라지지 않았는가 ───
+  //
+  // 실기에서 「소리가 늦고 부자연스럽다」는 말을 듣고 파형을 재 보니,
+  // 부딪히는 소리(음 한 겹 + 잡음 한 겹)가 **두 번** 나고 있었습니다:
+  //
+  //     land  |.=.      .    |   0~30ms 에 한 번, 90ms 에 또 한 번
+  //
+  // 겹을 「앞 겹이 끝난 뒤」에 쌓았기 때문입니다. 한 번의 충격은 한 번에
+  // 울려야 합니다. 어긋남을 **적어 둔** 소리(coin·good 의 음계)만 갈라져도
+  // 됩니다 — 그건 갈라지라고 적은 것이니까요.
+  //
+  // 이건 소리를 들을 수 없는 자리에서 **귀 대신 쓰는 눈**입니다. 고쳐 놓고
+  // 나중에 delay 뜻을 다시 만지면 조용히 되돌아갑니다.
+  const 갈라짐 = (s) => {
+    // 봉우리에서 울린 칸의 첫·끝을 찾고, 그 사이에 30ms 넘는 침묵이 있는가
+    const 켜짐 = s.봉우리.map((v) => v > 0.004);
+    const 첫 = 켜짐.indexOf(true);
+    const 끝 = 켜짐.lastIndexOf(true);
+    if (첫 < 0) return 0;
+    let 이어진침묵 = 0; let 가장긴침묵 = 0;
+    for (let i = 첫; i <= 끝; i++) {
+      이어진침묵 = 켜짐[i] ? 0 : 이어진침묵 + 1;
+      가장긴침묵 = Math.max(가장긴침묵, 이어진침묵);
+    }
+    return 가장긴침묵 * 10;   // ms
+  };
+  const 한번에울릴것 = 잰것.filter((s) => s.적어둔어긋남.every((d) => d === 0));
+  const 메아리 = 한번에울릴것.filter((s) => 갈라짐(s) >= 30);
+  check(메아리.length === 0,
+    '어긋남을 안 적은 소리는 **한 번에** 울림 (메아리로 갈라지지 않음)',
+    메아리.length ? 메아리.map((s) => s.이름 + ' 사이에 ' + 갈라짐(s) + 'ms 침묵').join(' · ')
+      : 한번에울릴것.length + '가지 다 이어져 울림');
 
   // ── 3. 코드가 부르는 이름과 표가 맞는가 ─────────────────
   //

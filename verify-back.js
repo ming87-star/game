@@ -87,6 +87,30 @@ const check = (ok, label, got) => {
   check(두번째 === true && !이어짐.includes('pause'),
     '멈춤 창에서 뒤로를 누르면 다시 이어짐', 이어짐);
 
+  // ── 상점에서 뒤로 ──────────────────────────────────────
+  //
+  // 상점은 **장면이 아니라 판 위에 뜨는 창**입니다. 그래서 켜진 장면
+  // 목록에는 'game' 만 보이고, 규칙은 pauseGame() 을 부릅니다. 그런데
+  // pauseGame() 은 **상점이 열려 있으면 첫 줄에서 되돌아갑니다** — 판이
+  // 이미 멈춰 있으니 맞는 판단이지만, 그 바람에 상점에서는 뒤로가기가
+  // 아무 일도 안 했습니다. 참을 돌려주니 껍데기도 가만히 있었습니다.
+  //
+  // 실기에서 「상점에서만 뒤로가기가 안 된다」로 나왔습니다. 겹쳐 뜬 창은
+  // 그것부터 닫는 것이 안드로이드의 셈법입니다.
+  await page.evaluate(() => window.__scene.shop.show(50));
+  await page.waitForTimeout(400);
+  const 상점열림 = await page.evaluate(() => window.__scene.shop.open);
+  const 상점에서 = await 뒤로();
+  await page.waitForTimeout(400);
+  const 상점뒤 = await page.evaluate(() => ({
+    열림: window.__scene.shop.open,
+    장면: window.__game.scene.getScenes(true).map((s) => s.scene.key).join(','),
+  }));
+  check(상점열림 === true, '상점이 열림 (시험 준비)', String(상점열림));
+  check(상점에서 === true && 상점뒤.열림 === false && !상점뒤.장면.includes('pause'),
+    '상점에서 뒤로를 누르면 **상점이 닫힘** (멈춤 창이 아니라)',
+    '답 ' + 상점에서 + ' · 열림 ' + 상점뒤.열림 + ' · 장면 ' + 상점뒤.장면);
+
   // ── 곁가지 화면은 한 걸음 물러섭니다 ───────────────────
   await 로가기('title');
   await page.waitForFunction(() => window.__title && window.__title.ready, null, { timeout: 20000 });

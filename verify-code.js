@@ -88,21 +88,22 @@ const server = http.createServer((req, res) => {
 
   // ── 돌아와서 타이틀이 **다시 눌리는가** ────────────────
   //
-  // 이 검사가 생긴 까닭. 코드 화면을 열 때 밑에 깔린 「눌러서 계속」이
-  // 같이 먹지 않게 goingCode 를 세워 두는데, 그걸 **아무 데서도 안
-  // 지웠습니다.** Phaser 는 scene.start 마다 장면을 새로 만들지 않고
-  // create() 만 다시 돌리므로, 인스턴스에 붙은 값은 지난번 것이 그대로
-  // 남습니다. 그래서 코드 화면을 한 번 열어 본 사람은 돌아온 뒤로
-  // **타이틀이 영영 안 눌렸습니다** — go() 가 첫 줄에서 되돌아갑니다.
-  // 오류도 안 나고 화면도 멀쩡합니다. 그냥 아무 일도 안 일어납니다.
-  //
+  // 이 검사가 생긴 까닭. 예전에는 코드 화면을 열 때 밑에 깔린 「눌러서
+  // 계속」이 같이 먹지 않게 goingCode 라는 깃발을 세웠는데, 그걸 **아무
+  // 데서도 안 지웠습니다.** Phaser 는 scene.start 마다 장면을 새로 만들지
+  // 않고 create() 만 다시 돌리므로, 인스턴스에 붙은 값은 지난번 것이
+  // 그대로 남습니다. 그래서 코드 화면을 한 번 열어 본 사람은 돌아온 뒤로
+  // **타이틀이 영영 안 눌렸습니다.** 오류도 안 나고 화면도 멀쩡했습니다.
   // 엔딩을 코드로 보고 나온 사람이 바로 이 자리에 갇혔습니다.
+  //
+  // 그 깃발은 이제 없습니다 — 「눌러서 계속」이 화면만 한 판때기 하나가
+  // 되어서 단추와 겹쳐 먹지 않습니다(scene-title.js). 그래도 **이 검사는
+  // 남깁니다.** 잡으려던 것은 깃발이 아니라 「돌아오면 다시 눌리는가」이고,
+  // 그건 어떻게 만들든 지켜져야 합니다.
   await page.evaluate(() => window.__code.scene.start('title'));
   await page.waitForFunction(() =>
     window.__game.scene.getScenes(true).map((x) => x.scene.key).join(',') === 'title'
     && window.__title.ready, null, { timeout: 20000 });
-  const 깃발 = await page.evaluate(() => window.__title.goingCode);
-  check(깃발 === false, '돌아오면 코드 깃발이 내려감 (장면 객체는 다시 쓰입니다)', String(깃발));
   await page.evaluate(() => window.__title.go());
   await page.waitForTimeout(900);
   const 눌렸나 = await 장면();

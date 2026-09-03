@@ -76,6 +76,12 @@ window.__androidBack = function () {
   // 탑 위에서는 **나가지 않고 멈춥니다.**
   if (켜진것.includes('game')) {
     const s = g.scene.getScene('game');
+    // 상점은 장면이 아니라 판 위에 뜨는 창입니다. 그래서 켜진것 에는
+    // 'game' 만 보이고, pauseGame() 은 **상점이 열려 있으면 되돌아갑니다.**
+    // 그대로 두면 상점에서 뒤로가기가 아무 일도 안 합니다 — 실기에서
+    // 「상점에서만 뒤로가기가 안 된다」로 나온 것이 이 자리입니다.
+    // 겹쳐 뜬 창은 그것부터 닫는 것이 안드로이드의 셈법입니다.
+    if (s && s.shop && s.shop.open) { s.shop.close(); return true; }
     if (s && s.pauseGame) { s.pauseGame(); return true; }
     return true;
   }

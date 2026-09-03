@@ -61,11 +61,10 @@ class TitleScene extends Phaser.Scene {
     //
     // Phaser 는 scene.start 마다 새로 만들지 않습니다. create() 만 다시
     // 돌고 인스턴스에 붙여 둔 값은 **지난번 것이 그대로 남습니다.**
-    // goingCode 를 여기서 안 지웠더니, 코드 화면을 한 번 열어 본 사람은
-    // 돌아온 뒤로 **타이틀이 영영 안 눌렸습니다** — go() 가 첫 줄에서
-    // 되돌아갑니다. 오류는 안 나고 화면도 멀쩡합니다. 그냥 안 됩니다.
-    // (엔딩을 코드로 보고 나온 사람이 딱 이 자리에 갇혔습니다.)
-    this.goingCode = false;
+    // (예전에 goingCode 라는 깃발을 여기서 안 지웠다가, 코드 화면을 한 번
+    // 열어 본 사람은 돌아온 뒤로 **타이틀이 영영 안 눌렸습니다.** 그 깃발은
+    // 「밑에 깔린 눌러서 계속이 같이 먹는 것」을 막으려던 것인데, 이제
+    // 눌러서 계속이 판때기 하나가 되어 겹쳐 먹지 않으므로 없앴습니다.)
     this.ready = false;
 
     const cx = CFG.width / 2;
@@ -146,7 +145,20 @@ class TitleScene extends Phaser.Scene {
     });
 
     // ── 누르면 ──────────────────────────────────────────
-    this.input.on('pointerdown', () => this.tap());
+    //
+    // **장면 전체에 pointerdown 을 걸면 안 됩니다.** 그건 단추 위를 눌러도
+    // 같이 먹습니다 — 「소리 켜짐/꺼짐」을 누르면 소리가 바뀌면서 **동시에
+    // 다음 화면으로 넘어가** 버려서, 켜고 끄는 것을 고를 수가 없었습니다.
+    // (실기에서 처음 드러났습니다.)
+    //
+    // 그래서 「눌러서 계속」도 **화면만 한 판때기 하나**로 만듭니다. 이러면
+    // Phaser 의 topOnly 가 맨 위 하나에게만 줍니다 — 단추 위에서는 단추만,
+    // 빈 자리에서는 이 판때기만 먹습니다. 코드 입력이 쓰던 goingCode
+    // 깃발도 이제 필요 없습니다.
+    this.input.topOnly = true;
+    this.add.rectangle(cx, CFG.height / 2, CFG.width, CFG.height, 0x000000, 0)
+      .setDepth(1).setInteractive()
+      .on('pointerdown', () => this.tap());
     ['keydown-SPACE', 'keydown-ENTER'].forEach((k) =>
       this.input.keyboard.on(k, () => this.tap()));
 
@@ -223,12 +235,10 @@ class TitleScene extends Phaser.Scene {
   // 이 갈림이 여기 있는 것이 맞습니다 — 프롤로그가 스스로 "나는 안 나온다"를
   // 판단해서 곧장 넘기면, 그 한 프레임 동안 빈 프롤로그 화면이 깜빡입니다.
   openCode() {
-    this.goingCode = true;      // 밑에 깔린 「눌러서 계속」이 같이 먹지 않게
     this.scene.start('code');
   }
 
   go() {
-    if (this.goingCode) return;
     // 엔딩을 본 사람은 아예 여기 안 섭니다 (create 가 곧장 넘깁니다).
     // 그래도 이 줄을 남겨 둡니다 — 어떤 길로 들어와도 닫혀 있어야 합니다.
     if (Save.endingStage >= 2) return this.scene.start('credits', { straight: true });

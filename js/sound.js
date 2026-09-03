@@ -27,7 +27,20 @@
 //   gain    크기 (0~1)
 //   noise   잡음을 섞는 몫 (0~1). 베기·부딪힘처럼 「음정이 없는 것」에 씁니다
 //   lp      잡음에 씌우는 저역 필터 (Hz)
-//   delay   앞의 겹이 끝나고 이만큼 뒤에 (ms)
+//   delay   **소리가 시작한 때부터** 이만큼 뒤에 (ms). 없으면 0 — 같이 울립니다
+//
+// ── delay 의 뜻을 바꾼 까닭 ─────────────────────────────
+// 처음에는 「앞의 겹이 끝나고 이만큼 뒤에」였습니다. 그러면 delay 를 안
+// 적어도 겹이 **줄줄이 이어서** 울립니다. 실기에서 「소리가 늦고
+// 부자연스럽다」는 말을 듣고 파형을 렌더해서 재 봤더니:
+//
+//   land  |.=.      .    |   0~30ms 에 한 번, **90ms 에 또 한 번**
+//   hit   |.=.     .     |   같음
+//
+// 한 번의 충격이어야 할 소리(음 + 잡음)가 **메아리처럼 두 번** 났습니다.
+// 부딪히는 소리의 잡음은 음과 **같은 순간**에 나야 합니다. 그래서 기준을
+// 「소리의 시작」으로 바꾸고, 이어서 울려야 하는 것(coin·good 의 음계)만
+// 어긋남을 적어 둡니다.
 const SFX = {
   // 발판을 딛고 한 층. 가장 자주 나므로 **가장 작고 가장 짧습니다.**
   // 여기가 크면 백 층만 올라도 사람이 소리를 끕니다.
@@ -49,7 +62,7 @@ const SFX = {
 
   // 코인. **높고 짧은 두 음**이 「얻었다」의 만국 공통입니다.
   coin:   [{ type: 'square', f0: 988, f1: 988, ms: 45, gain: 0.10 },
-           { type: 'square', f0: 1319, f1: 1319, ms: 90, gain: 0.10, delay: 10 }],
+           { type: 'square', f0: 1319, f1: 1319, ms: 90, gain: 0.10, delay: 55 }],
   // 물건을 집음. 코인보다 낮고 길게 — 코인과 헷갈리면 안 됩니다.
   item:   [{ type: 'triangle', f0: 523, f1: 784, ms: 130, gain: 0.14 }],
 
@@ -62,8 +75,8 @@ const SFX = {
 
   // 좋은 일 — 메달, 해금, 유물. 올라가는 세 음.
   good:   [{ type: 'triangle', f0: 523, f1: 523, ms: 80, gain: 0.11 },
-           { type: 'triangle', f0: 659, f1: 659, ms: 80, gain: 0.11, delay: 10 },
-           { type: 'triangle', f0: 880, f1: 880, ms: 200, gain: 0.12, delay: 10 }],
+           { type: 'triangle', f0: 659, f1: 659, ms: 80, gain: 0.11, delay: 90 },
+           { type: 'triangle', f0: 880, f1: 880, ms: 200, gain: 0.12, delay: 180 }],
   // 보스. 낮고 무겁게 한 번.
   boss:   [{ type: 'sawtooth', f0: 110, f1: 55, ms: 600, gain: 0.20 },
            { noise: 1, lp: 300, ms: 500, gain: 0.12 }],
@@ -86,7 +99,10 @@ const Sfx = {
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) { this.broken = true; return; }
-      if (!this.ctx) this.ctx = new AC();
+      // latencyHint: 'interactive' 는 기본값이지만 **적어 둡니다.** 폰
+      // WebView 는 판마다 기본이 다를 수 있고, 여기가 흐리면 손가락과
+      // 소리 사이가 벌어집니다.
+      if (!this.ctx) this.ctx = new AC({ latencyHint: 'interactive' });
       if (this.ctx.state === 'suspended') this.ctx.resume();
       this.ready = true;
     } catch (e) {
@@ -105,12 +121,11 @@ const Sfx = {
     const 겹 = SFX[name];
     if (!겹) return;
     try {
-      let 때 = this.ctx.currentTime;
-      겹.forEach((층) => {
-        때 += (층.delay || 0) / 1000;
-        this.한겹(층, 때, 배);
-        때 += 층.ms / 1000;
-      });
+      // **지금 이 순간을 기준으로** 겹마다 제 어긋남만큼 밀어 둡니다.
+      // 앞 겹의 길이는 더하지 않습니다 — 그러면 안 적은 겹까지 줄줄이
+      // 뒤로 밀려서 한 번의 충격이 메아리가 됩니다.
+      const 시작 = this.ctx.currentTime;
+      겹.forEach((층) => this.한겹(층, 시작 + (층.delay || 0) / 1000, 배));
     } catch (e) { /* 소리 때문에 판이 멈추면 안 됩니다 */ }
   },
 
