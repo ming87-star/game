@@ -31,6 +31,30 @@ android {
 }
 
 dependencies {
+    // ── 코틀린 표준 라이브러리가 두 번 들어오는 것 막기 ────────
+    //
+    // 첫 빌드가 여기서 멈췄습니다:
+    //
+    //     Duplicate class kotlin.collections.jdk8.CollectionsJDK8Kt
+    //     found in modules kotlin-stdlib-1.8.22.jar -> kotlin-stdlib-jdk8-...
+    //
+    // 코틀린 1.8 부터 kotlin-stdlib-jdk7 · jdk8 의 알맹이가 본체
+    // (kotlin-stdlib) 안으로 합쳐졌습니다. 그런데 딸려 오는 라이브러리
+    // 중에 아직 옛 판 jdk7/jdk8 을 달고 오는 것이 있어서, 같은 클래스가
+    // 두 군데서 들어옵니다.
+    //
+    // 옛 판을 **본체와 같은 판번호로 끌어올리면** 그 둘은 빈 껍데기가
+    // 되어 겹치지 않습니다. 지우는 게 아니라 올리는 것이라, 그것을 쓰는
+    // 라이브러리도 그대로 돕니다. (코틀린 쪽이 권하는 방법입니다.)
+    constraints {
+        implementation('org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22') {
+            because '코틀린 1.8 부터 본체에 합쳐졌습니다 — 옛 판이 섞이면 클래스가 겹칩니다'
+        }
+        implementation('org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22') {
+            because '위와 같습니다'
+        }
+    }
+
     implementation 'androidx.appcompat:appcompat:1.7.0'
     // 순위표와 업적. 콘솔 등록이 끝나기 전에는 로그인만 실패하고 게임은
     // 그대로 돕니다 (GamesBridge 가 조용히 거짓을 돌려줍니다).
