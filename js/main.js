@@ -144,3 +144,60 @@ window.__androidBack = function () {
   // 그 신호가 끝내 안 오더라도 화면이 영영 덮여 있으면 안 됩니다.
   setTimeout(걷기, 12000);
 })();
+
+// ── 캔버스 바깥 여백을 캔버스 가장자리에 맞춰 칠합니다 ─────
+//
+// 세로는 게임이 알아서 채웁니다 (js/config.js 의 세로맞추기). 남는 것은
+// **가로**입니다 — 태블릿처럼 넓은 화면에서 좌우에 여백이 생깁니다
+// (갤탭 16:10 은 한쪽 40px, 아이패드 4:3 은 96px).
+//
+// 그 자리는 캔버스 바깥이라 게임이 못 그립니다. 그렇다고 CSS 의 % 로
+// 그라데이션을 주면 캔버스 폭이 기기마다 달라 이음매가 안 맞습니다 —
+// 화면 기준 타원으로 해 봤더니 96px 여백에서 밝기가 10 에서 14 로만
+// 변해서 눈에는 그냥 검정 한 색이었습니다.
+//
+// 그래서 **캔버스의 실제 자리를 재서 px 로** 칠합니다. 캔버스가 닿는
+// 자리는 탑 가장자리 색(--edge, 재서 맞춘 #0a0e1b)이라 이음매가 안 보이고,
+// 화면 끝으로 갈수록 --deep 에 잠깁니다.
+(function 여백() {
+  const 값 = (이름) => getComputedStyle(document.documentElement)
+    .getPropertyValue(이름).trim() || '#04060c';
+
+  function 여백맞추기() {
+    const c = document.querySelector('#game canvas');
+    if (!c) return;
+    const r = c.getBoundingClientRect();
+    const W = window.innerWidth, H = window.innerHeight;
+    const 가 = Math.round(r.left), 나 = Math.round(r.right);
+    const 다 = Math.round(r.top), 라 = Math.round(r.bottom);
+    const 끝 = 값('--deep'), 테 = 값('--edge');
+    const 겹 = [];
+    // 위아래 여백이 있으면 그쪽을 먼저 얹습니다 (있으면 보통 아주 얇습니다).
+    if (다 > 1 || H - 라 > 1) {
+      겹.push(`linear-gradient(180deg, ${끝} 0px, ${테} ${다}px,`
+        + ` rgba(0,0,0,0) ${다}px, rgba(0,0,0,0) ${라}px, ${테} ${라}px, ${끝} ${H}px)`);
+    }
+    겹.push(`linear-gradient(90deg, ${끝} 0px, ${테} ${가}px, ${테} ${나}px, ${끝} ${W}px)`);
+    document.body.style.background = 겹.join(', ');
+  }
+
+  // ── 가로로 눕혔을 때 ─────────────────────────────────────
+  //
+  // 안드로이드 앱은 세로로 못박아 두었으니 이건 **웹에서만** 나옵니다.
+  // 그리고 **손가락으로 하는 기기에서만** 띄웁니다 — 데스크톱 브라우저는
+  // 창이 거의 늘 가로인데 거기서 「돌려 주세요」를 띄우면 돌릴 수가 없어
+  // 게임을 아예 못 하게 됩니다.
+  const 손가락 = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  function 눕힘살피기() {
+    const 덮개 = document.getElementById('turn');
+    if (!덮개) return;
+    const 누웠나 = 손가락 && window.innerWidth > window.innerHeight * 1.05;
+    덮개.classList.toggle('on', !!누웠나);
+  }
+
+  const 다시 = () => { 여백맞추기(); 눕힘살피기(); };
+  window.addEventListener('resize', () => setTimeout(다시, 60));
+  window.addEventListener('orientationchange', () => setTimeout(다시, 260));
+  // 캔버스는 게임이 선 뒤에야 생깁니다. 몇 번 두드려 봅니다.
+  [0, 200, 700, 1600, 3500].forEach((ms) => setTimeout(다시, ms));
+})();

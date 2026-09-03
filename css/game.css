@@ -5,14 +5,41 @@
   --ground: #0d1120;  /* 캔버스 바깥 여백 */
   --wall:   #141a2e;  /* 탑 안쪽 */
   --ink:    #8794b5;  /* 캔버스 밖 안내 문구 */
+  --deep:   #010206;  /* 여백의 가장 바깥 — 거의 검정. 재 보니 #04060c 로는
+                         밝기가 6에서 11 로만 변해 그라데이션이 안 보였습니다 */
+  --edge:   #0a0e1b;  /* 캔버스 가장자리의 탑 색 (재서 맞춘 값) */
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* ── 캔버스 바깥 여백 ───────────────────────────────────────
+   세로는 게임이 알아서 채웁니다 (js/config.js 의 세로맞추기). 남는 것은
+   **가로**입니다 — 태블릿처럼 넓은 화면에서 좌우에 여백이 생깁니다.
+
+     갤탭 16:10 (800×1280)   한쪽 40px
+     아이패드 4:3 (768×1024) 한쪽 96px
+
+   이 자리는 **캔버스 바깥**이라 게임이 그릴 수 없습니다. 가로를 늘리려면
+   세 줄의 자리(laneX 95·270·445)와 HUD·패널 폭이 전부 「가운데가 270」을
+   전제로 잡혀 있어서 카메라를 옆으로 밀고 바깥 벽을 따로 그리는 공사가
+   됩니다. 얻는 것이 안드로이드 태블릿에서 40px 인데 값이 안 맞습니다.
+
+   그래서 **여기서 어둡게 합니다.** 캔버스 가장자리에서 시작해 바깥으로
+   갈수록 어둠에 잠깁니다. 그러면 여백이 「검은 띠」가 아니라 **탑을 둘러싼
+   어둠**으로 읽힙니다.
+
+   **색을 JS 가 칠합니다** (js/main.js 의 여백맞추기). 캔버스 폭이 기기마다
+   달라서 CSS 의 % 로는 이음매를 못 맞춥니다. 처음에 화면 기준 타원
+   그라데이션으로 해 봤더니 96px 짜리 여백에서 밝기가 10 에서 14 로만
+   변해서 눈에는 그냥 검정 한 색이었습니다 — 재 보고 알았습니다.
+
+   그리고 이음매 색은 --wall 이 아닙니다. 탑 그림의 가장자리를 재니
+   #0a0e1b 이라, --wall(#141a2e)로 이으면 그 자리에 **오히려 밝은 테**가
+   생깁니다. --edge 가 그 잰 값입니다. */
 html, body {
   width: 100%;
   height: 100%;
-  background: var(--ground);
+  background: var(--deep);
   color: var(--ink);
   overflow: hidden;
   overscroll-behavior: none;
@@ -87,4 +114,43 @@ html, body {
 /* 움직임을 줄여 달라고 해 둔 사람에게는 안 흔듭니다. */
 @media (prefers-reduced-motion: reduce) {
   #boot-bar i { animation: none; transform: none; width: 100%; opacity: .6; }
+}
+
+/* ── 가로로 눕혔을 때 ───────────────────────────────────────
+   이 게임은 세로 화면입니다. 안드로이드 앱은 세로로 못박아 두었으므로
+   (AndroidManifest 의 screenOrientation="portrait") 이 안내는 **웹에서만**
+   나옵니다.
+
+   **손가락으로 하는 기기에서만** 띄웁니다. 데스크톱 브라우저는 창이 거의
+   늘 가로인데, 거기서 「돌려 주세요」를 띄우면 돌릴 수가 없어서 게임을
+   아예 못 하게 됩니다. 그쪽은 좌우 여백을 넉넉히 두고 그냥 돕니다. */
+#turn {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  display: none;
+  background: var(--wall);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+  padding: 0 28px;
+}
+#turn.on { display: flex; }
+#turn-mark {
+  width: 46px; height: 74px;
+  border: 3px solid #5f6d99;
+  border-radius: 8px;
+  transform: rotate(90deg);
+  animation: turn-back 2.4s ease-in-out infinite;
+}
+#turn-say  { font-size: 19px; color: #dfe6f5; font-weight: 700; }
+#turn-note { font-size: 14px; color: #6b7599; }
+@keyframes turn-back {
+  0%, 35%  { transform: rotate(90deg); }
+  65%, 100% { transform: rotate(0deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #turn-mark { animation: none; transform: rotate(0deg); }
 }

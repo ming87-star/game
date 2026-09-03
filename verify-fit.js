@@ -160,6 +160,72 @@ const 기기 = [
     '**보이는 층이 어느 비율에서나 같음** (긴 폰이 한 층을 더 보지 않게)',
     보인층.map((x) => x.이름 + ' ' + x.셈 + '층').join(' · '));
 
+  // ── 6. 좌우 여백이 **바깥으로 갈수록 어두워지는가** ──────
+  //
+  // 넓은 화면(태블릿)에서는 세로가 아니라 **가로**가 남습니다. 그 자리는
+  // 캔버스 바깥이라 게임이 못 그리므로 페이지 쪽에서 칠합니다
+  // (js/main.js 의 여백맞추기).
+  //
+  // 처음에는 CSS 의 화면 기준 타원 그라데이션으로 했는데, 재 보니 96px
+  // 여백에서 밝기가 10 에서 14 로만 변해 **눈에는 그냥 검정 한 색**이었습니다.
+  // 그래서 캔버스의 실제 자리를 재서 px 로 칠합니다. 이건 눈으로 보면
+  // 「어둡네」로 끝나고 넘어가게 되는 자리라 숫자로 잽니다.
+  {
+    const page = await browser.newPage({ viewport: { width: 768, height: 1024 } });
+    await page.goto('http://localhost:' + port + '/', { waitUntil: 'networkidle' });
+    await page.waitForFunction(() => window.__title && window.__title.ready, null, { timeout: 30000 });
+    await page.waitForTimeout(2000);
+    const 왼끝 = await page.evaluate(() =>
+      Math.round(document.querySelector('#game canvas').getBoundingClientRect().left));
+    const png = (await page.screenshot()).toString('base64');
+    const 밝기 = await page.evaluate(async ([b64, 왼]) => {
+      const img = new Image();
+      await new Promise((ok) => { img.onload = ok; img.src = 'data:image/png;base64,' + b64; });
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      const g = c.getContext('2d');
+      g.drawImage(img, 0, 0);
+      const y = Math.round(img.height / 2);
+      const d = g.getImageData(0, y, img.width, 1).data;
+      const 재기 = (x) => Math.round(d[x * 4] * 0.299 + d[x * 4 + 1] * 0.587 + d[x * 4 + 2] * 0.114);
+      return { 화면끝: 재기(1), 캔버스밖: 재기(Math.max(0, 왼 - 3)),
+        캔버스안: 재기(왼 + 3), 여백폭: 왼 };
+    }, [png, 왼끝]);
+    check(밝기.여백폭 > 40, '넓은 화면(4:3)에서 좌우 여백이 생김 (시험 준비)', 밝기.여백폭 + 'px');
+    check(밝기.캔버스밖 - 밝기.화면끝 >= 4,
+      '여백이 **바깥으로 갈수록 어두워짐** (검정 한 색이 아님)',
+      `화면 끝 ${밝기.화면끝} → 캔버스 옆 ${밝기.캔버스밖}`);
+    // 이음매에 밝은 테가 서면 「액자」가 아니라 「덧댄 판」으로 보입니다.
+    // 탑 그림의 가장자리를 재서 --edge 를 맞춘 까닭이 이것입니다.
+    check(Math.abs(밝기.캔버스밖 - 밝기.캔버스안) <= 6,
+      '여백과 탑이 만나는 자리에 **밝은 테가 안 생김**',
+      `밖 ${밝기.캔버스밖} · 안 ${밝기.캔버스안}`);
+    await page.close();
+  }
+
+  // ── 7. 가로로 눕혔을 때 ─────────────────────────────────
+  //
+  // 안드로이드 앱은 세로로 못박아 두었으니 이건 웹에서만 납니다. 그리고
+  // **손가락으로 하는 기기에서만** 띄웁니다 — 데스크톱은 창이 거의 늘
+  // 가로인데 거기서 「돌려 주세요」를 띄우면 돌릴 수가 없어 게임을 아예
+  // 못 하게 됩니다. 그 갈림을 여기서 봅니다.
+  for (const [이름, 손가락, 바람] of [['손가락 기기', true, true], ['마우스(데스크톱)', false, false]]) {
+    const ctx = await browser.newContext({ viewport: { width: 1024, height: 768 },
+      hasTouch: 손가락, isMobile: 손가락 });
+    const page = await ctx.newPage();
+    await page.goto('http://localhost:' + port + '/', { waitUntil: 'networkidle' });
+    await page.waitForFunction(() => window.__title && window.__title.ready, null, { timeout: 30000 });
+    await page.waitForTimeout(2000);
+    const 떴나 = await page.evaluate(() => {
+      const t = document.getElementById('turn');
+      return !!t && getComputedStyle(t).display !== 'none';
+    });
+    check(떴나 === 바람,
+      `가로로 눕힘 · ${이름} — 「세로로 돌려 주세요」가 ${바람 ? '뜸' : '안 뜸'}`,
+      String(떴나));
+    await ctx.close();
+  }
+
   console.log(bad ? `\n${bad}건 어긋남` : '\n비율마다 화면이 제대로 서고, 붙박인 것들이 제자리에 있습니다');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');
   await browser.close();
