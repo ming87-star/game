@@ -148,11 +148,13 @@ class EndingWatchScene extends Phaser.Scene {
     }
 
     // 붉은 겉옷의 사람. 30층 한가운데에서 시작합니다.
-    this.him = this.add.image(CFG.laneX.mid, this.floorY[30] - 33, 'cloak-red').setDepth(10);
+    this.him = this.add.image(CFG.laneX.mid, 0, 'cloak-red')
+      .setDepth(10).setScale(this.figScale());
+    this.him.y = this.선y(30);
 
     // 30~33층이 한 화면에 다 들어옵니다. 오르기 시작하는 4번부터만
     // 카메라가 따라붙습니다 (update).
-    this.camAnchor = this.floorY[33] - 33;
+    this.camAnchor = this.선y(33);
     this.following = false;
 
     this.step = 0;          // 시험이 어디까지 왔는지 읽는 값
@@ -197,6 +199,39 @@ class EndingWatchScene extends Phaser.Scene {
     }
   }
 
+  // ── 붉은 사람의 크기 ───────────────────────────────────
+  //
+  // **px 로 맞추지 않고 눈으로 맞춥니다.**
+  //
+  // 서 있는 그림(cloak-red, 36×46)과 시트 그림은 같은 사람인데 화풍이
+  // 다릅니다 — 시트 쪽이 더 우람하게 그려져 있습니다. 그래서 「그려진
+  // 길이(tall)를 서 있는 키에 딱 맞춘다」로 두면 숫자는 같은데 눈에는
+  // 시트 쪽이 더 두껍고 무겁게 보입니다. 같은 사람으로 안 읽힙니다.
+  //
+  // 그래서 두 값으로 나눕니다.
+  //   CFG.ending.figure     엔딩의 붉은 사람 전체를 이만큼 키웁니다
+  //   CFG.ending.sheetLook  시트에만 더 곱하는 값. **눈으로 정합니다.**
+  //
+  // 시트 배율의 출발점은 여전히 tall 입니다 — 그건 「대충 이 언저리」를
+  // 잡아 주는 값이라 쓸모가 있습니다. 다만 그것이 끝이 아닙니다.
+  figScale() {
+    const c = CFG.ending;
+    return c && c.figure ? c.figure : 1;
+  }
+
+  // 서 있는 그림의 화면상 키.
+  선키() {
+    const h = hasArt('cloak-red') ? artSize('cloak-red').h : 46;
+    return h * this.figScale();
+  }
+
+  // 그 층에 **발을 딛고 선** 사람의 y (그림 한가운데 좌표).
+  // 발판 윗면은 floorY 보다 10 위입니다 — 예전에 여기저기 흩어져 있던
+  // 「floorY − 33」이 h=46, 배율 1 일 때의 이 값입니다.
+  선y(n) {
+    return this.floorY[n] - 10 - this.선키() / 2;
+  }
+
   // 한 층 **뛰어오릅니다.**
   //
   // 예전에는 900ms 짜리 직선 트윈이었습니다. 그러면 사람이 오르는 것이
@@ -207,7 +242,7 @@ class EndingWatchScene extends Phaser.Scene {
   climbTo(n, then) {
     const c = CFG.ending;
     const 부터 = this.him.y;
-    const 까지 = this.floorY[n] - 33;
+    const 까지 = this.선y(n);
     const 호 = { t: 0 };
     this.tweens.add({
       targets: 호, t: 1, duration: c.hopMs, ease: 'Linear',
@@ -283,8 +318,9 @@ class EndingWatchScene extends Phaser.Scene {
   //     tall(141.1)입니다. 이 값으로 나눠야 46px 로 섭니다.
   cutScale() {
     const f = typeof SHEET_ART !== 'undefined' && SHEET_ART['sheet-cloak-fall'];
-    const 선키 = hasArt('cloak-red') ? artSize('cloak-red').h : 46;
-    return f && f.tall ? 선키 / f.tall : 1;
+    const c = CFG.ending;
+    const 눈 = c && c.sheetLook ? c.sheetLook : 1;
+    return (f && f.tall ? this.선키() / f.tall : this.figScale()) * 눈;
   }
 
   // 시트 한 벌을 처음부터 끝까지 밟습니다. 시트가 없으면 false 를 주고,
@@ -343,9 +379,9 @@ class EndingWatchScene extends Phaser.Scene {
           duration: Math.round(c.crumbleMs * 0.65), ease: 'Quad.easeIn',
           onComplete: () => {
             // 3단 — 그 자리에 천 더미가 남습니다
-            const h = hasArt('cloak-fallen') ? artSize('cloak-fallen').h : 48;
+            const h = (hasArt('cloak-fallen') ? artSize('cloak-fallen').h : 48) * this.figScale();
             this.him.setTexture(hasArt('cloak-fallen') ? 'cloak-fallen' : 'cloak-red');
-            this.him.setAngle(0).setAlpha(1);
+            this.him.setAngle(0).setAlpha(1).setScale(this.figScale());
             this.him.y = 바닥 - h / 2;
             this.fallenY = this.him.y;
             this.time.delayedCall(c.restMs, () => this.riseAgain());
@@ -369,9 +405,9 @@ class EndingWatchScene extends Phaser.Scene {
     if (this.playCut('sheet-cloak-rise', c.riseCutMs, () => {
       this.cutView.destroy();
       this.cutView = null;
-      this.him.setTexture('cloak-red').setScale(1).setAngle(0)
+      this.him.setTexture('cloak-red').setScale(this.figScale()).setAngle(0)
         .setAlpha(1).setVisible(true);
-      this.him.y = this.floorY[33] - 33;
+      this.him.y = this.선y(33);
       this.time.delayedCall(700, () => this.pass());
     })) return;
 
@@ -382,19 +418,19 @@ class EndingWatchScene extends Phaser.Scene {
     // 1.5초를 도는데 화면에서는 아무 일도 안 일어납니다.
     // 일어서는 것은 자리를 옮기는 것이 아니라 **키가 자라는 것**입니다.
     // 그래서 발치(발이 닿는 줄)를 고정하고 scaleY 를 0.3 에서 1 로 폅니다.
-    const h = hasArt('cloak-red') ? artSize('cloak-red').h : 46;
-    const 발치 = this.floorY[33] - 33 + h / 2;
+    const h = this.선키();
+    const 발치 = this.선y(33) + h / 2;
 
     // 1단 — 천 더미가 한 번 부풀었다 가라앉습니다. 아직 사람이 아닙니다
     this.tweens.add({
-      targets: this.him, scaleY: 1.18, scaleX: 0.94, duration: 260,
+      targets: this.him, scaleY: this.figScale() * 1.18, scaleX: this.figScale() * 0.94, duration: 260,
       ease: 'Sine.easeOut', yoyo: true,
       onComplete: () => {
         // 2단 — 다시 사람이 됩니다. 웅크린 채로, 낮게
         this.him.setTexture('cloak-red');
         this.him.setAngle(-20);
         const 키 = { s: 0.3 };
-        this.him.setScale(1, 키.s);
+        this.him.setScale(this.figScale(), this.figScale() * 키.s);
         this.him.y = 발치 - (h * 키.s) / 2;
         // 3단 — 천천히 폅니다. 각이 먼저 서고 키가 끝까지 자랍니다
         this.tweens.add({
@@ -404,12 +440,12 @@ class EndingWatchScene extends Phaser.Scene {
         this.tweens.add({
           targets: 키, s: 1, duration: c.riseSlowMs, ease: 'Cubic.easeOut',
           onUpdate: () => {
-            this.him.setScale(1, 키.s);
+            this.him.setScale(this.figScale(), this.figScale() * 키.s);
             this.him.y = 발치 - (h * 키.s) / 2;
           },
           onComplete: () => {
-            this.him.setScale(1);
-            this.him.y = this.floorY[33] - 33;
+            this.him.setScale(this.figScale());
+            this.him.y = this.선y(33);
             this.time.delayedCall(700, () => this.pass());
           },
         });
@@ -436,7 +472,7 @@ class EndingWatchScene extends Phaser.Scene {
     // 따라붙고, 벽 세 겹이 저마다 다른 속도로 흘러갑니다.
     this.following = true;
     this.tweens.add({
-      targets: this.him, y: this.floorY[39] - 33, alpha: 0.92,
+      targets: this.him, y: this.선y(39), alpha: 0.92,
       duration: CFG.ending.riseMs, ease: 'Sine.easeIn',
     });
     // **오르는 동안** 밝아집니다.

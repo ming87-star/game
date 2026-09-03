@@ -140,6 +140,36 @@ const server = http.createServer((req, res) => {
   // 33층 옆 발판이 비어 있어야 「피할 수 있었다」가 눈에 보입니다.
   check(화면.옆이비었나, '33층에서 그가 선 반대쪽이 비어 있음');
 
+  // ── 크기를 키워도 **발이 발판에 붙어 있는가** ───────────
+  //
+  // 붉은 사람의 크기는 CFG.ending.figure 로 정합니다. 그런데 그림의 축이
+  // 한가운데(0.5)라, 키우면 **발이 발판 아래로 파고듭니다.** 예전에는
+  // 세우는 자리가 「floorY − 33」이라는 숫자로 여기저기 흩어져 있었는데,
+  // 그 33 은 키 46 · 배율 1 일 때만 맞는 값입니다.
+  //
+  // 이건 눈으로만 보면 놓치기 쉽습니다 — 몇 px 파고든 것은 발판 그림에
+  // 묻혀서 안 보이고, 그러다 배율을 더 키우면 그제야 드러납니다.
+  // 그래서 **배율을 두 개 넣어 보고** 발끝이 같은 줄에 있는지 잽니다.
+  const 발끝 = await page.evaluate(() => {
+    const s = window.__endingwatch;
+    const 원래 = CFG.ending.figure;
+    const 잰다 = (배) => {
+      CFG.ending.figure = 배;
+      s.him.setScale(s.figScale());
+      s.him.y = s.선y(30);
+      return Math.round((s.him.getBounds().bottom - s.floorY[30]) * 10) / 10;
+    };
+    const 답 = { 하나: 잰다(1), 큰것: 잰다(1.6) };
+    CFG.ending.figure = 원래;
+    s.him.setScale(s.figScale());
+    s.him.y = s.선y(30);
+    답.돌아옴 = Math.round((s.him.getBounds().bottom - s.floorY[30]) * 10) / 10;
+    return 답;
+  });
+  check(발끝.하나 === 발끝.큰것 && 발끝.하나 === 발끝.돌아옴,
+    '크기를 바꿔도 **발끝이 같은 줄**에 있음 (키우면 발판을 파고들지 않게)',
+    '×1 ' + 발끝.하나 + ' · ×1.6 ' + 발끝.큰것 + ' · 지금 ' + 발끝.돌아옴);
+
   // ── 죽이는 놈은 게임에 **없는** 놈인가 ──────────────────
   //
   // 층이 올라서 만나는 놈이면 「더 오르면 이긴다」가 되고, 그러면 엔딩이
