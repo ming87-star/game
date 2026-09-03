@@ -1307,3 +1307,54 @@ function makeVeil(scene, color) {
   return scene.add.rectangle(CFG.width / 2, CFG.height / 2, CFG.width, CFG.height, color)
     .setAlpha(0);
 }
+
+// ── 남는 세로를 덮는 어둠 띠 ───────────────────────────────
+//
+// 화면이 세로로 길면 CFG.height 가 960 보다 커지고(js/config.js 의 세로맞추기),
+// 그만큼 **탑이 더 보입니다.** 실기에서 재 보니 9:19.5 폰은 5층이 아니라
+// 6층을 봅니다. 그냥 넉넉해 보이는 것이 아니라 **한 층을 더 아는 것**이고,
+// 이 게임은 그 「앞을 아는 것」을 천리안 유물로 팔고 있습니다. 폰이 길다고
+// 공짜로 딸려 오면 유물 하나의 값이 깎이고, 순위표는 기기가 다른 사람끼리
+// 겨루는 자리가 됩니다.
+//
+// 그래서 남는 만큼을 위아래에서 덮습니다. **검은 띠는 아닙니다** — 탑 벽이
+// 어둠으로 잠기는 것처럼 보이게 바깥은 짙고 안쪽으로 옅어집니다. 새 그림은
+// 필요 없습니다. 이 게임의 화면은 원래 어두우니 어둠이 한 겹 더 얹히는 것뿐입니다.
+//
+// **HUD 와 조작 단추는 이 위에 그대로 뜹니다** (깊이 100 이상). 띠는 탑
+// (깊이 14 아래)만 덮습니다.
+const 띠깊이 = 90;
+const 띠색 = 0x070b16;
+
+// 위/아래 한 장씩. 세로가 안 늘어난 화면에서는 아무것도 안 만듭니다.
+function makeDarkBands(scene) {
+  const 남는것 = CFG.height - CFG.viewHeight;
+  if (남는것 <= 1) return [];
+  const 띠 = Math.round(남는것 / 2);
+  // 그라데이션은 **띠 안에서만** 집니다. 띠 밖으로 흘리면 판이 흐려지고,
+  // 그러면 남는 만큼만 덮는다는 셈이 어긋납니다.
+  const 키 = '어둠띠';
+  if (!scene.textures.exists(키)) {
+    const 높이 = 256;
+    const c = scene.textures.createCanvas(키, 4, 높이);
+    const x = c.getContext();
+    const gr = x.createLinearGradient(0, 0, 0, 높이);
+    const r = (띠색 >> 16) & 255, g2 = (띠색 >> 8) & 255, b = 띠색 & 255;
+    // 바깥 70% 는 꽉 채우고 안쪽 30% 에서 사라집니다. 그래야 덮을 것은
+    // 확실히 덮으면서 이음매가 선으로 안 보입니다.
+    gr.addColorStop(0, `rgba(${r},${g2},${b},1)`);
+    gr.addColorStop(0.7, `rgba(${r},${g2},${b},1)`);
+    gr.addColorStop(1, `rgba(${r},${g2},${b},0)`);
+    x.fillStyle = gr;
+    x.fillRect(0, 0, 4, 높이);
+    c.refresh();
+  }
+  const 위 = scene.add.image(CFG.width / 2, 0, 키).setOrigin(0.5, 0)
+    .setDisplaySize(CFG.width, 띠).setScrollFactor(0).setDepth(띠깊이);
+  const 아래 = scene.add.image(CFG.width / 2, CFG.height, 키).setOrigin(0.5, 0)
+    .setDisplaySize(CFG.width, 띠).setScrollFactor(0).setDepth(띠깊이)
+    .setFlipY(true);
+  아래.y = CFG.height;
+  아래.setOrigin(0.5, 1);
+  return [위, 아래];
+}

@@ -52,6 +52,7 @@ const 기기 = [
     args: ['--no-sandbox', '--use-gl=swiftshader'],
   });
   const errors = [];
+  const 보인층 = [];
 
   for (const 기 of 기기) {
     const page = await browser.newPage({ viewport: { width: 기.w, height: 기.h } });
@@ -63,11 +64,16 @@ const 기기 = [
     await page.waitForFunction(() => window.__title && window.__title.ready, null, { timeout: 30000 });
 
     // ── 1. 세로가 제대로 정해졌는가 ───────────────────────
-    const 값 = await page.evaluate(() => ({ h: CFG.height, g: CFG.groundY, w: CFG.width }));
+    const 값 = await page.evaluate(() =>
+      ({ h: CFG.height, g: CFG.groundY, w: CFG.width, v: CFG.viewHeight }));
     check(값.h === 기.바람, `${기.이름} — 세로가 ${기.바람}`, 값.h);
     check(값.w === 540, `${기.이름} — 가로는 그대로 540 (줄·HUD·패널이 다 이 값에 맞춰져 있습니다)`, 값.w);
-    // 딛는 줄은 화면 아래에서 80 위. 이걸 안 옮기면 첫 층이 한가운데 뜹니다.
-    check(값.g === 값.h - 80, `${기.이름} — 딛는 줄이 세로를 따라감`, 값.g);
+    // 딛는 줄은 **화면 아래가 아니라 「탑이 보이는 창」의 아래**에서 잽니다.
+    // 화면 아래에서 재면 아래쪽 어둠 띠가 첫 층을 삼킵니다.
+    const 창아래 = (값.h + 값.v) / 2;
+    check(값.g === 창아래 - 80,
+      `${기.이름} — 딛는 줄이 **띠 안쪽** 창의 아래를 따라감`,
+      값.g + ' (창 아래 ' + 창아래 + ')');
 
     // ── 2. 캔버스가 창을 꽉 채우는가 ──────────────────────
     //
@@ -124,8 +130,35 @@ const 기기 = [
       && 붙박이.위 > -20 && 붙박이.아래 < 붙박이.h + 20,
       `${기.이름} — 화면 밖으로 흘러나간 것이 없음`,
       `${붙박이.왼},${붙박이.위} ~ ${붙박이.오른},${붙박이.아래}`);
+    // ── 5. **보이는 층이 비율과 무관하게 같은가** ─────────
+    //
+    // 이 검사가 이 파일의 알맹이입니다. 세로를 늘리기만 하면 긴 폰이 층을
+    // 하나 더 봅니다 — 재 보니 9:16 은 5층, 9:19.5 는 6층이었습니다.
+    // 그건 넉넉한 것이 아니라 **천리안 유물이 파는 「앞을 아는 것」**을
+    // 공짜로 얻는 것이고, 순위표는 기기가 다른 사람끼리 겨루는 자리입니다.
+    // 그래서 남는 만큼을 어둠 띠로 덮습니다 — 덮였는지를 여기서 셉니다.
+    const 층셈 = await page.evaluate(() => {
+      const cam = window.__scene.cameras.main;
+      // 띠가 **가리는** 자리를 뺀 창
+      const 남 = CFG.height - CFG.viewHeight;
+      const 띠 = Math.round(남 / 2);
+      // 띠의 바깥 70% 는 꽉 채웁니다 — 그만큼은 안 보이는 것으로 셉니다.
+      const 가림 = 띠 * 0.7;
+      const 위 = cam.scrollY + 가림, 아래 = cam.scrollY + CFG.height - 가림;
+      let 셈 = 0;
+      for (let n = 0; n < 200; n++) {
+        const y = CFG.groundY - n * CFG.floorHeight;
+        if (y >= 위 && y <= 아래) 셈++;
+      }
+      return 셈;
+    });
+    보인층.push({ 이름: 기.이름, 셈: 층셈 });
     await page.close();
   }
+  const 값들 = [...new Set(보인층.map((x) => x.셈))];
+  check(값들.length === 1,
+    '**보이는 층이 어느 비율에서나 같음** (긴 폰이 한 층을 더 보지 않게)',
+    보인층.map((x) => x.이름 + ' ' + x.셈 + '층').join(' · '));
 
   console.log(bad ? `\n${bad}건 어긋남` : '\n비율마다 화면이 제대로 서고, 붙박인 것들이 제자리에 있습니다');
   console.log(errors.length ? '오류:\n' + errors.join('\n') : '오류 없음');

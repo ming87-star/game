@@ -147,6 +147,10 @@ class GameScene extends Phaser.Scene {
 
     this.cameras.main.setScroll(0, this.player.y - CFG.height * 0.68);
 
+    // 화면이 세로로 길 때 남는 만큼을 위아래에서 덮습니다. HUD 보다 **먼저**
+    // 만들지만 깊이가 90 이라 HUD·단추는 이 위에 뜹니다 (js/textures.js).
+    makeDarkBands(this);
+
     this.hud = new Hud(this);
     this.shop = new Shop(this);
     this.bindInput();

@@ -29,6 +29,12 @@ const CFG = {
   // 띠가 남습니다 — 잘려서 안 보이는 것보다 낫습니다.
   width: 540,
   height: 960,
+  // **탑이 보이는 창의 높이.** 화면이 길어져도 이 값은 안 변합니다 —
+  // 남는 만큼은 위아래에서 어둠 띠가 덮습니다(js/textures.js 의
+  // makeDarkBands). 그래야 어느 폰에서나 보이는 층이 같습니다.
+  // 긴 폰이 한 층을 더 보면 그건 넉넉한 것이 아니라 **천리안 유물이 파는
+  // 것을 공짜로 얻는 것**이고, 순위표는 기기가 다른 사람끼리 겨루는 자리입니다.
+  viewHeight: 960,
   minHeight: 960,
   maxHeight: 1200,
 
@@ -2112,7 +2118,9 @@ CFG.enemyTypes = CFG.enemyTypes.concat(
   const 잰것 = CFG.width * 비;
   const 짝수로 = (v) => Math.round(v / 2) * 2;    // 홀수면 반픽셀이 생깁니다
   CFG.height = Math.min(CFG.maxHeight, Math.max(CFG.minHeight, 짝수로(잰것)));
-  // 바닥에 딛는 줄도 같이 내려갑니다. groundY 는 화면 아래에서 80 위입니다
-  // (960 일 때 880). 이걸 안 옮기면 첫 층이 화면 한가운데 뜹니다.
-  CFG.groundY = CFG.height - 80;
+  // 딛는 줄은 **화면 아래가 아니라 「탑이 보이는 창」의 아래**에서 잽니다.
+  // 화면 아래에서 재면 1170 짜리 폰에서 1090 이 되는데, 아래쪽 어둠 띠가
+  // 1065 부터 덮으므로 **첫 층이 띠 속에 잠깁니다.**
+  const 창아래 = (CFG.height + CFG.viewHeight) / 2;
+  CFG.groundY = 창아래 - 80;
 })();

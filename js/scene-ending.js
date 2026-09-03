@@ -157,6 +157,9 @@ class EndingWatchScene extends Phaser.Scene {
     this.camAnchor = this.선y(33);
     this.following = false;
 
+    // 보는 장면도 판과 같은 화면이라 같은 띠를 씁니다.
+    makeDarkBands(this);
+
     this.step = 0;          // 시험이 어디까지 왔는지 읽는 값
     this.left = false;      // 장면 객체는 다시 쓰이므로 깃발을 손으로 지웁니다
     this.comer = null;
